@@ -42,8 +42,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       APP_URL: ${APP_URL}
       SESSION_SECRET: ${SESSION_SECRET}
-      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
-      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI}
+      ITUNES_LAND: ${ITUNES_LAND}
       TMDB_API_KEY: ${TMDB_API_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
@@ -57,8 +56,6 @@ services:
     build:
       context: ./client
       args:
-        VITE_SPOTIFY_CLIENT_ID: ${VITE_SPOTIFY_CLIENT_ID}
-        VITE_SPOTIFY_REDIRECT_URI: ${VITE_SPOTIFY_REDIRECT_URI}
         VITE_APP_URL: ${VITE_APP_URL}
     restart: unless-stopped
     depends_on:

@@ -155,3 +155,114 @@ h1 {
     padding: 0.75rem 1rem;
     margin: 0 0 1.5rem;
 }
+
+/* --- Zoekbalk --- */
+.zoekbalk {
+    display: flex;
+    gap: 0.5rem;
+    margin: 1rem 0 0.75rem;
+}
+
+.invoer {
+    flex: 1;
+    min-height: 56px;
+    padding: 0 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1.125rem;
+}
+
+.invoer:focus {
+    outline: none;
+    border-color: var(--red-hot);
+    box-shadow: 0 0 0 3px var(--red-glow);
+}
+
+.zoekbalk .knop {
+    flex: 0 0 auto;
+    padding: 0 1.25rem;
+}
+
+/* --- Chips (snelknoppen) --- */
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.chip {
+    min-height: 40px;
+    padding: 0 0.9rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-dim);
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.chip:hover {
+    border-color: var(--red);
+    color: var(--text);
+}
+
+/* --- Tracklijst --- */
+.tracklijst {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.track {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+}
+
+.track-hoes {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    flex: 0 0 auto;
+}
+
+.track-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.track-naam {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.afspeelknop {
+    flex: 0 0 auto;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: var(--red-hot);
+    color: var(--text);
+    font-size: 1.25rem;
+    cursor: pointer;
+}
+
+.afspeelknop.bezig {
+    background: var(--red);
+    box-shadow: 0 0 24px var(--red-glow);
+}

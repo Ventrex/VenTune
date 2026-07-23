@@ -1,8 +1,8 @@
 // =====================================================================
 // VenTune — serveringang.
-// In deze eerste stap: draait de migratie bij het opstarten, biedt een
-// health-endpoint, en legt de fundering voor Express + Socket.IO.
-// De echte lobby-, auth- en game-logica komt in de volgende stappen.
+// Draait de migratie bij het opstarten, biedt een health-endpoint en de
+// muziek-routes (iTunes), en legt de fundering voor Express + Socket.IO.
+// De lobby- en game-logica komt in de volgende stappen.
 // =====================================================================
 
 const http = require('http');
@@ -11,8 +11,7 @@ const { Server } = require('socket.io');
 
 const logger = require('./lib/logger');
 const discord = require('./lib/discord');
-const spotify = require('./lib/spotify');
-const authRoutes = require('./routes/auth');
+const muziekRoutes = require('./routes/muziek');
 const { migreer } = require('./db/migrate');
 const { pool } = require('./db/pool');
 
@@ -25,11 +24,8 @@ async function start() {
     const app = express();
     app.use(express.json());
 
-    // Auth- en Spotify-routes (login, callback, profiel, token).
-    app.use(authRoutes);
-
-    // Proactieve token-vernieuwing starten (elke 60s).
-    spotify.startAchtergrondVernieuwing();
+    // Muziek-routes (iTunes zoeken en dekking controleren).
+    app.use(muziekRoutes);
 
     // Health-endpoint: controleert ook of de database antwoordt.
     app.get('/api/health', async (_req, res) => {

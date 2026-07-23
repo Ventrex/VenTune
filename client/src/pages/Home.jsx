@@ -1,41 +1,63 @@
-import React, { useEffect, useState } from 'react';
-import { haalMij, startLogin, logUit } from '../lib/api.js';
+import React, { useRef, useState } from 'react';
+import { zoekMuziek } from '../lib/api.js';
 
-// Homepagina voor stap 2: inloggen met Spotify en je eigen profiel zien.
-// Toont zonder Premium een nette uitleg over de gastmodus.
+// Home + muziek-testpagina.
+//
+// Dit is meteen het bewijs dat er geluid uit je telefoon komt (zonder
+// Spotify, zonder login, zonder Premium) én je coverage-check: typ een
+// titel — vooral Nederlandse — en zie of iTunes bruikbare clips heeft.
 export default function Home() {
-    const [status, setStatus] = useState('laden'); // laden | uit | in
-    const [mij, setMij] = useState(null);
-    const [melding, setMelding] = useState('');
+    const [term, setTerm] = useState('');
+    const [bezig, setBezig] = useState(false);
+    const [fout, setFout] = useState('');
+    const [resultaten, setResultaten] = useState(null);
+    const [spelendId, setSpelendId] = useState(null);
+    const audioRef = useRef(null);
 
-    useEffect(() => {
-        // Toon een melding op basis van de ?login= parameter uit de callback.
-        const params = new URLSearchParams(window.location.search);
-        const login = params.get('login');
-        if (login === 'geweigerd') setMelding('Je hebt de toegang geweigerd.');
-        else if (login === 'mislukt') setMelding('Inloggen mislukt, probeer opnieuw.');
-        else if (login === 'fout') setMelding('Er ging iets mis bij het inloggen.');
-        if (login) {
-            // Maak de URL weer schoon.
-            window.history.replaceState({}, '', '/');
+    // Snelknoppen om Nederlandse dekking snel te testen.
+    const voorbeelden = [
+        'Undercover',
+        'Penoza',
+        'Gooische Vrouwen',
+        'Flodder',
+        'Zwartboek',
+        'Stranger Things',
+    ];
+
+    async function zoeken(zoekterm) {
+        const t = (zoekterm ?? term).trim();
+        if (!t) return;
+        setTerm(t);
+        setBezig(true);
+        setFout('');
+        setResultaten(null);
+        stop();
+        try {
+            const data = await zoekMuziek(t);
+            setResultaten(data);
+        } catch (err) {
+            setFout(err.message);
+        } finally {
+            setBezig(false);
         }
+    }
 
-        haalMij()
-            .then((data) => {
-                if (data) {
-                    setMij(data);
-                    setStatus('in');
-                } else {
-                    setStatus('uit');
-                }
-            })
-            .catch(() => setStatus('uit'));
-    }, []);
+    function speel(track) {
+        if (!audioRef.current) return;
+        if (spelendId === track.itunes_track_id) {
+            stop();
+            return;
+        }
+        audioRef.current.src = track.preview_url;
+        audioRef.current.play().catch(() => setFout('Kon deze clip niet afspelen.'));
+        setSpelendId(track.itunes_track_id);
+    }
 
-    async function uitloggen() {
-        await logUit();
-        setMij(null);
-        setStatus('uit');
+    function stop() {
+        if (audioRef.current) {
+            audioRef.current.pause();
+        }
+        setSpelendId(null);
     }
 
     return (
@@ -43,53 +65,83 @@ export default function Home() {
             <h1>VenTune</h1>
             <p className="ondertitel">Muziekquiz over films en series</p>
 
-            {melding && <p className="waarschuwing">{melding}</p>}
+            <div className="kaart" style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
+                <p className="kaart-label">Muziek zoeken (test)</p>
+                <p className="dim" style={{ marginTop: 0 }}>
+                    Typ een filmtitel of serie en speel een fragment af. Zo test je
+                    of iTunes genoeg biedt — vooral voor Nederlandse titels.
+                </p>
 
-            {status === 'laden' && <p className="dim">Bezig met laden…</p>}
-
-            {status === 'uit' && (
-                <div className="stapel">
-                    <p className="dim">
-                        Log in met je Spotify-account om te beginnen.
-                    </p>
-                    <button className="knop" onClick={startLogin}>
-                        Inloggen met Spotify
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        zoeken();
+                    }}
+                    className="zoekbalk"
+                >
+                    <input
+                        className="invoer"
+                        value={term}
+                        onChange={(e) => setTerm(e.target.value)}
+                        placeholder="bv. Undercover"
+                        aria-label="Zoekterm"
+                    />
+                    <button className="knop" type="submit" disabled={bezig}>
+                        {bezig ? 'Zoeken…' : 'Zoek'}
                     </button>
+                </form>
+
+                <div className="chips">
+                    {voorbeelden.map((v) => (
+                        <button key={v} className="chip" onClick={() => zoeken(v)}>
+                            {v}
+                        </button>
+                    ))}
                 </div>
+            </div>
+
+            {fout && <p className="waarschuwing">{fout}</p>}
+
+            {resultaten && (
+                <p className="dim" style={{ textAlign: 'left' }}>
+                    {resultaten.aantal} bruikbare clip
+                    {resultaten.aantal === 1 ? '' : 's'} voor “{resultaten.term}”.
+                </p>
             )}
 
-            {status === 'in' && mij && (
-                <div className="stapel">
-                    <div className="kaart">
-                        <p className="kaart-label">Ingelogd als</p>
-                        <p className="kaart-naam">{mij.weergavenaam}</p>
-                        {mij.email && <p className="dim">{mij.email}</p>}
-                        <p
-                            className={
-                                mij.is_premium ? 'badge badge-premium' : 'badge badge-gast'
-                            }
-                        >
-                            {mij.is_premium ? 'Spotify Premium' : 'Geen Premium'}
-                        </p>
-                    </div>
-
-                    {!mij.is_premium && (
-                        <div className="kaart uitleg">
-                            <p className="kaart-label">Gastmodus</p>
-                            <p>
-                                Zonder Spotify Premium kan je telefoon geen muziek
-                                afspelen. Je kunt wél meedoen als <strong>gast</strong>:
-                                je hoort de muziek van de host in de kamer en raadt
-                                gewoon mee.
-                            </p>
-                        </div>
-                    )}
-
-                    <button className="knop knop-stil" onClick={uitloggen}>
-                        Uitloggen
-                    </button>
-                </div>
+            {resultaten && resultaten.resultaten.length > 0 && (
+                <ul className="tracklijst">
+                    {resultaten.resultaten.map((track) => (
+                        <li key={track.itunes_track_id} className="track">
+                            {track.hoes && (
+                                <img className="track-hoes" src={track.hoes} alt="" />
+                            )}
+                            <div className="track-info">
+                                <span className="track-naam">{track.tracknaam}</span>
+                                <span className="dim">{track.artiest}</span>
+                            </div>
+                            <button
+                                className={
+                                    spelendId === track.itunes_track_id
+                                        ? 'afspeelknop bezig'
+                                        : 'afspeelknop'
+                                }
+                                onClick={() => speel(track)}
+                                aria-label={
+                                    spelendId === track.itunes_track_id
+                                        ? 'Stop'
+                                        : 'Afspelen'
+                                }
+                            >
+                                {spelendId === track.itunes_track_id ? '■' : '▶'}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
             )}
+
+            {/* Eén gedeeld audio-element voor alle previews. */}
+            <audio ref={audioRef} onEnded={stop} preload="none" />
         </main>
     );
 }

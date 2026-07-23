@@ -1,6 +1,6 @@
 // =====================================================================
 // Kleine API-helper voor de client. Alle verzoeken gaan same-origin via
-// nginx naar de server, met cookies (voor de sessie).
+// nginx naar de server.
 // =====================================================================
 
 async function jsonOfNull(resp) {
@@ -11,28 +11,14 @@ async function jsonOfNull(resp) {
     }
 }
 
-/** Haal het huidige profiel op. Geeft null als je niet ingelogd bent. */
-export async function haalMij() {
-    const resp = await fetch('/api/me', { credentials: 'include' });
-    if (resp.status === 401) return null;
-    if (!resp.ok) throw new Error('Kon profiel niet ophalen.');
-    return jsonOfNull(resp);
-}
-
-/** Start de Spotify-login door de browser naar de server te sturen. */
-export function startLogin() {
-    window.location.href = '/auth/login';
-}
-
-/** Log uit en wis de sessie. */
-export async function logUit() {
-    await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
-}
-
-/** Haal een geldig Spotify access token op (voor de Web Playback SDK). */
-export async function haalSpotifyToken() {
-    const resp = await fetch('/api/spotify/token', { credentials: 'include' });
-    if (!resp.ok) throw new Error('Kon Spotify-token niet ophalen.');
+/** Zoek muziek op iTunes via de server. Geeft { term, aantal, resultaten }. */
+export async function zoekMuziek(term, land) {
+    const params = new URLSearchParams({ term });
+    if (land) params.set('land', land);
+    const resp = await fetch(`/api/muziek/zoek?${params.toString()}`);
     const data = await jsonOfNull(resp);
-    return data?.access_token || null;
+    if (!resp.ok) {
+        throw new Error(data?.fout || 'Zoeken mislukt.');
+    }
+    return data;
 }

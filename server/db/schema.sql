@@ -53,18 +53,26 @@ CREATE INDEX IF NOT EXISTS idx_titels_jaar    ON titels (jaar);
 CREATE INDEX IF NOT EXISTS idx_titels_genres  ON titels USING GIN (genres);
 
 -- ---------------------------------------------------------------------
--- Vragenbank: tracks (per titel één of meer Spotify-nummers)
+-- Vragenbank: tracks (per titel één of meer nummers)
+--
+-- De audio komt uit iTunes (gratis preview-clip van 30s) of, als fallback,
+-- een lokaal bestand onder /media. Er is geen Spotify en geen login nodig.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tracks (
-    id              SERIAL PRIMARY KEY,
-    titel_id        INTEGER     NOT NULL REFERENCES titels (id) ON DELETE CASCADE,
-    spotify_uri     TEXT        NOT NULL,
-    tracknaam       TEXT        NOT NULL,
-    artiest         TEXT        NOT NULL,
-    herkenbaarheid  SMALLINT    NOT NULL DEFAULT 3
-                    CHECK (herkenbaarheid BETWEEN 1 AND 5),
-    aangemaakt_op   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (spotify_uri)
+    id               SERIAL PRIMARY KEY,
+    titel_id         INTEGER     NOT NULL REFERENCES titels (id) ON DELETE CASCADE,
+    -- Bron van de audio: 'itunes' of 'lokaal'.
+    bron             TEXT        NOT NULL DEFAULT 'itunes'
+                     CHECK (bron IN ('itunes', 'lokaal')),
+    -- iTunes-trackid (indien van iTunes), handig om later te verversen.
+    itunes_track_id  BIGINT,
+    -- De daadwerkelijke audio-URL: iTunes previewUrl of /media/bestand.m4a.
+    preview_url      TEXT        NOT NULL,
+    tracknaam        TEXT        NOT NULL,
+    artiest          TEXT        NOT NULL,
+    herkenbaarheid   SMALLINT    NOT NULL DEFAULT 3
+                     CHECK (herkenbaarheid BETWEEN 1 AND 5),
+    aangemaakt_op    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_tracks_titel_id ON tracks (titel_id);
@@ -178,29 +186,6 @@ CREATE TABLE IF NOT EXISTS antwoorden (
 
 CREATE INDEX IF NOT EXISTS idx_antwoorden_ronde_id  ON antwoorden (ronde_id);
 CREATE INDEX IF NOT EXISTS idx_antwoorden_speler_id ON antwoorden (speler_id);
-
--- ---------------------------------------------------------------------
--- Spotify-sessies: server-side opslag van tokens per ingelogde speler.
--- De browser krijgt alleen een opaak sessie-token (in een cookie); het
--- refresh-token blijft hier zodat de server proactief kan verversen.
--- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS spotify_sessies (
-    id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    sessie_token   TEXT        NOT NULL UNIQUE,
-    spotify_id     TEXT,
-    weergavenaam   TEXT,
-    email          TEXT,
-    -- 'premium' of 'free'/'open' — bepaalt of iemand host kan zijn.
-    product        TEXT,
-    access_token   TEXT        NOT NULL,
-    refresh_token  TEXT        NOT NULL,
-    verloopt_op    TIMESTAMPTZ NOT NULL,
-    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    bijgewerkt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_spotify_sessies_token   ON spotify_sessies (sessie_token);
-CREATE INDEX IF NOT EXISTS idx_spotify_sessies_verloop ON spotify_sessies (verloopt_op);
 
 -- =====================================================================
 -- Einde schema

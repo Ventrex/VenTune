@@ -4,10 +4,9 @@ Self-hosted, mobile-first multiplayer **muziekquiz over films en series**, in de
 stijl van Hitster. Draait volledig in Docker op een homelab en wordt ontsloten
 via een Cloudflare-tunnel op `ventune.ventrex.cc`.
 
-> **Status:** in aanbouw. Deze eerste stap levert de fundering — Docker-stack,
-> omgevingsbestand, databaseschema en migratie. De volgende stappen voegen
-> Spotify-login, afspelen, lobby's, het spel zelf, TMDB-bonusvragen en de
-> seed/admin toe.
+> **Status:** in aanbouw. De fundering (Docker-stack, database, migratie) en de
+> muziekbron (iTunes-previews, zonder account of login) staan. De volgende
+> stappen voegen lobby's, het spel zelf, TMDB-bonusvragen en de seed/admin toe.
 
 ---
 
@@ -19,9 +18,13 @@ via een Cloudflare-tunnel op `ventune.ventrex.cc`.
 | Database   | PostgreSQL 16                           |
 | Frontend   | React 18 + Vite (PWA)                   |
 | Styling    | Tailwind + eigen theme-tokens (OLED)    |
-| Auth       | Spotify OAuth 2.0 PKCE                   |
-| Audio      | Spotify Web Playback SDK (Premium)      |
+| Audio      | iTunes Search API (gratis 30s-previews) |
 | Metadata   | TMDB API (server-side)                  |
+
+> **Geen Spotify, geen account, geen login.** De muziek komt uit de gratis
+> iTunes Search API (30-seconden preview-clips), aangevuld met een lokaal
+> bestand-fallback per track. Zo hoeft niemand een developer-app te registreren
+> of Premium te hebben.
 
 ---
 
@@ -34,8 +37,8 @@ via een Cloudflare-tunnel op `ventune.ventrex.cc`.
    ```
 
    Vul in `.env` minimaal een `POSTGRES_PASSWORD`, `SESSION_SECRET` en
-   `ADMIN_PASSWORD` in. De Spotify- en TMDB-sleutels heb je pas nodig vanaf de
-   volgende stappen.
+   `ADMIN_PASSWORD` in. Muziek werkt meteen zonder sleutels (iTunes is gratis en
+   zonder account). De TMDB-sleutel heb je pas nodig voor de bonusvragen.
 
 2. **Stack bouwen en starten**
 
@@ -86,5 +89,5 @@ ventune/
 ## Deploy achter de Cloudflare-tunnel
 
 Volledige stap-voor-stap instructies (Pangolin / tunnel) volgen in de laatste
-bouwstap. Kort: laat de tunnel wijzen naar `http://<host-ip>:8091` en zet in het
-Spotify-dashboard de Redirect URI op `https://ventune.ventrex.cc/auth/callback`.
+bouwstap. Kort: laat de tunnel wijzen naar `http://<host-ip>:8091`. Omdat er geen
+externe login meer is, hoef je verder niets bij een muziekdienst te registreren.
