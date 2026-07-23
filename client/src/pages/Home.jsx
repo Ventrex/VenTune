@@ -1,63 +1,41 @@
-import React, { useRef, useState } from 'react';
-import { zoekMuziek } from '../lib/api.js';
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { maakLobby } from '../lib/api.js';
+import { bewaarSessie } from '../lib/sessie.js';
 
-// Home + muziek-testpagina.
-//
-// Dit is meteen het bewijs dat er geluid uit je telefoon komt (zonder
-// Spotify, zonder login, zonder Premium) én je coverage-check: typ een
-// titel — vooral Nederlandse — en zie of iTunes bruikbare clips heeft.
+// Startscherm: nieuw spel maken (host) of meedoen met een code.
 export default function Home() {
-    const [term, setTerm] = useState('');
+    const navigate = useNavigate();
+    const [code, setCode] = useState('');
     const [bezig, setBezig] = useState(false);
     const [fout, setFout] = useState('');
-    const [resultaten, setResultaten] = useState(null);
-    const [spelendId, setSpelendId] = useState(null);
-    const audioRef = useRef(null);
 
-    // Snelknoppen om Nederlandse dekking snel te testen.
-    const voorbeelden = [
-        'Undercover',
-        'Penoza',
-        'Gooische Vrouwen',
-        'Flodder',
-        'Zwartboek',
-        'Stranger Things',
-    ];
-
-    async function zoeken(zoekterm) {
-        const t = (zoekterm ?? term).trim();
-        if (!t) return;
-        setTerm(t);
+    async function nieuwSpel() {
         setBezig(true);
         setFout('');
-        setResultaten(null);
-        stop();
         try {
-            const data = await zoekMuziek(t);
-            setResultaten(data);
+            const lobby = await maakLobby('Host');
+            bewaarSessie({
+                token: lobby.token,
+                code: lobby.code,
+                spelerId: lobby.spelerId,
+                is_host: true,
+            });
+            navigate('/lobby');
         } catch (err) {
             setFout(err.message);
-        } finally {
             setBezig(false);
         }
     }
 
-    function speel(track) {
-        if (!audioRef.current) return;
-        if (spelendId === track.itunes_track_id) {
-            stop();
+    function meedoen(e) {
+        e.preventDefault();
+        const schoon = code.trim().toUpperCase();
+        if (schoon.length !== 4) {
+            setFout('Een lobbycode bestaat uit 4 letters.');
             return;
         }
-        audioRef.current.src = track.preview_url;
-        audioRef.current.play().catch(() => setFout('Kon deze clip niet afspelen.'));
-        setSpelendId(track.itunes_track_id);
-    }
-
-    function stop() {
-        if (audioRef.current) {
-            audioRef.current.pause();
-        }
-        setSpelendId(null);
+        navigate(`/join/${schoon}`);
     }
 
     return (
@@ -65,83 +43,39 @@ export default function Home() {
             <h1>VenTune</h1>
             <p className="ondertitel">Muziekquiz over films en series</p>
 
-            <div className="kaart" style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
-                <p className="kaart-label">Muziek zoeken (test)</p>
-                <p className="dim" style={{ marginTop: 0 }}>
-                    Typ een filmtitel of serie en speel een fragment af. Zo test je
-                    of iTunes genoeg biedt — vooral voor Nederlandse titels.
-                </p>
-
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        zoeken();
-                    }}
-                    className="zoekbalk"
-                >
-                    <input
-                        className="invoer"
-                        value={term}
-                        onChange={(e) => setTerm(e.target.value)}
-                        placeholder="bv. Undercover"
-                        aria-label="Zoekterm"
-                    />
-                    <button className="knop" type="submit" disabled={bezig}>
-                        {bezig ? 'Zoeken…' : 'Zoek'}
-                    </button>
-                </form>
-
-                <div className="chips">
-                    {voorbeelden.map((v) => (
-                        <button key={v} className="chip" onClick={() => zoeken(v)}>
-                            {v}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
             {fout && <p className="waarschuwing">{fout}</p>}
 
-            {resultaten && (
-                <p className="dim" style={{ textAlign: 'left' }}>
-                    {resultaten.aantal} bruikbare clip
-                    {resultaten.aantal === 1 ? '' : 's'} voor “{resultaten.term}”.
-                </p>
-            )}
+            <div className="stapel">
+                <button className="knop" onClick={nieuwSpel} disabled={bezig}>
+                    {bezig ? 'Bezig…' : 'Nieuw spel'}
+                </button>
 
-            {resultaten && resultaten.resultaten.length > 0 && (
-                <ul className="tracklijst">
-                    {resultaten.resultaten.map((track) => (
-                        <li key={track.itunes_track_id} className="track">
-                            {track.hoes && (
-                                <img className="track-hoes" src={track.hoes} alt="" />
-                            )}
-                            <div className="track-info">
-                                <span className="track-naam">{track.tracknaam}</span>
-                                <span className="dim">{track.artiest}</span>
-                            </div>
-                            <button
-                                className={
-                                    spelendId === track.itunes_track_id
-                                        ? 'afspeelknop bezig'
-                                        : 'afspeelknop'
-                                }
-                                onClick={() => speel(track)}
-                                aria-label={
-                                    spelendId === track.itunes_track_id
-                                        ? 'Stop'
-                                        : 'Afspelen'
-                                }
-                            >
-                                {spelendId === track.itunes_track_id ? '■' : '▶'}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            )}
+                <form onSubmit={meedoen} className="stapel" style={{ gap: '0.75rem' }}>
+                    <label className="kaart-label" style={{ textAlign: 'left' }}>
+                        Meedoen met een code
+                    </label>
+                    <div className="zoekbalk" style={{ margin: 0 }}>
+                        <input
+                            className="invoer code-invoer"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value.toUpperCase())}
+                            placeholder="ABCD"
+                            maxLength={4}
+                            autoCapitalize="characters"
+                            aria-label="Lobbycode"
+                        />
+                        <button className="knop knop-stil" type="submit">
+                            Meedoen
+                        </button>
+                    </div>
+                </form>
+            </div>
 
-            {/* Eén gedeeld audio-element voor alle previews. */}
-            <audio ref={audioRef} onEnded={stop} preload="none" />
+            <p style={{ marginTop: '2.5rem' }}>
+                <Link className="terug" to="/muziek">
+                    Muziek zoeken (test) →
+                </Link>
+            </p>
         </main>
     );
 }

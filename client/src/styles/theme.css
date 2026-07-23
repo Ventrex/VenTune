@@ -266,3 +266,111 @@ h1 {
     background: var(--red);
     box-shadow: 0 0 24px var(--red-glow);
 }
+
+/* --- Links --- */
+.terug {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 1.05rem;
+}
+
+.terug:hover {
+    color: var(--text);
+}
+
+.als-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+}
+
+/* --- Lobbycode --- */
+.code-invoer {
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    text-align: center;
+    font-weight: 700;
+}
+
+.code-inline {
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: var(--red-hot);
+}
+
+.lobby-code {
+    font-size: clamp(3rem, 14vw, 5rem);
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    font-variant-numeric: tabular-nums;
+    margin: 0.25rem 0 1rem;
+    color: var(--text);
+}
+
+/* --- Host-kaart met QR --- */
+.host-kaart {
+    text-align: center;
+}
+
+.qr-doos {
+    display: inline-block;
+    background: #000;
+    padding: 0.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 0.75rem;
+}
+
+/* --- Spelerslijst --- */
+.spelerlijst {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.speler-kaart {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 56px;
+    padding: 0.5rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    text-align: left;
+}
+
+/* De 'jij'-kaart krijgt de subtiele rode gloed. */
+.speler-kaart.actief {
+    border-color: var(--red);
+    box-shadow: 0 0 24px var(--red-glow);
+}
+
+.speler-kaart.weg {
+    opacity: 0.5;
+}
+
+.speler-naam {
+    font-size: 1.25rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.host-tag {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--red-hot);
+    border: 1px solid var(--red);
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+}

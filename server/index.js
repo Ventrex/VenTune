@@ -12,6 +12,8 @@ const { Server } = require('socket.io');
 const logger = require('./lib/logger');
 const discord = require('./lib/discord');
 const muziekRoutes = require('./routes/muziek');
+const lobbyRoutes = require('./routes/lobby');
+const { setupSockets } = require('./socket');
 const { migreer } = require('./db/migrate');
 const { pool } = require('./db/pool');
 
@@ -26,6 +28,8 @@ async function start() {
 
     // Muziek-routes (iTunes zoeken en dekking controleren).
     app.use(muziekRoutes);
+    // Lobby-routes (aanmaken, joinen).
+    app.use(lobbyRoutes);
 
     // Health-endpoint: controleert ook of de database antwoordt.
     app.get('/api/health', async (_req, res) => {
@@ -42,17 +46,11 @@ async function start() {
 
     const server = http.createServer(app);
 
-    // Socket.IO alvast opzetten (join-events komen in een latere stap).
+    // Socket.IO: realtime lobby-presence.
     const io = new Server(server, {
         cors: { origin: true, credentials: true },
     });
-
-    io.on('connection', (socket) => {
-        logger.debug('Socket verbonden', { id: socket.id });
-        socket.on('disconnect', () => {
-            logger.debug('Socket verbroken', { id: socket.id });
-        });
-    });
+    setupSockets(io);
 
     server.listen(PORT, '0.0.0.0', () => {
         logger.info('VenTune-server gestart.', { poort: PORT });
