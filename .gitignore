@@ -1,0 +1,23 @@
+# Afhankelijkheden
+node_modules/
+**/node_modules/
+
+# Build-output
+client/dist/
+server/dist/
+
+# Omgeving en geheimen
+.env
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Docker volumes (lokaal)
+pgdata/

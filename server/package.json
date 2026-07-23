@@ -1,0 +1,20 @@
+{
+  "name": "ventune-server",
+  "version": "0.1.0",
+  "description": "VenTune backend — Express + Socket.IO muziekquiz-server",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "migrate": "node db/migrate.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "socket.io": "^4.7.5"
+  }
+}
