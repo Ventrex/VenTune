@@ -179,6 +179,29 @@ CREATE TABLE IF NOT EXISTS antwoorden (
 CREATE INDEX IF NOT EXISTS idx_antwoorden_ronde_id  ON antwoorden (ronde_id);
 CREATE INDEX IF NOT EXISTS idx_antwoorden_speler_id ON antwoorden (speler_id);
 
+-- ---------------------------------------------------------------------
+-- Spotify-sessies: server-side opslag van tokens per ingelogde speler.
+-- De browser krijgt alleen een opaak sessie-token (in een cookie); het
+-- refresh-token blijft hier zodat de server proactief kan verversen.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS spotify_sessies (
+    id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    sessie_token   TEXT        NOT NULL UNIQUE,
+    spotify_id     TEXT,
+    weergavenaam   TEXT,
+    email          TEXT,
+    -- 'premium' of 'free'/'open' — bepaalt of iemand host kan zijn.
+    product        TEXT,
+    access_token   TEXT        NOT NULL,
+    refresh_token  TEXT        NOT NULL,
+    verloopt_op    TIMESTAMPTZ NOT NULL,
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    bijgewerkt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_spotify_sessies_token   ON spotify_sessies (sessie_token);
+CREATE INDEX IF NOT EXISTS idx_spotify_sessies_verloop ON spotify_sessies (verloopt_op);
+
 -- =====================================================================
 -- Einde schema
 -- =====================================================================

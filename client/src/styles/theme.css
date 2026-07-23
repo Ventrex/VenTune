@@ -41,5 +41,117 @@ h1 {
     font-size: clamp(2rem, 8vw, 3.5rem);
     font-weight: 800;
     letter-spacing: -0.02em;
-    margin: 0 0 0.5em;
+    margin: 0 0 0.25em;
+}
+
+/* --- Layout --- */
+.scherm {
+    max-width: 32rem;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 5vw, 3rem);
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+    text-align: center;
+}
+
+.ondertitel {
+    color: var(--text-dim);
+    font-size: clamp(1.125rem, 4vw, 1.25rem);
+    margin: 0 0 2rem;
+}
+
+.dim {
+    color: var(--text-dim);
+}
+
+.stapel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-top: 1rem;
+}
+
+/* --- Knoppen (minimale tapdoelhoogte 56px) --- */
+.knop {
+    min-height: 56px;
+    padding: 0 1.5rem;
+    border: none;
+    border-radius: 14px;
+    background: var(--red-hot);
+    color: var(--text);
+    font-size: 1.25rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.knop:hover {
+    filter: brightness(1.1);
+}
+
+.knop:active {
+    filter: brightness(0.95);
+}
+
+.knop-stil {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+}
+
+/* --- Kaarten --- */
+.kaart {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: left;
+}
+
+.kaart-label {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 0.5rem;
+}
+
+.kaart-naam {
+    font-size: clamp(1.375rem, 5vw, 2rem);
+    font-weight: 800;
+    margin: 0 0 0.5rem;
+}
+
+.kaart.uitleg {
+    border-color: var(--red);
+}
+
+/* --- Badges --- */
+.badge {
+    display: inline-block;
+    margin-top: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.badge-premium {
+    background: rgba(196, 18, 48, 0.15);
+    color: var(--red-hot);
+    border: 1px solid var(--red);
+}
+
+.badge-gast {
+    background: var(--border);
+    color: var(--text-dim);
+}
+
+/* --- Meldingen --- */
+.waarschuwing {
+    background: rgba(196, 18, 48, 0.12);
+    border: 1px solid var(--red);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin: 0 0 1.5rem;
 }

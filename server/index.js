@@ -11,6 +11,8 @@ const { Server } = require('socket.io');
 
 const logger = require('./lib/logger');
 const discord = require('./lib/discord');
+const spotify = require('./lib/spotify');
+const authRoutes = require('./routes/auth');
 const { migreer } = require('./db/migrate');
 const { pool } = require('./db/pool');
 
@@ -22,6 +24,12 @@ async function start() {
 
     const app = express();
     app.use(express.json());
+
+    // Auth- en Spotify-routes (login, callback, profiel, token).
+    app.use(authRoutes);
+
+    // Proactieve token-vernieuwing starten (elke 60s).
+    spotify.startAchtergrondVernieuwing();
 
     // Health-endpoint: controleert ook of de database antwoordt.
     app.get('/api/health', async (_req, res) => {
