@@ -12,6 +12,7 @@ const { Server } = require('socket.io');
 const logger = require('./lib/logger');
 const discord = require('./lib/discord');
 const muziekRoutes = require('./routes/muziek');
+const audioRoutes = require('./routes/audio');
 const lobbyRoutes = require('./routes/lobby');
 const setupRoutes = require('./routes/setup');
 const adminRoutes = require('./routes/admin');
@@ -30,6 +31,8 @@ async function start() {
 
     // Muziek-routes (iTunes zoeken en dekking controleren).
     app.use(muziekRoutes);
+    // Audio-proxy (clips same-origin/https streamen voor iOS).
+    app.use(audioRoutes);
     // Lobby-routes (aanmaken, joinen).
     app.use(lobbyRoutes);
     // Setup-routes (filter-telling en presets).

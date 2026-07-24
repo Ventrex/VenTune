@@ -11,6 +11,19 @@ async function jsonOfNull(resp) {
     }
 }
 
+/**
+ * Geef de af te spelen bron voor een clip. iTunes-URL's lopen via de
+ * audio-proxy (same-origin, https) zodat iOS ze afspeelt; lokale/relatieve
+ * paden blijven ongewijzigd.
+ */
+export function audioBron(url) {
+    if (!url) return url;
+    if (/^https?:\/\//i.test(url) && /(mzstatic\.com|itunes\.apple\.com|apple\.com)/i.test(url)) {
+        return '/api/audio?src=' + encodeURIComponent(url);
+    }
+    return url;
+}
+
 /** Zoek muziek op iTunes via de server. Geeft { term, aantal, resultaten }. */
 export async function zoekMuziek(term, land) {
     const params = new URLSearchParams({ term });

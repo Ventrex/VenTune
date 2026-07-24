@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Visualizer from './Visualizer.jsx';
 import { maakSpeler } from '../lib/youtube.js';
+import { audioBron } from '../lib/api.js';
 
 // Speelt de muziek af op het host-scherm en toont de visualizer.
 // - iTunes/lokaal: via een verborgen <audio>.
@@ -40,9 +41,9 @@ export default function HostPlayer({ audio }) {
             })();
             if (audioEl) audioEl.pause();
         } else {
-            // iTunes of lokaal: gewone audio.
+            // iTunes of lokaal: gewone audio (iTunes via de proxy).
             if (audioEl) {
-                audioEl.src = audio.url;
+                audioEl.src = audioBron(audio.url);
                 audioEl.currentTime = audio.startSeconde || 0;
                 audioEl.play().catch(() => {});
             }

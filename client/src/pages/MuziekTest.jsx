@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { zoekMuziek } from '../lib/api.js';
+import { zoekMuziek, audioBron } from '../lib/api.js';
 
 // Muziek-testpagina (/muziek).
 //
@@ -49,7 +49,7 @@ export default function MuziekTest() {
             stop();
             return;
         }
-        audioRef.current.src = track.preview_url;
+        audioRef.current.src = audioBron(track.preview_url);
         audioRef.current.play().catch(() => setFout('Kon deze clip niet afspelen.'));
         setSpelendId(track.itunes_track_id);
     }

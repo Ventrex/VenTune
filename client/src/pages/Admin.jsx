@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
+import { audioBron } from '../lib/api.js';
 import { haalVideoId } from '../lib/youtube.js';
 
 // Beheerportaal (/admin). Wachtwoord uit ADMIN_PASSWORD op de server.
@@ -257,7 +258,18 @@ function TitelDetail({ titel, onWijzig }) {
                             <span className="track-naam">{tr.tracknaam}</span>
                             <span className="dim">{tr.artiest} · {tr.bron}</span>
                         </div>
-                        <audio src={tr.preview_url} controls preload="none" style={{ height: 36, maxWidth: 160 }} />
+                        {tr.bron === 'youtube' ? (
+                            <iframe
+                                title={tr.tracknaam}
+                                width="160"
+                                height="90"
+                                src={`https://www.youtube.com/embed/${tr.preview_url}?start=${tr.start_seconde || 0}`}
+                                allow="encrypted-media"
+                                style={{ border: 0, borderRadius: 8 }}
+                            />
+                        ) : (
+                            <audio src={audioBron(tr.preview_url)} controls preload="none" style={{ height: 36, maxWidth: 160 }} />
+                        )}
                         <button className="afspeelknop klein" onClick={() => verwijderTrack(tr.id)} aria-label="Verwijderen">✕</button>
                     </li>
                 ))}
@@ -355,7 +367,7 @@ function TrackZoeker({ titelId, onToegevoegd }) {
                                 <span className="dim">{r.artiest}</span>
                             </div>
                             <button className="afspeelknop klein" onClick={() => {
-                                if (audioRef.current) { audioRef.current.src = r.preview_url; audioRef.current.play(); }
+                                if (audioRef.current) { audioRef.current.src = audioBron(r.preview_url); audioRef.current.play(); }
                             }} aria-label="Beluister">▶</button>
                             <button className="knop knop-stil" onClick={() => voegToe(r)}>+</button>
                         </li>
