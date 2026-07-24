@@ -11,7 +11,7 @@ import Timer from '../components/Timer.jsx';
 export default function Host() {
     const navigate = useNavigate();
     const spel = useSpel();
-    const { sessie, fase, ronde, antwoord, scorebord, spelers } = spel;
+    const { sessie, fase, ronde, antwoord, bonus, scorebord, spelers } = spel;
 
     useEffect(() => {
         if (!sessie) navigate('/');
@@ -97,8 +97,8 @@ export default function Host() {
                 </>
             )}
 
-            {/* Tussen rondes */}
-            {fase === 'scorebord' && antwoord && (
+            {/* Titel onthuld */}
+            {fase === 'onthul' && antwoord && (
                 <>
                     <p className="kaart-label">Het antwoord was</p>
                     <h1>{antwoord.naam}</h1>
@@ -106,6 +106,37 @@ export default function Host() {
                         {antwoord.jaar ? `${antwoord.jaar} · ` : ''}
                         {antwoord.tracknaam} — {antwoord.artiest}
                     </p>
+                </>
+            )}
+
+            {/* Bonusvraag (host toont de vraag mee) */}
+            {fase === 'bonus' && bonus && (
+                <>
+                    {antwoord && <h1>{antwoord.naam}</h1>}
+                    <p className="kaart-label">Bonusvraag</p>
+                    <p className="ondertitel">{bonus.vraag}</p>
+                    <ul className="spelerlijst">
+                        {bonus.opties.map((o, i) => (
+                            <li key={i} className="speler-kaart">
+                                <span className="speler-naam">{o}</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="dim" style={{ marginTop: '1rem' }}>
+                        Spelers antwoorden op hun telefoon…
+                    </p>
+                </>
+            )}
+
+            {/* Tussen rondes */}
+            {fase === 'scorebord' && (
+                <>
+                    {antwoord && (
+                        <>
+                            <p className="kaart-label">Vorige titel</p>
+                            <h1>{antwoord.naam}</h1>
+                        </>
+                    )}
                     <Scorebord lijst={scorebord} />
                 </>
             )}

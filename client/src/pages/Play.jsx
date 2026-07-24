@@ -10,9 +10,20 @@ import Timer from '../components/Timer.jsx';
 export default function Play() {
     const navigate = useNavigate();
     const spel = useSpel();
-    const { sessie, fase, ronde, resultaat, hints, antwoord, scorebord, spelers } =
-        spel;
+    const {
+        sessie,
+        fase,
+        ronde,
+        resultaat,
+        hints,
+        antwoord,
+        bonus,
+        bonusResultaat,
+        scorebord,
+        spelers,
+    } = spel;
     const [gok, setGok] = useState('');
+    const [bonusKeuze, setBonusKeuze] = useState(null);
 
     useEffect(() => {
         if (!sessie) navigate('/');
@@ -22,6 +33,20 @@ export default function Play() {
     useEffect(() => {
         setGok('');
     }, [ronde?.rondeId]);
+
+    // Nieuwe bonusvraag → keuze resetten.
+    useEffect(() => {
+        setBonusKeuze(null);
+    }, [bonus?.vraag]);
+
+    const bonusVergrendeld =
+        bonusResultaat?.status === 'goed' || bonusResultaat?.status === 'fout';
+
+    function kiesBonus(i) {
+        if (bonusVergrendeld) return;
+        setBonusKeuze(i);
+        spel.bonusAntwoord(i);
+    }
 
     if (!sessie) return null;
 
@@ -153,8 +178,8 @@ export default function Play() {
                 </>
             )}
 
-            {/* Tussen rondes */}
-            {fase === 'scorebord' && antwoord && (
+            {/* Titel onthuld (korte tussenfase voor de bonus) */}
+            {fase === 'onthul' && antwoord && (
                 <>
                     <p className="kaart-label">Het antwoord was</p>
                     <h1>{antwoord.naam}</h1>
@@ -162,6 +187,71 @@ export default function Play() {
                         {antwoord.jaar ? `${antwoord.jaar} · ` : ''}
                         {antwoord.tracknaam} — {antwoord.artiest}
                     </p>
+                </>
+            )}
+
+            {/* Bonusvraag */}
+            {fase === 'bonus' && bonus && (
+                <>
+                    {antwoord && (
+                        <p className="ondertitel">
+                            {antwoord.naam}
+                            {antwoord.jaar ? ` · ${antwoord.jaar}` : ''}
+                        </p>
+                    )}
+                    <p className="kaart-label">Bonusvraag (+50)</p>
+                    <h1 className="bonus-vraag">{bonus.vraag}</h1>
+                    <div className="keuzes">
+                        {bonus.opties.map((opt, i) => {
+                            let extra = '';
+                            if (bonusKeuze === i) extra = ' gekozen';
+                            if (
+                                bonusResultaat?.status === 'fout' &&
+                                bonusResultaat.correctIndex === i
+                            )
+                                extra = ' juist';
+                            return (
+                                <button
+                                    key={i}
+                                    className={'keuze' + extra}
+                                    onClick={() => kiesBonus(i)}
+                                    disabled={bonusVergrendeld}
+                                >
+                                    {opt}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {bonusResultaat && (
+                        <p
+                            className={
+                                'feedback ' +
+                                (bonusResultaat.status === 'goed'
+                                    ? 'bijna'
+                                    : bonusResultaat.status === 'nogmaals'
+                                      ? 'neutraal'
+                                      : 'mis')
+                            }
+                        >
+                            {bonusResultaat.status === 'goed' &&
+                                `Goed! +${bonusResultaat.punten}`}
+                            {bonusResultaat.status === 'nogmaals' &&
+                                'Helaas — nog één poging (halve punten).'}
+                            {bonusResultaat.status === 'fout' && 'Fout.'}
+                        </p>
+                    )}
+                </>
+            )}
+
+            {/* Scorebord tussen rondes */}
+            {fase === 'scorebord' && (
+                <>
+                    {antwoord && (
+                        <>
+                            <p className="kaart-label">Vorige titel</p>
+                            <h1>{antwoord.naam}</h1>
+                        </>
+                    )}
                     <MiniScore lijst={scorebord} mijnId={sessie.spelerId} />
                 </>
             )}

@@ -9,10 +9,12 @@
 const { pool } = require('../db/pool');
 const { bouwFilter } = require('./filters');
 const { vergelijk } = require('../lib/match');
-const { titelPunten } = require('./scoring');
+const { titelPunten, bonusPunten } = require('./scoring');
+const { genereerBonus } = require('./bonus');
 const logger = require('../lib/logger');
 
 const RONDE_DUUR_MS = 30000; // 30 seconden raden
+const BONUS_DUUR_MS = 15000; // 15 seconden voor de bonusvraag
 const SCOREBORD_PAUZE_MS = 7000; // pauze tussen rondes
 const GOK_INTERVAL_MS = 1000; // max 1 gok per seconde per speler
 
@@ -163,7 +165,7 @@ class SpelBeheer {
         });
 
         state.huidige.timer = setTimeout(
-            () => this.eindigRonde(state),
+            () => this.onthulEnBonus(state),
             RONDE_DUUR_MS,
         );
     }
@@ -213,9 +215,9 @@ class SpelBeheer {
             });
             await this.stuurScores(state);
 
-            // Iedereen klaar? Dan ronde vroeg beëindigen.
+            // Iedereen klaar? Dan de gokfase vroeg beëindigen.
             if (await this.iedereenKlaar(state)) {
-                this.eindigRonde(state);
+                this.onthulEnBonus(state);
             }
         } else if (uitslag.status === 'bijna') {
             this.io.to(spelerKamer(spelerId)).emit('ronde:resultaat', {
@@ -285,32 +287,128 @@ class SpelBeheer {
         return { type: 'letters', tekst: `Beginletters: ${letters}.` };
     }
 
-    // ---- Ronde beëindigen ----
-    async eindigRonde(state) {
+    // ---- Gokfase beëindigen: titel onthullen en (optioneel) bonusvraag ----
+    async onthulEnBonus(state) {
         const h = state.huidige;
-        if (!h) return;
+        if (!h || state.fase !== 'raden') return;
         if (h.timer) clearTimeout(h.timer);
         h.timer = null;
-        state.fase = 'scorebord';
+        state.fase = 'onthul';
 
-        await pool.query(`UPDATE rondes SET status = 'afgelopen' WHERE id = $1`, [
+        await pool.query(`UPDATE rondes SET status = 'bonus' WHERE id = $1`, [
             h.rondeId,
         ]);
 
-        const scorebord = await this.haalScorebord(state);
-        this.io.to(kamer(state.code)).emit('ronde:afgelopen', {
+        // Titel onthullen (de gokfase is voorbij).
+        this.io.to(kamer(state.code)).emit('ronde:onthul', {
             antwoord: {
                 naam: h.titel.naam,
                 jaar: h.titel.jaar,
                 tracknaam: h.track.tracknaam,
                 artiest: h.track.artiest,
             },
-            scorebord,
         });
 
-        // Na een pauze door naar de volgende ronde.
+        // Bonusvraag proberen te genereren (valt terug op geen bonus).
+        const bonus = await genereerBonus(h.titel);
+        if (!bonus) {
+            return this.naarScorebord(state);
+        }
+
+        const correctIndex = bonus.opties.findIndex((o) => o.correct);
+        h.bonus = {
+            correctIndex,
+            pogingen: new Map(), // spelerId -> aantal pogingen
+            klaar: new Set(), // spelers die klaar zijn (goed of op)
+            type: bonus.type,
+        };
+        state.fase = 'bonus';
+
+        await pool.query(`UPDATE rondes SET bonusvraag = $2::jsonb WHERE id = $1`, [
+            h.rondeId,
+            JSON.stringify({ vraag: bonus.vraag, type: bonus.type }),
+        ]);
+
+        // Opties zonder 'correct'-vlag naar de clients.
+        this.io.to(kamer(state.code)).emit('ronde:bonus', {
+            vraag: bonus.vraag,
+            opties: bonus.opties.map((o) => o.tekst),
+            durationMs: BONUS_DUUR_MS,
+        });
+
+        h.bonusTimer = setTimeout(() => this.eindBonus(state), BONUS_DUUR_MS);
+    }
+
+    // ---- Bonusantwoord verwerken ----
+    async verwerkBonus(socket, keuze) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || state.fase !== 'bonus' || !state.huidige?.bonus) return;
+        const spelerId = socket.data.spelerId;
+        const b = state.huidige.bonus;
+        if (b.klaar.has(spelerId)) return;
+
+        const poging = (b.pogingen.get(spelerId) || 0) + 1;
+        b.pogingen.set(spelerId, poging);
+
+        const goed = Number(keuze) === b.correctIndex;
+        if (goed) {
+            const punten = bonusPunten(poging);
+            b.klaar.add(spelerId);
+            await this.telScoreOp(spelerId, punten);
+            await this.werkBonusAntwoordBij(state, spelerId, {
+                bonus_goed: true,
+                bonus_pogingen: poging,
+                bonus_punten: punten,
+            });
+            this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
+                status: 'goed',
+                punten,
+            });
+            await this.stuurScores(state);
+        } else if (poging >= 2) {
+            // Tweede fout: klaar, geen punten.
+            b.klaar.add(spelerId);
+            await this.werkBonusAntwoordBij(state, spelerId, {
+                bonus_goed: false,
+                bonus_pogingen: poging,
+                bonus_punten: 0,
+            });
+            this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
+                status: 'fout',
+                correctIndex: b.correctIndex,
+            });
+        } else {
+            // Eerste fout: nog één poging (halve punten).
+            this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
+                status: 'nogmaals',
+            });
+        }
+
+        if (await this.iedereenBonusKlaar(state)) {
+            this.eindBonus(state);
+        }
+    }
+
+    async eindBonus(state) {
+        const h = state.huidige;
+        if (h?.bonusTimer) clearTimeout(h.bonusTimer);
+        if (h) h.bonusTimer = null;
+        this.naarScorebord(state);
+    }
+
+    // ---- Scorebord tonen en door naar de volgende ronde ----
+    async naarScorebord(state) {
+        const h = state.huidige;
+        if (!h) return;
+        state.fase = 'scorebord';
+        await pool.query(`UPDATE rondes SET status = 'afgelopen' WHERE id = $1`, [
+            h.rondeId,
+        ]);
+
+        const scorebord = await this.haalScorebord(state);
+        this.io.to(kamer(state.code)).emit('ronde:afgelopen', { scorebord });
+
         setTimeout(() => {
-            // Kan verwijderd zijn als het spel intussen stopte.
             if (this.spellen.get(state.lobbyId) === state) {
                 this.volgendeRonde(state);
             }
@@ -357,6 +455,36 @@ class SpelBeheer {
             punten,
             spelerId,
         ]);
+    }
+
+    async werkBonusAntwoordBij(state, spelerId, velden) {
+        // Er bestaat al een antwoordrij als de speler de titel goed had; zo
+        // niet, dan maken we er één aan (deelnemer aan de bonus).
+        await pool.query(
+            `INSERT INTO antwoorden (ronde_id, speler_id, bonus_goed,
+                                     bonus_pogingen, bonus_punten)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (ronde_id, speler_id) DO UPDATE SET
+               bonus_goed = EXCLUDED.bonus_goed,
+               bonus_pogingen = EXCLUDED.bonus_pogingen,
+               bonus_punten = EXCLUDED.bonus_punten`,
+            [
+                state.huidige.rondeId,
+                spelerId,
+                velden.bonus_goed,
+                velden.bonus_pogingen,
+                velden.bonus_punten,
+            ],
+        );
+    }
+
+    async iedereenBonusKlaar(state) {
+        const { rows } = await pool.query(
+            `SELECT COUNT(*)::int AS n FROM spelers
+              WHERE lobby_id = $1 AND verbonden = true AND is_host = false`,
+            [state.lobbyId],
+        );
+        return rows[0].n > 0 && state.huidige.bonus.klaar.size >= rows[0].n;
     }
 
     async iedereenKlaar(state) {

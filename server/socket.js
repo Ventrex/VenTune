@@ -113,6 +113,17 @@ function setupSockets(io) {
             }
         });
 
+        // Bonusvraag beantwoorden.
+        socket.on('ronde:bonus-antwoord', async ({ keuze } = {}) => {
+            try {
+                await spel.verwerkBonus(socket, keuze);
+            } catch (err) {
+                logger.waarschuwing('Bonus verwerken mislukt.', {
+                    melding: err.message,
+                });
+            }
+        });
+
         socket.on('disconnect', async () => {
             const { token, lobbyId, code } = socket.data || {};
             if (!token) return;

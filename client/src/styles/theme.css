@@ -426,6 +426,21 @@ h1 {
     box-shadow: 0 0 24px var(--red-glow);
 }
 
+/* Juiste bonusoptie na een fout antwoord. */
+.keuze.juist {
+    border-color: var(--red-hot);
+    background: rgba(196, 18, 48, 0.18);
+}
+
+.keuze:disabled {
+    cursor: default;
+    opacity: 0.85;
+}
+
+.bonus-vraag {
+    font-size: clamp(1.5rem, 6vw, 2.25rem);
+}
+
 /* Periode-slider */
 .periode-waarde {
     font-size: clamp(2rem, 9vw, 3rem);
