@@ -165,6 +165,10 @@ h1 {
 
 .invoer {
     flex: 1;
+    /* Zonder min-width:0 krimpt een flex-invoer niet en duwt hij de knop
+       ernaast buiten beeld. */
+    min-width: 0;
+    width: 100%;
     min-height: 56px;
     padding: 0 1rem;
     border-radius: 14px;
@@ -180,9 +184,11 @@ h1 {
     box-shadow: 0 0 0 3px var(--red-glow);
 }
 
-.zoekbalk .knop {
+/* Knoppen in een zoekbalk nooit laten krimpen of buiten beeld duwen. */
+.zoekbalk > button {
     flex: 0 0 auto;
     padding: 0 1.25rem;
+    white-space: nowrap;
 }
 
 /* --- Chips (snelknoppen) --- */
