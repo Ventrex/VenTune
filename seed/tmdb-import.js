@@ -59,15 +59,45 @@ const LANDEN = {
     RU: 'Rusland', TR: 'Turkije', IL: 'Israël', AR: 'Argentinië', ZA: 'Zuid-Afrika',
 };
 
+// TMDB kent twee soorten sleutels:
+//  - API Key (v3): korte reeks, gaat mee als ?api_key=...
+//  - API Read Access Token (v4): lange reeks die met 'eyJ' begint en als
+//    Authorization: Bearer meegestuurd moet worden.
+// We ondersteunen ze allebei, zodat het niet uitmaakt welke je kopieert.
+const IS_BEARER = KEY.startsWith('eyJ');
+
 async function haal(pad, params = {}) {
-    const zoek = new URLSearchParams({ api_key: KEY, language: 'nl-NL', ...params });
-    const resp = await fetch(`${BASIS}${pad}?${zoek.toString()}`);
+    const zoek = new URLSearchParams({ language: 'nl-NL', ...params });
+    const opties = { headers: {} };
+    if (IS_BEARER) {
+        opties.headers.Authorization = `Bearer ${KEY}`;
+    } else {
+        zoek.set('api_key', KEY);
+    }
+
+    const resp = await fetch(`${BASIS}${pad}?${zoek.toString()}`, opties);
     if (resp.status === 429) {
         await slaap(2000);
         return haal(pad, params);
     }
+    if (resp.status === 401) {
+        const fout = new Error('TMDB weigert de sleutel (401).');
+        fout.code = 'ONGELDIGE_SLEUTEL';
+        throw fout;
+    }
     if (!resp.ok) throw new Error(`TMDB status ${resp.status} op ${pad}`);
     return resp.json();
+}
+
+/** Controleer de sleutel voordat we honderden verzoeken doen. */
+async function controleerSleutel() {
+    try {
+        await haal('/configuration');
+        return true;
+    } catch (err) {
+        if (err.code === 'ONGELDIGE_SLEUTEL') return false;
+        throw err;
+    }
 }
 
 /** Zet een TMDB-resultaat om naar een VenTune-titel. */
@@ -154,6 +184,7 @@ async function verzamel(soort, type, extraParams, paginas, label, teller) {
                 ...extraParams,
             });
         } catch (err) {
+            if (err.code === 'ONGELDIGE_SLEUTEL') throw err; // meteen stoppen
             console.log(`  ${label} pagina ${p}: ${err.message}`);
             break;
         }
@@ -179,10 +210,32 @@ async function verzamel(soort, type, extraParams, paginas, label, teller) {
 async function main() {
     if (!KEY) {
         console.error(
-            'TMDB_API_KEY ontbreekt. Zet een gratis key in .env en herstart de stack.',
+            'TMDB_API_KEY ontbreekt.\n\n' +
+                'Zo los je het op:\n' +
+                '  1. Ga naar https://www.themoviedb.org/settings/api\n' +
+                '  2. Kopieer de "API Key (v3 auth)" — of de "API Read Access Token"\n' +
+                '  3. Zet die in /opt/VenTune/.env bij TMDB_API_KEY=\n' +
+                '  4. docker compose up -d\n',
         );
         process.exit(1);
     }
+
+    console.log(
+        `Sleutel gevonden (${IS_BEARER ? 'Read Access Token' : 'API Key v3'}), controleren…`,
+    );
+    if (!(await controleerSleutel())) {
+        console.error(
+            '\nTMDB weigert deze sleutel (401).\n\n' +
+                'Controleer op https://www.themoviedb.org/settings/api:\n' +
+                '  • Gebruik de "API Key (v3 auth)" — een korte reeks letters/cijfers,\n' +
+                '    of de "API Read Access Token" — een lange reeks die met eyJ begint.\n' +
+                '  • Let op spaties of aanhalingstekens in .env (TMDB_API_KEY=abc123,\n' +
+                '    dus zonder quotes).\n' +
+                '  • Na wijzigen: docker compose up -d\n',
+        );
+        process.exit(1);
+    }
+    console.log('Sleutel werkt.\n');
 
     const teller = { nieuw: 0, bestond: 0, fouten: 0 };
     console.log(`TMDB-import gestart (${PAGINAS} pagina's per categorie)…\n`);

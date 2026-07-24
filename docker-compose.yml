@@ -39,16 +39,16 @@ services:
       db:
         condition: service_healthy
     environment:
-      NODE_ENV: ${NODE_ENV}
-      PORT: ${PORT}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
       DATABASE_URL: ${DATABASE_URL}
-      APP_URL: ${APP_URL}
+      APP_URL: ${APP_URL:-}
       SESSION_SECRET: ${SESSION_SECRET}
-      ITUNES_LAND: ${ITUNES_LAND}
-      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY}
-      TMDB_API_KEY: ${TMDB_API_KEY}
+      ITUNES_LAND: ${ITUNES_LAND:-NL}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     # De seed-map als volume, zodat import.js altijd beschikbaar is (ook
     # zonder rebuild) en aanpassingen aan titels.json direct meekomen.
     volumes:
@@ -63,7 +63,7 @@ services:
     build:
       context: ./client
       args:
-        VITE_APP_URL: ${VITE_APP_URL}
+        VITE_APP_URL: ${VITE_APP_URL:-}
     restart: unless-stopped
     depends_on:
       - server

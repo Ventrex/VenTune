@@ -14,9 +14,19 @@ function beschikbaar() {
     return !!KEY;
 }
 
+// TMDB accepteert zowel een API Key (v3, als queryparameter) als een
+// Read Access Token (v4, als Bearer-header). Beide worden ondersteund.
+const IS_BEARER = KEY.startsWith('eyJ');
+
 async function haal(pad, params = {}) {
-    const zoek = new URLSearchParams({ api_key: KEY, language: TAAL, ...params });
-    const resp = await fetch(`${BASIS}${pad}?${zoek.toString()}`);
+    const zoek = new URLSearchParams({ language: TAAL, ...params });
+    const opties = { headers: {} };
+    if (IS_BEARER) {
+        opties.headers.Authorization = `Bearer ${KEY}`;
+    } else {
+        zoek.set('api_key', KEY);
+    }
+    const resp = await fetch(`${BASIS}${pad}?${zoek.toString()}`, opties);
     if (!resp.ok) throw new Error(`TMDB status ${resp.status}`);
     return resp.json();
 }
