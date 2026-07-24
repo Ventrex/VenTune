@@ -552,6 +552,42 @@ h1 {
     }
 }
 
+/* --- Host-speler (audio/YouTube afgedekt, visualizer erbovenop) --- */
+.host-speler {
+    position: relative;
+    min-height: 160px;
+    margin: 1.5rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.host-speler .yt-laag {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.host-speler .yt-mount {
+    width: 100%;
+    height: 100%;
+}
+
+/* Zwarte laag die de YouTube-video (en dus de titel) volledig afdekt. */
+.host-speler .yt-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--bg);
+}
+
+.host-speler-visual {
+    position: relative;
+    z-index: 2;
+}
+
 /* --- Timer --- */
 .timer-cijfer {
     font-variant-numeric: tabular-nums;

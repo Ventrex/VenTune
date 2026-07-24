@@ -16,7 +16,8 @@ const logger = require('../lib/logger');
 const GENRE_AFLEIDERS = [
     'Actie', 'Avontuur', 'Komedie', 'Drama', 'Thriller', 'Horror',
     'Sciencefiction', 'Romantiek', 'Misdaad', 'Fantasy', 'Animatie',
-    'Documentaire', 'Oorlog', 'Western', 'Mysterie',
+    'Documentaire', 'Oorlog', 'Western', 'Mysterie', 'Kerst', 'Familie',
+    'Musical', 'Superhelden', 'Sport',
 ];
 
 function hussel(arr) {

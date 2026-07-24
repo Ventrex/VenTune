@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSpel } from '../lib/useSpel.js';
 import { wisSessie } from '../lib/sessie.js';
-import Visualizer from '../components/Visualizer.jsx';
+import HostPlayer from '../components/HostPlayer.jsx';
 import Timer from '../components/Timer.jsx';
 
 // Host-scherm (het grote scherm). Speelt de muziek af en toont de QR,
@@ -11,7 +11,7 @@ import Timer from '../components/Timer.jsx';
 export default function Host() {
     const navigate = useNavigate();
     const spel = useSpel();
-    const { sessie, fase, ronde, antwoord, bonus, scorebord, spelers } = spel;
+    const { sessie, fase, ronde, antwoord, bonus, scorebord, spelers, audio } = spel;
 
     useEffect(() => {
         if (!sessie) navigate('/');
@@ -99,7 +99,7 @@ export default function Host() {
                     <div className="timer-groot">
                         <Timer startTs={ronde.startTs} durationMs={ronde.durationMs} />
                     </div>
-                    <Visualizer actief />
+                    <HostPlayer audio={audio} />
                     <p className="dim" style={{ marginTop: '1.5rem' }}>
                         Raad de titel op je telefoon…
                     </p>

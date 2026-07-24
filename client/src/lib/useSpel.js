@@ -6,7 +6,7 @@
 // telefoon en zien alleen de visualizer — geen titel tot de ronde klaar is.
 // =====================================================================
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { haalSocket } from './socket.js';
 import { leesSessie } from './sessie.js';
 
@@ -25,13 +25,13 @@ export function useSpel() {
     const [bonusResultaat, setBonusResultaat] = useState(null);
     const [scorebord, setScorebord] = useState([]);
     const [fout, setFout] = useState('');
-
-    const audioRef = useRef(null);
+    // Afspeel-opdracht voor de host: { bron, url, startSeconde }. Spelers
+    // krijgen dit niet en horen dus niets.
+    const [audio, setAudio] = useState(null);
 
     useEffect(() => {
         if (!sessie?.token) return;
         const socket = haalSocket();
-        if (!audioRef.current) audioRef.current = new Audio();
 
         const hallo = () => {
             setVerbonden(true);
@@ -49,14 +49,12 @@ export function useSpel() {
             setBonus(null);
             setBonusResultaat(null);
             setRonde({ ...d, startTs: Date.now() });
+            setAudio(null);
             setFase('raden');
         };
         const bijAudio = (d) => {
-            // Alleen de host speelt de audio af.
-            if (!isHost || !audioRef.current) return;
-            audioRef.current.src = d.previewUrl;
-            audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(() => {});
+            // Alleen de host krijgt en speelt de audio af.
+            if (isHost) setAudio(d);
         };
         const bijResultaat = (r) => setResultaat(r);
         const bijHint = (h) => {
@@ -64,7 +62,7 @@ export function useSpel() {
             else setHints((lijst) => [...lijst, h]);
         };
         const bijOnthul = ({ antwoord: a }) => {
-            if (audioRef.current) audioRef.current.pause();
+            setAudio(null); // Muziek stoppen bij de host.
             setAntwoord(a);
             setFase('onthul');
         };
@@ -80,7 +78,7 @@ export function useSpel() {
         };
         const bijScores = (sb) => setScorebord(sb);
         const bijEinde = ({ scorebord: sb }) => {
-            if (audioRef.current) audioRef.current.pause();
+            setAudio(null);
             setScorebord(sb);
             setFase('einde');
         };
@@ -144,6 +142,7 @@ export function useSpel() {
         bonus,
         bonusResultaat,
         scorebord,
+        audio,
         fout,
         startSpel,
         gok,

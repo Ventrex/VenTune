@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
+import { haalVideoId } from '../lib/youtube.js';
 
 // Beheerportaal (/admin). Wachtwoord uit ADMIN_PASSWORD op de server.
 export default function Admin() {
@@ -244,7 +245,50 @@ function TitelDetail({ titel, onWijzig }) {
             </ul>
 
             <TrackZoeker titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
+            <YoutubeToevoegen titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
         </div>
+    );
+}
+
+// Voeg een YouTube-track toe (voor titels die iTunes mist).
+function YoutubeToevoegen({ titelId, onToegevoegd }) {
+    const [url, setUrl] = useState('');
+    const [naam, setNaam] = useState('');
+    const [start, setStart] = useState('');
+    const [fout, setFout] = useState('');
+
+    async function toevoegen(e) {
+        e.preventDefault();
+        const id = haalVideoId(url);
+        if (!id) { setFout('Geen geldige YouTube-link.'); return; }
+        try {
+            await api.adminVoegTrack(titelId, {
+                bron: 'youtube',
+                preview_url: id,
+                start_seconde: start ? Number(start) : 0,
+                tracknaam: naam.trim() || 'YouTube',
+                artiest: 'YouTube',
+            });
+            setUrl(''); setNaam(''); setStart(''); setFout('');
+            onToegevoegd();
+        } catch (err) {
+            setFout(err.message);
+        }
+    }
+
+    return (
+        <form onSubmit={toevoegen} style={{ marginTop: '0.75rem' }}>
+            <p className="kaart-label">YouTube-link toevoegen</p>
+            {fout && <p className="waarschuwing">{fout}</p>}
+            <div className="velden">
+                <input className="invoer" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="YouTube-URL of video-id" />
+                <div className="zoekbalk">
+                    <input className="invoer" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Naam (bv. Titelsong)" />
+                    <input className="invoer" value={start} onChange={(e) => setStart(e.target.value)} placeholder="Start (sec)" style={{ maxWidth: 110 }} />
+                </div>
+                <button className="knop knop-stil" type="submit">YouTube-track toevoegen</button>
+            </div>
+        </form>
     );
 }
 

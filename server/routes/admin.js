@@ -178,15 +178,19 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
     if (!b.preview_url || !b.tracknaam) {
         return res.status(400).json({ fout: 'preview_url en tracknaam verplicht.' });
     }
+    const geldigeBron = ['itunes', 'youtube', 'lokaal'].includes(b.bron)
+        ? b.bron
+        : 'itunes';
     const { rows } = await pool.query(
         `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
-                             tracknaam, artiest, herkenbaarheid)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+                             start_seconde, tracknaam, artiest, herkenbaarheid)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
         [
             req.params.id,
-            b.bron === 'lokaal' ? 'lokaal' : 'itunes',
+            geldigeBron,
             b.itunes_track_id ?? null,
             b.preview_url,
+            Number.isFinite(b.start_seconde) ? b.start_seconde : 0,
             b.tracknaam,
             b.artiest || '',
             Number.isFinite(b.herkenbaarheid) ? b.herkenbaarheid : 3,

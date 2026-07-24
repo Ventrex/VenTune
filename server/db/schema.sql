@@ -61,13 +61,17 @@ CREATE INDEX IF NOT EXISTS idx_titels_genres  ON titels USING GIN (genres);
 CREATE TABLE IF NOT EXISTS tracks (
     id               SERIAL PRIMARY KEY,
     titel_id         INTEGER     NOT NULL REFERENCES titels (id) ON DELETE CASCADE,
-    -- Bron van de audio: 'itunes' of 'lokaal'.
+    -- Bron van de audio: 'itunes', 'youtube' of 'lokaal'.
     bron             TEXT        NOT NULL DEFAULT 'itunes'
-                     CHECK (bron IN ('itunes', 'lokaal')),
+                     CHECK (bron IN ('itunes', 'youtube', 'lokaal')),
     -- iTunes-trackid (indien van iTunes), handig om later te verversen.
     itunes_track_id  BIGINT,
-    -- De daadwerkelijke audio-URL: iTunes previewUrl of /media/bestand.m4a.
+    -- Waar de audio zit: iTunes previewUrl, /media/bestand.m4a, of bij
+    -- YouTube het video-id.
     preview_url      TEXT        NOT NULL,
+    -- Startpositie in seconden (vooral voor YouTube; iTunes-previews starten
+    -- op 0).
+    start_seconde    INTEGER     NOT NULL DEFAULT 0,
     tracknaam        TEXT        NOT NULL,
     artiest          TEXT        NOT NULL,
     herkenbaarheid   SMALLINT    NOT NULL DEFAULT 3
@@ -76,6 +80,15 @@ CREATE TABLE IF NOT EXISTS tracks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tracks_titel_id ON tracks (titel_id);
+
+-- Migratie voor bestaande databases: kolom en verruimde bron-constraint.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS start_seconde INTEGER NOT NULL DEFAULT 0;
+DO $$
+BEGIN
+    ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_bron_check;
+    ALTER TABLE tracks ADD CONSTRAINT tracks_bron_check
+        CHECK (bron IN ('itunes', 'youtube', 'lokaal'));
+END$$;
 
 -- ---------------------------------------------------------------------
 -- Presets: opgeslagen filtercombinaties van de host

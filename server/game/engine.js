@@ -117,7 +117,7 @@ class SpelBeheer {
 
         const titel = state.pool[state.rondenummer - 1];
         const { rows } = await pool.query(
-            `SELECT id, preview_url, tracknaam, artiest
+            `SELECT id, bron, preview_url, start_seconde, tracknaam, artiest
                FROM tracks WHERE titel_id = $1 ORDER BY random() LIMIT 1`,
             [titel.id],
         );
@@ -156,11 +156,14 @@ class SpelBeheer {
             totaal: state.totaalRondes,
             durationMs: RONDE_DUUR_MS,
         });
-        // Host: krijgt de audio om af te spelen in de kamer.
+        // Host: krijgt de audio om af te spelen in de kamer. Afhankelijk van
+        // de bron speelt de host een audio-clip (iTunes/lokaal) of een
+        // YouTube-video af, met de visualizer eroverheen.
         this.io.to(hostKamer(state.code)).emit('ronde:audio', {
             rondeId: state.huidige.rondeId,
-            previewUrl: track.preview_url,
-            startMs: 0,
+            bron: track.bron,
+            url: track.preview_url,
+            startSeconde: track.start_seconde || 0,
             durationMs: RONDE_DUUR_MS,
         });
 

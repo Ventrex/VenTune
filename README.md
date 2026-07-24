@@ -58,7 +58,7 @@ zonder punten te verliezen.
 | Database | PostgreSQL 16                           |
 | Frontend | React 18 + Vite (PWA)                   |
 | Styling  | Eigen theme-tokens (OLED zwart/rood)    |
-| Audio    | iTunes Search API (gratis 30s-previews) |
+| Audio    | iTunes-previews + YouTube + lokale clips |
 | Metadata | TMDB API (server-side, optioneel)       |
 
 Alles draait in Docker via één `docker-compose.yml`. Geen betaalde API's,
@@ -109,7 +109,7 @@ behouden.
 Bij een verse installatie is de vragenbank leeg. Vullen kan op twee manieren:
 
 **A. Via het beheerportaal (aanbevolen).** Ga naar `/admin`, log in en klik op
-**"Startseed importeren (iTunes)"**. VenTune zet ~150 titels klaar (Nederlands en
+**"Startseed importeren (iTunes)"**. VenTune zet ~290 titels klaar (Nederlands en
 internationaal) en zoekt per titel een clip op iTunes. Aan het eind zie je welke
 titels geen clip kregen — die vul je handmatig aan.
 
@@ -137,8 +137,15 @@ Inloggen met `ADMIN_PASSWORD` uit je `.env`. Je kunt er:
 - de startseed importeren;
 - titels zoeken, toevoegen, bewerken en verwijderen (naam, aliassen, type, taal,
   jaar, land, genres, TMDB-id);
-- per titel tracks beheren: op iTunes zoeken, beluisteren en toevoegen, of
-  verwijderen.
+- per titel tracks beheren: op iTunes zoeken, beluisteren en toevoegen, een
+  **YouTube-link** plakken (met optionele startseconde), of tracks verwijderen.
+
+**YouTube als aanvulling.** Naast iTunes kun je per titel een YouTube-video als
+bron gebruiken — handig voor titels die iTunes mist (juist die Nederlandse en
+niet-Engelse). De host speelt de video af met de visualizer eroverheen, zodat de
+titel verborgen blijft. Let op: een ingesloten YouTube-speler erft je Premium
+niet altijd, dus er kan af en toe een advertentie verschijnen. iTunes blijft
+daarom de standaardbron.
 
 Vul een **TMDB-id** in bij een titel om er bonusvragen voor mogelijk te maken.
 
@@ -259,7 +266,7 @@ VenTune/
 │       └── styles/theme.css
 └── seed/
     ├── import.js            # iTunes-import
-    └── titels.json          # startseed (150 titels, NL + internationaal)
+    └── titels.json          # startseed (~290 titels, NL + internationaal)
 ```
 
 ---
