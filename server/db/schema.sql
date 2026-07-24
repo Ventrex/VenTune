@@ -102,8 +102,13 @@ CREATE TABLE IF NOT EXISTS presets (
     periode_start  INTEGER     NOT NULL DEFAULT 1950,
     periode_eind   INTEGER     NOT NULL DEFAULT 2100,
     rondes         INTEGER     NOT NULL DEFAULT 10,        -- 10 | 20 | 30 | 0 (eindeloos)
+    -- Speeltijd per ronde in seconden; 0 = heel nummer.
+    speeltijd      INTEGER     NOT NULL DEFAULT 60,
     aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Migratie voor bestaande databases.
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS speeltijd INTEGER NOT NULL DEFAULT 60;
 
 -- ---------------------------------------------------------------------
 -- Lobbies: één actief spel per lobbycode

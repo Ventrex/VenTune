@@ -21,6 +21,47 @@ const MIN_SECONDEN = 20;
 // Boven dit is het vaak een volledige aflevering of urenlange compilatie.
 const MAX_SECONDEN = 45 * 60;
 
+/**
+ * Zet een weergaveteller om naar een getal. Vangt zowel Nederlandse als
+ * Engelse notatie: "1.234.567 weergaven", "1,2 mln. weergaven", "1.2M
+ * views", "123K views".
+ */
+function viewsNaarGetal(tekst) {
+    if (!tekst) return null;
+    const s = String(tekst).toLowerCase().replace(/ /g, ' ');
+    const m = s.match(
+        // Getal hebzuchtig pakken (zodat "1.234.567" heel blijft), daarna een
+        // optioneel achtervoegsel dat niet in een ander woord mag doorlopen.
+        /([0-9][0-9.,\s]*[0-9]|[0-9])\s*(mrd|miljard|mln|miljoen|duizend|[kmb])?(?![a-z])/,
+    );
+    if (!m) return null;
+
+    const ruw = m[1].trim();
+    const achtervoegsel = m[2];
+
+    let factor = 1;
+    if (achtervoegsel === 'mrd' || achtervoegsel === 'miljard' || achtervoegsel === 'b') {
+        factor = 1e9;
+    } else if (
+        achtervoegsel === 'mln' ||
+        achtervoegsel === 'miljoen' ||
+        achtervoegsel === 'm'
+    ) {
+        factor = 1e6;
+    } else if (achtervoegsel === 'duizend' || achtervoegsel === 'k') {
+        factor = 1e3;
+    }
+
+    if (factor > 1) {
+        // Bij een achtervoegsel is het scheidingsteken een decimaalteken.
+        const getal = parseFloat(ruw.replace(/\s/g, '').replace(',', '.'));
+        return Number.isNaN(getal) ? null : Math.round(getal * factor);
+    }
+    // Zonder achtervoegsel zijn punten/komma's duizendscheiders.
+    const getal = parseInt(ruw.replace(/[.,\s]/g, ''), 10);
+    return Number.isNaN(getal) ? null : getal;
+}
+
 /** Zet "1:23" of "12:03:45" om naar seconden. */
 function duurNaarSeconden(tekst) {
     if (!tekst) return null;
@@ -81,11 +122,19 @@ function leesResultaten(html) {
                 '';
             const duurTekst =
                 (vr.lengthText && vr.lengthText.simpleText) || null;
+            // Weergaven staan soms in simpleText, soms in runs.
+            const viewsTekst =
+                (vr.viewCountText && vr.viewCountText.simpleText) ||
+                (vr.viewCountText &&
+                    vr.viewCountText.runs &&
+                    vr.viewCountText.runs.map((r) => r.text).join('')) ||
+                null;
             gevonden.push({
                 videoId: vr.videoId,
                 titel,
                 kanaal,
                 duurSeconden: duurNaarSeconden(duurTekst),
+                views: viewsNaarGetal(viewsTekst),
             });
         }
         for (const sleutel of Object.keys(knoop)) {
@@ -158,21 +207,72 @@ async function zoek(term, opties = {}) {
 }
 
 /**
- * Bouw een goede YouTube-zoekterm voor een titel.
- * Series → intro/tune; films → soundtrack/main theme.
+ * Bouw zoektermen voor een titel, in volgorde van kans op succes.
+ * Series → intro / theme song; films → official theme / soundtrack.
+ * Er worden meerdere varianten geprobeerd zodat er weinig missers zijn.
+ *
+ * @returns {string[]}
  */
-function zoektermVoor(titel) {
-    if (titel.yt_zoekterm) return titel.yt_zoekterm;
+function zoektermenVoor(titel) {
+    if (titel.yt_zoekterm) return [titel.yt_zoekterm];
     const naam = titel.naam;
-    if (titel.type === 'serie') {
-        return titel.taal === 'nl'
-            ? `${naam} intro tune titelsong`
-            : `${naam} intro theme song`;
-    }
     const jaar = titel.jaar ? ` ${titel.jaar}` : '';
-    return titel.taal === 'nl'
-        ? `${naam}${jaar} soundtrack muziek thema`
-        : `${naam}${jaar} soundtrack main theme`;
+
+    if (titel.type === 'serie') {
+        return [
+            `${naam} official theme`,
+            `${naam} intro`,
+            `${naam} theme song`,
+            `${naam} titelsong intro`,
+            `${naam} soundtrack`,
+        ];
+    }
+    return [
+        `${naam} official theme`,
+        `${naam} soundtrack main theme`,
+        `${naam}${jaar} soundtrack`,
+        `${naam} theme song`,
+        `${naam} muziek thema`,
+    ];
+}
+
+/** Eén term (eerste keuze) — handig voor losse aanroepen. */
+function zoektermVoor(titel) {
+    return zoektermenVoor(titel)[0];
+}
+
+/**
+ * Zoek de best passende intro/themesong voor een titel. Probeert meerdere
+ * zoektermen tot er een bruikbare treffer is, en kiest binnen de treffers
+ * op weergaven.
+ *
+ * @returns {Promise<object|null>}
+ */
+async function zoekVoorTitel(titel, opties = {}) {
+    const termen = zoektermenVoor(titel);
+    let beste = null;
+
+    for (const term of termen) {
+        let videos;
+        try {
+            videos = await zoek(term, { limiet: opties.limiet || 12 });
+        } catch (err) {
+            // Netwerk-/blokkadefout: laat de aanroeper dit weten.
+            if (!beste) throw err;
+            break;
+        }
+        const keuze = kiesBeste(videos, titel);
+        if (keuze) {
+            // Meer weergaven dan een eerdere treffer? Dan die nemen.
+            if (!beste || (keuze.views ?? 0) > (beste.views ?? 0)) {
+                beste = keuze;
+            }
+            // Een treffer met flink wat weergaven is goed genoeg.
+            if ((keuze.views ?? 0) > 50000) break;
+        }
+        if (opties.pauzeMs) await new Promise((r) => setTimeout(r, opties.pauzeMs));
+    }
+    return beste;
 }
 
 // Woorden die wijzen op precies wat we willen.
@@ -197,53 +297,57 @@ function normaliseer(s) {
 
 /**
  * Kies uit de zoekresultaten de meest waarschijnlijke intro/themesong.
+ *
+ * Werkwijze: eerst op relevantie filteren (titelnaam moet voorkomen, geen
+ * reacties/trailers/afleveringen, redelijke duur) en daarna binnen de
+ * overgebleven kandidaten de video met de **meeste weergaven** kiezen.
+ * De bovenste zoektreffer is namelijk vaak niet de beste versie.
+ *
  * Puur en testbaar.
  */
 function kiesBeste(resultaten, titel) {
     if (!resultaten || resultaten.length === 0) return null;
     const naamNorm = normaliseer(titel.naam);
 
-    let beste = null;
-    let besteScore = -Infinity;
-
-    resultaten.forEach((r, index) => {
+    // Basiseisen: naam komt voor, niets ongewensts, duur plausibel.
+    const bruikbaar = resultaten.filter((r) => {
         const t = normaliseer(r.titel);
-        let score = 0;
-
-        // De titelnaam moet er echt in zitten.
-        if (naamNorm && t.includes(naamNorm)) score += 6;
-
-        // Intro/theme-signalen.
-        if (GOEDE_WOORDEN.some((w) => t.includes(w))) score += 4;
-
-        // Ongewenste video's hard afstraffen.
-        if (SLECHTE_WOORDEN.some((w) => t.includes(w))) score -= 8;
-
-        // Duur: intro's en thema's zijn kort tot middellang.
+        if (naamNorm && !t.includes(naamNorm)) return false;
+        if (SLECHTE_WOORDEN.some((w) => t.includes(w))) return false;
         if (r.duurSeconden != null) {
-            if (r.duurSeconden < MIN_SECONDEN) score -= 5;
-            else if (r.duurSeconden <= 6 * 60) score += 3;
-            else if (r.duurSeconden > MAX_SECONDEN) score -= 6;
+            if (r.duurSeconden < MIN_SECONDEN) return false;
+            if (r.duurSeconden > MAX_SECONDEN) return false;
         }
-
-        // Lichte voorkeur voor YouTube's eigen volgorde.
-        score -= index * 0.3;
-
-        if (score > besteScore) {
-            besteScore = score;
-            beste = r;
-        }
+        return true;
     });
 
-    // Alles negatief? Dan is er niets bruikbaars gevonden.
-    if (besteScore < 0) return null;
-    return beste;
+    if (bruikbaar.length === 0) return null;
+
+    // Voorkeursgroep: video's die zich expliciet als intro/theme aankondigen.
+    const metSignaal = bruikbaar.filter((r) =>
+        GOEDE_WOORDEN.some((w) => normaliseer(r.titel).includes(w)),
+    );
+    const groep = metSignaal.length > 0 ? metSignaal : bruikbaar;
+
+    // Binnen de groep: de populairste wint (meeste weergaven).
+    const gesorteerd = groep.slice().sort((a, b) => {
+        const va = a.views ?? -1;
+        const vb = b.views ?? -1;
+        if (vb !== va) return vb - va;
+        // Geen weergaven bekend? Dan de kortere (meestal de pure intro).
+        return (a.duurSeconden ?? 9999) - (b.duurSeconden ?? 9999);
+    });
+
+    return gesorteerd[0];
 }
 
 module.exports = {
     zoek,
+    zoekVoorTitel,
     leesResultaten,
     kiesBeste,
     zoektermVoor,
+    zoektermenVoor,
     duurNaarSeconden,
+    viewsNaarGetal,
 };

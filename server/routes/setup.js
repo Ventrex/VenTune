@@ -56,7 +56,7 @@ router.get('/api/tracks/telling', async (req, res) => {
 router.get('/api/presets', async (_req, res) => {
     const { rows } = await pool.query(
         `SELECT id, naam, categorie, taal, periode_start, periode_eind,
-                rondes, aangemaakt_op
+                rondes, speeltijd, aangemaakt_op
            FROM presets
           ORDER BY aangemaakt_op DESC`,
     );
@@ -72,10 +72,11 @@ router.post('/api/presets', async (req, res) => {
     try {
         const { rows } = await pool.query(
             `INSERT INTO presets
-               (naam, categorie, taal, periode_start, periode_eind, rondes)
-             VALUES ($1, $2, $3, $4, $5, $6)
+               (naam, categorie, taal, periode_start, periode_eind, rondes,
+                speeltijd)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING id, naam, categorie, taal, periode_start, periode_eind,
-                       rondes, aangemaakt_op`,
+                       rondes, speeltijd, aangemaakt_op`,
             [
                 naam,
                 b.categorie || 'beide',
@@ -83,6 +84,7 @@ router.post('/api/presets', async (req, res) => {
                 Number.isFinite(b.periode_start) ? b.periode_start : 1950,
                 Number.isFinite(b.periode_eind) ? b.periode_eind : 2100,
                 Number.isFinite(b.rondes) ? b.rondes : 10,
+                Number.isFinite(b.speeltijd) ? b.speeltijd : 60,
             ],
         );
         res.json(rows[0]);

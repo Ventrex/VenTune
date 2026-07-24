@@ -13,7 +13,18 @@ const { titelPunten, bonusPunten } = require('./scoring');
 const { genereerBonus } = require('./bonus');
 const logger = require('../lib/logger');
 
-const RONDE_DUUR_MS = 30000; // 30 seconden raden
+const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
+// 'Heel nummer': ruime bovengrens; de ronde eindigt zodra iedereen geraden
+// heeft, of als deze tijd verstrijkt.
+const HEEL_NUMMER_MS = 5 * 60 * 1000;
+
+/** Bepaal de rondeduur uit de lobby-instellingen. */
+function rondeDuurUit(instellingen) {
+    const s = Number(instellingen && instellingen.speeltijd);
+    if (s === 0) return HEEL_NUMMER_MS; // heel nummer
+    if (Number.isFinite(s) && s >= 10 && s <= 300) return s * 1000;
+    return RONDE_DUUR_MS;
+}
 const BONUS_DUUR_MS = 15000; // 15 seconden voor de bonusvraag
 const SCOREBORD_PAUZE_MS = 7000; // pauze tussen rondes
 const GOK_INTERVAL_MS = 1000; // max 1 gok per seconde per speler
@@ -83,6 +94,7 @@ class SpelBeheer {
             lobbyId,
             code,
             instellingen,
+            rondeDuurMs: rondeDuurUit(instellingen),
             pool: pool_,
             totaalRondes: totaal,
             rondenummer: 0,
@@ -128,7 +140,7 @@ class SpelBeheer {
                (lobby_id, rondenummer, titel_id, track_id, start_ms, duur_ms, status)
              VALUES ($1, $2, $3, $4, 0, $5, 'raden')
              RETURNING id`,
-            [state.lobbyId, state.rondenummer, titel.id, track.id, RONDE_DUUR_MS],
+            [state.lobbyId, state.rondenummer, titel.id, track.id, state.rondeDuurMs],
         );
 
         state.huidige = {
@@ -154,7 +166,7 @@ class SpelBeheer {
             rondeId: state.huidige.rondeId,
             rondenummer: state.rondenummer,
             totaal: state.totaalRondes,
-            durationMs: RONDE_DUUR_MS,
+            durationMs: state.rondeDuurMs,
         });
         // Host: krijgt de audio om af te spelen in de kamer. Afhankelijk van
         // de bron speelt de host een audio-clip (iTunes/lokaal) of een
@@ -164,12 +176,12 @@ class SpelBeheer {
             bron: track.bron,
             url: track.preview_url,
             startSeconde: track.start_seconde || 0,
-            durationMs: RONDE_DUUR_MS,
+            durationMs: state.rondeDuurMs,
         });
 
         state.huidige.timer = setTimeout(
             () => this.onthulEnBonus(state),
-            RONDE_DUUR_MS,
+            state.rondeDuurMs,
         );
     }
 

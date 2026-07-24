@@ -163,6 +163,26 @@ async function voegYoutubeTrackToe(titelId, video) {
 }
 
 /**
+ * Vervang de bestaande tracks van een titel door één nieuwe. Alleen
+ * aanroepen als de nieuwe track er echt is — zo raak je nooit een
+ * werkende track kwijt.
+ */
+async function vervangTracks(titelId, voegToe) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(`DELETE FROM tracks WHERE titel_id = $1`, [titelId]);
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+    await voegToe();
+}
+
+/**
  * Voer de import uit. Herbruikbaar vanuit de CLI én de admin-portal.
  * @param {object} opties { force, limiet, onLog }
  * @returns {Promise<{verwerkt, metTrack, zonder:string[]}>}
@@ -186,25 +206,32 @@ async function importeer({ force = false, limiet = Infinity, onLog } = {}) {
             metTrack++;
             continue;
         }
-        if (force) {
-            // Schoon opnieuw opbouwen: oude (vaak onbruikbare) tracks weg,
-            // zodat het spel niet alsnog een slechte kan kiezen en er geen
-            // dubbelen ontstaan bij herhaald draaien.
-            await pool.query(`DELETE FROM tracks WHERE titel_id = $1`, [titelId]);
-        }
+        // Let op: bij --force verwijderen we NIETS vooraf. Een oude track is
+        // altijd beter dan geen track. Pas als er een nieuwe gevonden is,
+        // vervangen we de oude (zie hieronder).
 
         // 1) YouTube is de primaire bron: daar staat vrijwel elke intro en
         //    titelsong, ook de Nederlandse. Dit voorkomt handmatig nalopen.
         let gelukt = false;
         try {
-            const term = ytzoek.zoektermVoor(t);
-            const videos = await ytzoek.zoek(term, { limiet: 10 });
-            const keuze = ytzoek.kiesBeste(videos, t);
+            const keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250 });
             if (keuze) {
-                await voegYoutubeTrackToe(titelId, keuze);
+                // Nu er echt een treffer is, mogen oude tracks wijken.
+                if (force) {
+                    await vervangTracks(titelId, () =>
+                        voegYoutubeTrackToe(titelId, keuze),
+                    );
+                } else {
+                    await voegYoutubeTrackToe(titelId, keuze);
+                }
                 metTrack++;
                 gelukt = true;
-                log({ titel: t.naam, bron: 'youtube', gevonden: keuze.titel });
+                log({
+                    titel: t.naam,
+                    bron: 'youtube',
+                    gevonden: keuze.titel,
+                    views: keuze.views ?? null,
+                });
             }
         } catch (err) {
             log({ titel: t.naam, bron: 'youtube', fout: err.message });
@@ -217,7 +244,13 @@ async function importeer({ force = false, limiet = Infinity, onLog } = {}) {
                 const resultaten = await itunes.zoek(term, { limiet: 8 });
                 if (resultaten.length > 0) {
                     const keuze = kiesBeste(resultaten, t);
-                    await voegItunesTrackToe(titelId, keuze);
+                    if (force) {
+                        await vervangTracks(titelId, () =>
+                            voegItunesTrackToe(titelId, keuze),
+                        );
+                    } else {
+                        await voegItunesTrackToe(titelId, keuze);
+                    }
                     metTrack++;
                     gelukt = true;
                     log({ titel: t.naam, bron: 'itunes', gevonden: keuze.tracknaam });

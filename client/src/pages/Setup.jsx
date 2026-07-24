@@ -27,6 +27,12 @@ const RONDES = [
     { waarde: 30, label: '30' },
     { waarde: 0, label: 'Eindeloos' },
 ];
+const SPEELTIJDEN = [
+    { waarde: 30, label: '30 sec' },
+    { waarde: 60, label: '1 min' },
+    { waarde: 90, label: '1½ min' },
+    { waarde: 0, label: 'Heel nummer' },
+];
 const PERIODE_SNEL = [
     { label: 'Alles', van: 1950, tot: NU },
     { label: 'Jaren 80', van: 1980, tot: 1989 },
@@ -46,6 +52,7 @@ export default function Setup() {
         periode_start: 1950,
         periode_eind: NU,
         rondes: 10,
+        speeltijd: 60,
     });
     const [telling, setTelling] = useState(null);
     const [presets, setPresets] = useState([]);
@@ -105,6 +112,7 @@ export default function Setup() {
             periode_start: p.periode_start,
             periode_eind: p.periode_eind,
             rondes: p.rondes,
+            speeltijd: p.speeltijd ?? 60,
         });
         setStap(4);
     }
@@ -284,6 +292,27 @@ export default function Setup() {
                         ))}
                     </div>
 
+                    {/* Speeltijd per ronde */}
+                    <p
+                        className="kaart-label"
+                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
+                    >
+                        Speeltijd per ronde
+                    </p>
+                    <div className="chips">
+                        {SPEELTIJDEN.map((s) => (
+                            <button
+                                key={s.waarde}
+                                className={
+                                    'chip' + (filters.speeltijd === s.waarde ? ' gekozen' : '')
+                                }
+                                onClick={() => zet('speeltijd', s.waarde)}
+                            >
+                                {s.label}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Live telling */}
                     <div className="telling">
                         {telling ? (
@@ -381,5 +410,6 @@ function labelVoor(p) {
               : 'Beide';
     const taal = p.taal === 'nl' ? 'NL' : p.taal === 'en' ? 'Int' : 'NL+Int';
     const rondes = p.rondes === 0 ? 'eindeloos' : `${p.rondes} rondes`;
-    return `${cat} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes}`;
+    const tijd = p.speeltijd === 0 ? 'heel nummer' : `${p.speeltijd}s`;
+    return `${cat} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd}`;
 }
