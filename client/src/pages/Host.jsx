@@ -1,0 +1,145 @@
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
+import { useSpel } from '../lib/useSpel.js';
+import { wisSessie } from '../lib/sessie.js';
+import Visualizer from '../components/Visualizer.jsx';
+import Timer from '../components/Timer.jsx';
+
+// Host-scherm (het grote scherm). Speelt de muziek af en toont de QR,
+// de visualizer, de timer en het scorebord.
+export default function Host() {
+    const navigate = useNavigate();
+    const spel = useSpel();
+    const { sessie, fase, ronde, antwoord, scorebord, spelers } = spel;
+
+    useEffect(() => {
+        if (!sessie) navigate('/');
+    }, [sessie, navigate]);
+    if (!sessie) return null;
+
+    const joinUrl = `${window.location.origin}/join/${sessie.code}`;
+
+    function verlaten() {
+        wisSessie();
+        navigate('/');
+    }
+
+    return (
+        <main className="scherm host-scherm">
+            {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
+
+            {/* Wachtruimte */}
+            {fase === 'wachten' && (
+                <>
+                    <h1>Lobby</h1>
+                    <div className="kaart host-kaart">
+                        <p className="kaart-label">Scan om mee te doen</p>
+                        <p className="lobby-code">{sessie.code}</p>
+                        <div className="qr-doos">
+                            <QRCodeSVG
+                                value={joinUrl}
+                                size={200}
+                                bgColor="#000000"
+                                fgColor="#f5f5f5"
+                                level="M"
+                                includeMargin
+                            />
+                        </div>
+                        <p className="dim" style={{ wordBreak: 'break-all' }}>
+                            {joinUrl}
+                        </p>
+                    </div>
+
+                    <p className="kaart-label" style={{ textAlign: 'left' }}>
+                        Spelers ({spelers.length})
+                    </p>
+                    <ul className="spelerlijst">
+                        {spelers.map((s) => (
+                            <li
+                                key={s.id}
+                                className={'speler-kaart' + (s.verbonden ? '' : ' weg')}
+                            >
+                                <span className="speler-naam">
+                                    {s.naam}
+                                    {s.is_host && <span className="host-tag">host</span>}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+
+                    <div className="stapel" style={{ marginTop: '1.5rem' }}>
+                        <button
+                            className="knop"
+                            onClick={spel.startSpel}
+                            disabled={spelers.length < 1}
+                        >
+                            Start spel
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {/* Ronde bezig */}
+            {fase === 'raden' && ronde && (
+                <>
+                    <p className="ronde-teller">
+                        Ronde {ronde.rondenummer} / {ronde.totaal}
+                    </p>
+                    <div className="timer-groot">
+                        <Timer startTs={ronde.startTs} durationMs={ronde.durationMs} />
+                    </div>
+                    <Visualizer actief />
+                    <p className="dim" style={{ marginTop: '1.5rem' }}>
+                        Raad de titel op je telefoon…
+                    </p>
+                    <Scorebord lijst={scorebord} compact />
+                </>
+            )}
+
+            {/* Tussen rondes */}
+            {fase === 'scorebord' && antwoord && (
+                <>
+                    <p className="kaart-label">Het antwoord was</p>
+                    <h1>{antwoord.naam}</h1>
+                    <p className="ondertitel">
+                        {antwoord.jaar ? `${antwoord.jaar} · ` : ''}
+                        {antwoord.tracknaam} — {antwoord.artiest}
+                    </p>
+                    <Scorebord lijst={scorebord} />
+                </>
+            )}
+
+            {/* Einde */}
+            {fase === 'einde' && (
+                <>
+                    <h1>Eindstand</h1>
+                    <Scorebord lijst={scorebord} eind />
+                    <div className="stapel" style={{ marginTop: '1.5rem' }}>
+                        <button className="knop" onClick={verlaten}>
+                            Nieuw spel
+                        </button>
+                    </div>
+                </>
+            )}
+        </main>
+    );
+}
+
+function Scorebord({ lijst, compact, eind }) {
+    if (!lijst || lijst.length === 0) return null;
+    return (
+        <ul className="scorebord" style={{ marginTop: compact ? '1.5rem' : '1rem' }}>
+            {lijst.map((s, i) => (
+                <li
+                    key={s.id}
+                    className={'score-rij' + (eind && i === 0 ? ' winnaar' : '')}
+                >
+                    <span className="score-plek">{i + 1}</span>
+                    <span className="score-naam">{s.naam}</span>
+                    <span className="score-punten">{s.score}</span>
+                </li>
+            ))}
+        </ul>
+    );
+}

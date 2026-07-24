@@ -489,3 +489,174 @@ h1 {
     border: 1px solid var(--border);
     color: var(--text-dim);
 }
+
+/* --- Visualizer (puur CSS, geen audio-analyse) --- */
+.visualizer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 6px;
+    height: 120px;
+    margin: 1.5rem 0;
+}
+
+.visualizer span {
+    width: 10px;
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(var(--red-hot), var(--red));
+    transform-origin: bottom;
+    animation: balk 0.9s ease-in-out infinite alternate;
+    box-shadow: 0 0 12px var(--red-glow);
+}
+
+.visualizer.stil span {
+    animation-play-state: paused;
+    opacity: 0.4;
+}
+
+@keyframes balk {
+    0% {
+        transform: scaleY(0.2);
+    }
+    100% {
+        transform: scaleY(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .visualizer span {
+        animation: none;
+        transform: scaleY(0.6);
+    }
+}
+
+/* --- Timer --- */
+.timer-cijfer {
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+}
+
+.timer-groot {
+    font-size: clamp(3rem, 14vw, 5rem);
+    font-weight: 800;
+    text-align: center;
+}
+
+.ronde-teller {
+    text-align: center;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0.5rem 0;
+}
+
+.raden-kop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 1.5rem;
+}
+
+/* --- Feedback --- */
+.feedback {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.feedback.bijna {
+    background: rgba(196, 18, 48, 0.12);
+    border: 1px solid var(--red);
+}
+
+.feedback.mis {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+}
+
+.feedback.neutraal {
+    color: var(--text-dim);
+}
+
+.goed-tekst {
+    font-size: clamp(1.5rem, 6vw, 2.25rem);
+    font-weight: 800;
+    color: var(--red-hot);
+    margin: 0 0 0.25rem;
+}
+
+/* --- Hints --- */
+.hintlijst {
+    list-style: none;
+    padding: 0;
+    margin: 1.25rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.hint-rij {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--red-hot);
+    border-radius: 10px;
+    padding: 0.6rem 0.9rem;
+    text-align: left;
+}
+
+/* --- Scorebord --- */
+.scorebord {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.score-rij {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 52px;
+    padding: 0.4rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.score-rij.actief {
+    border-color: var(--red);
+    box-shadow: 0 0 24px var(--red-glow);
+}
+
+.score-rij.winnaar {
+    border-color: var(--red-hot);
+    background: rgba(196, 18, 48, 0.1);
+}
+
+.score-plek {
+    width: 1.75rem;
+    color: var(--text-dim);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.score-naam {
+    flex: 1;
+    font-weight: 600;
+    text-align: left;
+}
+
+.score-punten {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.host-scherm {
+    max-width: 40rem;
+}

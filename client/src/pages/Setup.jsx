@@ -126,7 +126,7 @@ export default function Setup() {
                 spelerId: lobby.spelerId,
                 is_host: true,
             });
-            navigate('/lobby');
+            navigate('/host');
         } catch (err) {
             setFout(err.message);
             setBezig(false);

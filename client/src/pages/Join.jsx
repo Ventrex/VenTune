@@ -49,7 +49,7 @@ export default function Join() {
                 spelerId: res.spelerId,
                 is_host: false,
             });
-            navigate('/lobby');
+            navigate('/play');
         } catch (err) {
             setFout(err.message);
             setBezig(false);
