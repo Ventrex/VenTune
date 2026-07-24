@@ -18,7 +18,7 @@ const CATEGORIEEN = [
 ];
 const TALEN = [
     { waarde: 'nl', label: 'Nederlands' },
-    { waarde: 'en', label: 'Engelstalig' },
+    { waarde: 'en', label: 'Internationaal' },
     { waarde: 'beide', label: 'Beide' },
 ];
 const RONDES = [
@@ -379,7 +379,7 @@ function labelVoor(p) {
             : p.categorie === 'series'
               ? 'Series'
               : 'Beide';
-    const taal = p.taal === 'nl' ? 'NL' : p.taal === 'en' ? 'EN' : 'NL+EN';
+    const taal = p.taal === 'nl' ? 'NL' : p.taal === 'en' ? 'Int' : 'NL+Int';
     const rondes = p.rondes === 0 ? 'eindeloos' : `${p.rondes} rondes`;
     return `${cat} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes}`;
 }

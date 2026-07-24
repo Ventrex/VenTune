@@ -109,7 +109,7 @@ behouden.
 Bij een verse installatie is de vragenbank leeg. Vullen kan op twee manieren:
 
 **A. Via het beheerportaal (aanbevolen).** Ga naar `/admin`, log in en klik op
-**"Startseed importeren (iTunes)"**. VenTune zet ~69 titels klaar (Nederlands en
+**"Startseed importeren (iTunes)"**. VenTune zet ~150 titels klaar (Nederlands en
 internationaal) en zoekt per titel een clip op iTunes. Aan het eind zie je welke
 titels geen clip kregen — die vul je handmatig aan.
 
@@ -259,7 +259,7 @@ VenTune/
 │       └── styles/theme.css
 └── seed/
     ├── import.js            # iTunes-import
-    └── titels.json          # startseed (69 titels)
+    └── titels.json          # startseed (150 titels, NL + internationaal)
 ```
 
 ---
