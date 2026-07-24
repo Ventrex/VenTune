@@ -27,6 +27,10 @@ const RONDES = [
     { waarde: 30, label: '30' },
     { waarde: 0, label: 'Eindeloos' },
 ];
+const MODI = [
+    { waarde: 'snelste', label: 'Snelste', uitleg: 'Eerste goede antwoord wint de ronde' },
+    { waarde: 'kenner', label: 'Kenner', uitleg: 'Iedereen raadt door tot jij verder klikt' },
+];
 const SPEELTIJDEN = [
     { waarde: 30, label: '30 sec' },
     { waarde: 60, label: '1 min' },
@@ -53,6 +57,7 @@ export default function Setup() {
         periode_eind: NU,
         rondes: 10,
         speeltijd: 60,
+        modus: 'snelste',
     });
     const [telling, setTelling] = useState(null);
     const [presets, setPresets] = useState([]);
@@ -113,6 +118,7 @@ export default function Setup() {
             periode_eind: p.periode_eind,
             rondes: p.rondes,
             speeltijd: p.speeltijd ?? 60,
+            modus: p.modus || 'snelste',
         });
         setStap(4);
     }
@@ -288,6 +294,29 @@ export default function Setup() {
                                 onClick={() => zet('rondes', r.waarde)}
                             >
                                 {r.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Spelsoort */}
+                    <p
+                        className="kaart-label"
+                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
+                    >
+                        Spelsoort
+                    </p>
+                    <div className="keuzes">
+                        {MODI.map((m) => (
+                            <button
+                                key={m.waarde}
+                                className={
+                                    'keuze klein' +
+                                    (filters.modus === m.waarde ? ' gekozen' : '')
+                                }
+                                onClick={() => zet('modus', m.waarde)}
+                            >
+                                <span>{m.label}</span>
+                                <span className="keuze-uitleg">{m.uitleg}</span>
                             </button>
                         ))}
                     </div>

@@ -6,7 +6,7 @@ via een tunnel op `ventune.ventrex.cc`.
 
 De host speelt de muziek, spelers scannen een QR-code, kiezen een naam en raden
 de titel op hun telefoon. **Geen account, geen login, geen Spotify** — de muziek
-komt uit de gratis iTunes-previews.
+komt van YouTube, aangevuld met gratis iTunes-previews en eigen clips.
 
 ---
 
@@ -31,8 +31,9 @@ komt uit de gratis iTunes-previews.
    aantal rondes). Er verschijnt een 4-letterige code en een QR-code.
 2. **Spelers joinen** door de QR te scannen (`/join/ABCD`) of de code te typen,
    en kiezen een naam.
-3. **Ronde start.** De host speelt 30 seconden muziek. De spelers zien alleen
-   een pulserende visualizer — geen titel, geen hoes.
+3. **Ronde start.** De host speelt de muziek (30 sec tot het hele nummer,
+   instelbaar). De spelers zien alleen een pulserende visualizer — geen titel,
+   geen hoes.
 4. **Raden.** Spelers typen de titel. Fuzzy matching vangt typefouten op. Sneller
    raden = meer punten.
 5. **Hints.** Elke speler heeft 3 hints (+1 per 10 vragen). Een hint kost punten.
@@ -112,6 +113,22 @@ Bij een verse installatie is de vragenbank leeg. Vullen kan op twee manieren:
 **"Startseed importeren (iTunes)"**. VenTune zet ~290 titels klaar (Nederlands en
 internationaal) en zoekt per titel een clip op iTunes. Aan het eind zie je welke
 titels geen clip kregen — die vul je handmatig aan.
+
+**A2. Duizenden titels via TMDB (aanbevolen).** De handgeschreven lijst van
+~290 titels is klein. Met een gratis TMDB-key haal je er automatisch duizenden
+bij (films én series, Nederlands en internationaal, vanaf 1950):
+
+```bash
+# 1. Titels ophalen (duurt enkele minuten)
+docker compose exec server node /app/seed/tmdb-import.js
+
+# 2. Muziek erbij zoeken voor alle titels zonder track
+docker compose exec server node /app/seed/import.js --db
+```
+
+Stap 2 kan lang duren (YouTube knijpt af bij te veel verzoeken). Het script is
+hervatbaar: draai het gerust nogmaals, het pakt alleen de titels op die nog geen
+muziek hebben.
 
 **B. Via de command line** (in de servercontainer):
 

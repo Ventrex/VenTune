@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSpel } from '../lib/useSpel.js';
@@ -12,6 +12,14 @@ export default function Host() {
     const navigate = useNavigate();
     const spel = useSpel();
     const { sessie, fase, ronde, antwoord, bonus, scorebord, spelers, audio } = spel;
+    const spelerRef = useRef(null);
+
+    // Ontgrendel de speler tijdens de tik op 'Start spel', zodat ook latere
+    // rondes vanzelf geluid geven (iOS staat afspelen alleen toe na een tik).
+    async function startMetGeluid() {
+        if (spelerRef.current) await spelerRef.current.ontgrendel();
+        spel.startSpel();
+    }
 
     useEffect(() => {
         if (!sessie) navigate('/');
@@ -61,7 +69,7 @@ export default function Host() {
                             <div className="stapel" style={{ marginTop: '1.5rem' }}>
                                 <button
                                     className="knop"
-                                    onClick={spel.startSpel}
+                                    onClick={startMetGeluid}
                                     disabled={spelers.length < 1}
                                 >
                                     Start spel
@@ -96,11 +104,27 @@ export default function Host() {
                     <p className="ronde-teller">
                         Ronde {ronde.rondenummer} / {ronde.totaal}
                     </p>
-                    <div className="timer-groot">
-                        <Timer startTs={ronde.startTs} durationMs={ronde.durationMs} />
+                    {/* In kennersmodus telt er niets af. */}
+                    {ronde.durationMs ? (
+                        <div className="timer-groot">
+                            <Timer
+                                startTs={ronde.startTs}
+                                durationMs={ronde.durationMs}
+                            />
+                        </div>
+                    ) : (
+                        <p className="ronde-teller">Kennersmodus — raad maar raak</p>
+                    )}
+                    <HostPlayer ref={spelerRef} audio={audio} />
+                    <div className="host-knoppen">
+                        <button className="knop knop-stil" onClick={spel.herhaal}>
+                            ↻ Opnieuw afspelen
+                        </button>
+                        <button className="knop" onClick={spel.volgende}>
+                            Volgende →
+                        </button>
                     </div>
-                    <HostPlayer audio={audio} />
-                    <p className="dim" style={{ marginTop: '1.5rem' }}>
+                    <p className="dim" style={{ marginTop: '1rem' }}>
                         Raad de titel op je telefoon…
                     </p>
                     <Scorebord lijst={scorebord} compact />
@@ -112,10 +136,12 @@ export default function Host() {
                 <>
                     <p className="kaart-label">Het antwoord was</p>
                     <h1>{antwoord.naam}</h1>
-                    <p className="ondertitel">
-                        {antwoord.jaar ? `${antwoord.jaar} · ` : ''}
-                        {antwoord.tracknaam} — {antwoord.artiest}
-                    </p>
+                    <AntwoordInfo antwoord={antwoord} />
+                    <div className="host-knoppen">
+                        <button className="knop" onClick={spel.volgende}>
+                            Volgende →
+                        </button>
+                    </div>
                 </>
             )}
 
@@ -145,9 +171,15 @@ export default function Host() {
                         <>
                             <p className="kaart-label">Vorige titel</p>
                             <h1>{antwoord.naam}</h1>
+                            <AntwoordInfo antwoord={antwoord} />
                         </>
                     )}
                     <Scorebord lijst={scorebord} />
+                    <div className="host-knoppen">
+                        <button className="knop" onClick={spel.volgende}>
+                            Volgende →
+                        </button>
+                    </div>
                 </>
             )}
 
@@ -164,6 +196,30 @@ export default function Host() {
                 </>
             )}
         </main>
+    );
+}
+
+// Toont alle informatie over de titel: type, jaar, taal, land en genres.
+export function AntwoordInfo({ antwoord }) {
+    if (!antwoord) return null;
+    const type = antwoord.type === 'serie' ? 'Serie' : 'Film';
+    const taal = antwoord.taal === 'nl' ? 'Nederlands' : 'Internationaal';
+    return (
+        <>
+            <div className="info-rij">
+                <span className="info-chip">{type}</span>
+                {antwoord.jaar && <span className="info-chip">{antwoord.jaar}</span>}
+                <span className="info-chip">{taal}</span>
+                {antwoord.land && <span className="info-chip">{antwoord.land}</span>}
+                {(antwoord.genres || []).map((g) => (
+                    <span key={g} className="info-chip">{g}</span>
+                ))}
+            </div>
+            <p className="dim">
+                {antwoord.tracknaam}
+                {antwoord.artiest ? ` — ${antwoord.artiest}` : ''}
+            </p>
+        </>
     );
 }
 

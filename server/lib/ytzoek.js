@@ -188,22 +188,36 @@ async function zoek(term, opties = {}) {
     }
 
     const params = new URLSearchParams({ search_query: term.trim() });
-    const resp = await fetch(`${ZOEK_URL}?${params.toString()}`, {
-        headers: {
-            // Een normale browser-UA en taal, plus de consent-cookie zodat
-            // YouTube meteen resultaten geeft in plaats van een cookiemuur.
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-                '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-            'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8',
-            Cookie: 'CONSENT=YES+cb; SOCS=CAI',
-        },
-    });
-    if (!resp.ok) throw new Error(`YouTube zoekpagina status ${resp.status}`);
+    const url = `${ZOEK_URL}?${params.toString()}`;
+    const headers = {
+        // Een normale browser-UA en taal, plus de consent-cookie zodat
+        // YouTube meteen resultaten geeft in plaats van een cookiemuur.
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+            '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8',
+        Cookie: 'CONSENT=YES+cb; SOCS=CAI',
+    };
 
-    const html = await resp.text();
-    const resultaten = leesResultaten(html);
-    return resultaten.slice(0, limiet);
+    // YouTube knijpt af bij te veel verzoeken (429/403). Rustig opnieuw
+    // proberen met oplopende wachttijd in plaats van de titel opgeven.
+    let laatsteStatus = 0;
+    for (let poging = 0; poging < 4; poging++) {
+        const resp = await fetch(url, { headers });
+        if (resp.ok) {
+            const html = await resp.text();
+            return leesResultaten(html).slice(0, limiet);
+        }
+        laatsteStatus = resp.status;
+        if (resp.status !== 429 && resp.status !== 403) break;
+        const wacht = 4000 * Math.pow(2, poging); // 4s, 8s, 16s, 32s
+        logger.waarschuwing('YouTube knijpt af, even wachten.', {
+            status: resp.status,
+            wacht_ms: wacht,
+        });
+        await new Promise((r) => setTimeout(r, wacht));
+    }
+    throw new Error(`YouTube zoekpagina status ${laatsteStatus}`);
 }
 
 /**
@@ -296,6 +310,18 @@ function normaliseer(s) {
 }
 
 /**
+ * Weiger titels met niet-Latijns schrift (Arabisch, Cyrillisch, Hebreeuws,
+ * Chinees/Japans/Koreaans, Thai, Devanagari). Zulke treffers horen vrijwel
+ * nooit bij de gezochte film of serie.
+ */
+const NIET_LATIJN =
+    /[Ѐ-ӿ֐-׿؀-ۿ܀-ݏऀ-ॿ฀-๿⺀-鿿가-힯ﭐ-﷿ﹰ-﻿]/;
+
+function isLatijnsSchrift(tekst) {
+    return !NIET_LATIJN.test(String(tekst || ''));
+}
+
+/**
  * Kies uit de zoekresultaten de meest waarschijnlijke intro/themesong.
  *
  * Werkwijze: eerst op relevantie filteren (titelnaam moet voorkomen, geen
@@ -312,6 +338,8 @@ function kiesBeste(resultaten, titel) {
     // Basiseisen: naam komt voor, niets ongewensts, duur plausibel.
     const bruikbaar = resultaten.filter((r) => {
         const t = normaliseer(r.titel);
+        // Nooit resultaten met Arabisch/Cyrillisch/CJK e.d.
+        if (!isLatijnsSchrift(r.titel)) return false;
         if (naamNorm && !t.includes(naamNorm)) return false;
         if (SLECHTE_WOORDEN.some((w) => t.includes(w))) return false;
         if (r.duurSeconden != null) {

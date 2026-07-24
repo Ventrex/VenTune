@@ -24,6 +24,7 @@ export function useSpel() {
     const [bonus, setBonus] = useState(null); // {vraag, opties, durationMs}
     const [bonusResultaat, setBonusResultaat] = useState(null);
     const [scorebord, setScorebord] = useState([]);
+    const [winnaarId, setWinnaarId] = useState(null);
     const [fout, setFout] = useState('');
     // Afspeel-opdracht voor de host: { bron, url, startSeconde }. Spelers
     // krijgen dit niet en horen dus niets.
@@ -48,6 +49,7 @@ export function useSpel() {
             setAntwoord(null);
             setBonus(null);
             setBonusResultaat(null);
+            setWinnaarId(null);
             setRonde({ ...d, startTs: Date.now() });
             setAudio(null);
             setFase('raden');
@@ -57,6 +59,7 @@ export function useSpel() {
             if (isHost) setAudio(d);
         };
         const bijResultaat = (r) => setResultaat(r);
+        const bijGewonnen = ({ spelerId }) => setWinnaarId(spelerId);
         const bijHint = (h) => {
             if (h.fout) setResultaat({ status: 'hint-fout', melding: h.fout });
             else setHints((lijst) => [...lijst, h]);
@@ -91,6 +94,7 @@ export function useSpel() {
         socket.on('ronde:start', bijStart);
         socket.on('ronde:audio', bijAudio);
         socket.on('ronde:resultaat', bijResultaat);
+        socket.on('ronde:gewonnen', bijGewonnen);
         socket.on('ronde:hint', bijHint);
         socket.on('ronde:onthul', bijOnthul);
         socket.on('ronde:bonus', bijBonus);
@@ -110,6 +114,7 @@ export function useSpel() {
             socket.off('ronde:start', bijStart);
             socket.off('ronde:audio', bijAudio);
             socket.off('ronde:resultaat', bijResultaat);
+            socket.off('ronde:gewonnen', bijGewonnen);
             socket.off('ronde:hint', bijHint);
             socket.off('ronde:onthul', bijOnthul);
             socket.off('ronde:bonus', bijBonus);
@@ -124,6 +129,8 @@ export function useSpel() {
     const startSpel = useCallback(() => haalSocket().emit('spel:start'), []);
     const gok = useCallback((tekst) => haalSocket().emit('ronde:gok', { gok: tekst }), []);
     const vraagHint = useCallback(() => haalSocket().emit('ronde:hint'), []);
+    const volgende = useCallback(() => haalSocket().emit('ronde:volgende'), []);
+    const herhaal = useCallback(() => haalSocket().emit('ronde:herhaal'), []);
     const bonusAntwoord = useCallback(
         (keuze) => haalSocket().emit('ronde:bonus-antwoord', { keuze }),
         [],
@@ -143,8 +150,11 @@ export function useSpel() {
         bonusResultaat,
         scorebord,
         audio,
+        winnaarId,
         fout,
         startSpel,
+        volgende,
+        herhaal,
         gok,
         vraagHint,
         bonusAntwoord,

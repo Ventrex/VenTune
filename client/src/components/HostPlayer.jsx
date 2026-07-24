@@ -1,4 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, {
+    useEffect,
+    useRef,
+    useState,
+    useCallback,
+    forwardRef,
+    useImperativeHandle,
+} from 'react';
 import Visualizer from './Visualizer.jsx';
 import { maakSpeler } from '../lib/youtube.js';
 import { audioBron } from '../lib/api.js';
@@ -8,105 +15,141 @@ import { audioBron } from '../lib/api.js';
 //   nooit zichtbaar is.
 // - iTunes/lokaal: via een <audio>-element (iTunes loopt via onze proxy).
 //
-// Browsers (vooral iOS Safari) blokkeren geluid dat niet direct uit een
-// tik voortkomt. Lukt automatisch starten niet, dan tonen we een grote
-// "Tik om te starten"-knop — die werkt altijd.
-export default function HostPlayer({ audio }) {
+// Browsers (vooral iOS Safari) staan geluid alleen toe direct na een tik.
+// Daarom wordt de speler bij de "Start spel"-tik eenmalig ontgrendeld
+// (ontgrendel()); daarna mag hij ook in latere rondes vanzelf spelen.
+// Lukt het toch niet, dan verschijnt een grote "Tik om te starten"-knop.
+const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
     const audioRef = useRef(null);
     const ytMountRef = useRef(null);
     const ytSpelerRef = useRef(null);
+    const ontgrendeldRef = useRef(false);
     const [moetTikken, setMoetTikken] = useState(false);
 
     const isYoutube = !!audio && audio.bron === 'youtube';
 
-    // Maak de YouTube-speler alvast aan zodra het host-scherm laadt, zodat
-    // hij klaarstaat wanneer de ronde begint.
+    // Speler alvast klaarzetten zodra het host-scherm laadt.
     useEffect(() => {
-        let afgebroken = false;
+        let weg = false;
         (async () => {
             if (!ytMountRef.current || ytSpelerRef.current) return;
             try {
                 const speler = await maakSpeler(ytMountRef.current);
-                if (!afgebroken) ytSpelerRef.current = speler;
+                if (!weg) ytSpelerRef.current = speler;
             } catch {
-                /* API niet beschikbaar; audio-bronnen werken nog wel. */
+                /* zonder YT-API werken audio-bronnen nog steeds */
             }
         })();
         return () => {
-            afgebroken = true;
+            weg = true;
         };
     }, []);
 
-    // Start het afspelen (of probeer het opnieuw na een tik).
-    const start = useCallback(
-        async (naTik) => {
-            if (!audio) return;
-
-            if (audio.bron === 'youtube') {
-                let speler = ytSpelerRef.current;
-                if (!speler && ytMountRef.current) {
+    // Wordt aangeroepen vanuit de tik op "Start spel": geeft de browser het
+    // signaal dat afspelen door de gebruiker is gestart.
+    const ontgrendel = useCallback(async () => {
+        ontgrendeldRef.current = true;
+        // Audio-element ontgrendelen met een korte stille play.
+        const el = audioRef.current;
+        if (el) {
+            try {
+                el.muted = true;
+                await el.play();
+                el.pause();
+                el.currentTime = 0;
+                el.muted = false;
+            } catch {
+                /* niet fataal */
+            }
+        }
+        // YouTube-speler ontgrendelen.
+        const speler = ytSpelerRef.current;
+        if (speler && speler.playVideo) {
+            try {
+                speler.mute();
+                speler.playVideo();
+                setTimeout(() => {
                     try {
-                        speler = await maakSpeler(ytMountRef.current);
-                        ytSpelerRef.current = speler;
+                        speler.pauseVideo();
+                        speler.unMute();
                     } catch {
-                        setMoetTikken(true);
-                        return;
+                        /* negeren */
                     }
-                }
-                if (!speler || !speler.loadVideoById) {
-                    setMoetTikken(true);
-                    return;
-                }
+                }, 60);
+            } catch {
+                /* niet fataal */
+            }
+        }
+    }, []);
+
+    useImperativeHandle(ref, () => ({ ontgrendel }), [ontgrendel]);
+
+    // Start (of herstart) het afspelen van de huidige opdracht.
+    const start = useCallback(async () => {
+        if (!audio) return;
+
+        if (audio.bron === 'youtube') {
+            let speler = ytSpelerRef.current;
+            if (!speler && ytMountRef.current) {
                 try {
-                    speler.loadVideoById({
-                        videoId: audio.url,
-                        startSeconds: audio.startSeconde || 0,
-                    });
-                    speler.unMute();
-                    speler.setVolume(100);
-                    speler.playVideo();
+                    speler = await maakSpeler(ytMountRef.current);
+                    ytSpelerRef.current = speler;
                 } catch {
                     setMoetTikken(true);
                     return;
                 }
-                // Controleer even later of hij echt speelt (1 = PLAYING).
-                setTimeout(() => {
-                    try {
-                        const staat = speler.getPlayerState && speler.getPlayerState();
-                        setMoetTikken(staat !== 1);
-                    } catch {
-                        setMoetTikken(true);
-                    }
-                }, 1200);
+            }
+            if (!speler || !speler.loadVideoById) {
+                setMoetTikken(true);
                 return;
             }
-
-            // iTunes of lokaal bestand.
-            const el = audioRef.current;
-            if (!el) return;
-            if (!naTik) {
-                el.src = audioBron(audio.url);
-                el.currentTime = audio.startSeconde || 0;
-            }
             try {
-                await el.play();
-                setMoetTikken(false);
+                speler.loadVideoById({
+                    videoId: audio.url,
+                    startSeconds: audio.startSeconde || 0,
+                });
+                speler.unMute();
+                speler.setVolume(100);
+                speler.playVideo();
             } catch {
                 setMoetTikken(true);
+                return;
             }
-        },
-        [audio],
-    );
+            // Controleer of hij echt speelt (1 = PLAYING, 3 = bufferen).
+            setTimeout(() => {
+                try {
+                    const staat = speler.getPlayerState && speler.getPlayerState();
+                    setMoetTikken(!(staat === 1 || staat === 3));
+                } catch {
+                    setMoetTikken(true);
+                }
+            }, 1500);
+            return;
+        }
+
+        // iTunes of lokaal bestand.
+        const el = audioRef.current;
+        if (!el) return;
+        el.src = audioBron(audio.url);
+        el.currentTime = audio.startSeconde || 0;
+        try {
+            await el.play();
+            setMoetTikken(false);
+        } catch {
+            setMoetTikken(true);
+        }
+    }, [audio]);
 
     useEffect(() => {
-        // Geen opdracht meer: alles stoppen.
         if (!audio) {
             setMoetTikken(false);
             if (audioRef.current) audioRef.current.pause();
             const speler = ytSpelerRef.current;
-            if (speler && speler.stopVideo) {
+            if (speler && speler.pauseVideo) {
                 try {
-                    speler.stopVideo();
+                    // Pauzeren in plaats van stoppen: de speler blijft
+                    // ontgrendeld voor de volgende ronde.
+                    speler.pauseVideo();
                 } catch {
                     /* negeren */
                 }
@@ -114,12 +157,11 @@ export default function HostPlayer({ audio }) {
             return;
         }
         setMoetTikken(false);
-        start(false);
+        start();
     }, [audio, start]);
 
     return (
         <div className="host-speler">
-            {/* YouTube-mount: altijd afgedekt zodat de titel nooit te zien is. */}
             <div className={'yt-laag' + (isYoutube ? ' actief' : '')}>
                 <div ref={ytMountRef} className="yt-mount" />
                 <div className="yt-cover" />
@@ -134,7 +176,8 @@ export default function HostPlayer({ audio }) {
                     className="tik-start"
                     onClick={() => {
                         setMoetTikken(false);
-                        start(true);
+                        ontgrendeldRef.current = true;
+                        start();
                     }}
                 >
                     ▶ Tik om de muziek te starten
@@ -144,4 +187,6 @@ export default function HostPlayer({ audio }) {
             <audio ref={audioRef} preload="none" playsInline />
         </div>
     );
-}
+});
+
+export default HostPlayer;

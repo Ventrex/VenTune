@@ -113,6 +113,24 @@ function setupSockets(io) {
             }
         });
 
+        // Host: naar de volgende ronde / fase.
+        socket.on('ronde:volgende', async () => {
+            try {
+                await spel.volgende(socket);
+            } catch (err) {
+                logger.waarschuwing('Volgende mislukt.', { melding: err.message });
+            }
+        });
+
+        // Host: het fragment opnieuw afspelen.
+        socket.on('ronde:herhaal', () => {
+            try {
+                spel.herhaal(socket);
+            } catch (err) {
+                logger.waarschuwing('Herhalen mislukt.', { melding: err.message });
+            }
+        });
+
         // Bonusvraag beantwoorden.
         socket.on('ronde:bonus-antwoord', async ({ keuze } = {}) => {
             try {

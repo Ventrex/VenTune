@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSpel } from '../lib/useSpel.js';
 import { wisSessie } from '../lib/sessie.js';
 import Visualizer from '../components/Visualizer.jsx';
+import { AntwoordInfo } from './Host.jsx';
 import Timer from '../components/Timer.jsx';
 
 // Spelerscherm (telefoon). Geen audio, geen titel — alleen de visualizer
@@ -107,7 +108,14 @@ export default function Play() {
                         <span className="dim">
                             Ronde {ronde.rondenummer} / {ronde.totaal}
                         </span>
-                        <Timer startTs={ronde.startTs} durationMs={ronde.durationMs} />
+                        {ronde.durationMs ? (
+                            <Timer
+                                startTs={ronde.startTs}
+                                durationMs={ronde.durationMs}
+                            />
+                        ) : (
+                            <span className="dim">kenner</span>
+                        )}
                     </div>
                     <Visualizer actief />
 
@@ -183,10 +191,7 @@ export default function Play() {
                 <>
                     <p className="kaart-label">Het antwoord was</p>
                     <h1>{antwoord.naam}</h1>
-                    <p className="ondertitel">
-                        {antwoord.jaar ? `${antwoord.jaar} · ` : ''}
-                        {antwoord.tracknaam} — {antwoord.artiest}
-                    </p>
+                    <AntwoordInfo antwoord={antwoord} />
                 </>
             )}
 
@@ -250,6 +255,7 @@ export default function Play() {
                         <>
                             <p className="kaart-label">Vorige titel</p>
                             <h1>{antwoord.naam}</h1>
+                            <AntwoordInfo antwoord={antwoord} />
                         </>
                     )}
                     <MiniScore lijst={scorebord} mijnId={sessie.spelerId} />

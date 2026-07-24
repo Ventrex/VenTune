@@ -49,10 +49,19 @@ const GOEDE_WOORDEN = [
  * Kies uit de iTunes-resultaten de meest waarschijnlijke soundtrack/thema
  * voor deze titel, in plaats van botweg het eerste resultaat.
  */
+// Weiger niet-Latijns schrift (Arabisch, Cyrillisch, CJK ...).
+const NIET_LATIJN =
+    /[Ѐ-ӿ֐-׿؀-ۿ܀-ݏऀ-ॿ฀-๿⺀-鿿가-힯ﭐ-﷿ﹰ-﻿]/;
+
 function kiesBeste(resultaten, titel) {
     const titelNorm = normaliseer(titel.naam);
     let beste = null;
     let besteScore = -Infinity;
+
+    resultaten = resultaten.filter(
+        (r) => !NIET_LATIJN.test(`${r.tracknaam || ''} ${r.artiest || ''}`),
+    );
+    if (resultaten.length === 0) return null;
 
     resultaten.forEach((r, index) => {
         const naam = normaliseer(r.tracknaam);
@@ -187,10 +196,24 @@ async function vervangTracks(titelId, voegToe) {
  * @param {object} opties { force, limiet, onLog }
  * @returns {Promise<{verwerkt, metTrack, zonder:string[]}>}
  */
-async function importeer({ force = false, limiet = Infinity, onLog } = {}) {
-    const bestand = path.join(__dirname, 'titels.json');
-    const titels = JSON.parse(fs.readFileSync(bestand, 'utf8'));
+async function importeer({ force = false, limiet = Infinity, onLog, alleenDb = false } = {}) {
     const log = onLog || (() => {});
+
+    let titels;
+    if (alleenDb) {
+        // Alle titels uit de database die nog geen muziek hebben. Zo krijgen
+        // ook de titels die via TMDB zijn toegevoegd een intro/thema.
+        const { rows } = await pool.query(
+            `SELECT id, naam, aliassen, type, taal, jaar, land, genres, tmdb_id
+               FROM titels t
+              WHERE ${force ? 'TRUE' : 'NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id)'}
+              ORDER BY id`,
+        );
+        titels = rows.map((r) => ({ ...r, _id: r.id }));
+    } else {
+        const bestand = path.join(__dirname, 'titels.json');
+        titels = JSON.parse(fs.readFileSync(bestand, 'utf8'));
+    }
 
     let verwerkt = 0;
     let metTrack = 0;
@@ -200,7 +223,8 @@ async function importeer({ force = false, limiet = Infinity, onLog } = {}) {
         if (verwerkt >= limiet) break;
         verwerkt++;
 
-        const titelId = await upsertTitel(t);
+        // Titels uit de database hebben al een id; die uit titels.json niet.
+        const titelId = t._id || (await upsertTitel(t));
 
         if (!force && (await heeftTrack(titelId))) {
             metTrack++;
@@ -242,8 +266,8 @@ async function importeer({ force = false, limiet = Infinity, onLog } = {}) {
             try {
                 const term = t.zoekterm || `${t.naam} soundtrack`;
                 const resultaten = await itunes.zoek(term, { limiet: 8 });
-                if (resultaten.length > 0) {
-                    const keuze = kiesBeste(resultaten, t);
+                const keuze = resultaten.length ? kiesBeste(resultaten, t) : null;
+                if (keuze) {
                     if (force) {
                         await vervangTracks(titelId, () =>
                             voegItunesTrackToe(titelId, keuze),
@@ -275,7 +299,15 @@ module.exports = { importeer };
 
 // Alleen als CLI aangeroepen: draai en sluit de pool.
 if (require.main === module) {
-    importeer({ force: FORCE, limiet: LIMIET, onLog: (r) => console.log(JSON.stringify(r)) })
+    // Standaard: eerst de vaste startseed, daarna alle titels in de database
+    // die nog geen muziek hebben (bijvoorbeeld via TMDB toegevoegd).
+    const alleenDb = args.includes('--db');
+    importeer({
+        force: FORCE,
+        limiet: LIMIET,
+        alleenDb,
+        onLog: (r) => console.log(JSON.stringify(r)),
+    })
         .then(async (s) => {
             console.log('\n=== Samenvatting ===');
             console.log(`Titels verwerkt: ${s.verwerkt}`);
@@ -283,7 +315,20 @@ if (require.main === module) {
             console.log(`Zonder track:    ${s.zonder.length}`);
             if (s.zonder.length) {
                 console.log('Geen clip gevonden voor (voeg handmatig toe via /admin):');
-                for (const n of s.zonder) console.log(`  - ${n}`);
+                for (const n of s.zonder.slice(0, 40)) console.log(`  - ${n}`);
+                if (s.zonder.length > 40) {
+                    console.log(`  … en nog ${s.zonder.length - 40} andere`);
+                }
+            }
+            const rest = await pool.query(
+                `SELECT count(*)::int AS n FROM titels t
+                  WHERE NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id)`,
+            );
+            if (rest.rows[0].n > 0) {
+                console.log(
+                    `\nNog ${rest.rows[0].n} titels zonder muziek. Draai opnieuw met:` +
+                        '\n  node /app/seed/import.js --db',
+                );
             }
             await pool.end();
         })

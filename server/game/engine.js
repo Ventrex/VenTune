@@ -25,6 +25,17 @@ function rondeDuurUit(instellingen) {
     if (Number.isFinite(s) && s >= 10 && s <= 300) return s * 1000;
     return RONDE_DUUR_MS;
 }
+
+/**
+ * Spelmodus:
+ * - 'snelste': de eerste met het juiste antwoord wint de ronde; die is
+ *   daarmee meteen afgelopen.
+ * - 'kenner': iedereen mag blijven raden tot de host op 'Volgende' klikt.
+ *   Er telt dan niets af.
+ */
+function modusUit(instellingen) {
+    return instellingen && instellingen.modus === 'kenner' ? 'kenner' : 'snelste';
+}
 const BONUS_DUUR_MS = 15000; // 15 seconden voor de bonusvraag
 const SCOREBORD_PAUZE_MS = 7000; // pauze tussen rondes
 const GOK_INTERVAL_MS = 1000; // max 1 gok per seconde per speler
@@ -95,6 +106,7 @@ class SpelBeheer {
             code,
             instellingen,
             rondeDuurMs: rondeDuurUit(instellingen),
+            modus: modusUit(instellingen),
             pool: pool_,
             totaalRondes: totaal,
             rondenummer: 0,
@@ -161,12 +173,14 @@ class SpelBeheer {
             state.lobbyId,
         ]);
 
-        // Spelers: geen titel, geen audio-URL.
+        // Spelers: geen titel, geen audio-URL. In kennersmodus telt er niets
+        // af — de host bepaalt wanneer de ronde voorbij is.
         this.io.to(kamer(state.code)).emit('ronde:start', {
             rondeId: state.huidige.rondeId,
             rondenummer: state.rondenummer,
             totaal: state.totaalRondes,
-            durationMs: state.rondeDuurMs,
+            durationMs: state.modus === 'kenner' ? null : state.rondeDuurMs,
+            modus: state.modus,
         });
         // Host: krijgt de audio om af te spelen in de kamer. Afhankelijk van
         // de bron speelt de host een audio-clip (iTunes/lokaal) of een
@@ -179,10 +193,13 @@ class SpelBeheer {
             durationMs: state.rondeDuurMs,
         });
 
-        state.huidige.timer = setTimeout(
-            () => this.onthulEnBonus(state),
-            state.rondeDuurMs,
-        );
+        // In kennersmodus loopt er geen klok: de host klikt op 'Volgende'.
+        if (state.modus !== 'kenner') {
+            state.huidige.timer = setTimeout(
+                () => this.onthulEnBonus(state),
+                state.rondeDuurMs,
+            );
+        }
     }
 
     // ---- Gok verwerken ----
@@ -230,8 +247,15 @@ class SpelBeheer {
             });
             await this.stuurScores(state);
 
-            // Iedereen klaar? Dan de gokfase vroeg beëindigen.
-            if (await this.iedereenKlaar(state)) {
+            // Snelste-modus: de eerste met het juiste antwoord wint de ronde.
+            // Kennersmodus: iedereen mag doorgaan tot de host verder klikt.
+            if (state.modus === 'snelste') {
+                this.io.to(kamer(state.code)).emit('ronde:gewonnen', {
+                    spelerId,
+                });
+                this.onthulEnBonus(state);
+            } else if (await this.iedereenKlaar(state)) {
+                // Iedereen heeft het goed: dan hoeft de host niet te wachten.
                 this.onthulEnBonus(state);
             }
         } else if (uitslag.status === 'bijna') {
@@ -314,14 +338,9 @@ class SpelBeheer {
             h.rondeId,
         ]);
 
-        // Titel onthullen (de gokfase is voorbij).
+        // Titel onthullen (de gokfase is voorbij), met alle informatie.
         this.io.to(kamer(state.code)).emit('ronde:onthul', {
-            antwoord: {
-                naam: h.titel.naam,
-                jaar: h.titel.jaar,
-                tracknaam: h.track.tracknaam,
-                artiest: h.track.artiest,
-            },
+            antwoord: this.antwoordInfo(h),
         });
 
         // Bonusvraag proberen te genereren (valt terug op geen bonus).
@@ -442,7 +461,50 @@ class SpelBeheer {
         logger.info('Spel afgelopen.', { code: state.code });
     }
 
+    // ---- Host-acties ----
+
+    /** Host klikt op 'Volgende': gokfase afronden en door. */
+    async volgende(socket) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || !socket.data.isHost) return;
+        if (state.fase === 'raden') return this.onthulEnBonus(state);
+        if (state.fase === 'bonus') return this.eindBonus(state);
+        if (state.fase === 'onthul' || state.fase === 'scorebord') {
+            return this.volgendeRonde(state);
+        }
+    }
+
+    /** Host klikt op 'Opnieuw afspelen': stuurt de audio nogmaals. */
+    herhaal(socket) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || !socket.data.isHost || !state.huidige) return;
+        const { track, rondeId } = state.huidige;
+        this.io.to(hostKamer(state.code)).emit('ronde:audio', {
+            rondeId,
+            bron: track.bron,
+            url: track.preview_url,
+            startSeconde: track.start_seconde || 0,
+            durationMs: state.rondeDuurMs,
+            herhaling: Date.now(), // maakt het event uniek
+        });
+    }
+
     // ---- Hulp ----
+
+    /** Volledige informatie over het antwoord (na afloop van de gokfase). */
+    antwoordInfo(h) {
+        return {
+            naam: h.titel.naam,
+            jaar: h.titel.jaar,
+            type: h.titel.type, // film of serie
+            taal: h.titel.taal, // nl of internationaal
+            land: h.titel.land,
+            genres: h.titel.genres || [],
+            tracknaam: h.track.tracknaam,
+            artiest: h.track.artiest,
+        };
+    }
+
     async slaAntwoordOp(state, spelerId, velden) {
         await pool.query(
             `INSERT INTO antwoorden
