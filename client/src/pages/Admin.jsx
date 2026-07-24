@@ -69,17 +69,37 @@ function Beheer({ onUit }) {
 
     async function seed() {
         setBezigSeed(true);
-        setMelding('Seed importeren… dit kan even duren.');
+        setMelding('Seed importeren… dit draait in de achtergrond (1–3 min).');
         try {
-            const s = await api.adminSeed(false);
-            setMelding(
-                `Seed klaar: ${s.metTrack}/${s.verwerkt} titels met track.` +
-                (s.zonder.length ? ` Zonder clip: ${s.zonder.join(', ')}.` : ''),
-            );
-            laad();
+            await api.adminSeed(false);
+            // Status pollen tot de import klaar is.
+            const poll = setInterval(async () => {
+                try {
+                    const st = await api.adminSeedStatus();
+                    if (st.klaar) {
+                        clearInterval(poll);
+                        setBezigSeed(false);
+                        if (st.fout) {
+                            setMelding('Seed mislukt: ' + st.fout);
+                        } else if (st.samenvatting) {
+                            const s = st.samenvatting;
+                            setMelding(
+                                `Seed klaar: ${s.metTrack}/${s.verwerkt} titels met track.` +
+                                (s.zonder.length
+                                    ? ` Zonder clip (${s.zonder.length}): ${s.zonder.join(', ')}.`
+                                    : ''),
+                            );
+                        }
+                        laad();
+                    } else if (st.bezig) {
+                        setMelding('Seed importeren… bezig, even geduld (1–3 min).');
+                    }
+                } catch {
+                    /* blijf pollen */
+                }
+            }, 2500);
         } catch (err) {
-            setMelding('Seed mislukt: ' + err.message);
-        } finally {
+            setMelding('Seed starten mislukt: ' + err.message);
             setBezigSeed(false);
         }
     }

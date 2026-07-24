@@ -126,6 +126,9 @@ export async function adminVerwijderTrack(id) {
 export async function adminSeed(force = false) {
     return adminFetch('/api/admin/seed', { method: 'POST', ...jsonBody({ force }) });
 }
+export async function adminSeedStatus() {
+    return adminFetch('/api/admin/seed/status');
+}
 
 /** Controleer of een lobbycode bestaat en of je kunt joinen. */
 export async function checkLobby(code) {

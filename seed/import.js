@@ -30,6 +30,62 @@ function slaap(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }
 
+function normaliseer(s) {
+    return String(s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '');
+}
+
+// Woorden die wijzen op een echte soundtrack/thema (hoger scoren).
+const GOEDE_WOORDEN = [
+    'soundtrack', 'motion picture', 'original score', 'original soundtrack',
+    'main title', 'main theme', 'theme from', 'theme', 'ost', 'score',
+    'titelsong', 'titelmuziek', 'from the', 'end titles', 'suite',
+];
+
+/**
+ * Kies uit de iTunes-resultaten de meest waarschijnlijke soundtrack/thema
+ * voor deze titel, in plaats van botweg het eerste resultaat.
+ */
+function kiesBeste(resultaten, titel) {
+    const titelNorm = normaliseer(titel.naam);
+    let beste = null;
+    let besteScore = -Infinity;
+
+    resultaten.forEach((r, index) => {
+        const naam = normaliseer(r.tracknaam);
+        const album = normaliseer(r.album);
+        const hooi = `${naam} ${album}`;
+        let score = 0;
+
+        // Titelnaam in track- of albumnaam is een sterk signaal.
+        if (titelNorm && (naam.includes(titelNorm) || album.includes(titelNorm))) {
+            score += 5;
+        }
+        // Soundtrack-/thema-woorden.
+        for (const w of GOEDE_WOORDEN) {
+            if (hooi.includes(w)) {
+                score += 2;
+                break;
+            }
+        }
+        // Jaar dichtbij (soundtrack komt meestal rond de release uit).
+        if (titel.jaar && r.jaar && Math.abs(titel.jaar - r.jaar) <= 2) {
+            score += 1;
+        }
+        // Lichte voorkeur voor iTunes' eigen volgorde bij gelijkspel.
+        score -= index * 0.1;
+
+        if (score > besteScore) {
+            besteScore = score;
+            beste = r;
+        }
+    });
+
+    return beste || resultaten[0];
+}
+
 async function upsertTitel(t) {
     // Zoek op naam + jaar; anders invoegen.
     const bestaand = await pool.query(
@@ -122,11 +178,12 @@ async function importeer({ force = false, limiet = Infinity, onLog } = {}) {
 
         const term = t.zoekterm || `${t.naam} soundtrack`;
         try {
-            const resultaten = await itunes.zoek(term, { limiet: 5 });
+            const resultaten = await itunes.zoek(term, { limiet: 8 });
             if (resultaten.length > 0) {
-                await voegTrackToe(titelId, resultaten[0]);
+                const keuze = kiesBeste(resultaten, t);
+                await voegTrackToe(titelId, keuze);
                 metTrack++;
-                log({ titel: t.naam, gevonden: resultaten[0].tracknaam });
+                log({ titel: t.naam, gevonden: keuze.tracknaam });
             } else {
                 zonder.push(t.naam);
                 log({ titel: t.naam, gevonden: null });

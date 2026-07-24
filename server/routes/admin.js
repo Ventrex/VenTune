@@ -205,17 +205,46 @@ router.delete('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
 });
 
 // ---- Seed importeren (iTunes) ----
-router.post('/api/admin/seed', vereisAdmin, async (req, res) => {
-    try {
-        const force = !!(req.body && req.body.force);
-        logger.info('Seed-import gestart via admin.');
-        const samenvatting = await importeer({ force });
-        logger.info('Seed-import klaar.', samenvatting);
-        res.json(samenvatting);
-    } catch (err) {
-        logger.fout('Seed-import mislukt.', { melding: err.message });
-        res.status(500).json({ fout: err.message });
+// Draait in de achtergrond: ~290 titels duurt langer dan een tunnel/proxy
+// een HTTP-verzoek openhoudt. De client vraagt de status apart op.
+let seedStatus = {
+    bezig: false,
+    klaar: false,
+    gestart_op: null,
+    samenvatting: null,
+    fout: null,
+};
+
+router.post('/api/admin/seed', vereisAdmin, (req, res) => {
+    if (seedStatus.bezig) {
+        return res.json({ gestart: false, bezig: true });
     }
+    const force = !!(req.body && req.body.force);
+    seedStatus = {
+        bezig: true,
+        klaar: false,
+        gestart_op: new Date().toISOString(),
+        samenvatting: null,
+        fout: null,
+    };
+    logger.info('Seed-import gestart via admin (achtergrond).');
+
+    // Bewust niet awaiten: meteen antwoorden, import loopt door.
+    importeer({ force })
+        .then((s) => {
+            seedStatus = { ...seedStatus, bezig: false, klaar: true, samenvatting: s };
+            logger.info('Seed-import klaar.', s);
+        })
+        .catch((err) => {
+            seedStatus = { ...seedStatus, bezig: false, klaar: true, fout: err.message };
+            logger.fout('Seed-import mislukt.', { melding: err.message });
+        });
+
+    res.json({ gestart: true });
+});
+
+router.get('/api/admin/seed/status', vereisAdmin, (_req, res) => {
+    res.json(seedStatus);
 });
 
 module.exports = router;
