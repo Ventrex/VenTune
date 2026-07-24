@@ -58,7 +58,7 @@ zonder punten te verliezen.
 | Database | PostgreSQL 16                           |
 | Frontend | React 18 + Vite (PWA)                   |
 | Styling  | Eigen theme-tokens (OLED zwart/rood)    |
-| Audio    | iTunes-previews + YouTube + lokale clips |
+| Audio    | YouTube (primair) + iTunes-previews + lokale clips |
 | Metadata | TMDB API (server-side, optioneel)       |
 
 Alles draait in Docker via één `docker-compose.yml`. Geen betaalde API's,
@@ -117,9 +117,17 @@ titels geen clip kregen — die vul je handmatig aan.
 
 ```bash
 docker compose exec server node /app/seed/import.js
-# opnieuw zoeken voor titels die al een track hebben:
+# alles schoon opnieuw opbouwen (verwijdert bestaande tracks per titel):
 docker compose exec server node /app/seed/import.js --force
 ```
+
+De import zoekt **eerst op YouTube** naar de intro/titelsong (daar staat vrijwel
+elke film- en seriemuziek, ook de Nederlandse) en valt terug op iTunes als daar
+niets bruikbaars staat. Per titel wordt de meest waarschijnlijke intro gekozen:
+reaction-video's, trailers en hele afleveringen worden weggefilterd.
+
+> Optioneel: zet `YOUTUBE_API_KEY` in `.env` om de officiële YouTube Data API te
+> gebruiken in plaats van de publieke zoekpagina. Werkt zonder key ook.
 
 De brondata staat in `seed/titels.json` en kun je uitbreiden.
 

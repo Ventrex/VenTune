@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('../server/db/pool');
 const itunes = require('../server/lib/itunes');
+const ytzoek = require('../server/lib/ytzoek');
 
 const args = process.argv.slice(2);
 const FORCE = args.includes('--force');
@@ -135,7 +136,7 @@ async function heeftTrack(titelId) {
     return rows.length > 0;
 }
 
-async function voegTrackToe(titelId, resultaat) {
+async function voegItunesTrackToe(titelId, resultaat) {
     await pool.query(
         `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
                              tracknaam, artiest, herkenbaarheid)
@@ -148,6 +149,16 @@ async function voegTrackToe(titelId, resultaat) {
             resultaat.tracknaam,
             resultaat.artiest,
         ],
+    );
+}
+
+async function voegYoutubeTrackToe(titelId, video) {
+    await pool.query(
+        `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
+                             tracknaam, artiest, herkenbaarheid)
+         VALUES ($1, 'youtube', $2, $3, $4, $5, 3)
+         ON CONFLICT DO NOTHING`,
+        [titelId, video.videoId, 0, video.titel || 'Intro', video.kanaal || 'YouTube'],
     );
 }
 
@@ -175,25 +186,53 @@ async function importeer({ force = false, limiet = Infinity, onLog } = {}) {
             metTrack++;
             continue;
         }
-
-        const term = t.zoekterm || `${t.naam} soundtrack`;
-        try {
-            const resultaten = await itunes.zoek(term, { limiet: 8 });
-            if (resultaten.length > 0) {
-                const keuze = kiesBeste(resultaten, t);
-                await voegTrackToe(titelId, keuze);
-                metTrack++;
-                log({ titel: t.naam, gevonden: keuze.tracknaam });
-            } else {
-                zonder.push(t.naam);
-                log({ titel: t.naam, gevonden: null });
-            }
-        } catch (err) {
-            zonder.push(t.naam);
-            log({ titel: t.naam, fout: err.message });
+        if (force) {
+            // Schoon opnieuw opbouwen: oude (vaak onbruikbare) tracks weg,
+            // zodat het spel niet alsnog een slechte kan kiezen en er geen
+            // dubbelen ontstaan bij herhaald draaien.
+            await pool.query(`DELETE FROM tracks WHERE titel_id = $1`, [titelId]);
         }
 
-        await slaap(150); // Vriendelijk voor de iTunes-API.
+        // 1) YouTube is de primaire bron: daar staat vrijwel elke intro en
+        //    titelsong, ook de Nederlandse. Dit voorkomt handmatig nalopen.
+        let gelukt = false;
+        try {
+            const term = ytzoek.zoektermVoor(t);
+            const videos = await ytzoek.zoek(term, { limiet: 10 });
+            const keuze = ytzoek.kiesBeste(videos, t);
+            if (keuze) {
+                await voegYoutubeTrackToe(titelId, keuze);
+                metTrack++;
+                gelukt = true;
+                log({ titel: t.naam, bron: 'youtube', gevonden: keuze.titel });
+            }
+        } catch (err) {
+            log({ titel: t.naam, bron: 'youtube', fout: err.message });
+        }
+
+        // 2) Lukt YouTube niet, dan alsnog iTunes proberen.
+        if (!gelukt) {
+            try {
+                const term = t.zoekterm || `${t.naam} soundtrack`;
+                const resultaten = await itunes.zoek(term, { limiet: 8 });
+                if (resultaten.length > 0) {
+                    const keuze = kiesBeste(resultaten, t);
+                    await voegItunesTrackToe(titelId, keuze);
+                    metTrack++;
+                    gelukt = true;
+                    log({ titel: t.naam, bron: 'itunes', gevonden: keuze.tracknaam });
+                }
+            } catch (err) {
+                log({ titel: t.naam, bron: 'itunes', fout: err.message });
+            }
+        }
+
+        if (!gelukt) {
+            zonder.push(t.naam);
+            log({ titel: t.naam, gevonden: null });
+        }
+
+        await slaap(400); // Vriendelijk voor YouTube.
     }
 
     return { verwerkt, metTrack, zonder };

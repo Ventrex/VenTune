@@ -588,6 +588,20 @@ h1 {
     z-index: 2;
 }
 
+/* Valt terug op een tik als de browser autoplay blokkeert (iOS). */
+.tik-start {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    border: 1px solid var(--red);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.85);
+    color: var(--text);
+    font-size: 1.25rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
 /* --- Timer --- */
 .timer-cijfer {
     font-variant-numeric: tabular-nums;
