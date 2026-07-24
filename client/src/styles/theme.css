@@ -717,3 +717,31 @@ h1 {
 select.invoer {
     appearance: none;
 }
+
+/* --- Host landscape: spelers links, QR rechts --- */
+.host-wacht {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.host-wacht-links {
+    flex: 1;
+}
+
+@media (orientation: landscape) and (min-width: 700px) {
+    .host-scherm {
+        max-width: 60rem;
+    }
+    .host-wacht {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+    .host-wacht-links {
+        flex: 1;
+        text-align: left;
+    }
+    .host-wacht-rechts {
+        flex: 0 0 auto;
+    }
+}

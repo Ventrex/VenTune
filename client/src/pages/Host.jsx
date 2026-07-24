@@ -29,53 +29,63 @@ export default function Host() {
         <main className="scherm host-scherm">
             {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
 
-            {/* Wachtruimte */}
+            {/* Wachtruimte — in landscape: spelers links, QR rechts */}
             {fase === 'wachten' && (
                 <>
                     <h1>Lobby</h1>
-                    <div className="kaart host-kaart">
-                        <p className="kaart-label">Scan om mee te doen</p>
-                        <p className="lobby-code">{sessie.code}</p>
-                        <div className="qr-doos">
-                            <QRCodeSVG
-                                value={joinUrl}
-                                size={200}
-                                bgColor="#000000"
-                                fgColor="#f5f5f5"
-                                level="M"
-                                includeMargin
-                            />
+                    <div className="host-wacht">
+                        <div className="host-wacht-links">
+                            <p className="kaart-label" style={{ textAlign: 'left' }}>
+                                Spelers ({spelers.length})
+                            </p>
+                            <ul className="spelerlijst">
+                                {spelers.map((s) => (
+                                    <li
+                                        key={s.id}
+                                        className={
+                                            'speler-kaart' + (s.verbonden ? '' : ' weg')
+                                        }
+                                    >
+                                        <span className="speler-naam">
+                                            {s.naam}
+                                            {s.is_host && (
+                                                <span className="host-tag">host</span>
+                                            )}
+                                        </span>
+                                    </li>
+                                ))}
+                                {spelers.length === 0 && (
+                                    <li className="dim">Nog niemand — scan de QR →</li>
+                                )}
+                            </ul>
+                            <div className="stapel" style={{ marginTop: '1.5rem' }}>
+                                <button
+                                    className="knop"
+                                    onClick={spel.startSpel}
+                                    disabled={spelers.length < 1}
+                                >
+                                    Start spel
+                                </button>
+                            </div>
                         </div>
-                        <p className="dim" style={{ wordBreak: 'break-all' }}>
-                            {joinUrl}
-                        </p>
-                    </div>
 
-                    <p className="kaart-label" style={{ textAlign: 'left' }}>
-                        Spelers ({spelers.length})
-                    </p>
-                    <ul className="spelerlijst">
-                        {spelers.map((s) => (
-                            <li
-                                key={s.id}
-                                className={'speler-kaart' + (s.verbonden ? '' : ' weg')}
-                            >
-                                <span className="speler-naam">
-                                    {s.naam}
-                                    {s.is_host && <span className="host-tag">host</span>}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-
-                    <div className="stapel" style={{ marginTop: '1.5rem' }}>
-                        <button
-                            className="knop"
-                            onClick={spel.startSpel}
-                            disabled={spelers.length < 1}
-                        >
-                            Start spel
-                        </button>
+                        <div className="kaart host-kaart host-wacht-rechts">
+                            <p className="kaart-label">Scan om mee te doen</p>
+                            <p className="lobby-code">{sessie.code}</p>
+                            <div className="qr-doos">
+                                <QRCodeSVG
+                                    value={joinUrl}
+                                    size={200}
+                                    bgColor="#000000"
+                                    fgColor="#f5f5f5"
+                                    level="M"
+                                    includeMargin
+                                />
+                            </div>
+                            <p className="dim" style={{ wordBreak: 'break-all' }}>
+                                {joinUrl}
+                            </p>
+                        </div>
                     </div>
                 </>
             )}
