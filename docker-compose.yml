@@ -48,6 +48,10 @@ services:
       TMDB_API_KEY: ${TMDB_API_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+    # De seed-map als volume, zodat import.js altijd beschikbaar is (ook
+    # zonder rebuild) en aanpassingen aan titels.json direct meekomen.
+    volumes:
+      - ./seed:/app/seed:ro
     ports:
       - "8090:3000"
 
