@@ -1,22 +1,30 @@
 // =====================================================================
 // Minimale service worker voor VenTune (PWA).
-// Navigatie: network-first (altijd de nieuwste app), met cache als
-// terugval bij offline. Statische assets: cache-first.
+//
+// BELANGRIJK: de service worker mag audio/video niet onderscheppen. iOS
+// Safari eist voor media een 206-range-antwoord; een service worker die
+// dat niet teruggeeft laat elke clip mislukken. Daarom handelen we alleen
+// same-origin, niet-media, niet-API GET-verzoeken af. Cross-origin
+// (iTunes-previews, YouTube) en range-verzoeken laten we volledig met rust.
 // =====================================================================
 
-const CACHE = 'ventune-v1';
+const CACHE = 'ventune-v2';
 
-self.addEventListener('install', (e) => {
+self.addEventListener('install', () => {
     self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
     e.waitUntil(
-        caches.keys().then((sleutels) =>
-            Promise.all(sleutels.filter((s) => s !== CACHE).map((s) => caches.delete(s))),
-        ),
+        caches
+            .keys()
+            .then((sleutels) =>
+                Promise.all(
+                    sleutels.filter((s) => s !== CACHE).map((s) => caches.delete(s)),
+                ),
+            )
+            .then(() => self.clients.claim()),
     );
-    self.clients.claim();
 });
 
 self.addEventListener('fetch', (e) => {
@@ -24,12 +32,19 @@ self.addEventListener('fetch', (e) => {
     if (req.method !== 'GET') return;
 
     const url = new URL(req.url);
-    // API en sockets nooit cachen.
+
+    // Alleen onze eigen origin afhandelen. iTunes-audio en YouTube nooit.
+    if (url.origin !== self.location.origin) return;
+
+    // API en sockets nooit cachen/onderscheppen.
     if (url.pathname.startsWith('/api') || url.pathname.startsWith('/socket.io')) {
         return;
     }
 
-    // Navigatie: probeer het netwerk, val terug op de cache.
+    // Media/range-verzoeken nooit onderscheppen (iOS Safari eist 206).
+    if (req.headers.has('range')) return;
+
+    // Navigatie: netwerk eerst, cache als terugval (offline).
     if (req.mode === 'navigate') {
         e.respondWith(
             fetch(req)
@@ -43,14 +58,17 @@ self.addEventListener('fetch', (e) => {
         return;
     }
 
-    // Overige GET's: cache-first.
+    // Statische assets (js/css/fonts/afbeeldingen): cache-first.
     e.respondWith(
         caches.match(req).then(
             (gecached) =>
                 gecached ||
                 fetch(req).then((resp) => {
-                    const kopie = resp.clone();
-                    caches.open(CACHE).then((c) => c.put(req, kopie));
+                    // Alleen nette, volledige antwoorden cachen.
+                    if (resp && resp.status === 200 && resp.type === 'basic') {
+                        const kopie = resp.clone();
+                        caches.open(CACHE).then((c) => c.put(req, kopie));
+                    }
                     return resp;
                 }),
         ),
