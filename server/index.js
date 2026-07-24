@@ -13,6 +13,7 @@ const logger = require('./lib/logger');
 const discord = require('./lib/discord');
 const muziekRoutes = require('./routes/muziek');
 const lobbyRoutes = require('./routes/lobby');
+const setupRoutes = require('./routes/setup');
 const { setupSockets } = require('./socket');
 const { migreer } = require('./db/migrate');
 const { pool } = require('./db/pool');
@@ -30,6 +31,8 @@ async function start() {
     app.use(muziekRoutes);
     // Lobby-routes (aanmaken, joinen).
     app.use(lobbyRoutes);
+    // Setup-routes (filter-telling en presets).
+    app.use(setupRoutes);
 
     // Health-endpoint: controleert ook of de database antwoordt.
     app.get('/api/health', async (_req, res) => {

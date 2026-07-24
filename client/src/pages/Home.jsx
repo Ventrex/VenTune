@@ -1,31 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { maakLobby } from '../lib/api.js';
-import { bewaarSessie } from '../lib/sessie.js';
 
 // Startscherm: nieuw spel maken (host) of meedoen met een code.
 export default function Home() {
     const navigate = useNavigate();
     const [code, setCode] = useState('');
-    const [bezig, setBezig] = useState(false);
     const [fout, setFout] = useState('');
 
-    async function nieuwSpel() {
-        setBezig(true);
-        setFout('');
-        try {
-            const lobby = await maakLobby('Host');
-            bewaarSessie({
-                token: lobby.token,
-                code: lobby.code,
-                spelerId: lobby.spelerId,
-                is_host: true,
-            });
-            navigate('/lobby');
-        } catch (err) {
-            setFout(err.message);
-            setBezig(false);
-        }
+    function nieuwSpel() {
+        // Host doorloopt eerst het filtermenu; daar wordt de lobby gemaakt.
+        navigate('/setup');
     }
 
     function meedoen(e) {
@@ -46,8 +30,8 @@ export default function Home() {
             {fout && <p className="waarschuwing">{fout}</p>}
 
             <div className="stapel">
-                <button className="knop" onClick={nieuwSpel} disabled={bezig}>
-                    {bezig ? 'Bezig…' : 'Nieuw spel'}
+                <button className="knop" onClick={nieuwSpel}>
+                    Nieuw spel
                 </button>
 
                 <form onSubmit={meedoen} className="stapel" style={{ gap: '0.75rem' }}>

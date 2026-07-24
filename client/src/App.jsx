@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home.jsx';
+import Setup from './pages/Setup.jsx';
 import Join from './pages/Join.jsx';
 import Lobby from './pages/Lobby.jsx';
 import MuziekTest from './pages/MuziekTest.jsx';
@@ -12,6 +13,7 @@ export default function App() {
         <BrowserRouter>
             <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/setup" element={<Setup />} />
                 <Route path="/join/:code" element={<Join />} />
                 <Route path="/lobby" element={<Lobby />} />
                 <Route path="/muziek" element={<MuziekTest />} />
