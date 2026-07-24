@@ -31,7 +31,9 @@ services:
   # Backend (Node + Express + Socket.IO)
   # -------------------------------------------------------------------
   server:
-    build: ./server
+    build:
+      context: .
+      dockerfile: server/Dockerfile
     restart: unless-stopped
     depends_on:
       db:

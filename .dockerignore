@@ -1,0 +1,8 @@
+# Houd de build-context klein en snel.
+**/node_modules
+**/dist
+.git
+pgdata
+*.log
+.env
+client

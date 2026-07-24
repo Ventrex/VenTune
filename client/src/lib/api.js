@@ -76,6 +76,57 @@ export async function verwijderPreset(id) {
     await fetch(`/api/presets/${id}`, { method: 'DELETE' });
 }
 
+// --- Admin ---
+
+async function adminFetch(pad, opties = {}) {
+    const resp = await fetch(pad, { credentials: 'include', ...opties });
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Er ging iets mis.');
+    return data;
+}
+
+function jsonBody(obj) {
+    return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) };
+}
+
+export async function adminSessie() {
+    const resp = await fetch('/api/admin/sessie', { credentials: 'include' });
+    return (await jsonOfNull(resp)) || { ingelogd: false };
+}
+export async function adminLogin(wachtwoord) {
+    return adminFetch('/api/admin/login', { method: 'POST', ...jsonBody({ wachtwoord }) });
+}
+export async function adminLogout() {
+    return adminFetch('/api/admin/logout', { method: 'POST' });
+}
+export async function adminTitels(zoek = '') {
+    return adminFetch(`/api/admin/titels?zoek=${encodeURIComponent(zoek)}`);
+}
+export async function adminMaakTitel(data) {
+    return adminFetch('/api/admin/titels', { method: 'POST', ...jsonBody(data) });
+}
+export async function adminUpdateTitel(id, data) {
+    return adminFetch(`/api/admin/titels/${id}`, { method: 'PUT', ...jsonBody(data) });
+}
+export async function adminVerwijderTitel(id) {
+    return adminFetch(`/api/admin/titels/${id}`, { method: 'DELETE' });
+}
+export async function adminTracks(titelId) {
+    return adminFetch(`/api/admin/titels/${titelId}/tracks`);
+}
+export async function adminVoegTrack(titelId, data) {
+    return adminFetch(`/api/admin/titels/${titelId}/tracks`, {
+        method: 'POST',
+        ...jsonBody(data),
+    });
+}
+export async function adminVerwijderTrack(id) {
+    return adminFetch(`/api/admin/tracks/${id}`, { method: 'DELETE' });
+}
+export async function adminSeed(force = false) {
+    return adminFetch('/api/admin/seed', { method: 'POST', ...jsonBody({ force }) });
+}
+
 /** Controleer of een lobbycode bestaat en of je kunt joinen. */
 export async function checkLobby(code) {
     const resp = await fetch(`/api/lobby/${encodeURIComponent(code)}`);

@@ -14,6 +14,7 @@ const discord = require('./lib/discord');
 const muziekRoutes = require('./routes/muziek');
 const lobbyRoutes = require('./routes/lobby');
 const setupRoutes = require('./routes/setup');
+const adminRoutes = require('./routes/admin');
 const { setupSockets } = require('./socket');
 const { migreer } = require('./db/migrate');
 const { pool } = require('./db/pool');
@@ -33,6 +34,8 @@ async function start() {
     app.use(lobbyRoutes);
     // Setup-routes (filter-telling en presets).
     app.use(setupRoutes);
+    // Admin-portal (titels, tracks, seed).
+    app.use(adminRoutes);
 
     // Health-endpoint: controleert ook of de database antwoordt.
     app.get('/api/health', async (_req, res) => {

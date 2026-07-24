@@ -1,25 +1,26 @@
 # =====================================================================
-# VenTune backend — Node 20
+# VenTune backend — Node 20.
+# Buildcontext is de repo-root (zie docker-compose.yml) zodat zowel de
+# server als de seed-map in het image komen. De mappenstructuur blijft
+# /app/server en /app/seed, gelijk aan de repo.
 # =====================================================================
 FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR /app/server
 
-# Eerst alleen de manifesten kopiëren voor betere layer-caching.
-COPY package.json ./
-# package-lock.json is optioneel; kopieer als hij bestaat.
-COPY package-lock.jso[n] ./
+# Eerst de manifesten voor betere layer-caching.
+COPY server/package.json ./
+COPY server/package-lock.jso[n] ./
 
-# Productie-afhankelijkheden installeren.
 RUN npm install --omit=dev
 
-# Broncode kopiëren.
-COPY . .
+# Servercode en seed kopiëren.
+COPY server/ ./
+COPY seed/ /app/seed/
 
 ENV NODE_ENV=production
 EXPOSE 3000
 
-# Eenvoudige healthcheck tegen het health-endpoint.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 
