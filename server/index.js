@@ -1,7 +1,8 @@
 // =====================================================================
 // VenTune — serveringang.
 // Draait de migratie bij het opstarten, biedt een health-endpoint en de
-// muziek-routes (iTunes), en legt de fundering voor Express + Socket.IO.
+// muziek-routes (YouTube primair, iTunes als fallback), en legt de fundering
+// voor Express + Socket.IO.
 // De lobby- en game-logica komt in de volgende stappen.
 // =====================================================================
 
@@ -16,6 +17,8 @@ const audioRoutes = require('./routes/audio');
 const lobbyRoutes = require('./routes/lobby');
 const setupRoutes = require('./routes/setup');
 const adminRoutes = require('./routes/admin');
+const changelogRoutes = require('./routes/changelog');
+const { router: authRoutes } = require('./lib/auth');
 const { setupSockets } = require('./socket');
 const { migreer } = require('./db/migrate');
 const { pool } = require('./db/pool');
@@ -29,7 +32,11 @@ async function start() {
     const app = express();
     app.use(express.json());
 
-    // Muziek-routes (iTunes zoeken en dekking controleren).
+    // Hostaccounts: spelers blijven welkom als gast, maar een lobby maken
+    // kan alleen na registratie/inloggen.
+    app.use(authRoutes);
+
+    // Muziek-routes: YouTube is primair; iTunes blijft fallback.
     app.use(muziekRoutes);
     // Audio-proxy (clips same-origin/https streamen voor iOS).
     app.use(audioRoutes);
@@ -39,6 +46,8 @@ async function start() {
     app.use(setupRoutes);
     // Admin-portal (titels, tracks, seed).
     app.use(adminRoutes);
+    // Publiek: spelers mogen zien wat er veranderd is.
+    app.use(changelogRoutes);
 
     // Health-endpoint: controleert ook of de database antwoordt.
     app.get('/api/health', async (_req, res) => {

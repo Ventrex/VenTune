@@ -13,6 +13,7 @@
 
 const logger = require('./logger');
 const cache = require('./cache');
+const { pastBijTitel } = require('./trackcheck');
 
 const ZOEK_URL = 'https://www.youtube.com/results';
 const API_URL = 'https://www.googleapis.com/youtube/v3/search';
@@ -431,32 +432,41 @@ async function zoek(term, opties = {}) {
  * @returns {string[]}
  */
 function zoektermenVoor(titel) {
-    if (titel.yt_zoekterm) return [titel.yt_zoekterm];
+    const expliciet = titel.yt_zoekterm || titel.youtube_zoekterm;
     const naam = titel.naam;
     const jaar = titel.jaar ? ` ${titel.jaar}` : '';
+    const namen = [...new Set([naam, ...(titel.aliassen || [])].filter(Boolean))];
+    const termen = [];
 
     if (titel.type === 'serie') {
         // 'intro' levert de herkenbare titelsequentie op; 'soundtrack' geeft
         // vaak een willekeurig albumnummer en staat daarom achteraan.
-        const termen = [`${naam} intro`];
-        if (titel.taal === 'nl') termen.push(`${naam} titelsong`);
+        for (const kandidaat of namen) {
+            termen.push(`${kandidaat} intro`);
+            if (titel.taal === 'nl') termen.push(`${kandidaat} titelsong`);
+        }
         termen.push(
             `${naam} opening theme`,
             `${naam} theme song`,
             `${naam} soundtrack`,
         );
-        return termen;
+    } else {
+        // Films: het jaartal erbij, want delen uit een reeks hebben elk hun
+        // eigen muziek (Pirates 2003 vs 2006, enzovoort).
+        termen.push(
+            `${naam}${jaar} main theme`,
+            `${naam}${jaar} official theme`,
+            `${naam}${jaar} soundtrack main title`,
+            `${naam} theme song`,
+            `${naam}${jaar} soundtrack`,
+        );
     }
 
-    // Films: het jaartal erbij, want delen uit een reeks hebben elk hun
-    // eigen muziek (Pirates 2003 vs 2006, enzovoort).
-    return [
-        `${naam}${jaar} main theme`,
-        `${naam}${jaar} official theme`,
-        `${naam}${jaar} soundtrack main title`,
-        `${naam} theme song`,
-        `${naam}${jaar} soundtrack`,
-    ];
+    // Een expliciete zoekterm is nuttig als aanvulling, maar mag de veilige
+    // titelgerichte zoektermen niet volledig vervangen.
+    if (titel.zoekterm) termen.push(titel.zoekterm);
+    if (expliciet) termen.push(expliciet);
+    return [...new Set(termen)];
 }
 
 /** Eén term (eerste keuze) — handig voor losse aanroepen. */
@@ -467,7 +477,7 @@ function zoektermVoor(titel) {
 /**
  * Zoek de best passende intro/themesong voor een titel. Probeert meerdere
  * zoektermen tot er een bruikbare treffer is, en kiest binnen de treffers
- * op weergaven.
+ * op verificatie, type signaal en daarna weergaven.
  *
  * @returns {Promise<object|null>}
  */
@@ -486,12 +496,15 @@ async function zoekVoorTitel(titel, opties = {}) {
         }
         const keuze = kiesBeste(videos, titel);
         if (keuze) {
-            // Meer weergaven dan een eerdere treffer? Dan die nemen.
-            if (!beste || (keuze.views ?? 0) > (beste.views ?? 0)) {
+            // De score is belangrijker dan alleen populariteit. Zo wint een
+            // echte intro van een willekeurig soundtracknummer met meer views.
+            if (
+                !beste ||
+                keuze._keuzeScore > beste._keuzeScore ||
+                (keuze._keuzeScore === beste._keuzeScore && (keuze.views ?? 0) > (beste.views ?? 0))
+            ) {
                 beste = keuze;
             }
-            // Een treffer met flink wat weergaven is goed genoeg.
-            if ((keuze.views ?? 0) > 50000) break;
         }
         if (opties.pauzeMs) await new Promise((r) => setTimeout(r, opties.pauzeMs));
     }
@@ -507,9 +520,6 @@ const SIGNAAL_NIVEAUS = [
     { niveau: 1, woorden: ['theme', 'title'] },
     { niveau: 0.5, woorden: ['soundtrack', 'ost', 'score'] },
 ];
-
-// Alle signaalwoorden samen (voor de eerdere, ongewogen controle).
-const GOEDE_WOORDEN = SIGNAAL_NIVEAUS.flatMap((n) => n.woorden);
 
 /** Hoe sterk kondigt deze videotitel zich aan als intro/thema? */
 function signaalNiveau(videoTitel) {
@@ -549,47 +559,39 @@ function isLatijnsSchrift(tekst) {
 /**
  * Kies uit de zoekresultaten de meest waarschijnlijke intro/themesong.
  *
- * Werkwijze: eerst op relevantie filteren (titelnaam moet voorkomen, geen
- * reacties/trailers/afleveringen, redelijke duur) en daarna binnen de
- * overgebleven kandidaten de video met de **meeste weergaven** kiezen.
- * De bovenste zoektreffer is namelijk vaak niet de beste versie.
+ * Werkwijze: eerst op titel/alias, jaartal, inhoud en duur filteren. Daarna
+ * wint een geverifieerde intro van een willekeurig soundtracknummer; pas
+ * binnen dezelfde kwaliteitsklasse tellen weergaven en duur mee.
  *
  * Puur en testbaar.
  */
 function kiesBeste(resultaten, titel) {
     if (!resultaten || resultaten.length === 0) return null;
-    const naamNorm = normaliseer(titel.naam);
-
     // Basiseisen: naam komt voor, niets ongewensts, duur plausibel.
-    const bruikbaar = resultaten.filter((r) => {
+    const bruikbaar = resultaten.map((r) => {
         const t = normaliseer(r.titel);
         // Nooit resultaten met Arabisch/Cyrillisch/CJK e.d.
-        if (!isLatijnsSchrift(r.titel)) return false;
-        if (naamNorm && !t.includes(naamNorm)) return false;
-        if (SLECHTE_WOORDEN.some((w) => t.includes(w))) return false;
+        if (!isLatijnsSchrift(r.titel)) return null;
+        if (SLECHTE_WOORDEN.some((w) => t.includes(w))) return null;
         if (r.duurSeconden != null) {
-            if (r.duurSeconden < MIN_SECONDEN) return false;
-            if (r.duurSeconden > MAX_SECONDEN) return false;
+            if (r.duurSeconden < MIN_SECONDEN || r.duurSeconden > MAX_SECONDEN) return null;
         }
-        return true;
-    });
+        const controle = pastBijTitel(titel, {
+            tracknaam: r.titel,
+            artiest: r.kanaal,
+        });
+        if (!controle.past) return null;
+        return { ...r, _controle: controle };
+    }).filter(Boolean);
 
     if (bruikbaar.length === 0) return null;
 
-    // Eerst op sóórt kiezen: een 'intro' wint van een willekeurig
-    // soundtrack-nummer, ook als dat laatste meer weergaven heeft.
-    let hoogste = 0;
-    for (const r of bruikbaar) {
-        const n = signaalNiveau(r.titel);
-        if (n > hoogste) hoogste = n;
-    }
-    const groep =
-        hoogste > 0
-            ? bruikbaar.filter((r) => signaalNiveau(r.titel) === hoogste)
-            : bruikbaar;
-
-    // Binnen dezelfde soort: de populairste wint (meeste weergaven).
-    const gesorteerd = groep.slice().sort((a, b) => {
+    // Eerst verificatie, daarna soort resultaat, pas daarna populariteit.
+    const gesorteerd = bruikbaar.slice().map((r) => ({
+        ...r,
+        _keuzeScore: Math.round((r._controle.zekerheid || 0) * 100) + signaalNiveau(r.titel) * 20,
+    })).sort((a, b) => {
+        if (b._keuzeScore !== a._keuzeScore) return b._keuzeScore - a._keuzeScore;
         const va = a.views ?? -1;
         const vb = b.views ?? -1;
         if (vb !== va) return vb - va;

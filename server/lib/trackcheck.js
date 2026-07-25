@@ -1,13 +1,10 @@
 // =====================================================================
 // Controle: hoort deze muziek écht bij deze titel?
 //
-// Waarom dit bestaat: zonder controle kan er muziek van de ene film onder
-// de naam van een andere komen te staan (bijvoorbeeld Frozen's "Let It Go"
-// bij "Het Gouden Uur"). Dan is het spel onbruikbaar. Alles wat een track
-// aan een titel koppelt, moet daarom eerst hier langs.
-//
-// Uitgangspunt: bij twijfel NIET spelen. Een ontbrekend nummer is
-// vervelend, een verkeerd nummer maakt het spel waardeloos.
+// Dit is bewust een conservatieve controle. Een ontbrekend nummer is
+// vervelend; muziek van een andere film/serie onder de verkeerde titel
+// maakt een quizronde onbruikbaar. Daarom wordt een onzekere match niet
+// goedgekeurd en nooit automatisch gespeeld.
 // =====================================================================
 
 /** Lowercase, diakrieten weg, alleen letters/cijfers/spaties. */
@@ -32,69 +29,130 @@ const RUIS = new Set([
     'generiek', 'leader', 'begintune', 'serie', 'series', 'season', 'seizoen',
     'aflevering', 'episode', 'from', 'music', 'muziek', 'thema', 'nederlandse',
     'nederlands', 'dutch', 'trailer', 'cover', 'live', 'version', 'mix',
-    'feat', 'ft', 'part', 'deel', 'vol', 'edit', 'extended',
+    'feat', 'ft', 'part', 'deel', 'vol', 'edit', 'extended', 'ost',
 ]);
 
-/** Betekenisvolle woorden uit een naam (ruis en losse letters weg). */
+function tokens(tekst) {
+    return normaliseer(tekst).split(' ').filter(Boolean);
+}
+
+/** Controleer hele woordreeksen, niet alleen losse substrings. */
+function bevatWoordreeks(tekst, reeks) {
+    const bron = tokens(tekst);
+    const doel = tokens(reeks);
+    if (!doel.length || doel.length > bron.length) return false;
+    for (let i = 0; i <= bron.length - doel.length; i++) {
+        if (doel.every((woord, j) => bron[i + j] === woord)) return true;
+    }
+    return false;
+}
+
+/** Betekenisvolle woorden uit een naam (ruis en jaartallen weg). */
 function kernWoorden(tekst) {
-    return normaliseer(tekst)
-        .split(' ')
-        .filter((w) => w.length > 1 && !RUIS.has(w) && !/^\d{4}$/.test(w));
+    return tokens(tekst).filter(
+        (w) => w.length > 1 && !RUIS.has(w) && !/^\d{4}$/.test(w),
+    );
+}
+
+function titelNamen(titel) {
+    return [...new Set([titel?.naam, ...(titel?.aliassen || [])].filter(Boolean))];
+}
+
+function explicieteJaren(tekst) {
+    return [...String(tekst || '').matchAll(/\b(19|20)\d{2}\b/g)].map((m) => Number(m[0]));
 }
 
 /**
- * Controleer of een gevonden nummer bij een titel hoort.
+ * Beoordeel een gevonden nummer.
  *
- * @param {object} titel  { naam, aliassen }
- * @param {object} track  { tracknaam, album, artiest, bron }
- * @returns {{past: boolean, zekerheid: number, reden: string}}
+ * @returns {{past:boolean, zekerheid:number, reden:string, matchNaam?:string}}
  */
-function pastBijTitel(titel, track) {
-    const namen = [titel.naam, ...(titel.aliassen || [])].filter(Boolean);
-    // Alles waarin de titelnaam mag voorkomen: de naam van het nummer, het
-    // album (soundtracks heten vaak naar de film) en de artiest.
-    const hooi = normaliseer(
-        [track.tracknaam, track.album, track.artiest].filter(Boolean).join(' '),
-    );
-    if (!hooi) return { past: false, zekerheid: 0, reden: 'geen tracknaam' };
+function beoordeelTrack(titel, track) {
+    const namen = titelNamen(titel);
+    // De artiest/YouTube-kanaal is bewust géén titelbewijs: een kanaal kan
+    // willekeurig zo heten en mag nooit samen met de tracknaam een valse
+    // woordreeks vormen.
+    const tekst = [track?.tracknaam, track?.album]
+        .filter(Boolean)
+        .join(' ');
+    const hooi = normaliseer(tekst);
+    if (!hooi) {
+        return { past: false, zekerheid: 0, reden: 'geen tracknaam' };
+    }
 
+    // Een expliciet ander jaartal is een harde weigering. Dit voorkomt dat
+    // delen uit een filmreeks door elkaar raken (bijv. Pirates 2003/2006).
+    // Een jaartal in de artiestnaam (bijv. de band "The 1975") is geen
+    // releasejaar en mag daarom niet als conflict tellen.
+    const jaren = explicieteJaren(
+        [track?.tracknaam, track?.album].filter(Boolean).join(' '),
+    );
+    if (titel?.jaar && jaren.length && !jaren.includes(Number(titel.jaar))) {
+        return {
+            past: false,
+            zekerheid: 0,
+            reden: `jaartal wijkt af (${jaren.join(', ')})`,
+        };
+    }
+
+    let beste = null;
     for (const naam of namen) {
         const genorm = normaliseer(naam);
-        if (!genorm) continue;
+        if (genorm.length < 3) continue;
 
-        // 1. Volledige titelnaam komt letterlijk voor → zeker goed.
-        if (genorm.length >= 3 && hooi.includes(genorm)) {
-            return { past: true, zekerheid: 1, reden: 'volledige naam gevonden' };
+        // Volledige titel of alias als aaneengesloten woordreeks is het
+        // sterkste signaal. Dit voorkomt substring-fouten zoals "it" in
+        // willekeurige woorden.
+        if (bevatWoordreeks(hooi, genorm)) {
+            beste = {
+                zekerheid: 1,
+                reden: 'volledige titel of alias gevonden',
+                matchNaam: naam,
+            };
+            break;
         }
 
-        // 2. Alle betekenisvolle woorden van de titel komen voor.
         const kern = kernWoorden(naam);
-        if (kern.length > 0) {
-            const hooiWoorden = new Set(hooi.split(' '));
-            const raak = kern.filter((w) => hooiWoorden.has(w));
-            if (raak.length === kern.length) {
-                return {
-                    past: true,
-                    zekerheid: 0.9,
-                    reden: 'alle kernwoorden gevonden',
-                };
-            }
-            // 3. Bij langere namen mag één woord missen (bv. ondertitel).
-            if (kern.length >= 3 && raak.length >= kern.length - 1) {
-                return {
-                    past: true,
-                    zekerheid: 0.7,
-                    reden: 'bijna alle kernwoorden gevonden',
-                };
-            }
+        const hooiWoorden = new Set(tokens(hooi));
+        const raak = kern.filter((w) => hooiWoorden.has(w));
+
+        // Eén betekenisvol woord moet lang genoeg zijn. Korte filmtitels
+        // zijn te ambigu om automatisch goed te keuren.
+        if (kern.length === 1 && kern[0].length >= 4 && raak.length === 1) {
+            beste = beste && beste.zekerheid >= 0.9
+                ? beste
+                : { zekerheid: 0.88, reden: 'uniek kernwoord gevonden', matchNaam: naam };
+        }
+
+        // Bij meerwoordige titels moeten alle kernwoorden aanwezig zijn.
+        if (kern.length >= 2 && raak.length === kern.length) {
+            beste = beste && beste.zekerheid >= 0.92
+                ? beste
+                : { zekerheid: 0.94, reden: 'alle kernwoorden gevonden', matchNaam: naam };
         }
     }
 
-    return {
-        past: false,
-        zekerheid: 0,
-        reden: 'titelnaam komt niet voor in tracknaam/album/artiest',
-    };
+    if (!beste || beste.zekerheid < 0.85) {
+        return {
+            past: false,
+            zekerheid: beste?.zekerheid || 0,
+            reden: 'titelnaam of alias niet overtuigend gevonden',
+        };
+    }
+    return { past: true, ...beste };
 }
 
-module.exports = { pastBijTitel, normaliseer, kernWoorden };
+// Backwards-compatible naam voor alle bestaande import- en enginecode.
+function pastBijTitel(titel, track) {
+    return beoordeelTrack(titel, track);
+}
+
+module.exports = {
+    pastBijTitel,
+    beoordeelTrack,
+    normaliseer,
+    tokens,
+    bevatWoordreeks,
+    kernWoorden,
+    titelNamen,
+};

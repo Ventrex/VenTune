@@ -1,0 +1,30 @@
+{
+  "positive": [
+    {
+      "titel": { "naam": "Flodder", "jaar": 1986 },
+      "track": { "tracknaam": "Flodder intro (1986)", "album": "TV Tunes" }
+    },
+    {
+      "titel": {
+        "naam": "Goede Tijden Slechte Tijden",
+        "aliassen": ["GTST"],
+        "jaar": 1990
+      },
+      "track": { "tracknaam": "GTST intro", "album": "Nederlandse TV" }
+    },
+    {
+      "titel": { "naam": "Gooische Vrouwen", "jaar": 2005 },
+      "track": { "tracknaam": "Gooische Vrouwen titelsong", "album": "TV Tunes" }
+    }
+  ],
+  "negative": [
+    {
+      "titel": { "naam": "Flodder", "jaar": 1986 },
+      "track": { "tracknaam": "Gooische Vrouwen titelsong", "album": "TV Tunes" }
+    },
+    {
+      "titel": { "naam": "Pirates of the Caribbean", "jaar": 2003 },
+      "track": { "tracknaam": "Pirates of the Caribbean theme (2006)" }
+    }
+  ]
+}

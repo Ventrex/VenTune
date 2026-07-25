@@ -30,7 +30,8 @@ function maakToken() {
  * Maak een nieuwe lobby aan met een unieke code en een host-speler.
  * @returns {Promise<{code, lobbyId, hostSpelerId, hostToken}>}
  */
-async function maakLobby({ hostNaam = 'Host', instellingen = {} } = {}) {
+async function maakLobby({ hostNaam = 'Host', gebruikerId, instellingen = {} } = {}) {
+    if (!gebruikerId) throw new Error('Een hostaccount is verplicht.');
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -50,19 +51,19 @@ async function maakLobby({ hostNaam = 'Host', instellingen = {} } = {}) {
         if (!code) throw new Error('Kon geen vrije lobbycode vinden.');
 
         const lobby = await client.query(
-            `INSERT INTO lobbies (code, status, instellingen)
-             VALUES ($1, 'wachten', $2::jsonb)
+            `INSERT INTO lobbies (code, status, instellingen, host_gebruiker_id)
+             VALUES ($1, 'wachten', $2::jsonb, $3)
              RETURNING id`,
-            [code, JSON.stringify(instellingen)],
+            [code, JSON.stringify(instellingen), gebruikerId],
         );
         const lobbyId = lobby.rows[0].id;
 
         const hostToken = maakToken();
         const speler = await client.query(
-            `INSERT INTO spelers (lobby_id, naam, is_host, sessie_token, verbonden)
-             VALUES ($1, $2, true, $3, true)
+            `INSERT INTO spelers (lobby_id, gebruiker_id, naam, is_host, is_gast, sessie_token, verbonden)
+             VALUES ($1, $2, $3, true, false, $4, true)
              RETURNING id`,
-            [lobbyId, hostNaam, hostToken],
+            [lobbyId, gebruikerId, hostNaam, hostToken],
         );
         const hostSpelerId = speler.rows[0].id;
 

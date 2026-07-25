@@ -17,6 +17,7 @@ RUN npm install --omit=dev
 # Servercode en seed kopiëren.
 COPY server/ ./
 COPY seed/ /app/seed/
+COPY CHANGELOG.md /app/CHANGELOG.md
 
 ENV NODE_ENV=production
 EXPOSE 3000

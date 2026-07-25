@@ -5,6 +5,7 @@ import { useSpel } from '../lib/useSpel.js';
 import { wisSessie } from '../lib/sessie.js';
 import HostPlayer from '../components/HostPlayer.jsx';
 import Timer from '../components/Timer.jsx';
+import Brand from '../components/Brand.jsx';
 
 // Host-scherm (het grote scherm). Speelt de muziek af en toont de QR,
 // de visualizer, de timer en het scorebord.
@@ -35,6 +36,7 @@ export default function Host() {
 
     return (
         <main className="scherm host-scherm">
+            <Brand compact />
             {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
 
             {/* Wachtruimte — in landscape: spelers links, QR rechts */}

@@ -5,8 +5,9 @@ stijl van Hitster. Draait volledig in Docker op een homelab en wordt ontsloten
 via een tunnel op `ventune.ventrex.cc`.
 
 De host speelt de muziek, spelers scannen een QR-code, kiezen een naam en raden
-de titel op hun telefoon. **Geen account, geen login, geen Spotify** — de muziek
-komt van YouTube, aangevuld met gratis iTunes-previews en eigen clips.
+de titel op hun telefoon. Spelers hebben geen account nodig; een host logt wel in
+met een hostaccount. **Geen Spotify** — de muziek komt primair van YouTube,
+met iTunes-previews en eigen clips als fallback.
 
 ---
 
@@ -15,8 +16,11 @@ komt van YouTube, aangevuld met gratis iTunes-previews en eigen clips.
 - [Hoe het werkt](#hoe-het-werkt)
 - [Techstack](#techstack)
 - [Snel starten](#snel-starten)
+- [Hostaccount](#hostaccount)
 - [Vragenbank vullen (seed)](#vragenbank-vullen-seed)
 - [Beheerportaal (/admin)](#beheerportaal-admin)
+- [Betrouwbaarheid van muziek](#betrouwbaarheid-van-muziek)
+- [Documentatie](#documentatie)
 - [Poorten](#poorten)
 - [Deploy achter een tunnel](#deploy-achter-een-tunnel)
 - [Omgevingsvariabelen](#omgevingsvariabelen)
@@ -105,14 +109,26 @@ behouden.
 
 ---
 
+## Hostaccount
+
+Een speler kan zonder account meedoen via QR-code en lobbycode. Een host moet
+wel altijd een account hebben voordat een lobby kan worden aangemaakt. Kies op
+het startscherm **Nieuw spel**, maak een hostaccount aan of log in, en ga daarna
+door naar de filters.
+
+Hostaccounts worden in PostgreSQL opgeslagen met een scrypt-wachtwoordhash en
+een server-side sessiecookie. Het adminportaal blijft hiervan gescheiden: het
+admin-wachtwoord staat uitsluitend in `.env`.
+
 ## Vragenbank vullen (seed)
 
 Bij een verse installatie is de vragenbank leeg. Vullen kan op twee manieren:
 
 **A. Via het beheerportaal (aanbevolen).** Ga naar `/admin`, log in en klik op
-**"Startseed importeren (iTunes)"**. VenTune zet ~290 titels klaar (Nederlands en
-internationaal) en zoekt per titel een clip op iTunes. Aan het eind zie je welke
-titels geen clip kregen — die vul je handmatig aan.
+**"Startseed importeren (YouTube eerst)"**. VenTune zet ~290 titels klaar
+(Nederlands en internationaal) en zoekt per titel eerst een betrouwbare
+YouTube-intro. Alleen bij een mislukte YouTube-match wordt iTunes als fallback
+geprobeerd.
 
 **A2. Duizenden titels via TMDB (aanbevolen).** De handgeschreven lijst van
 ~290 titels is klein. Met een gratis TMDB-key haal je er automatisch duizenden
@@ -125,6 +141,9 @@ docker compose exec server node /app/seed/tmdb-import.js
 # 2. Muziek erbij zoeken voor alle titels zonder track
 docker compose exec server node /app/seed/import.js --db
 ```
+
+Dit kan ook met één klik in `/admin` via **TMDB-titels importeren** en daarna
+**YouTube-first muziek vernieuwen**. Bonusvragen kun je daar ook genereren.
 
 Stap 2 kan lang duren (YouTube knijpt af bij te veel verzoeken). Het script is
 hervatbaar: draai het gerust nogmaals, het pakt alleen de titels op die nog geen
@@ -157,6 +176,11 @@ docker compose exec server node /app/seed/import.js
 docker compose exec server node /app/seed/import.js --force
 ```
 
+De knop **YouTube-first muziek vernieuwen** in `/admin` gebruikt bewust de
+veilige force-migratie. Een oude iTunes-track wordt alleen vervangen nadat een
+nieuwe gecontroleerde YouTube-track (of pas daarna een iTunes-fallback) is
+gevonden.
+
 De import zoekt **eerst op YouTube** naar de intro/titelsong (daar staat vrijwel
 elke film- en seriemuziek, ook de Nederlandse) en valt terug op iTunes als daar
 niets bruikbaars staat. Per titel wordt de meest waarschijnlijke intro gekozen:
@@ -171,6 +195,30 @@ De brondata staat in `seed/titels.json` en kun je uitbreiden.
 > track aan je filters voldoen. Onder die drempel toont het filtermenu een
 > waarschuwing.
 
+### Betrouwbaarheid van muziek
+
+VenTune probeert niet koste wat kost een nummer te vinden. Een resultaat wordt
+alleen opgeslagen als de volledige titel of een alias overtuigend in de
+tracknaam of het album voorkomt. Een expliciet ander jaartal
+wordt geweigerd. Tijdens het spel controleert de engine de track nogmaals; een
+verkeerde track wordt dan uitgeschakeld.
+
+Dat betekent bewust: bij twijfel liever geen ronde dan muziek van een andere
+film of serie onder de verkeerde naam. Zoekresultaten van YouTube en iTunes
+kunnen immers veranderen.
+
+### Lokale audio voor later
+
+De compose-stack bevat een `./media`-volume. De handmatige downloader accepteert
+alleen iTunes/Apple-preview-URL's die al aan een track gekoppeld zijn:
+
+    docker compose exec server node /app/seed/download-track.js --track 42 --droog
+    docker compose exec server node /app/seed/download-track.js --track 42
+
+Willekeurige YouTube-downloads staan niet automatisch aan. Eigen volledige
+bestanden kunnen later via een expliciete adminflow worden toegevoegd met bron-
+en rechtenregistratie.
+
 ---
 
 ## Beheerportaal (/admin)
@@ -181,15 +229,18 @@ Inloggen met `ADMIN_PASSWORD` uit je `.env`. Je kunt er:
 - de startseed importeren;
 - titels zoeken, toevoegen, bewerken en verwijderen (naam, aliassen, type, taal,
   jaar, land, genres, TMDB-id);
-- per titel tracks beheren: op iTunes zoeken, beluisteren en toevoegen, een
-  **YouTube-link** plakken (met optionele startseconde), of tracks verwijderen.
+- per titel eerst de beste YouTube-intro automatisch zoeken en toevoegen;
+- handmatig een **YouTube-link** plakken (met optionele startseconde);
+- iTunes pas als fallback zoeken, beluisteren en toevoegen;
+- tracks verwijderen, goedkeuren, afkeuren en controleren.
+- hostaccounts bekijken, uitschakelen en voorzien van een nieuw wachtwoord;
+- importstatus, open meldingen en aantallen per audiobron bekijken.
 
-**YouTube als aanvulling.** Naast iTunes kun je per titel een YouTube-video als
-bron gebruiken — handig voor titels die iTunes mist (juist die Nederlandse en
-niet-Engelse). De host speelt de video af met de visualizer eroverheen, zodat de
+**YouTube als hoofdbron.** De host speelt een YouTube-video af met de visualizer
+eroverheen, zodat de
 titel verborgen blijft. Let op: een ingesloten YouTube-speler erft je Premium
-niet altijd, dus er kan af en toe een advertentie verschijnen. iTunes blijft
-daarom de standaardbron.
+niet altijd, dus er kan af en toe een advertentie verschijnen. iTunes wordt
+alleen gebruikt als YouTube geen veilige match oplevert.
 
 Vul een **TMDB-id** in bij een titel om er bonusvragen voor mogelijk te maken.
 
@@ -285,7 +336,9 @@ Kopieer `.env.example` naar `.env` en vul in. Het minimum om te starten:
 | `TMDB_API_KEY`     | nee       | Gratis key; alleen nodig voor bonusvragen         |
 | `DISCORD_WEBHOOK_URL` | nee    | Meldingen (crash, DB-fout, nieuwe lobby)          |
 
-Muziek werkt **direct zonder sleutels** — iTunes is gratis en zonder account.
+YouTube werkt zonder sleutel via de zoekpagina. Een optionele
+`YOUTUBE_API_KEY` maakt de zoekresultaten stabieler. iTunes is alleen de gratis
+fallback en vereist geen account.
 
 ---
 
@@ -329,8 +382,9 @@ host-scherm één keer als de browser autoplay blokkeert. Spelers horen bewust
 niets op hun telefoon.
 
 **Nederlandse titels zonder clip.** Niet elke Nederlandse titel heeft een
-soundtrack op iTunes. Gebruik in `/admin` de iTunes-zoeker om de **titelsong of
-themamuziek** te vinden, of voeg via een `lokaal`-track je eigen clip toe.
+bruikbare online match. Gebruik in `/admin` eerst de YouTube-zoeker voor de
+**titelsong of themamuziek**; iTunes blijft de fallback. Voeg alleen met bron-
+en rechtenregistratie een eigen `lokaal`-track toe.
 
 **Tunnel bereikt de app niet.** Wijs de tunnel naar het **host-IP**
 (`http://192.168.0.76:8091`), niet naar `127.0.0.1`. Zorg dat WebSockets
@@ -338,3 +392,20 @@ aanstaan (voor Socket.IO).
 
 **Logs bekijken.** `docker compose logs -f server` — alles is JSON, dus goed
 leesbaar en filterbaar.
+
+---
+
+## Documentatie
+
+- [CHANGELOG.md](CHANGELOG.md) — publieke wijzigingen; spelers zien dit ook via **Wat is nieuw?**
+- [Bugs.md](Bugs.md) — bekende fouten en reproduceerstappen.
+- [Todo.md](Todo.md) — concrete openstaande werkzaamheden.
+- [Ideeen.md](Ideeen.md) — ideeën die nog niet zijn toegezegd.
+- [Prioriteiten.md](Prioriteiten.md) — P0–P4-prioriteiten; “pak alle P1-punten op” begint hier.
+- [Files.md](Files.md) — kaart van de belangrijkste bestanden.
+- [ScriptUitleg.md](ScriptUitleg.md) — seed-, diagnose- en downloadscripts.
+- [Docker-compose.md](Docker-compose.md) — services, volumes en updateflow.
+- [Comments.md](Comments.md) — technische keuzes en grenzen.
+- [GevraagdeAI.md](GevraagdeAI.md) — instructies voor vervolgwerk.
+- [Stappenplan.md](Stappenplan.md) — voortgang per fase.
+- [LICENSES.md](LICENSES.md) — bron- en licentiebeleid.

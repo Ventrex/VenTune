@@ -24,6 +24,46 @@ export function audioBron(url) {
     return url;
 }
 
+// --- Hostaccount ---
+
+export async function authSessie() {
+    const resp = await fetch('/api/auth/session', { credentials: 'include' });
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Account kon niet worden gecontroleerd.');
+    return data || { ingelogd: false, gebruiker: null };
+}
+
+export async function authInloggen(gegevens) {
+    const resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gegevens),
+    });
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Inloggen mislukt.');
+    return data;
+}
+
+export async function authRegistreren(gegevens) {
+    const resp = await fetch('/api/auth/register', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gegevens),
+    });
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Account maken mislukt.');
+    return data;
+}
+
+export async function authUitloggen() {
+    const resp = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Uitloggen mislukt.');
+    return data;
+}
+
 /** Zoek muziek op iTunes via de server. Geeft { term, aantal, resultaten }. */
 export async function zoekMuziek(term, land) {
     const params = new URLSearchParams({ term });
@@ -42,6 +82,7 @@ export async function zoekMuziek(term, land) {
 export async function maakLobby(instellingen = {}, naam = 'Host') {
     const resp = await fetch('/api/lobby', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ naam, instellingen }),
     });
@@ -97,6 +138,14 @@ export async function haalRanking() {
     return (await jsonOfNull(resp)) || [];
 }
 
+/** Publieke wijzigingen die spelers mogen zien. */
+export async function haalChangelog() {
+    const resp = await fetch('/api/changelog');
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Changelog kon niet worden geladen.');
+    return data?.entries || [];
+}
+
 // --- Admin ---
 
 async function adminFetch(pad, opties = {}) {
@@ -135,6 +184,11 @@ export async function adminVerwijderTitel(id) {
 export async function adminTracks(titelId) {
     return adminFetch(`/api/admin/titels/${titelId}/tracks`);
 }
+export async function adminZoekYoutube(titelId) {
+    return adminFetch(`/api/admin/titels/${titelId}/youtube-zoek`, {
+        method: 'POST',
+    });
+}
 export async function adminVoegTrack(titelId, data) {
     return adminFetch(`/api/admin/titels/${titelId}/tracks`, {
         method: 'POST',
@@ -144,14 +198,56 @@ export async function adminVoegTrack(titelId, data) {
 export async function adminVerwijderTrack(id) {
     return adminFetch(`/api/admin/tracks/${id}`, { method: 'DELETE' });
 }
+export async function adminDownloadTrack(id) {
+    return adminFetch(`/api/admin/tracks/${id}/download`, { method: 'POST' });
+}
 export async function adminSeed(force = false) {
     return adminFetch('/api/admin/seed', { method: 'POST', ...jsonBody({ force }) });
 }
 export async function adminSeedStatus() {
     return adminFetch('/api/admin/seed/status');
 }
+export async function adminPlaylistImport(titel = '') {
+    return adminFetch('/api/admin/playlists/import', {
+        method: 'POST',
+        ...jsonBody({ titel }),
+    });
+}
+export async function adminPlaylistStatus() {
+    return adminFetch('/api/admin/playlists/status');
+}
+export async function adminTmdbImport() {
+    return adminFetch('/api/admin/tmdb/import', { method: 'POST' });
+}
+export async function adminTmdbStatus() {
+    return adminFetch('/api/admin/tmdb/status');
+}
+export async function adminVragenImport(tmdb = false) {
+    return adminFetch('/api/admin/vragen/import', {
+        method: 'POST',
+        ...jsonBody({ tmdb }),
+    });
+}
+export async function adminVragenStatus() {
+    return adminFetch('/api/admin/vragen/status');
+}
 export async function adminOverzicht() {
     return adminFetch('/api/admin/overzicht');
+}
+export async function adminGebruikers() {
+    return adminFetch('/api/admin/gebruikers');
+}
+export async function adminGebruikerStatus(id, actief) {
+    return adminFetch(`/api/admin/gebruikers/${id}`, {
+        method: 'PATCH',
+        ...jsonBody({ actief }),
+    });
+}
+export async function adminResetWachtwoord(id, wachtwoord) {
+    return adminFetch(`/api/admin/gebruikers/${id}/wachtwoord`, {
+        method: 'POST',
+        ...jsonBody({ wachtwoord }),
+    });
 }
 export async function adminTrackStatus(id, data) {
     return adminFetch(`/api/admin/tracks/${id}`, { method: 'PATCH', ...jsonBody(data) });

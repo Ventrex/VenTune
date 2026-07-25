@@ -187,7 +187,7 @@ async function bewaarTitel(t) {
 }
 
 /** Haal meerdere pagina's op van een discover-endpoint. */
-async function verzamel(soort, type, extraParams, paginas, label, teller) {
+async function verzamel(soort, type, extraParams, paginas, label, teller, minStemmen = MIN_STEMMEN) {
     for (let p = 1; p <= paginas; p++) {
         let data;
         try {
@@ -195,7 +195,7 @@ async function verzamel(soort, type, extraParams, paginas, label, teller) {
                 page: String(p),
                 sort_by: 'popularity.desc',
                 include_adult: 'false',
-                'vote_count.gte': String(MIN_STEMMEN),
+                'vote_count.gte': String(minStemmen),
                 ...extraParams,
             });
         } catch (err) {
@@ -222,55 +222,38 @@ async function verzamel(soort, type, extraParams, paginas, label, teller) {
     console.log(`  ${label}: klaar (nieuw tot nu toe: ${teller.nieuw})`);
 }
 
-async function main() {
+async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN } = {}) {
     if (!KEY) {
-        console.error(
-            'TMDB_API_KEY ontbreekt.\n\n' +
-                'Zo los je het op:\n' +
-                '  1. Ga naar https://www.themoviedb.org/settings/api\n' +
-                '  2. Kopieer de "API Key (v3 auth)" — of de "API Read Access Token"\n' +
-                '  3. Zet die in /opt/VenTune/.env bij TMDB_API_KEY=\n' +
-                '  4. docker compose up -d\n',
-        );
-        process.exit(1);
+        throw new Error('TMDB_API_KEY ontbreekt. Zet deze in .env en start de server opnieuw.');
     }
 
     console.log(
         `Sleutel gevonden (${IS_BEARER ? 'Read Access Token' : 'API Key v3'}), controleren…`,
     );
     if (!(await controleerSleutel())) {
-        console.error(
-            '\nTMDB weigert deze sleutel (401).\n\n' +
-                'Controleer op https://www.themoviedb.org/settings/api:\n' +
-                '  • Gebruik de "API Key (v3 auth)" — een korte reeks letters/cijfers,\n' +
-                '    of de "API Read Access Token" — een lange reeks die met eyJ begint.\n' +
-                '  • Let op spaties of aanhalingstekens in .env (TMDB_API_KEY=abc123,\n' +
-                '    dus zonder quotes).\n' +
-                '  • Na wijzigen: docker compose up -d\n',
-        );
-        process.exit(1);
+        throw new Error('TMDB weigert deze sleutel (401). Controleer TMDB_API_KEY in .env.');
     }
     console.log('Sleutel werkt.\n');
 
     const teller = { nieuw: 0, bestond: 0, fouten: 0 };
-    console.log(`TMDB-import gestart (${PAGINAS} pagina's per categorie)…\n`);
+    console.log(`TMDB-import gestart (${paginas} pagina's per categorie)…\n`);
 
     // 1) Nederlandstalig — ruim ophalen, want dat is de dunste categorie.
     console.log('Nederlandstalige films en series:');
     await verzamel('movie', 'film', { with_original_language: 'nl' },
-        PAGINAS * 2, 'NL films', teller);
+        paginas * 2, 'NL films', teller, minStemmen);
     await verzamel('tv', 'serie', { with_original_language: 'nl' },
-        PAGINAS * 2, 'NL series', teller);
+        paginas * 2, 'NL series', teller, minStemmen);
     // Ook Belgisch-Nederlandstalig materiaal.
     await verzamel('movie', 'film', { with_origin_country: 'BE' },
-        Math.ceil(PAGINAS / 2), 'BE films', teller);
+        Math.ceil(paginas / 2), 'BE films', teller, minStemmen);
     await verzamel('tv', 'serie', { with_origin_country: 'NL' },
-        PAGINAS, 'NL-productie series', teller);
+        paginas, 'NL-productie series', teller, minStemmen);
 
     // 2) Internationaal populair.
     console.log('\nInternationale films en series:');
-    await verzamel('movie', 'film', {}, PAGINAS, 'populaire films', teller);
-    await verzamel('tv', 'serie', {}, PAGINAS, 'populaire series', teller);
+    await verzamel('movie', 'film', {}, paginas, 'populaire films', teller, minStemmen);
+    await verzamel('tv', 'serie', {}, paginas, 'populaire series', teller, minStemmen);
 
     // 3) Per decennium, zodat oudere klassiekers ook meekomen.
     console.log('\nPer decennium:');
@@ -282,9 +265,10 @@ async function main() {
                 'primary_release_date.gte': `${start}-01-01`,
                 'primary_release_date.lte': `${eind}-12-31`,
             },
-            Math.ceil(PAGINAS / 2),
+            Math.ceil(paginas / 2),
             `films ${start}-${eind}`,
             teller,
+            minStemmen,
         );
         await verzamel(
             'tv', 'serie',
@@ -292,9 +276,10 @@ async function main() {
                 'first_air_date.gte': `${start}-01-01`,
                 'first_air_date.lte': `${eind}-12-31`,
             },
-            Math.ceil(PAGINAS / 4),
+            Math.ceil(paginas / 4),
             `series ${start}-${eind}`,
             teller,
+            minStemmen,
         );
     }
 
@@ -311,14 +296,19 @@ async function main() {
     console.log(`Bestond al:       ${teller.bestond}`);
     if (teller.fouten) console.log(`Fouten:           ${teller.fouten}`);
     console.log(`\nTotaal in database: ${d.n} titels (${d.nl} Nederlandstalig, ${d.series} series)`);
-    console.log('\nVolgende stap — muziek erbij zoeken:');
-    console.log('  node /app/seed/import.js');
-
-    await pool.end();
+    console.log('\nVolgende stap — YouTube-muziek erbij zoeken:');
+    console.log('  node /app/seed/import.js --db');
+    return { ...teller, totaal: d.n, nl: d.nl, series: d.series };
 }
 
-main().catch(async (err) => {
-    console.error('TMDB-import mislukt:', err.message);
-    await pool.end().catch(() => {});
-    process.exit(1);
-});
+module.exports = { importeerTmdb };
+
+if (require.main === module) {
+    importeerTmdb()
+        .then(async () => { await pool.end(); })
+        .catch(async (err) => {
+            console.error('TMDB-import mislukt:', err.message);
+            await pool.end().catch(() => {});
+            process.exit(1);
+        });
+}

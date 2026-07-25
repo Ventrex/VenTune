@@ -25,7 +25,7 @@ async function main() {
     const { rows } = await pool.query(
         `SELECT tr.id, tr.bron, tr.tracknaam, tr.artiest, tr.album,
                 tr.werkt, tr.herkenbaarheid,
-                t.id AS titel_id, t.naam AS titel_naam, t.aliassen
+                t.id AS titel_id, t.naam AS titel_naam, t.aliassen, t.jaar
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
           ORDER BY t.naam, tr.id`,
@@ -38,7 +38,7 @@ async function main() {
 
     for (const r of rows) {
         const uitkomst = pastBijTitel(
-            { naam: r.titel_naam, aliassen: r.aliassen },
+            { naam: r.titel_naam, aliassen: r.aliassen, jaar: r.jaar },
             { tracknaam: r.tracknaam, album: r.album, artiest: r.artiest },
         );
         if (uitkomst.past) {
@@ -82,12 +82,29 @@ async function main() {
             console.log(`\n${uit.rowCount} verdachte tracks verwijderd.`);
         } else {
             const uit = await pool.query(
-                `UPDATE tracks SET werkt = false, gecontroleerd = false
+                `UPDATE tracks SET werkt = false, gecontroleerd = false,
+                        verificatie_score = 0,
+                        verificatie_reden = 'afgekeurd door controle-script',
+                        laatst_gecontroleerd_op = now()
                   WHERE id = ANY($1)`,
                 [ids],
             );
             console.log(
                 `\n${uit.rowCount} verdachte tracks afgekeurd (worden niet meer gespeeld).`,
+            );
+        }
+
+        const goedeIds = rows
+            .filter((r) => !verdacht.some((v) => v.id === r.id))
+            .map((r) => r.id);
+        if (goedeIds.length) {
+            await pool.query(
+                `UPDATE tracks SET gecontroleerd = true,
+                        verificatie_score = GREATEST(verificatie_score, 0.95),
+                        verificatie_reden = COALESCE(verificatie_reden, 'controle-script'),
+                        laatst_gecontroleerd_op = now()
+                  WHERE id = ANY($1)`,
+                [goedeIds],
             );
         }
     }

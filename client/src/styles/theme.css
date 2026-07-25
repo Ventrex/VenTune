@@ -37,6 +37,83 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+/* --- VenTune-logo --- */
+.merk-link {
+    color: var(--text);
+    text-decoration: none;
+}
+
+.merk {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    margin: 0 auto 1rem;
+}
+
+.merk-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    box-shadow: 0 0 26px var(--red-glow);
+}
+
+.merk-naam {
+    color: var(--text);
+    font-size: clamp(1.75rem, 7vw, 2.7rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+}
+
+.merk-compact .merk-logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+}
+
+.merk-compact .merk-naam {
+    font-size: 1.35rem;
+}
+
+.auth-scherm .merk {
+    margin-bottom: 1.5rem;
+}
+
+.auth-kaart {
+    text-align: left;
+}
+
+.auth-kaart .kaart-label {
+    margin-bottom: -0.65rem;
+}
+
+.account-balk {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: -0.25rem 0 1rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+.admin-bronblok {
+    border-color: var(--red);
+}
+
+.youtube-kandidaat {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.youtube-kandidaat iframe {
+    display: block;
+}
+
 h1 {
     font-size: clamp(2rem, 8vw, 3.5rem);
     font-weight: 800;
@@ -154,6 +231,30 @@ h1 {
     border-radius: 12px;
     padding: 0.75rem 1rem;
     margin: 0 0 1.5rem;
+}
+
+/* --- Publieke changelog --- */
+.changelog-lijst {
+    text-align: left;
+}
+
+.changelog-kaart h2 {
+    color: var(--red-hot);
+    font-size: 1.15rem;
+    margin: 1.25rem 0 0.45rem;
+}
+
+.changelog-kaart h2:first-child {
+    margin-top: 0;
+}
+
+.changelog-kaart ul {
+    margin: 0;
+    padding-left: 1.3rem;
+}
+
+.changelog-kaart li + li {
+    margin-top: 0.45rem;
 }
 
 /* --- Zoekbalk --- */
@@ -836,6 +937,24 @@ h1 {
     font-size: 0.8rem;
     color: var(--text-dim);
     text-align: center;
+}
+
+.admin-bronnen {
+    margin: 0.6rem 0 0;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.admin-accounts {
+    margin-top: 1.25rem;
+    text-align: left;
+}
+
+.admin-account-acties {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .track.afgekeurd {

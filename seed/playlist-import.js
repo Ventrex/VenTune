@@ -1,139 +1,42 @@
 // =====================================================================
 // Playlist-import: leest YouTube-playlists met intro's en titelsongs en
-// koppelt elke video aan de juiste film of serie.
+// koppelt elke video uitsluitend aan een overtuigend passende titel.
 //
-// Waarom dit beter is dan zoeken: een playlist als "Nederlandse tv-series
-// intro's" bevat per definitie de échte intro's. Geen soundtrack-albums,
-// geen reaction-video's, geen misgrepen.
-//
-// De playlists staan in seed/playlists.json.
-//
-// Gebruik (in de servercontainer):
-//   node /app/seed/playlist-import.js
-//   node /app/seed/playlist-import.js --droog     # alleen tonen, niets opslaan
-//   node /app/seed/playlist-import.js --nieuw     # onbekende titels aanmaken
+// Onzeker = overslaan. Een bestaande track wordt alleen vervangen binnen
+// één database-transactie, zodat een fout nooit een goede oude track wist.
 // =====================================================================
 
 const fs = require('fs');
 const path = require('path');
 const { pool } = require('../server/db/pool');
 const ytzoek = require('../server/lib/ytzoek');
+const { matchTitel } = require('../server/lib/title-match');
 const { pastBijTitel } = require('../server/lib/trackcheck');
 
 const args = process.argv.slice(2);
-const DROOG = args.includes('--droog');
-const NIEUW = args.includes('--nieuw');
+const CLI_DROOG = args.includes('--droog');
+const CLI_NIEUW = args.includes('--nieuw');
+const titelIndex = args.indexOf('--titel');
+const CLI_TITEL_FILTER = titelIndex >= 0 ? String(args[titelIndex + 1] || '').trim() : '';
 
 function slaap(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }
 
-// Rommel die vaak in videotitels staat maar niet bij de serienaam hoort.
-const RUIS = [
-    'intro', 'outro', 'opening', 'openingstune', 'titelsong', 'titelmuziek',
-    'tune', 'theme song', 'theme', 'main title', 'title sequence', 'generiek',
-    'soundtrack', 'ost', 'hd', 'hq', 'full', 'lyrics', 'nederlandse',
-    'nederlands', 'serie', 'tv serie', 'tvserie', 'leader', 'begintune',
-    'aflevering', 'seizoen', 'season', 'opener', 'credits', 'original',
-    'official', 'video', 'audio', 'remastered', 'compilatie',
-];
-
-/** Haal de vermoedelijke titelnaam uit een videotitel. */
-function schoonTitel(videoTitel) {
-    let t = ytzoek.normaliseer(videoTitel);
-    // Alles tussen haakjes en na een liggend streepje/pipe weghalen.
-    t = t.replace(/\([^)]*\)/g, ' ').replace(/\[[^\]]*\]/g, ' ');
-    t = t.split('|')[0];
-    // Jaartallen weg.
-    t = t.replace(/\b(19|20)\d{2}\b/g, ' ');
-    // Ruiswoorden weg.
-    for (const w of RUIS) {
-        t = t.replace(new RegExp(`\\b${w}\\b`, 'g'), ' ');
+async function haalTitels(titelFilter = '') {
+    const params = [];
+    let where = '';
+    if (titelFilter) {
+        params.push(`%${titelFilter}%`);
+        where = 'WHERE naam ILIKE $1';
     }
-    return t.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Zoek de titel in de database die het beste bij deze videotitel past.
- * Werkt op woord-overlap zodat "Flodder intro (1986)" bij "Flodder" komt.
- */
-function matchTitel(videoTitel, titels) {
-    const schoon = schoonTitel(videoTitel);
-    if (!schoon) return null;
-    const videoWoorden = new Set(schoon.split(' ').filter((w) => w.length > 1));
-
-    let beste = null;
-    let besteScore = 0;
-
-    for (const t of titels) {
-        const kandidaten = [t.naam, ...(t.aliassen || [])];
-        for (const kandidaat of kandidaten) {
-            const naam = ytzoek.normaliseer(kandidaat).replace(/[^a-z0-9\s]/g, ' ').trim();
-            if (!naam) continue;
-
-            // Exacte match op de volledige naam is het sterkst.
-            if (schoon === naam) {
-                return { titel: t, score: 100 };
-            }
-            // Komt de volledige titelnaam voor in de videotitel?
-            if (naam.length >= 4 && schoon.includes(naam)) {
-                const score = 50 + naam.length;
-                if (score > besteScore) {
-                    besteScore = score;
-                    beste = t;
-                }
-                continue;
-            }
-            // Woord-overlap: alle woorden van de titel moeten voorkomen.
-            const naamWoorden = naam.split(' ').filter((w) => w.length > 1);
-            if (naamWoorden.length === 0) continue;
-            const allemaal = naamWoorden.every((w) => videoWoorden.has(w));
-            if (allemaal) {
-                const score = 20 + naamWoorden.length * 5;
-                if (score > besteScore) {
-                    besteScore = score;
-                    beste = t;
-                }
-            }
-        }
-    }
-    // Te zwakke match negeren om verkeerde koppelingen te voorkomen.
-    if (!beste || besteScore < 25) return null;
-    return { titel: beste, score: besteScore };
-}
-
-async function haalTitels() {
     const { rows } = await pool.query(
-        `SELECT id, naam, aliassen, type, taal, jaar FROM titels`,
+        `SELECT id, naam, aliassen, type, taal, jaar
+           FROM titels ${where}
+          ORDER BY id`,
+        params,
     );
     return rows;
-}
-
-async function heeftYoutubeTrack(titelId) {
-    const { rows } = await pool.query(
-        `SELECT 1 FROM tracks WHERE titel_id = $1 AND bron = 'youtube' LIMIT 1`,
-        [titelId],
-    );
-    return rows.length > 0;
-}
-
-async function zetTrack(titelId, video) {
-    // Playlist-tracks zijn betrouwbaarder: bestaande tracks wijken.
-    await pool.query(`DELETE FROM tracks WHERE titel_id = $1`, [titelId]);
-    await pool.query(
-        `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
-                             tracknaam, artiest, herkenbaarheid, gecontroleerd,
-                             bron_url)
-         VALUES ($1, 'youtube', $2, 0, $3, $4, 5, true, $5)
-         ON CONFLICT DO NOTHING`,
-        [
-            titelId,
-            video.videoId,
-            video.titel.slice(0, 200),
-            video.kanaal || 'YouTube',
-            `https://www.youtube.com/watch?v=${video.videoId}`,
-        ],
-    );
 }
 
 async function maakTitel(naam, type, taal) {
@@ -145,12 +48,52 @@ async function maakTitel(naam, type, taal) {
     return rows[0].id;
 }
 
-async function main() {
+/** Voeg een playlisttrack toe via de meegegeven executor/transaction. */
+async function zetTrack(titelId, video, playlistNaam, executor = pool) {
+    const { rows } = await executor.query(
+        `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
+                             tracknaam, artiest, herkenbaarheid, gecontroleerd,
+                             verificatie_score, verificatie_reden, bron_url)
+         VALUES ($1, 'youtube', $2, 0, $3, $4, 5, true, 1.0, $5, $6)
+         RETURNING id`,
+        [
+            titelId,
+            video.videoId,
+            video.titel.slice(0, 200),
+            video.kanaal || 'YouTube',
+            `playlist-match: ${playlistNaam}`.slice(0, 200),
+            `https://www.youtube.com/watch?v=${video.videoId}`,
+        ],
+    );
+    return rows[0];
+}
+
+/** Vervang tracks atomair; bij een fout blijven de oude tracks bestaan. */
+async function vervangTracks(titelId, video, playlistNaam) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const nieuw = await zetTrack(titelId, video, playlistNaam, client);
+        await client.query(
+            `DELETE FROM tracks WHERE titel_id = $1 AND id <> $2`,
+            [titelId, nieuw.id],
+        );
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
+async function importeerPlaylists({ droog = false, nieuw = false, titelFilter = '' } = {}) {
     const lijst = JSON.parse(
         fs.readFileSync(path.join(__dirname, 'playlists.json'), 'utf8'),
     );
-    const titels = await haalTitels();
-    console.log(`${titels.length} titels in de database, ${lijst.length} playlists.\n`);
+    const titels = await haalTitels(titelFilter);
+    console.log(`${titels.length} titels in de database, ${lijst.length} playlists.`);
+    if (titelFilter) console.log(`Alleen titels met: "${titelFilter}"`);
 
     let gekoppeld = 0;
     let nieuwGemaakt = 0;
@@ -158,7 +101,7 @@ async function main() {
     const nietGematcht = [];
 
     for (const pl of lijst) {
-        console.log(`── ${pl.naam}`);
+        console.log(`\n── ${pl.naam}`);
         let videos;
         try {
             videos = await ytzoek.haalPlaylist(pl.id);
@@ -166,15 +109,14 @@ async function main() {
             console.log(`   FOUT: ${err.message}`);
             continue;
         }
+
+        let playlistGekoppeld = 0;
         console.log(`   ${videos.length} video's gevonden`);
 
         for (const v of videos) {
             if (!ytzoek.isLatijnsSchrift(v.titel)) continue;
 
             const match = matchTitel(v.titel, titels);
-            // Dubbele controle: de videotitel moet echt bij de titel horen.
-            // Zo komt de muziek van de ene film nooit onder de naam van een
-            // andere te staan.
             const geldig =
                 match &&
                 pastBijTitel(match.titel, {
@@ -183,68 +125,96 @@ async function main() {
                 }).past;
 
             if (match && geldig) {
-                if (DROOG) {
+                if (droog) {
                     console.log(`   ✓ "${v.titel}" → ${match.titel.naam}`);
                 } else {
-                    await zetTrack(match.titel.id, v);
+                    await vervangTracks(match.titel.id, v, pl.naam);
                 }
                 gekoppeld++;
-            } else if (match && !geldig) {
-                console.log(`   ✗ geweigerd: "${v.titel}" ≠ ${match.titel.naam}`);
-                overgeslagen++;
-            } else if (NIEUW) {
-                // Onbekende titel: aanmaken op basis van de opgeschoonde naam.
-                const naam = schoonTitel(v.titel)
-                    .split(' ')
-                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                    .join(' ');
+                playlistGekoppeld++;
+                continue;
+            }
+
+            if (nieuw && !titelFilter) {
+                const naam = v.titel
+                    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+                    .replace(/\b(19|20)\d{2}\b/g, ' ')
+                    .replace(/\b(intro|outro|opening|theme|titelsong|soundtrack|official)\b/gi, ' ')
+                    .replace(/[^a-zA-Z0-9À-ÿ\s-]/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
                 if (naam.length < 2) {
                     overgeslagen++;
                     continue;
                 }
-                if (DROOG) {
+                if (droog) {
                     console.log(`   + nieuw: ${naam}`);
                 } else {
                     const id = await maakTitel(naam, pl.type, pl.taal);
-                    await zetTrack(id, v);
+                    await vervangTracks(id, v, pl.naam);
                     titels.push({ id, naam, aliassen: [], type: pl.type, taal: pl.taal });
                 }
                 nieuwGemaakt++;
+                playlistGekoppeld++;
+                continue;
+            }
+
+            if (match && !geldig) {
+                console.log(`   ✗ geweigerd: "${v.titel}" ≠ ${match.titel.naam}`);
             } else {
                 nietGematcht.push(v.titel);
-                overgeslagen++;
             }
+            overgeslagen++;
         }
-        await slaap(600); // vriendelijk voor YouTube
+
+        if (!droog) {
+            await pool.query(
+                `INSERT INTO playlist_status (playlist_id, naam, aantal_items, gekoppeld)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (playlist_id) DO UPDATE SET
+                    naam = EXCLUDED.naam,
+                    aantal_items = EXCLUDED.aantal_items,
+                    gekoppeld = EXCLUDED.gekoppeld,
+                    laatst_gelezen = now()`,
+                [pl.id, pl.naam, videos.length, playlistGekoppeld],
+            );
+        }
+        await slaap(600);
     }
 
     console.log('\n=== Samenvatting ===');
     console.log(`Gekoppeld aan bestaande titels: ${gekoppeld}`);
-    if (NIEUW) console.log(`Nieuwe titels aangemaakt:      ${nieuwGemaakt}`);
+    if (nieuw) console.log(`Nieuwe titels aangemaakt:      ${nieuwGemaakt}`);
     console.log(`Overgeslagen:                  ${overgeslagen}`);
-    if (nietGematcht.length && !NIEUW) {
-        console.log('\nNiet gekoppeld (draai met --nieuw om deze toe te voegen):');
+    if (nietGematcht.length && !nieuw) {
+        console.log('\nNiet gekoppeld (draai met --nieuw om deze te bekijken/toe te voegen):');
         for (const n of nietGematcht.slice(0, 30)) console.log(`  - ${n}`);
         if (nietGematcht.length > 30) {
             console.log(`  … en nog ${nietGematcht.length - 30} andere`);
         }
     }
 
-    if (!DROOG) {
+    if (!droog) {
         const d = await pool.query(
             `SELECT count(*)::int AS speelbaar FROM titels t
-              WHERE EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id)`,
+              WHERE EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id AND x.werkt)`,
         );
         console.log(`\nSpeelbare titels nu: ${d.rows[0].speelbaar}`);
     }
 
-    await pool.end();
+    return { gekoppeld, nieuwGemaakt, overgeslagen, nietGematcht };
 }
 
-module.exports = { schoonTitel, matchTitel };
+module.exports = { zetTrack, vervangTracks, importeerPlaylists };
 
 if (require.main === module) {
-    main().catch(async (err) => {
+    importeerPlaylists({
+        droog: CLI_DROOG,
+        nieuw: CLI_NIEUW,
+        titelFilter: CLI_TITEL_FILTER,
+    }).then(async () => {
+        await pool.end();
+    }).catch(async (err) => {
         console.error('Playlist-import mislukt:', err.message);
         await pool.end().catch(() => {});
         process.exit(1);

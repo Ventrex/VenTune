@@ -63,14 +63,15 @@ CREATE INDEX IF NOT EXISTS idx_titels_genres  ON titels USING GIN (genres);
 -- ---------------------------------------------------------------------
 -- Vragenbank: tracks (per titel één of meer nummers)
 --
--- De audio komt uit iTunes (gratis preview-clip van 30s) of, als fallback,
--- een lokaal bestand onder /media. Er is geen Spotify en geen login nodig.
+-- YouTube is de hoofdbron voor intro's en titelsongs. iTunes is alleen een
+-- fallback voor titels waarvoor YouTube geen betrouwbare match oplevert.
+-- Eigen/lokale audio kan later expliciet door de beheerder worden toegevoegd.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tracks (
     id               SERIAL PRIMARY KEY,
     titel_id         INTEGER     NOT NULL REFERENCES titels (id) ON DELETE CASCADE,
     -- Bron van de audio: 'itunes', 'youtube' of 'lokaal'.
-    bron             TEXT        NOT NULL DEFAULT 'itunes'
+    bron             TEXT        NOT NULL DEFAULT 'youtube'
                      CHECK (bron IN ('itunes', 'youtube', 'lokaal')),
     -- iTunes-trackid (indien van iTunes), handig om later te verversen.
     itunes_track_id  BIGINT,
@@ -91,6 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_tracks_titel_id ON tracks (titel_id);
 
 -- Migratie voor bestaande databases: kolom en verruimde bron-constraint.
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS start_seconde INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tracks ALTER COLUMN bron SET DEFAULT 'youtube';
 
 -- Status per track, zodat de kwaliteit langzaam verbetert in plaats van dat
 -- er telkens opnieuw gezocht moet worden:
@@ -109,15 +111,64 @@ ALTER TABLE tracks ADD COLUMN IF NOT EXISTS bron_url TEXT;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS album TEXT;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS laatst_gespeeld TIMESTAMPTZ;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS keer_gespeeld INTEGER NOT NULL DEFAULT 0;
+-- Uitlegbaarheid van de automatische controle. Lage/onbekende scores mogen
+-- niet automatisch worden afgespeeld; de admin kan een track bewust markeren.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS verificatie_score REAL NOT NULL DEFAULT 0;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS verificatie_reden TEXT;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS laatst_gecontroleerd_op TIMESTAMPTZ;
+-- Toekomstvaste lokale audio. Downloads worden nooit automatisch gestart.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS download_status TEXT NOT NULL DEFAULT 'not_requested';
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS download_melding TEXT;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS audio_sha256 TEXT;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS gedownload_op TIMESTAMPTZ;
+
+DO $$
+BEGIN
+    ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_download_status_check;
+    ALTER TABLE tracks ADD CONSTRAINT tracks_download_status_check
+        CHECK (download_status IN ('not_requested', 'pending', 'available', 'failed'));
+END$$;
 
 CREATE INDEX IF NOT EXISTS idx_tracks_keuze
     ON tracks (titel_id, werkt, fout_aantal, herkenbaarheid DESC);
+CREATE INDEX IF NOT EXISTS idx_tracks_verificatie
+    ON tracks (titel_id, werkt, verificatie_score DESC, fout_aantal);
 DO $$
 BEGIN
     ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_bron_check;
     ALTER TABLE tracks ADD CONSTRAINT tracks_bron_check
         CHECK (bron IN ('itunes', 'youtube', 'lokaal'));
 END$$;
+
+-- ---------------------------------------------------------------------
+-- Accounts: alleen hosts hebben een account nodig. Spelers mogen gast blijven.
+-- Wachtwoorden worden als scrypt-hash opgeslagen; sessies staan server-side.
+-- Het admin-wachtwoord blijft bewust uitsluitend in .env.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS gebruikers (
+    id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    gebruikersnaam      TEXT        NOT NULL,
+    gebruikersnaam_norm TEXT        NOT NULL UNIQUE,
+    display_naam        TEXT        NOT NULL,
+    wachtwoord_hash     TEXT        NOT NULL,
+    actief              BOOLEAN     NOT NULL DEFAULT true,
+    aangemaakt_op       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    laatst_ingelogd     TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_gebruikers_naam ON gebruikers (gebruikersnaam_norm);
+
+CREATE TABLE IF NOT EXISTS auth_sessies (
+    id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    gebruiker_id   UUID        NOT NULL REFERENCES gebruikers (id) ON DELETE CASCADE,
+    token_hash     TEXT        NOT NULL UNIQUE,
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    laatst_gezien  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    verloopt_op    TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_sessies_token ON auth_sessies (token_hash);
+CREATE INDEX IF NOT EXISTS idx_auth_sessies_verloop ON auth_sessies (verloopt_op);
 
 -- ---------------------------------------------------------------------
 -- Presets: opgeslagen filtercombinaties van de host
@@ -152,6 +203,7 @@ CREATE TABLE IF NOT EXISTS lobbies (
     -- Gekozen filters (kopie van de preset op moment van starten)
     instellingen   JSONB         NOT NULL DEFAULT '{}'::jsonb,
     huidige_ronde  INTEGER       NOT NULL DEFAULT 0,
+    host_gebruiker_id UUID,
     host_speler_id UUID,
     aangemaakt_op  TIMESTAMPTZ   NOT NULL DEFAULT now(),
     bijgewerkt_op  TIMESTAMPTZ   NOT NULL DEFAULT now()
@@ -160,12 +212,27 @@ CREATE TABLE IF NOT EXISTS lobbies (
 CREATE INDEX IF NOT EXISTS idx_lobbies_code   ON lobbies (code);
 CREATE INDEX IF NOT EXISTS idx_lobbies_status ON lobbies (status);
 
+ALTER TABLE lobbies ADD COLUMN IF NOT EXISTS host_gebruiker_id UUID;
+ALTER TABLE lobbies ADD COLUMN IF NOT EXISTS host_speler_id UUID;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_lobbies_host_gebruiker'
+    ) THEN
+        ALTER TABLE lobbies
+            ADD CONSTRAINT fk_lobbies_host_gebruiker
+            FOREIGN KEY (host_gebruiker_id) REFERENCES gebruikers (id)
+            ON DELETE SET NULL;
+    END IF;
+END$$;
+
 -- ---------------------------------------------------------------------
 -- Spelers: horen bij één lobby, herkenbaar aan een sessie-token
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS spelers (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     lobby_id       UUID        NOT NULL REFERENCES lobbies (id) ON DELETE CASCADE,
+    gebruiker_id   UUID        REFERENCES gebruikers (id) ON DELETE SET NULL,
     naam           TEXT        NOT NULL,
     spotify_id     TEXT,
     is_gast        BOOLEAN     NOT NULL DEFAULT false,  -- true = geen Premium
@@ -181,6 +248,19 @@ CREATE TABLE IF NOT EXISTS spelers (
 
 CREATE INDEX IF NOT EXISTS idx_spelers_lobby_id ON spelers (lobby_id);
 CREATE INDEX IF NOT EXISTS idx_spelers_token    ON spelers (sessie_token);
+ALTER TABLE spelers ADD COLUMN IF NOT EXISTS gebruiker_id UUID;
+CREATE INDEX IF NOT EXISTS idx_spelers_gebruiker_id ON spelers (gebruiker_id);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_spelers_gebruiker'
+    ) THEN
+        ALTER TABLE spelers
+            ADD CONSTRAINT fk_spelers_gebruiker
+            FOREIGN KEY (gebruiker_id) REFERENCES gebruikers (id)
+            ON DELETE SET NULL;
+    END IF;
+END$$;
 
 -- Koppel host_speler_id nu de spelerstabel bestaat.
 DO $$

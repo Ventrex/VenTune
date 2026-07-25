@@ -1,0 +1,51 @@
+name: VenTune CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ventune_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ventune_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+      - name: Installeer serverafhankelijkheden
+        run: npm ci
+        working-directory: server
+      - name: Installeer clientafhankelijkheden
+        run: npm ci
+        working-directory: client
+      - name: Pas databaseschema toe
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d ventune_test -f server/db/schema.sql
+      - name: Server tests
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/ventune_test
+        run: npm test
+        working-directory: server
+      - name: Client build
+        run: npm run build
+        working-directory: client
