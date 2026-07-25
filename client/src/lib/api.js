@@ -150,6 +150,18 @@ export async function adminSeed(force = false) {
 export async function adminSeedStatus() {
     return adminFetch('/api/admin/seed/status');
 }
+export async function adminOverzicht() {
+    return adminFetch('/api/admin/overzicht');
+}
+export async function adminTrackStatus(id, data) {
+    return adminFetch(`/api/admin/tracks/${id}`, { method: 'PATCH', ...jsonBody(data) });
+}
+export async function adminVragen(titelId) {
+    return adminFetch(`/api/admin/titels/${titelId}/vragen`);
+}
+export async function adminVerwijderVraag(id) {
+    return adminFetch(`/api/admin/vragen/${id}`, { method: 'DELETE' });
+}
 export async function adminMeldingen() {
     return adminFetch('/api/admin/meldingen');
 }

@@ -12,6 +12,7 @@
 // =====================================================================
 
 const logger = require('./logger');
+const cache = require('./cache');
 
 const ZOEK_URL = 'https://www.youtube.com/results';
 const API_URL = 'https://www.googleapis.com/youtube/v3/search';
@@ -163,9 +164,17 @@ async function haalPlaylistHtml(playlistId) {
     throw new Error(`YouTube playlist status ${laatsteStatus}`);
 }
 
-async function haalPlaylist(playlistId) {
+async function haalPlaylist(playlistId, opties = {}) {
+    if (opties.cache !== false) {
+        const bestaand = await cache.lees('playlist', playlistId);
+        if (bestaand) return bestaand;
+    }
     const html = await haalPlaylistHtml(playlistId);
-    return leesPlaylistItems(html);
+    const items = leesPlaylistItems(html);
+    if (items.length > 0 && opties.cache !== false) {
+        await cache.schrijf('playlist', playlistId, items);
+    }
+    return items;
 }
 
 /**
@@ -360,6 +369,13 @@ async function zoek(term, opties = {}) {
     const limiet = opties.limiet || 10;
     if (!term || !term.trim()) return [];
 
+    // Eerder opgehaald? Dan die gebruiken — voorkomt herhaald netwerkverkeer
+    // en de 429/403-limieten van YouTube.
+    if (opties.cache !== false) {
+        const bestaand = await cache.lees('youtube', term.trim());
+        if (bestaand) return bestaand.slice(0, limiet);
+    }
+
     if (process.env.YOUTUBE_API_KEY) {
         try {
             return await zoekViaApi(term.trim(), limiet);
@@ -389,7 +405,11 @@ async function zoek(term, opties = {}) {
         const resp = await fetch(url, { headers });
         if (resp.ok) {
             const html = await resp.text();
-            return leesResultaten(html).slice(0, limiet);
+            const items = leesResultaten(html);
+            if (items.length > 0 && opties.cache !== false) {
+                await cache.schrijf('youtube', term.trim(), items);
+            }
+            return items.slice(0, limiet);
         }
         laatsteStatus = resp.status;
         if (resp.status !== 429 && resp.status !== 403) break;

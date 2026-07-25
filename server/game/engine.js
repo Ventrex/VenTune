@@ -11,6 +11,7 @@ const { bouwFilter } = require('./filters');
 const { vergelijk } = require('../lib/match');
 const { titelPunten, bonusPunten } = require('./scoring');
 const { genereerBonus } = require('./bonus');
+const vragenbank = require('./vragen');
 const logger = require('../lib/logger');
 
 const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
@@ -111,6 +112,9 @@ class SpelBeheer {
             totaalRondes: totaal,
             rondenummer: 0,
             voorraad,
+            // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
+            // titel niet twee keer dezelfde bonusvraag geeft.
+            gebruikteVragen: new Set(),
             fase: 'wachten',
             huidige: null,
         };
@@ -140,12 +144,36 @@ class SpelBeheer {
         }
 
         const titel = state.pool[state.rondenummer - 1];
+        // Kies de BESTE track, niet een willekeurige. Playlist-tracks
+        // (herkenbaarheid 5) verslaan zwakke zoekresultaten, en tracks met
+        // meldingen zakken naar onderen. Zo verbetert de kwaliteit langzaam
+        // in plaats van dat er soms een fout nummer langskomt.
         const { rows } = await pool.query(
-            `SELECT id, bron, preview_url, start_seconde, tracknaam, artiest
-               FROM tracks WHERE titel_id = $1 ORDER BY random() LIMIT 1`,
+            `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
+                    tr.tracknaam, tr.artiest
+               FROM tracks tr
+              WHERE tr.titel_id = $1
+                AND tr.werkt = true
+              ORDER BY tr.fout_aantal ASC,
+                       tr.herkenbaarheid DESC,
+                       (tr.bron = 'lokaal')  DESC,
+                       (tr.bron = 'youtube') DESC,
+                       tr.id DESC
+              LIMIT 1`,
             [titel.id],
         );
         const track = rows[0];
+        if (!track) {
+            // Alle tracks van deze titel zijn afgekeurd: sla de ronde over.
+            logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
+                titel: titel.naam,
+            });
+            state.rondenummer -= 1;
+            state.pool.splice(state.rondenummer, 1);
+            if (state.pool.length === 0) return this.eindigSpel(state);
+            state.totaalRondes = Math.min(state.totaalRondes, state.pool.length);
+            return this.volgendeRonde(state);
+        }
 
         const rondeRij = await pool.query(
             `INSERT INTO rondes
@@ -192,6 +220,13 @@ class SpelBeheer {
             startSeconde: track.start_seconde || 0,
             durationMs: state.rondeDuurMs,
         });
+
+        // Bijhouden hoe vaak en wanneer deze track gespeeld is.
+        pool.query(
+            `UPDATE tracks SET keer_gespeeld = keer_gespeeld + 1,
+                    laatst_gespeeld = now() WHERE id = $1`,
+            [track.id],
+        ).catch(() => {});
 
         // In kennersmodus loopt er geen klok: de host klikt op 'Volgende'.
         if (state.modus !== 'kenner') {
@@ -343,30 +378,61 @@ class SpelBeheer {
             antwoord: this.antwoordInfo(h),
         });
 
-        // Bonusvraag proberen te genereren (valt terug op geen bonus).
-        const bonus = await genereerBonus(h.titel);
-        if (!bonus) {
-            return this.naarScorebord(state);
+        // Bonusvraag: eerst uit de eigen vragenbank (meerdere vragen per
+        // titel, dus variatie), anders live via TMDB, anders geen bonus.
+        let vraagTekst = null;
+        let opties = null;
+        let correctIndex = -1;
+        let soort = null;
+
+        try {
+            // Zorg dat deze titel vragen heeft (genereert ze indien nodig).
+            await vragenbank.vulAan(h.titel, 3, false);
+            const uitBank = await vragenbank.haalVraag(
+                h.titel.id,
+                state.gebruikteVragen,
+            );
+            if (uitBank) {
+                state.gebruikteVragen.add(uitBank.id);
+                vraagTekst = uitBank.vraag;
+                opties = uitBank.opties;
+                correctIndex = uitBank.correctIndex;
+                soort = uitBank.soort;
+            }
+        } catch (err) {
+            logger.waarschuwing('Vragenbank niet beschikbaar.', {
+                melding: err.message,
+            });
         }
 
-        const correctIndex = bonus.opties.findIndex((o) => o.correct);
+        if (!vraagTekst) {
+            const bonus = await genereerBonus(h.titel);
+            if (!bonus) {
+                return this.naarScorebord(state);
+            }
+            vraagTekst = bonus.vraag;
+            opties = bonus.opties.map((o) => o.tekst);
+            correctIndex = bonus.opties.findIndex((o) => o.correct);
+            soort = bonus.type;
+        }
+
         h.bonus = {
             correctIndex,
             pogingen: new Map(), // spelerId -> aantal pogingen
             klaar: new Set(), // spelers die klaar zijn (goed of op)
-            type: bonus.type,
+            type: soort,
         };
         state.fase = 'bonus';
 
         await pool.query(`UPDATE rondes SET bonusvraag = $2::jsonb WHERE id = $1`, [
             h.rondeId,
-            JSON.stringify({ vraag: bonus.vraag, type: bonus.type }),
+            JSON.stringify({ vraag: vraagTekst, type: soort }),
         ]);
 
-        // Opties zonder 'correct'-vlag naar de clients.
+        // Alleen de vraag en de opties naar de clients — nooit het antwoord.
         this.io.to(kamer(state.code)).emit('ronde:bonus', {
-            vraag: bonus.vraag,
-            opties: bonus.opties.map((o) => o.tekst),
+            vraag: vraagTekst,
+            opties,
             durationMs: BONUS_DUUR_MS,
         });
 
@@ -556,10 +622,22 @@ class SpelBeheer {
                 toelichting ? String(toelichting).slice(0, 500) : null,
             ],
         );
+        // Deze track zakt in de rangorde; bij drie meldingen wordt hij niet
+        // meer gespeeld. Zo verdwijnen slechte nummers automatisch.
+        const bij = await pool.query(
+            `UPDATE tracks
+                SET fout_aantal = fout_aantal + 1,
+                    werkt = (fout_aantal + 1) < 3
+              WHERE id = $1
+              RETURNING fout_aantal, werkt`,
+            [state.huidige.track.id],
+        );
         logger.info('Melding ontvangen.', {
             code: state.code,
             titel: state.huidige.titel.naam,
             soort: soortSchoon,
+            fout_aantal: bij.rows[0] && bij.rows[0].fout_aantal,
+            nog_bruikbaar: bij.rows[0] && bij.rows[0].werkt,
         });
         this.io
             .to(spelerKamer(socket.data.spelerId))

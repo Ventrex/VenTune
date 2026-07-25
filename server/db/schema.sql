@@ -91,6 +91,24 @@ CREATE INDEX IF NOT EXISTS idx_tracks_titel_id ON tracks (titel_id);
 
 -- Migratie voor bestaande databases: kolom en verruimde bron-constraint.
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS start_seconde INTEGER NOT NULL DEFAULT 0;
+
+-- Status per track, zodat de kwaliteit langzaam verbetert in plaats van dat
+-- er telkens opnieuw gezocht moet worden:
+--   werkt        false = afgekeurd, wordt niet meer gespeeld
+--   fout_aantal  hoe vaak er een fout gemeld is (hoger = later gekozen)
+--   gecontroleerd of iemand deze track heeft goedgekeurd
+--   bestand_pad  lokaal gedownload bestand (indien aanwezig)
+--   bron_url     de volledige herkomst-URL, zodat niets opnieuw hoeft
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS werkt BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS fout_aantal INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS gecontroleerd BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS bestand_pad TEXT;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS bron_url TEXT;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS laatst_gespeeld TIMESTAMPTZ;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS keer_gespeeld INTEGER NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_tracks_keuze
+    ON tracks (titel_id, werkt, fout_aantal, herkenbaarheid DESC);
 DO $$
 BEGIN
     ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_bron_check;
@@ -233,6 +251,54 @@ CREATE TABLE IF NOT EXISTS meldingen (
 );
 
 CREATE INDEX IF NOT EXISTS idx_meldingen_open ON meldingen (afgehandeld, aangemaakt_op DESC);
+
+-- ---------------------------------------------------------------------
+-- Zoekcache: onthoudt wat er al opgehaald is (YouTube/iTunes), zodat
+-- dezelfde zoekopdracht niet telkens opnieuw hoeft. Voorkomt ook de
+-- 429/403-limieten bij grote imports.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS zoek_cache (
+    id             SERIAL PRIMARY KEY,
+    bron           TEXT        NOT NULL,        -- youtube | itunes | playlist
+    term           TEXT        NOT NULL,
+    resultaat      JSONB       NOT NULL,        -- de gevonden items
+    aantal         INTEGER     NOT NULL DEFAULT 0,
+    opgehaald_op   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (bron, term)
+);
+
+CREATE INDEX IF NOT EXISTS idx_zoekcache ON zoek_cache (bron, term);
+
+-- ---------------------------------------------------------------------
+-- Playlist-status: welke playlists al ingelezen zijn en hoeveel items.
+-- YouTube geeft ~100 items per keer; hiermee weet je wat al gehad is.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS playlist_status (
+    playlist_id    TEXT        PRIMARY KEY,
+    naam           TEXT,
+    aantal_items   INTEGER     NOT NULL DEFAULT 0,
+    gekoppeld      INTEGER     NOT NULL DEFAULT 0,
+    laatst_gelezen TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------
+-- Vragenbank: meerdere vragen per titel, zodat je bij dezelfde titel niet
+-- steeds dezelfde vraag krijgt. Vragen worden vooraf gegenereerd en
+-- opgeslagen, zodat er tijdens het spel niets opgehaald hoeft te worden.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS vragen (
+    id             SERIAL PRIMARY KEY,
+    titel_id       INTEGER     NOT NULL REFERENCES titels (id) ON DELETE CASCADE,
+    soort          TEXT        NOT NULL,        -- jaar | genre | type | land | regisseur | acteur | decennium
+    vraag          TEXT        NOT NULL,
+    opties         JSONB       NOT NULL,        -- ["a","b","c","d"]
+    correct_index  SMALLINT    NOT NULL,
+    keer_gebruikt  INTEGER     NOT NULL DEFAULT 0,
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (titel_id, soort, vraag)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vragen_titel ON vragen (titel_id, keer_gebruikt);
 
 -- =====================================================================
 -- Einde schema

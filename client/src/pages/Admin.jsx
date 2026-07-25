@@ -59,6 +59,7 @@ function Beheer({ onUit }) {
     const [bezigSeed, setBezigSeed] = useState(false);
     const [open, setOpen] = useState(null); // uitgeklapte titel-id
     const [meldingen, setMeldingen] = useState([]);
+    const [overzicht, setOverzicht] = useState(null);
 
     async function laad() {
         try {
@@ -72,9 +73,15 @@ function Beheer({ onUit }) {
             setMeldingen(await api.adminMeldingen());
         } catch { /* niet fataal */ }
     }
+    async function laadOverzicht() {
+        try {
+            setOverzicht(await api.adminOverzicht());
+        } catch { /* niet fataal */ }
+    }
     useEffect(() => {
         laad();
         laadMeldingen();
+        laadOverzicht();
         /* eslint-disable-next-line */
     }, []);
 
@@ -133,6 +140,18 @@ function Beheer({ onUit }) {
             </div>
 
             {melding && <p className="waarschuwing">{melding}</p>}
+
+            {overzicht && (
+                <div className="overzicht">
+                    <Tegel label="Titels" waarde={overzicht.titels} />
+                    <Tegel label="Speelbaar" waarde={overzicht.speelbaar} />
+                    <Tegel label="Tracks" waarde={overzicht.tracks} />
+                    <Tegel label="Afgekeurd" waarde={overzicht.afgekeurd} />
+                    <Tegel label="Vragen" waarde={overzicht.vragen} />
+                    <Tegel label="Open meldingen" waarde={overzicht.open_meldingen} />
+                    <Tegel label="Cache" waarde={overzicht.cache_regels} />
+                </div>
+            )}
 
             <div className="stapel" style={{ marginTop: '1rem' }}>
                 <button className="knop knop-stil" onClick={seed} disabled={bezigSeed}>
@@ -225,6 +244,15 @@ function Beheer({ onUit }) {
     );
 }
 
+function Tegel({ label, waarde }) {
+    return (
+        <div className="tegel">
+            <span className="tegel-waarde">{waarde ?? '—'}</span>
+            <span className="tegel-label">{label}</span>
+        </div>
+    );
+}
+
 const LEEG = { naam: '', type: 'film', taal: 'nl', jaar: '', land: '', aliassen: '', genres: '', tmdb_id: '' };
 
 function NieuweTitel({ onKlaar }) {
@@ -266,12 +294,26 @@ function NieuweTitel({ onKlaar }) {
 function TitelDetail({ titel, onWijzig }) {
     const [f, setF] = useState(naarForm(titel));
     const [tracks, setTracks] = useState([]);
+    const [vragen, setVragen] = useState([]);
     const [melding, setMelding] = useState('');
 
     async function laadTracks() {
         setTracks(await api.adminTracks(titel.id));
     }
-    useEffect(() => { laadTracks(); /* eslint-disable-next-line */ }, [titel.id]);
+    async function laadVragen() {
+        try { setVragen(await api.adminVragen(titel.id)); } catch { /* leeg */ }
+    }
+    useEffect(() => {
+        laadTracks();
+        laadVragen();
+        /* eslint-disable-next-line */
+    }, [titel.id]);
+
+    async function zetStatus(id, data) {
+        await api.adminTrackStatus(id, data);
+        laadTracks();
+        onWijzig();
+    }
 
     async function bewaar() {
         try {
@@ -304,11 +346,20 @@ function TitelDetail({ titel, onWijzig }) {
 
             <p className="kaart-label" style={{ marginTop: '1rem' }}>Tracks</p>
             <ul className="tracklijst">
-                {tracks.map((tr) => (
-                    <li key={tr.id} className="track">
+                {tracks.map((tr, i) => (
+                    <li key={tr.id} className={'track' + (tr.werkt ? '' : ' afgekeurd')}>
                         <div className="track-info">
-                            <span className="track-naam">{tr.tracknaam}</span>
-                            <span className="dim">{tr.artiest} · {tr.bron}</span>
+                            <span className="track-naam">
+                                {i === 0 && tr.werkt && (
+                                    <span className="host-tag">speelt</span>
+                                )}{' '}
+                                {tr.tracknaam}
+                            </span>
+                            <span className="dim">
+                                {tr.artiest} · {tr.bron} · ★{tr.herkenbaarheid}
+                                {tr.fout_aantal > 0 && ` · ${tr.fout_aantal}× gemeld`}
+                                {!tr.werkt && ' · afgekeurd'}
+                            </span>
                         </div>
                         {tr.bron === 'youtube' ? (
                             <iframe
@@ -322,10 +373,56 @@ function TitelDetail({ titel, onWijzig }) {
                         ) : (
                             <audio src={audioBron(tr.preview_url)} controls preload="none" style={{ height: 36, maxWidth: 160 }} />
                         )}
+                        <button
+                            className="afspeelknop klein"
+                            title={tr.werkt ? 'Afkeuren (niet meer spelen)' : 'Weer goedkeuren'}
+                            onClick={() => zetStatus(tr.id, { werkt: !tr.werkt })}
+                        >
+                            {tr.werkt ? '⛔' : '↩'}
+                        </button>
+                        <button
+                            className="afspeelknop klein"
+                            title="Markeer als beste (★5)"
+                            onClick={() => zetStatus(tr.id, { herkenbaarheid: 5, gecontroleerd: true, werkt: true })}
+                        >
+                            ★
+                        </button>
                         <button className="afspeelknop klein" onClick={() => verwijderTrack(tr.id)} aria-label="Verwijderen">✕</button>
                     </li>
                 ))}
                 {tracks.length === 0 && <li className="dim">Nog geen tracks.</li>}
+            </ul>
+
+            <p className="kaart-label" style={{ marginTop: '1rem' }}>
+                Bonusvragen ({vragen.length})
+            </p>
+            <ul className="tracklijst">
+                {vragen.map((v) => (
+                    <li key={v.id} className="track">
+                        <div className="track-info">
+                            <span className="track-naam">{v.vraag}</span>
+                            <span className="dim">
+                                {v.soort} · antwoord: {v.opties[v.correct_index]}
+                                {v.keer_gebruikt > 0 && ` · ${v.keer_gebruikt}× gebruikt`}
+                            </span>
+                        </div>
+                        <button
+                            className="afspeelknop klein"
+                            onClick={async () => {
+                                await api.adminVerwijderVraag(v.id);
+                                laadVragen();
+                            }}
+                            aria-label="Verwijderen"
+                        >
+                            ✕
+                        </button>
+                    </li>
+                ))}
+                {vragen.length === 0 && (
+                    <li className="dim">
+                        Nog geen vragen — draai seed/vragen-import.js
+                    </li>
+                )}
             </ul>
 
             <TrackZoeker titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />

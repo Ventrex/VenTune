@@ -166,11 +166,91 @@ router.delete('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
 
 // ---- Tracks ----
 router.get('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
+    // Gesorteerd zoals het spel ze kiest, zodat je bovenaan ziet wat er
+    // daadwerkelijk gespeeld wordt.
     const { rows } = await pool.query(
-        `SELECT * FROM tracks WHERE titel_id = $1 ORDER BY id ASC`,
+        `SELECT * FROM tracks
+          WHERE titel_id = $1
+          ORDER BY werkt DESC, fout_aantal ASC, herkenbaarheid DESC, id DESC`,
         [req.params.id],
     );
     res.json(rows);
+});
+
+// Trackstatus aanpassen: goedkeuren, afkeuren, of als beste markeren.
+router.patch('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
+    const b = req.body || {};
+    const velden = [];
+    const params = [req.params.id];
+
+    if (typeof b.werkt === 'boolean') {
+        params.push(b.werkt);
+        velden.push(`werkt = $${params.length}`);
+        if (b.werkt) velden.push('fout_aantal = 0');
+    }
+    if (typeof b.gecontroleerd === 'boolean') {
+        params.push(b.gecontroleerd);
+        velden.push(`gecontroleerd = $${params.length}`);
+    }
+    if (Number.isFinite(b.herkenbaarheid)) {
+        params.push(Math.max(1, Math.min(5, b.herkenbaarheid)));
+        velden.push(`herkenbaarheid = $${params.length}`);
+    }
+    if (Number.isFinite(b.start_seconde)) {
+        params.push(Math.max(0, b.start_seconde));
+        velden.push(`start_seconde = $${params.length}`);
+    }
+    if (velden.length === 0) {
+        return res.status(400).json({ fout: 'Niets om bij te werken.' });
+    }
+
+    const { rows } = await pool.query(
+        `UPDATE tracks SET ${velden.join(', ')} WHERE id = $1 RETURNING *`,
+        params,
+    );
+    if (!rows[0]) return res.status(404).json({ fout: 'Track niet gevonden.' });
+    res.json(rows[0]);
+});
+
+// Vragen per titel bekijken en verwijderen.
+router.get('/api/admin/titels/:id/vragen', vereisAdmin, async (req, res) => {
+    const { rows } = await pool.query(
+        `SELECT id, soort, vraag, opties, correct_index, keer_gebruikt
+           FROM vragen WHERE titel_id = $1 ORDER BY soort, id`,
+        [req.params.id],
+    );
+    res.json(rows);
+});
+
+router.delete('/api/admin/vragen/:id', vereisAdmin, async (req, res) => {
+    await pool.query(`DELETE FROM vragen WHERE id = $1`, [req.params.id]);
+    res.json({ ok: true });
+});
+
+// Overzicht: hoe staat de vragenbank ervoor?
+router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
+    try {
+        const d = await pool.query(
+            `SELECT
+               (SELECT count(*)::int FROM titels) AS titels,
+               (SELECT count(*)::int FROM tracks) AS tracks,
+               (SELECT count(*)::int FROM tracks WHERE werkt = false) AS afgekeurd,
+               (SELECT count(*)::int FROM tracks WHERE gecontroleerd) AS gecontroleerd,
+               (SELECT count(*)::int FROM titels t
+                 WHERE EXISTS (SELECT 1 FROM tracks x
+                                WHERE x.titel_id = t.id AND x.werkt)) AS speelbaar,
+               (SELECT count(*)::int FROM vragen) AS vragen,
+               (SELECT count(*)::int FROM meldingen WHERE afgehandeld = false) AS open_meldingen,
+               (SELECT count(*)::int FROM zoek_cache) AS cache_regels`,
+        );
+        const perBron = await pool.query(
+            `SELECT bron, count(*)::int AS n FROM tracks GROUP BY bron ORDER BY n DESC`,
+        );
+        res.json({ ...d.rows[0], per_bron: perBron.rows });
+    } catch (err) {
+        logger.waarschuwing('Overzicht mislukt.', { melding: err.message });
+        res.json({});
+    }
 });
 
 router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {

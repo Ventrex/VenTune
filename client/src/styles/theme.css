@@ -807,6 +807,42 @@ h1 {
     max-width: 40rem;
 }
 
+/* --- Admin-overzicht --- */
+.overzicht {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.tegel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.6rem 0.4rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.tegel-waarde {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.tegel-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-align: center;
+}
+
+.track.afgekeurd {
+    opacity: 0.5;
+    border-style: dashed;
+}
+
 /* --- Admin --- */
 .titel-blok {
     flex-direction: column;

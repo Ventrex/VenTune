@@ -8,6 +8,7 @@
 // =====================================================================
 
 const logger = require('./logger');
+const cache = require('./cache');
 
 const ZOEK_URL = 'https://itunes.apple.com/search';
 
@@ -34,6 +35,12 @@ async function zoek(term, opties = {}) {
 
     const url = `${ZOEK_URL}?${params.toString()}`;
 
+    // Eerder opgehaald? Dan die gebruiken.
+    if (opties.cache !== false) {
+        const bestaand = await cache.lees('itunes', term.trim());
+        if (bestaand) return bestaand.slice(0, opties.limiet || 10);
+    }
+
     let resp;
     try {
         resp = await fetch(url, {
@@ -52,7 +59,7 @@ async function zoek(term, opties = {}) {
     const resultaten = Array.isArray(data.results) ? data.results : [];
 
     // Alleen nummers met een echte preview-clip zijn bruikbaar.
-    return resultaten
+    const uit = resultaten
         .filter((r) => r.previewUrl)
         .map((r) => ({
             itunes_track_id: r.trackId,
@@ -63,6 +70,11 @@ async function zoek(term, opties = {}) {
             hoes: r.artworkUrl100 || null,
             jaar: r.releaseDate ? Number(r.releaseDate.slice(0, 4)) : null,
         }));
+
+    if (uit.length > 0 && opties.cache !== false) {
+        await cache.schrijf('itunes', term.trim(), uit);
+    }
+    return uit;
 }
 
 /**
