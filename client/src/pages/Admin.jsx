@@ -642,6 +642,7 @@ function TitelDetail({ titel, onWijzig }) {
                                 {tr.artiest} · {tr.bron} · ★{tr.herkenbaarheid}
                                 {Number(tr.verificatie_score) > 0 && ` · controle ${Math.round(Number(tr.verificatie_score) * 100)}%`}
                                 {tr.verificatie_reden && ` · ${tr.verificatie_reden}`}
+                                {` · gespeeld: ${tr.keer_gespeeld || 0}×`}
                                 {tr.download_status && ` · lokaal: ${tr.download_status}`}
                                 {tr.fout_aantal > 0 && ` · ${tr.fout_aantal}× gemeld`}
                                 {!tr.werkt && ' · afgekeurd'}

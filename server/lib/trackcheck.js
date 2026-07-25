@@ -95,6 +95,12 @@ function variantMarkering(titel, tekst) {
 
     for (const [woord, aantal] of kandidaatTelling) {
         const extra = aantal - (officiëleTelling.get(woord) || 0);
+        // De spelregel is bewust absoluut: een live-uitvoering is nooit de
+        // bedoelde studioversie, ook niet wanneer "live" toevallig in een
+        // officiële titel zou staan.
+        if (woord === 'live' || woord === 'livestream') {
+            return `ongewenste live-uitvoering (${woord})`;
+        }
         if (extra <= 0) continue;
         if (ONGELDIGE_VARIANT_MARKERINGEN.has(woord)) {
             return `ongewenste variantmarkering (${woord})`;

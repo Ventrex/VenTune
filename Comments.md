@@ -13,6 +13,9 @@
   `deel/part`, `aflevering/episode`, seizoenmarkeringen en losse extra cijfers
   worden niet automatisch gekoppeld. Alleen cijfers die werkelijk in de
   officiële titel/alias staan of een viercijferig releasejaar zijn toegestaan.
+- `live` en `livestream` zijn absolute blokkades. Een bestaande track met die
+  woorden wordt bij de laatste speelcontrole afgekeurd en verschijnt daarna
+  als actiepunt voor de admin.
 - Bij een beschikbare TMDB-koppeling voert VenTune na de lokale match een tweede
   controle uit op de officiële titel en het jaar. Zonder TMDB-sleutel blijft de
   lokale controle actief; een onzekere lokale match wordt nog steeds geweigerd.
@@ -35,9 +38,16 @@
 - Lokale audio staat in het persistente `./media`-volume en wint bij selectie
   van YouTube en iTunes. Eigen uploads horen alleen eigen of gelicentieerde
   bestanden te zijn.
+- Bij selectie blijft de bronvolgorde lokaal → YouTube → iTunes leidend. Binnen
+  dezelfde bron krijgen tracks met minder `keer_gespeeld` voorrang; bij gelijke
+  stand wordt ook op `laatst_gespeeld` en een lichte willekeurige tie-breaker
+  gesorteerd.
 - Een titel zonder speelbare track wordt niet geforceerd gekoppeld. De engine
   maakt één open `geen_track`-melding en de admin toont de titel in **Tracks
   nodig** totdat een track wordt toegevoegd.
+- De hostspeler wacht bij een nieuwe opdracht op de YouTube-player of
+  `loadedmetadata` en probeert meerdere keren opnieuw. Daardoor is **Opnieuw**
+  een herstelactie, geen vereiste om normaal een ronde te starten.
 - Hints zijn bewust oplopend: cast, speelplek, genre/land, beginletters, jaar
   en type. TMDB vult hoofdrollen alleen aan als die nog ontbreken; zonder TMDB
   blijft handmatig ingevulde metadata werken.

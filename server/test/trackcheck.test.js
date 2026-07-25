@@ -19,7 +19,8 @@ const gtst = {
     jaar: 1990,
 };
 const gooische = { id: 3, naam: 'Gooische Vrouwen', aliassen: ['Gooise Vrouwen'], jaar: 2005 };
-const baantjer = { id: 4, naam: 'Baantjer', aliassen: ['De Cock'], jaar: 1995 };
+const baantjer = { id: 4, naam: 'Baantjer', aliassen: ['De Cock'], type: 'serie', jaar: 1995 };
+const lotr = { id: 5, naam: 'The Lord of the Rings', aliassen: ['Lord of the Rings'], jaar: 2001 };
 
 goed(flodder, { tracknaam: 'Flodder intro (1986)', artiest: 'Nederlandse TV' });
 goed(gtst, { tracknaam: 'GTST intro', artiest: 'TV Tunes' });
@@ -32,6 +33,8 @@ fout({ naam: 'It', jaar: 2017 }, { tracknaam: 'Little Bit of Love' });
 fout(baantjer, { tracknaam: 'Baantjer 2', album: 'TV Tunes' });
 fout(baantjer, { tracknaam: 'Baantjer live', album: 'TV Tunes' });
 fout(baantjer, { tracknaam: 'Baantjer deel 2', album: 'TV Tunes' });
+fout(gtst, { tracknaam: 'GTST live', album: 'TV Tunes' });
+fout(lotr, { tracknaam: 'Lord of the Rings live', album: 'Movie Themes' });
 goed(baantjer, { tracknaam: 'Baantjer intro (1995)', album: 'TV Tunes' });
 
 assert.equal(
@@ -51,6 +54,7 @@ assert.equal(matchTitel('Baantjer intro', [baantjer]).titel.naam, 'Baantjer');
 const youtubeKeuze = kiesBeste([
     { videoId: 'wrong-number', titel: 'Baantjer 2 intro', kanaal: 'TV Tunes', duurSeconden: 80, views: 900000 },
     { videoId: 'wrong-live', titel: 'Baantjer live', kanaal: 'TV Tunes', duurSeconden: 80, views: 900000 },
+    { videoId: 'wrong-song', titel: 'Baantjer random song', kanaal: 'TV Tunes', duurSeconden: 80, views: 999999 },
     { videoId: 'right', titel: 'Baantjer intro', kanaal: 'TV Tunes', duurSeconden: 80, views: 10 },
 ], baantjer);
 assert.equal(youtubeKeuze.videoId, 'right');

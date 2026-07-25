@@ -354,9 +354,16 @@ class SpelBeheer {
                                    WHEN tr.bron = 'youtube' THEN 3
                                    ELSE 1
                                END DESC,
-                               tr.verificatie_score DESC,
                                tr.fout_aantal ASC,
+                               -- Kies binnen een veilige bron eerst de
+                               -- minst gebruikte track. Zo wint een nieuw
+                               -- goedgekeurd alternatief niet telkens door
+                               -- id/volgorde van de import.
+                               tr.keer_gespeeld ASC,
+                               tr.laatst_gespeeld ASC NULLS FIRST,
+                               tr.verificatie_score DESC,
                                tr.herkenbaarheid DESC,
+                               random(),
                                tr.id DESC
                       LIMIT 5`,
                     [titel.id],
@@ -446,11 +453,14 @@ class SpelBeheer {
                 });
 
                 // Bijhouden hoe vaak en wanneer deze track gespeeld is.
-                pool.query(
+                await pool.query(
                     `UPDATE tracks SET keer_gespeeld = keer_gespeeld + 1,
                             laatst_gespeeld = now() WHERE id = $1`,
                     [track.id],
-                ).catch(() => {});
+                ).catch((err) => logger.waarschuwing('Trackgebruik kon niet worden opgeslagen.', {
+                    trackId: track.id,
+                    melding: err.message,
+                }));
 
                 // In kennersmodus loopt er geen klok: de host klikt op
                 // 'Volgende'.
