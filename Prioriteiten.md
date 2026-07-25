@@ -26,7 +26,7 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 
 1. Open P0 — momenteel geen; de verkeerde GitHub-standaardbranch is op
    2026-07-25 gesynchroniseerd met de actuele VenTune-code.
-2. Open P1 — momenteel geen; de TMDB-controlelaag is op 2026-07-25
-   geïmplementeerd en getest.
+2. Open P1 — momenteel geen; de TMDB-controlelaag en de stabiele
+   ronde-overgangen zijn op 2026-07-25 geïmplementeerd en getest.
 3. Open P2 — rate-limit-herstel, importbeheer, downloadcontrole en dashboards.
 4. Open P3/P4 — gemak, uitbreidingen, ideeën en rechten-/onderzoekskeuzes.

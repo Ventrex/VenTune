@@ -11,6 +11,8 @@
       verkeerde-track-scenario.
 - [x] **P1** TMDB-controlelaag toegevoegd voor officiële titel en jaar naast
       de lokale titel-/aliascontrole.
+- [x] **P1** Ronde-overgangen idempotent gemaakt: timers, bonusafronding en
+      hostacties kunnen geen ronde dubbel starten of stil overslaan.
 - [ ] **P2** Playlist-import periodiek uitvoeren vanuit admin met voortgang.
 - [ ] **P2** Lokale audio ook kunnen toevoegen via admin zonder handmatige
       databaseactie.

@@ -18,7 +18,7 @@
 
 ## Update
 
-    git pull origin main
+    git pull --ff-only
     docker compose up -d --build
 
 De migratie draait bij het starten van de server. Controleer daarna:
@@ -27,3 +27,8 @@ De migratie draait bij het starten van de server. Controleer daarna:
     curl http://127.0.0.1:8090/api/health
 
 Gebruik voor internetpublicatie een tunnel of reverse proxy met HTTPS.
+
+Gebruik bij een update geen `git checkout` en geen `docker compose down -v`.
+De eerste wisselt de actieve branch en de tweede kan het databasevolume
+verwijderen; beide zijn niet nodig voor een normale VenTune-update. De
+host-sessie en spelerdata blijven behouden in PostgreSQL.

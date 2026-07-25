@@ -18,6 +18,11 @@
 - De host is ook een normale speler: dezelfde hostsocket speelt audio af én
   kan gokken, hints gebruiken en bonusvragen beantwoorden. Bij het bepalen of
   iedereen klaar is telt de host mee zolang de host verbonden is.
+- Ronde-overgangen hebben één serverlock en een overgangsversie. Daardoor kan
+  een bonustimer, een goed antwoord of een oude hostactie niet twee keer naar
+  het scorebord of een volgende ronde gaan. Een titel zonder geldige track
+  wordt uit de resterende pool verwijderd zonder een rondenummer over te
+  slaan.
 - Een database-transactie beschermt de vorige goede track tijdens een import.
 - Downloaden staat niet standaard aan. Alleen de expliciete iTunes-cacheflow
   is aanwezig als fallback; willekeurige YouTube-downloads worden geweigerd.
