@@ -118,12 +118,28 @@ export default function Host() {
                     <HostPlayer ref={spelerRef} audio={audio} />
                     <div className="host-knoppen">
                         <button className="knop knop-stil" onClick={spel.herhaal}>
-                            ↻ Opnieuw afspelen
+                            ↻ Opnieuw
+                        </button>
+                        <button
+                            className="knop knop-stil"
+                            onClick={spel.gepauzeerd ? spel.hervat : spel.pauzeer}
+                        >
+                            {spel.gepauzeerd ? '▶ Hervat' : '⏸ Pauze'}
                         </button>
                         <button className="knop" onClick={spel.volgende}>
                             Volgende →
                         </button>
                     </div>
+                    {spel.gepauzeerd && (
+                        <p className="feedback neutraal">Gepauzeerd</p>
+                    )}
+                    <button
+                        className="terug als-link"
+                        style={{ marginTop: '0.75rem' }}
+                        onClick={() => spel.meldFout('fout')}
+                    >
+                        {spel.melded ? '✓ Fout gemeld' : 'Fout melden (verkeerd nummer / geen geluid)'}
+                    </button>
                     <p className="dim" style={{ marginTop: '1rem' }}>
                         Raad de titel op je telefoon…
                     </p>
@@ -206,6 +222,9 @@ export function AntwoordInfo({ antwoord }) {
     const taal = antwoord.taal === 'nl' ? 'Nederlands' : 'Internationaal';
     return (
         <>
+            {antwoord.poster && (
+                <img className="poster" src={antwoord.poster} alt="" loading="lazy" />
+            )}
             <div className="info-rij">
                 <span className="info-chip">{type}</span>
                 {antwoord.jaar && <span className="info-chip">{antwoord.jaar}</span>}
@@ -215,6 +234,9 @@ export function AntwoordInfo({ antwoord }) {
                     <span key={g} className="info-chip">{g}</span>
                 ))}
             </div>
+            {antwoord.omschrijving && (
+                <p className="omschrijving">{antwoord.omschrijving}</p>
+            )}
             <p className="dim">
                 {antwoord.tracknaam}
                 {antwoord.artiest ? ` — ${antwoord.artiest}` : ''}

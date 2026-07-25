@@ -58,6 +58,7 @@ function Beheer({ onUit }) {
     const [melding, setMelding] = useState('');
     const [bezigSeed, setBezigSeed] = useState(false);
     const [open, setOpen] = useState(null); // uitgeklapte titel-id
+    const [meldingen, setMeldingen] = useState([]);
 
     async function laad() {
         try {
@@ -66,7 +67,21 @@ function Beheer({ onUit }) {
             setMelding(err.message);
         }
     }
-    useEffect(() => { laad(); /* eslint-disable-next-line */ }, []);
+    async function laadMeldingen() {
+        try {
+            setMeldingen(await api.adminMeldingen());
+        } catch { /* niet fataal */ }
+    }
+    useEffect(() => {
+        laad();
+        laadMeldingen();
+        /* eslint-disable-next-line */
+    }, []);
+
+    async function meldingAf(id) {
+        await api.adminMeldingAf(id);
+        laadMeldingen();
+    }
 
     async function seed() {
         setBezigSeed(true);
@@ -124,6 +139,43 @@ function Beheer({ onUit }) {
                     {bezigSeed ? 'Bezig…' : 'Startseed importeren (iTunes)'}
                 </button>
             </div>
+
+            {meldingen.length > 0 && (
+                <div style={{ marginTop: '1.5rem' }}>
+                    <p className="kaart-label" style={{ textAlign: 'left' }}>
+                        Gemelde problemen ({meldingen.length})
+                    </p>
+                    <ul className="spelerlijst">
+                        {meldingen.map((m) => (
+                            <li key={m.id} className="speler-kaart">
+                                <span className="speler-naam" style={{ fontSize: '1rem' }}>
+                                    {m.titel_naam || '(titel weg)'}
+                                    <span className="dim"> · {m.soort.replace('_', ' ')}</span>
+                                    {m.tracknaam && (
+                                        <span className="dim"> · {m.tracknaam}</span>
+                                    )}
+                                </span>
+                                <span style={{ display: 'flex', gap: '0.4rem' }}>
+                                    <button
+                                        className="afspeelknop klein"
+                                        title="Opnieuw zoeken via zoekveld"
+                                        onClick={() => { setZoek(m.titel_naam || ''); laad(); }}
+                                    >
+                                        🔍
+                                    </button>
+                                    <button
+                                        className="afspeelknop klein"
+                                        title="Afgehandeld"
+                                        onClick={() => meldingAf(m.id)}
+                                    >
+                                        ✓
+                                    </button>
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             <form
                 className="zoekbalk"

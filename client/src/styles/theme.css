@@ -478,6 +478,24 @@ h1 {
     color: var(--text-dim);
 }
 
+/* --- Poster en omschrijving bij het antwoord --- */
+.poster {
+    max-width: 180px;
+    width: 45%;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 0.5rem auto 0.75rem;
+    display: block;
+}
+
+.omschrijving {
+    color: var(--text-dim);
+    font-size: 1rem;
+    text-align: left;
+    max-width: 34rem;
+    margin: 0 auto 0.75rem;
+}
+
 /* --- Info over de onthulde titel --- */
 .info-rij {
     display: flex;
@@ -510,6 +528,14 @@ h1 {
     height: 44px;
     margin-bottom: 1rem;
     accent-color: var(--red-hot);
+}
+
+.chip.uitgezet {
+    border-color: var(--border);
+    color: var(--text-dim);
+    background: var(--bg);
+    text-decoration: line-through;
+    opacity: 0.6;
 }
 
 .chip.gekozen {

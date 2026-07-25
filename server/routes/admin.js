@@ -204,6 +204,29 @@ router.delete('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
     res.json({ ok: true });
 });
 
+// ---- Meldingen (fouten die spelers doorgaven) ----
+router.get('/api/admin/meldingen', vereisAdmin, async (_req, res) => {
+    const { rows } = await pool.query(
+        `SELECT m.id, m.soort, m.toelichting, m.afgehandeld, m.aangemaakt_op,
+                t.id AS titel_id, t.naam AS titel_naam,
+                tr.id AS track_id, tr.bron, tr.preview_url, tr.tracknaam
+           FROM meldingen m
+           LEFT JOIN titels t  ON t.id = m.titel_id
+           LEFT JOIN tracks tr ON tr.id = m.track_id
+          WHERE m.afgehandeld = false
+          ORDER BY m.aangemaakt_op DESC
+          LIMIT 200`,
+    );
+    res.json(rows);
+});
+
+router.post('/api/admin/meldingen/:id/afgehandeld', vereisAdmin, async (req, res) => {
+    await pool.query(`UPDATE meldingen SET afgehandeld = true WHERE id = $1`, [
+        req.params.id,
+    ]);
+    res.json({ ok: true });
+});
+
 // ---- Seed importeren (iTunes) ----
 // Draait in de achtergrond: ~290 titels duurt langer dan een tunnel/proxy
 // een HTTP-verzoek openhoudt. De client vraagt de status apart op.

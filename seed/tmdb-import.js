@@ -138,6 +138,9 @@ function naarTitel(r, type) {
         genres,
         tmdb_id: r.id,
         stemmen: r.vote_count || 0,
+        populariteit: r.popularity || 0,
+        poster_pad: r.poster_path || null,
+        omschrijving: r.overview || null,
     };
 }
 
@@ -154,19 +157,31 @@ async function bewaarTitel(t) {
         // Vul ontbrekende gegevens aan (bv. tmdb_id voor bonusvragen).
         await pool.query(
             `UPDATE titels
-                SET tmdb_id = COALESCE(tmdb_id, $2),
-                    land    = COALESCE(land, $3),
-                    genres  = CASE WHEN cardinality(genres) = 0 THEN $4::text[]
-                                   ELSE genres END
+                SET tmdb_id      = COALESCE(tmdb_id, $2),
+                    land         = COALESCE(land, $3),
+                    genres       = CASE WHEN cardinality(genres) = 0 THEN $4::text[]
+                                        ELSE genres END,
+                    populariteit = GREATEST(populariteit, $5),
+                    stemmen      = GREATEST(stemmen, $6),
+                    poster_pad   = COALESCE(poster_pad, $7),
+                    omschrijving = COALESCE(omschrijving, $8)
               WHERE id = $1`,
-            [bestaand.rows[0].id, t.tmdb_id, t.land, t.genres],
+            [
+                bestaand.rows[0].id, t.tmdb_id, t.land, t.genres,
+                t.populariteit, t.stemmen, t.poster_pad, t.omschrijving,
+            ],
         );
         return false; // niet nieuw
     }
     await pool.query(
-        `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres, tmdb_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [t.naam, t.aliassen, t.type, t.taal, t.jaar, t.land, t.genres, t.tmdb_id],
+        `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres,
+                             tmdb_id, populariteit, stemmen, poster_pad,
+                             omschrijving)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+            t.naam, t.aliassen, t.type, t.taal, t.jaar, t.land, t.genres,
+            t.tmdb_id, t.populariteit, t.stemmen, t.poster_pad, t.omschrijving,
+        ],
     );
     return true;
 }

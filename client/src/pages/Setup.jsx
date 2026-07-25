@@ -27,6 +27,20 @@ const RONDES = [
     { waarde: 30, label: '30' },
     { waarde: 0, label: 'Eindeloos' },
 ];
+// Bekendheid: hoeveel TMDB-stemmen een titel minimaal moet hebben.
+const BEKENDHEID = [
+    { waarde: 0, label: 'Alles' },
+    { waarde: 200, label: 'Bekend' },
+    { waarde: 1000, label: 'Heel bekend' },
+    { waarde: 4000, label: 'Iconisch' },
+];
+// Genres die je kunt uitzetten (standaard staat alles aan).
+const GENRES = [
+    'Actie', 'Avontuur', 'Animatie', 'Komedie', 'Misdaad', 'Documentaire',
+    'Drama', 'Familie', 'Fantasy', 'Historisch', 'Horror', 'Musical',
+    'Mysterie', 'Romantiek', 'Sciencefiction', 'Thriller', 'Oorlog',
+    'Western', 'Kerst', 'Superhelden', 'Sport', 'Realityshow',
+];
 const MODI = [
     { waarde: 'snelste', label: 'Snelste', uitleg: 'Eerste goede antwoord wint de ronde' },
     { waarde: 'kenner', label: 'Kenner', uitleg: 'Iedereen raadt door tot jij verder klikt' },
@@ -58,6 +72,8 @@ export default function Setup() {
         rondes: 10,
         speeltijd: 60,
         modus: 'snelste',
+        min_bekendheid: 200,
+        zonder_genres: [],
     });
     const [telling, setTelling] = useState(null);
     const [presets, setPresets] = useState([]);
@@ -83,6 +99,19 @@ export default function Setup() {
 
     function zet(sleutel, waarde) {
         setFilters((f) => ({ ...f, [sleutel]: waarde }));
+    }
+
+    // Genre aan/uit zetten. Uitgezette genres komen in zonder_genres.
+    function wisselGenre(genre) {
+        setFilters((f) => {
+            const uit = f.zonder_genres || [];
+            return {
+                ...f,
+                zonder_genres: uit.includes(genre)
+                    ? uit.filter((g) => g !== genre)
+                    : [...uit, genre],
+            };
+        });
     }
 
     function zetPeriode(van, tot) {
@@ -119,6 +148,8 @@ export default function Setup() {
             rondes: p.rondes,
             speeltijd: p.speeltijd ?? 60,
             modus: p.modus || 'snelste',
+            min_bekendheid: p.min_bekendheid ?? 200,
+            zonder_genres: p.zonder_genres || [],
         });
         setStap(4);
     }
@@ -296,6 +327,52 @@ export default function Setup() {
                                 {r.label}
                             </button>
                         ))}
+                    </div>
+
+                    {/* Bekendheid */}
+                    <p
+                        className="kaart-label"
+                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
+                    >
+                        Hoe bekend moeten de titels zijn?
+                    </p>
+                    <div className="chips">
+                        {BEKENDHEID.map((b) => (
+                            <button
+                                key={b.waarde}
+                                className={
+                                    'chip' +
+                                    (filters.min_bekendheid === b.waarde ? ' gekozen' : '')
+                                }
+                                onClick={() => zet('min_bekendheid', b.waarde)}
+                            >
+                                {b.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Genres uitklikken */}
+                    <p
+                        className="kaart-label"
+                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
+                    >
+                        Genres — tik aan om uit te sluiten
+                        {(filters.zonder_genres || []).length > 0 &&
+                            ` (${filters.zonder_genres.length} uit)`}
+                    </p>
+                    <div className="chips">
+                        {GENRES.map((g) => {
+                            const uit = (filters.zonder_genres || []).includes(g);
+                            return (
+                                <button
+                                    key={g}
+                                    className={'chip' + (uit ? ' uitgezet' : ' gekozen')}
+                                    onClick={() => wisselGenre(g)}
+                                >
+                                    {uit ? `✕ ${g}` : g}
+                                </button>
+                            );
+                        })}
                     </div>
 
                     {/* Spelsoort */}

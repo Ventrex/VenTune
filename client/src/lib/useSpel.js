@@ -25,6 +25,8 @@ export function useSpel() {
     const [bonusResultaat, setBonusResultaat] = useState(null);
     const [scorebord, setScorebord] = useState([]);
     const [winnaarId, setWinnaarId] = useState(null);
+    const [gepauzeerd, setGepauzeerd] = useState(false);
+    const [melded, setMelded] = useState(false);
     const [fout, setFout] = useState('');
     // Afspeel-opdracht voor de host: { bron, url, startSeconde }. Spelers
     // krijgen dit niet en horen dus niets.
@@ -50,6 +52,8 @@ export function useSpel() {
             setBonus(null);
             setBonusResultaat(null);
             setWinnaarId(null);
+            setGepauzeerd(false);
+            setMelded(false);
             setRonde({ ...d, startTs: Date.now() });
             setAudio(null);
             setFase('raden');
@@ -60,6 +64,19 @@ export function useSpel() {
         };
         const bijResultaat = (r) => setResultaat(r);
         const bijGewonnen = ({ spelerId }) => setWinnaarId(spelerId);
+        const bijPauze = (d) => {
+            setGepauzeerd(!!d.gepauzeerd);
+            // Na hervatten loopt de klok verder vanaf nu.
+            if (!d.gepauzeerd && d.restMs) {
+                setRonde((r) =>
+                    r ? { ...r, startTs: Date.now(), durationMs: d.restMs } : r,
+                );
+            }
+        };
+        const bijMeldingOk = () => setMelded(true);
+        const bijAudioPauze = () => setAudio((a) => (a ? { ...a, pauze: true } : a));
+        const bijAudioHervat = () =>
+            setAudio((a) => (a ? { ...a, pauze: false, hervat: Date.now() } : a));
         const bijHint = (h) => {
             if (h.fout) setResultaat({ status: 'hint-fout', melding: h.fout });
             else setHints((lijst) => [...lijst, h]);
@@ -95,6 +112,10 @@ export function useSpel() {
         socket.on('ronde:audio', bijAudio);
         socket.on('ronde:resultaat', bijResultaat);
         socket.on('ronde:gewonnen', bijGewonnen);
+        socket.on('ronde:pauze', bijPauze);
+        socket.on('ronde:melding-ok', bijMeldingOk);
+        socket.on('ronde:audio-pauze', bijAudioPauze);
+        socket.on('ronde:audio-hervat', bijAudioHervat);
         socket.on('ronde:hint', bijHint);
         socket.on('ronde:onthul', bijOnthul);
         socket.on('ronde:bonus', bijBonus);
@@ -115,6 +136,10 @@ export function useSpel() {
             socket.off('ronde:audio', bijAudio);
             socket.off('ronde:resultaat', bijResultaat);
             socket.off('ronde:gewonnen', bijGewonnen);
+            socket.off('ronde:pauze', bijPauze);
+            socket.off('ronde:melding-ok', bijMeldingOk);
+            socket.off('ronde:audio-pauze', bijAudioPauze);
+            socket.off('ronde:audio-hervat', bijAudioHervat);
             socket.off('ronde:hint', bijHint);
             socket.off('ronde:onthul', bijOnthul);
             socket.off('ronde:bonus', bijBonus);
@@ -131,6 +156,13 @@ export function useSpel() {
     const vraagHint = useCallback(() => haalSocket().emit('ronde:hint'), []);
     const volgende = useCallback(() => haalSocket().emit('ronde:volgende'), []);
     const herhaal = useCallback(() => haalSocket().emit('ronde:herhaal'), []);
+    const pauzeer = useCallback(() => haalSocket().emit('ronde:pauzeer'), []);
+    const hervat = useCallback(() => haalSocket().emit('ronde:hervat'), []);
+    const meldFout = useCallback(
+        (soort = 'fout', toelichting = null) =>
+            haalSocket().emit('ronde:melden', { soort, toelichting }),
+        [],
+    );
     const bonusAntwoord = useCallback(
         (keuze) => haalSocket().emit('ronde:bonus-antwoord', { keuze }),
         [],
@@ -151,10 +183,15 @@ export function useSpel() {
         scorebord,
         audio,
         winnaarId,
+        gepauzeerd,
+        melded,
         fout,
         startSpel,
         volgende,
         herhaal,
+        pauzeer,
+        hervat,
+        meldFout,
         gok,
         vraagHint,
         bonusAntwoord,

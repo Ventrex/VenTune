@@ -27,6 +27,10 @@ router.get('/api/tracks/telling', async (req, res) => {
         taal: req.query.taal,
         periode_start: Number(req.query.start),
         periode_eind: Number(req.query.eind),
+        min_bekendheid: Number(req.query.bekendheid),
+        zonder_genres: req.query.zonder
+            ? String(req.query.zonder).split(',').filter(Boolean)
+            : [],
     };
     const { where, params } = bouwFilter(filter);
 
@@ -56,7 +60,8 @@ router.get('/api/tracks/telling', async (req, res) => {
 router.get('/api/presets', async (_req, res) => {
     const { rows } = await pool.query(
         `SELECT id, naam, categorie, taal, periode_start, periode_eind,
-                rondes, speeltijd, aangemaakt_op
+                rondes, speeltijd, modus, min_bekendheid, zonder_genres,
+                aangemaakt_op
            FROM presets
           ORDER BY aangemaakt_op DESC`,
     );
@@ -73,10 +78,11 @@ router.post('/api/presets', async (req, res) => {
         const { rows } = await pool.query(
             `INSERT INTO presets
                (naam, categorie, taal, periode_start, periode_eind, rondes,
-                speeltijd)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+                speeltijd, modus, min_bekendheid, zonder_genres)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              RETURNING id, naam, categorie, taal, periode_start, periode_eind,
-                       rondes, speeltijd, aangemaakt_op`,
+                       rondes, speeltijd, modus, min_bekendheid, zonder_genres,
+                       aangemaakt_op`,
             [
                 naam,
                 b.categorie || 'beide',
@@ -85,6 +91,9 @@ router.post('/api/presets', async (req, res) => {
                 Number.isFinite(b.periode_eind) ? b.periode_eind : 2100,
                 Number.isFinite(b.rondes) ? b.rondes : 10,
                 Number.isFinite(b.speeltijd) ? b.speeltijd : 60,
+                b.modus === 'kenner' ? 'kenner' : 'snelste',
+                Number.isFinite(b.min_bekendheid) ? b.min_bekendheid : 200,
+                Array.isArray(b.zonder_genres) ? b.zonder_genres : [],
             ],
         );
         res.json(rows[0]);
@@ -98,6 +107,28 @@ router.post('/api/presets', async (req, res) => {
 router.delete('/api/presets/:id', async (req, res) => {
     await pool.query(`DELETE FROM presets WHERE id = $1`, [req.params.id]);
     res.json({ ok: true });
+});
+
+// Ranglijst over alle gespeelde spellen, op spelersnaam.
+router.get('/api/ranking', async (_req, res) => {
+    try {
+        const { rows } = await pool.query(
+            `SELECT naam,
+                    SUM(score)::int      AS totaal,
+                    MAX(score)::int      AS beste,
+                    COUNT(*)::int        AS spellen
+               FROM spelers
+              WHERE is_host = false OR score > 0
+              GROUP BY naam
+              HAVING SUM(score) > 0
+              ORDER BY totaal DESC
+              LIMIT 20`,
+        );
+        res.json(rows);
+    } catch (err) {
+        logger.waarschuwing('Ranking ophalen mislukt.', { melding: err.message });
+        res.json([]);
+    }
 });
 
 module.exports = router;

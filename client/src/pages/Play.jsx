@@ -117,7 +117,10 @@ export default function Play() {
                             <span className="dim">kenner</span>
                         )}
                     </div>
-                    <Visualizer actief />
+                    <Visualizer actief={!spel.gepauzeerd} />
+                    {spel.gepauzeerd && (
+                        <p className="feedback neutraal">Even pauze…</p>
+                    )}
 
                     {goedGeraden ? (
                         <div className="kaart" style={{ marginTop: '1.5rem' }}>
@@ -150,6 +153,16 @@ export default function Play() {
                                 onClick={spel.vraagHint}
                             >
                                 Hint (−25)
+                            </button>
+
+                            <button
+                                className="terug als-link"
+                                style={{ marginTop: '1rem' }}
+                                onClick={() => spel.meldFout('geen_geluid')}
+                            >
+                                {spel.melded
+                                    ? '✓ Bedankt, gemeld'
+                                    : 'Iets mis? Fout melden'}
                             </button>
 
                             {resultaat && !goedGeraden && (

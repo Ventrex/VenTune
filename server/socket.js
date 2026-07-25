@@ -131,6 +131,31 @@ function setupSockets(io) {
             }
         });
 
+        // Host: pauzeren en hervatten.
+        socket.on('ronde:pauzeer', () => {
+            try {
+                spel.pauzeer(socket);
+            } catch (err) {
+                logger.waarschuwing('Pauzeren mislukt.', { melding: err.message });
+            }
+        });
+        socket.on('ronde:hervat', () => {
+            try {
+                spel.hervat(socket);
+            } catch (err) {
+                logger.waarschuwing('Hervatten mislukt.', { melding: err.message });
+            }
+        });
+
+        // Iedereen: melden dat er iets mis is met de muziek van deze ronde.
+        socket.on('ronde:melden', async ({ soort, toelichting } = {}) => {
+            try {
+                await spel.meldFout(socket, soort, toelichting);
+            } catch (err) {
+                logger.waarschuwing('Melden mislukt.', { melding: err.message });
+            }
+        });
+
         // Bonusvraag beantwoorden.
         socket.on('ronde:bonus-antwoord', async ({ keuze } = {}) => {
             try {

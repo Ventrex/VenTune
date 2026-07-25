@@ -47,7 +47,15 @@ CREATE TABLE IF NOT EXISTS titels (
     aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Bekendheid en poster (uit TMDB). Populariteit filtert obscure titels weg,
+-- zodat het spel bij bekende films en series blijft.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS populariteit REAL NOT NULL DEFAULT 0;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS stemmen INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS poster_pad TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS omschrijving TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_titels_type    ON titels (type);
+CREATE INDEX IF NOT EXISTS idx_titels_pop     ON titels (populariteit DESC);
 CREATE INDEX IF NOT EXISTS idx_titels_taal    ON titels (taal);
 CREATE INDEX IF NOT EXISTS idx_titels_jaar    ON titels (jaar);
 CREATE INDEX IF NOT EXISTS idx_titels_genres  ON titels USING GIN (genres);
@@ -109,6 +117,9 @@ CREATE TABLE IF NOT EXISTS presets (
 
 -- Migratie voor bestaande databases.
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS speeltijd INTEGER NOT NULL DEFAULT 60;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS modus TEXT NOT NULL DEFAULT 'snelste';
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS min_bekendheid INTEGER NOT NULL DEFAULT 200;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS zonder_genres TEXT[] NOT NULL DEFAULT '{}';
 
 -- ---------------------------------------------------------------------
 -- Lobbies: één actief spel per lobbycode
@@ -204,6 +215,24 @@ CREATE TABLE IF NOT EXISTS antwoorden (
 
 CREATE INDEX IF NOT EXISTS idx_antwoorden_ronde_id  ON antwoorden (ronde_id);
 CREATE INDEX IF NOT EXISTS idx_antwoorden_speler_id ON antwoorden (speler_id);
+
+-- ---------------------------------------------------------------------
+-- Meldingen: spelers of de host kunnen aangeven dat er iets mis is met
+-- een track (verkeerd nummer, geen geluid). Zo hoef je niet zelf alles
+-- na te lopen: in /admin zie je wat er gemeld is.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS meldingen (
+    id             SERIAL PRIMARY KEY,
+    track_id       INTEGER     REFERENCES tracks (id) ON DELETE CASCADE,
+    titel_id       INTEGER     REFERENCES titels (id) ON DELETE CASCADE,
+    soort          TEXT        NOT NULL DEFAULT 'fout'
+                   CHECK (soort IN ('fout', 'geen_geluid', 'verkeerd_nummer', 'anders')),
+    toelichting    TEXT,
+    afgehandeld    BOOLEAN     NOT NULL DEFAULT false,
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_meldingen_open ON meldingen (afgehandeld, aangemaakt_op DESC);
 
 -- =====================================================================
 -- Einde schema

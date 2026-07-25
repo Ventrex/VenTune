@@ -156,8 +156,40 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
             }
             return;
         }
+
+        // Host heeft gepauzeerd: alleen stilzetten, niet opnieuw laden.
+        if (audio.pauze) {
+            if (audioRef.current) audioRef.current.pause();
+            const speler = ytSpelerRef.current;
+            if (speler && speler.pauseVideo) {
+                try {
+                    speler.pauseVideo();
+                } catch {
+                    /* negeren */
+                }
+            }
+            return;
+        }
+
+        // Hervatten na pauze: doorgaan waar we waren.
+        if (audio.hervat) {
+            if (audioRef.current && audioRef.current.src) {
+                audioRef.current.play().catch(() => setMoetTikken(true));
+            }
+            const speler = ytSpelerRef.current;
+            if (speler && speler.playVideo) {
+                try {
+                    speler.playVideo();
+                } catch {
+                    /* negeren */
+                }
+            }
+            return;
+        }
+
         setMoetTikken(false);
         start();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [audio, start]);
 
     return (

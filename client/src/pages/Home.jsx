@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { haalRanking } from '../lib/api.js';
 
 // Startscherm: nieuw spel maken (host) of meedoen met een code.
 export default function Home() {
     const navigate = useNavigate();
     const [code, setCode] = useState('');
     const [fout, setFout] = useState('');
+    const [ranking, setRanking] = useState([]);
+
+    // Ranglijst over eerdere spellen.
+    useEffect(() => {
+        haalRanking().then(setRanking).catch(() => {});
+    }, []);
 
     function nieuwSpel() {
         // Host doorloopt eerst het filtermenu; daar wordt de lobby gemaakt.
@@ -54,6 +61,32 @@ export default function Home() {
                     </div>
                 </form>
             </div>
+
+            {ranking.length > 0 && (
+                <div style={{ marginTop: '2.5rem' }}>
+                    <p className="kaart-label" style={{ textAlign: 'left' }}>
+                        Ranglijst
+                    </p>
+                    <ul className="scorebord">
+                        {ranking.slice(0, 10).map((r, i) => (
+                            <li
+                                key={r.naam}
+                                className={'score-rij' + (i === 0 ? ' winnaar' : '')}
+                            >
+                                <span className="score-plek">{i + 1}</span>
+                                <span className="score-naam">
+                                    {r.naam}
+                                    <span className="dim">
+                                        {' '}
+                                        · {r.spellen} spel{r.spellen === 1 ? '' : 'len'}
+                                    </span>
+                                </span>
+                                <span className="score-punten">{r.totaal}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             <p style={{ marginTop: '2.5rem' }}>
                 <Link className="terug" to="/muziek">

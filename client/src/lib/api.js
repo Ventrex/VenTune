@@ -59,6 +59,8 @@ export async function haalTelling(filters) {
         taal: filters.taal,
         start: String(filters.periode_start),
         eind: String(filters.periode_eind),
+        bekendheid: String(filters.min_bekendheid ?? 0),
+        zonder: (filters.zonder_genres || []).join(','),
     });
     const resp = await fetch(`/api/tracks/telling?${params.toString()}`);
     const data = await jsonOfNull(resp);
@@ -87,6 +89,12 @@ export async function bewaarPreset(preset) {
 /** Een preset verwijderen. */
 export async function verwijderPreset(id) {
     await fetch(`/api/presets/${id}`, { method: 'DELETE' });
+}
+
+/** Ranglijst over alle gespeelde spellen. */
+export async function haalRanking() {
+    const resp = await fetch('/api/ranking');
+    return (await jsonOfNull(resp)) || [];
 }
 
 // --- Admin ---
@@ -141,6 +149,12 @@ export async function adminSeed(force = false) {
 }
 export async function adminSeedStatus() {
     return adminFetch('/api/admin/seed/status');
+}
+export async function adminMeldingen() {
+    return adminFetch('/api/admin/meldingen');
+}
+export async function adminMeldingAf(id) {
+    return adminFetch(`/api/admin/meldingen/${id}/afgehandeld`, { method: 'POST' });
 }
 
 /** Controleer of een lobbycode bestaat en of je kunt joinen. */

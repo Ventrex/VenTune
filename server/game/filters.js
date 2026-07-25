@@ -43,6 +43,23 @@ function bouwFilter(f = {}) {
     const iEind = params.length;
     condities.push(`t.jaar IS NOT NULL AND t.jaar BETWEEN $${iStart} AND $${iEind}`);
 
+    // Bekendheid: alleen titels die genoeg mensen kennen. 'stemmen' uit TMDB
+    // is hiervoor de betrouwbaarste maat. Titels zonder TMDB-gegevens (zoals
+    // handmatig of via playlists toegevoegde) blijven altijd meedoen.
+    const drempel = Number(f.min_bekendheid);
+    if (Number.isFinite(drempel) && drempel > 0) {
+        params.push(drempel);
+        condities.push(
+            `(t.stemmen >= $${params.length} OR t.tmdb_id IS NULL)`,
+        );
+    }
+
+    // Genres uitsluiten (bijvoorbeeld geen horror). Leeg = alles toegestaan.
+    if (Array.isArray(f.zonder_genres) && f.zonder_genres.length > 0) {
+        params.push(f.zonder_genres);
+        condities.push(`NOT (t.genres && $${params.length}::text[])`);
+    }
+
     const where = condities.length ? `WHERE ${condities.join(' AND ')}` : '';
     return { where, params };
 }

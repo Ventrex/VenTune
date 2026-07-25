@@ -76,7 +76,7 @@ class SpelBeheer {
         const { where, params } = bouwFilter(instellingen || {});
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
-                    t.land, t.genres, t.tmdb_id
+                    t.land, t.genres, t.tmdb_id, t.poster_pad, t.omschrijving
                FROM titels t
                ${where ? where + ' AND' : 'WHERE'}
                     EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id = t.id)`,
@@ -474,6 +474,52 @@ class SpelBeheer {
         }
     }
 
+    /** Host pauzeert: klok stilzetten en de muziek stoppen. */
+    pauzeer(socket) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || !socket.data.isHost || !state.huidige) return;
+        const h = state.huidige;
+        if (h.gepauzeerd) return;
+
+        if (h.timer) {
+            clearTimeout(h.timer);
+            h.timer = null;
+        }
+        // Bewaar hoeveel tijd er nog over was.
+        h.restMs = Math.max(0, h.startTijd + state.rondeDuurMs - Date.now());
+        h.gepauzeerdOp = Date.now();
+        h.gepauzeerd = true;
+
+        this.io.to(kamer(state.code)).emit('ronde:pauze', { gepauzeerd: true });
+        this.io.to(hostKamer(state.code)).emit('ronde:audio-pauze', {});
+    }
+
+    /** Host hervat: klok weer laten lopen en de muziek verder spelen. */
+    hervat(socket) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || !socket.data.isHost || !state.huidige) return;
+        const h = state.huidige;
+        if (!h.gepauzeerd) return;
+
+        // Schuif de starttijd op met de duur van de pauze, zodat de
+        // puntentelling geen pauzetijd meerekent.
+        const pauzeDuur = Date.now() - h.gepauzeerdOp;
+        h.startTijd += pauzeDuur;
+        h.gepauzeerd = false;
+        h.gepauzeerdOp = null;
+
+        if (state.modus !== 'kenner' && h.restMs > 0) {
+            h.timer = setTimeout(() => this.onthulEnBonus(state), h.restMs);
+        }
+
+        this.io.to(kamer(state.code)).emit('ronde:pauze', {
+            gepauzeerd: false,
+            startTs: Date.now(),
+            restMs: h.restMs,
+        });
+        this.io.to(hostKamer(state.code)).emit('ronde:audio-hervat', {});
+    }
+
     /** Host klikt op 'Opnieuw afspelen': stuurt de audio nogmaals. */
     herhaal(socket) {
         const state = this.spellen.get(socket.data.lobbyId);
@@ -489,6 +535,37 @@ class SpelBeheer {
         });
     }
 
+    /**
+     * Een speler of de host meldt dat er iets mis is met de muziek van de
+     * huidige ronde. Zo hoeft niemand de hele database na te lopen: in
+     * /admin verschijnt een lijst met meldingen.
+     */
+    async meldFout(socket, soort, toelichting) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || !state.huidige) return;
+        const geldig = ['fout', 'geen_geluid', 'verkeerd_nummer', 'anders'];
+        const soortSchoon = geldig.includes(soort) ? soort : 'fout';
+
+        await pool.query(
+            `INSERT INTO meldingen (track_id, titel_id, soort, toelichting)
+             VALUES ($1, $2, $3, $4)`,
+            [
+                state.huidige.track.id,
+                state.huidige.titel.id,
+                soortSchoon,
+                toelichting ? String(toelichting).slice(0, 500) : null,
+            ],
+        );
+        logger.info('Melding ontvangen.', {
+            code: state.code,
+            titel: state.huidige.titel.naam,
+            soort: soortSchoon,
+        });
+        this.io
+            .to(spelerKamer(socket.data.spelerId))
+            .emit('ronde:melding-ok', { soort: soortSchoon });
+    }
+
     // ---- Hulp ----
 
     /** Volledige informatie over het antwoord (na afloop van de gokfase). */
@@ -500,8 +577,15 @@ class SpelBeheer {
             taal: h.titel.taal, // nl of internationaal
             land: h.titel.land,
             genres: h.titel.genres || [],
+            // Poster en korte omschrijving (uit TMDB) voor het eindbeeld.
+            poster: h.titel.poster_pad
+                ? `https://image.tmdb.org/t/p/w342${h.titel.poster_pad}`
+                : null,
+            omschrijving: h.titel.omschrijving || null,
             tracknaam: h.track.tracknaam,
             artiest: h.track.artiest,
+            trackId: h.track.id,
+            titelId: h.titel.id,
         };
     }
 
