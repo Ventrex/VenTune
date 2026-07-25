@@ -104,6 +104,9 @@ ALTER TABLE tracks ADD COLUMN IF NOT EXISTS fout_aantal INTEGER NOT NULL DEFAULT
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS gecontroleerd BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS bestand_pad TEXT;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS bron_url TEXT;
+-- Albumnaam (soundtracks heten vaak naar de film) — nodig om te kunnen
+-- controleren of een nummer echt bij de titel hoort.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS album TEXT;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS laatst_gespeeld TIMESTAMPTZ;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS keer_gespeeld INTEGER NOT NULL DEFAULT 0;
 

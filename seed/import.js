@@ -19,6 +19,7 @@ const path = require('path');
 const { pool } = require('../server/db/pool');
 const itunes = require('../server/lib/itunes');
 const ytzoek = require('../server/lib/ytzoek');
+const { pastBijTitel } = require('../server/lib/trackcheck');
 
 const args = process.argv.slice(2);
 const FORCE = args.includes('--force');
@@ -148,8 +149,9 @@ async function heeftTrack(titelId) {
 async function voegItunesTrackToe(titelId, resultaat) {
     await pool.query(
         `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
-                             tracknaam, artiest, herkenbaarheid)
-         VALUES ($1, 'itunes', $2, $3, $4, $5, 3)
+                             tracknaam, artiest, album, herkenbaarheid,
+                             gecontroleerd)
+         VALUES ($1, 'itunes', $2, $3, $4, $5, $6, 3, true)
          ON CONFLICT DO NOTHING`,
         [
             titelId,
@@ -157,6 +159,7 @@ async function voegItunesTrackToe(titelId, resultaat) {
             resultaat.preview_url,
             resultaat.tracknaam,
             resultaat.artiest,
+            resultaat.album || null,
         ],
     );
 }
@@ -164,10 +167,18 @@ async function voegItunesTrackToe(titelId, resultaat) {
 async function voegYoutubeTrackToe(titelId, video) {
     await pool.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
-                             tracknaam, artiest, herkenbaarheid)
-         VALUES ($1, 'youtube', $2, $3, $4, $5, 3)
+                             tracknaam, artiest, herkenbaarheid, gecontroleerd,
+                             bron_url)
+         VALUES ($1, 'youtube', $2, $3, $4, $5, 3, true, $6)
          ON CONFLICT DO NOTHING`,
-        [titelId, video.videoId, 0, video.titel || 'Intro', video.kanaal || 'YouTube'],
+        [
+            titelId,
+            video.videoId,
+            0,
+            video.titel || 'Intro',
+            video.kanaal || 'YouTube',
+            `https://www.youtube.com/watch?v=${video.videoId}`,
+        ],
     );
 }
 
@@ -254,7 +265,18 @@ async function importeer({
         //    titelsong, ook de Nederlandse. Dit voorkomt handmatig nalopen.
         let gelukt = false;
         try {
-            const keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250 });
+            let keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250 });
+            // Extra slot op de deur: hoort deze video echt bij deze titel?
+            if (keuze) {
+                const check = pastBijTitel(t, {
+                    tracknaam: keuze.titel,
+                    artiest: keuze.kanaal,
+                });
+                if (!check.past) {
+                    log({ titel: t.naam, bron: 'youtube', geweigerd: keuze.titel });
+                    keuze = null;
+                }
+            }
             if (keuze) {
                 // Nu er echt een treffer is, mogen oude tracks wijken.
                 if (force) {
@@ -282,7 +304,14 @@ async function importeer({
             try {
                 const term = t.zoekterm || `${t.naam} soundtrack`;
                 const resultaten = await itunes.zoek(term, { limiet: 8 });
-                const keuze = resultaten.length ? kiesBeste(resultaten, t) : null;
+                let keuze = resultaten.length ? kiesBeste(resultaten, t) : null;
+                if (keuze) {
+                    const check = pastBijTitel(t, keuze);
+                    if (!check.past) {
+                        log({ titel: t.naam, bron: 'itunes', geweigerd: keuze.tracknaam });
+                        keuze = null;
+                    }
+                }
                 if (keuze) {
                     if (force) {
                         await vervangTracks(titelId, () =>

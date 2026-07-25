@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('../server/db/pool');
 const ytzoek = require('../server/lib/ytzoek');
+const { pastBijTitel } = require('../server/lib/trackcheck');
 
 const args = process.argv.slice(2);
 const DROOG = args.includes('--droog');
@@ -121,10 +122,17 @@ async function zetTrack(titelId, video) {
     await pool.query(`DELETE FROM tracks WHERE titel_id = $1`, [titelId]);
     await pool.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
-                             tracknaam, artiest, herkenbaarheid)
-         VALUES ($1, 'youtube', $2, 0, $3, $4, 5)
+                             tracknaam, artiest, herkenbaarheid, gecontroleerd,
+                             bron_url)
+         VALUES ($1, 'youtube', $2, 0, $3, $4, 5, true, $5)
          ON CONFLICT DO NOTHING`,
-        [titelId, video.videoId, video.titel.slice(0, 200), video.kanaal || 'YouTube'],
+        [
+            titelId,
+            video.videoId,
+            video.titel.slice(0, 200),
+            video.kanaal || 'YouTube',
+            `https://www.youtube.com/watch?v=${video.videoId}`,
+        ],
     );
 }
 
@@ -164,13 +172,26 @@ async function main() {
             if (!ytzoek.isLatijnsSchrift(v.titel)) continue;
 
             const match = matchTitel(v.titel, titels);
-            if (match) {
+            // Dubbele controle: de videotitel moet echt bij de titel horen.
+            // Zo komt de muziek van de ene film nooit onder de naam van een
+            // andere te staan.
+            const geldig =
+                match &&
+                pastBijTitel(match.titel, {
+                    tracknaam: v.titel,
+                    artiest: v.kanaal,
+                }).past;
+
+            if (match && geldig) {
                 if (DROOG) {
                     console.log(`   ✓ "${v.titel}" → ${match.titel.naam}`);
                 } else {
                     await zetTrack(match.titel.id, v);
                 }
                 gekoppeld++;
+            } else if (match && !geldig) {
+                console.log(`   ✗ geweigerd: "${v.titel}" ≠ ${match.titel.naam}`);
+                overgeslagen++;
             } else if (NIEUW) {
                 // Onbekende titel: aanmaken op basis van de opgeschoonde naam.
                 const naam = schoonTitel(v.titel)

@@ -12,6 +12,7 @@ const { vergelijk } = require('../lib/match');
 const { titelPunten, bonusPunten } = require('./scoring');
 const { genereerBonus } = require('./bonus');
 const vragenbank = require('./vragen');
+const { pastBijTitel } = require('../lib/trackcheck');
 const logger = require('../lib/logger');
 
 const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
@@ -150,7 +151,7 @@ class SpelBeheer {
         // in plaats van dat er soms een fout nummer langskomt.
         const { rows } = await pool.query(
             `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
-                    tr.tracknaam, tr.artiest
+                    tr.tracknaam, tr.artiest, tr.album
                FROM tracks tr
               WHERE tr.titel_id = $1
                 AND tr.werkt = true
@@ -159,10 +160,34 @@ class SpelBeheer {
                        (tr.bron = 'lokaal')  DESC,
                        (tr.bron = 'youtube') DESC,
                        tr.id DESC
-              LIMIT 1`,
+              LIMIT 5`,
             [titel.id],
         );
-        const track = rows[0];
+
+        // Laatste slot op de deur: speel nooit muziek die niet bij deze
+        // titel hoort. Zo'n track wordt meteen afgekeurd, zodat hij ook in
+        // volgende spellen niet meer voorbijkomt.
+        let track = null;
+        for (const kandidaat of rows) {
+            if (pastBijTitel(titel, kandidaat).past) {
+                track = kandidaat;
+                break;
+            }
+            logger.waarschuwing('Track past niet bij de titel, afgekeurd.', {
+                titel: titel.naam,
+                tracknaam: kandidaat.tracknaam,
+            });
+            // Bewust awaiten: de afkeuring moet vaststaan, anders komt deze
+            // verkeerde track in een volgend spel opnieuw voorbij.
+            await pool
+                .query(
+                    `UPDATE tracks SET werkt = false, gecontroleerd = false
+                      WHERE id = $1`,
+                    [kandidaat.id],
+                )
+                .catch(() => {});
+        }
+
         if (!track) {
             // Alle tracks van deze titel zijn afgekeurd: sla de ronde over.
             logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
