@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
 import { audioBron } from '../lib/api.js';
 import { haalVideoId } from '../lib/youtube.js';
+import Brand from '../components/Brand.jsx';
 
 // Beheerportaal (/admin). Wachtwoord uit ADMIN_PASSWORD op de server.
 export default function Admin() {
@@ -31,6 +32,7 @@ function Login({ onIn }) {
     }
     return (
         <main className="scherm">
+            <Brand compact />
             <h1>Beheer</h1>
             {fout && <p className="waarschuwing">{fout}</p>}
             <form onSubmit={verstuur} className="stapel">
@@ -57,9 +59,13 @@ function Beheer({ onUit }) {
     const [zoek, setZoek] = useState('');
     const [melding, setMelding] = useState('');
     const [bezigSeed, setBezigSeed] = useState(false);
+    const [bezigPlaylist, setBezigPlaylist] = useState(false);
+    const [bezigTmdb, setBezigTmdb] = useState(false);
+    const [bezigVragen, setBezigVragen] = useState(false);
     const [open, setOpen] = useState(null); // uitgeklapte titel-id
     const [meldingen, setMeldingen] = useState([]);
     const [overzicht, setOverzicht] = useState(null);
+    const [gebruikers, setGebruikers] = useState([]);
 
     async function laad() {
         try {
@@ -78,10 +84,16 @@ function Beheer({ onUit }) {
             setOverzicht(await api.adminOverzicht());
         } catch { /* niet fataal */ }
     }
+    async function laadGebruikers() {
+        try {
+            setGebruikers(await api.adminGebruikers());
+        } catch { /* niet fataal */ }
+    }
     useEffect(() => {
         laad();
         laadMeldingen();
         laadOverzicht();
+        laadGebruikers();
         /* eslint-disable-next-line */
     }, []);
 
@@ -94,7 +106,14 @@ function Beheer({ onUit }) {
         setBezigSeed(true);
         setMelding('Seed importeren… dit draait in de achtergrond (1–3 min).');
         try {
-            await api.adminSeed(false);
+            // Force is veilig: importeer vervangt pas nadat een nieuwe,
+            // gecontroleerde YouTube-track is gevonden.
+            const gestart = await api.adminSeed(true);
+            if (gestart?.gestart === false) {
+                setBezigSeed(false);
+                setMelding(`Admin-taak "${gestart.taak || 'import'}" is al bezig.`);
+                return;
+            }
             // Status pollen tot de import klaar is.
             const poll = setInterval(async () => {
                 try {
@@ -132,8 +151,69 @@ function Beheer({ onUit }) {
         onUit();
     }
 
+    async function playlistImport() {
+        setBezigPlaylist(true);
+        setMelding('YouTube-playlists importeren… duidelijke matches vervangen veilig de oude track.');
+        try {
+            const gestart = await api.adminPlaylistImport();
+            if (gestart?.gestart === false) {
+                setBezigPlaylist(false);
+                setMelding(`Admin-taak "${gestart.taak || 'import'}" is al bezig.`);
+                return;
+            }
+            const poll = setInterval(async () => {
+                try {
+                    const st = await api.adminPlaylistStatus();
+                    if (st.klaar) {
+                        clearInterval(poll);
+                        setBezigPlaylist(false);
+                        if (st.fout) setMelding('Playlist-import mislukt: ' + st.fout);
+                        else setMelding(`Playlist-import klaar: ${st.samenvatting?.gekoppeld || 0} matches gekoppeld.`);
+                        laad();
+                    }
+                } catch {
+                    /* blijf pollen */
+                }
+            }, 2500);
+        } catch (err) {
+            setMelding('Playlist-import starten mislukt: ' + err.message);
+            setBezigPlaylist(false);
+        }
+    }
+
+    async function achtergrondTaak(start, status, setBezig, bezigTekst, klaarTekst) {
+        setBezig(true);
+        setMelding(bezigTekst);
+        try {
+            const gestart = await start();
+            if (gestart?.gestart === false) {
+                setBezig(false);
+                setMelding(`Admin-taak "${gestart.taak || 'import'}" is al bezig.`);
+                return;
+            }
+            const poll = setInterval(async () => {
+                try {
+                    const st = await status();
+                    if (st.klaar) {
+                        clearInterval(poll);
+                        setBezig(false);
+                        setMelding(st.fout ? `${klaarTekst} mislukt: ${st.fout}` : klaarTekst);
+                        laad();
+                        laadOverzicht();
+                    }
+                } catch {
+                    /* blijf pollen */
+                }
+            }, 2500);
+        } catch (err) {
+            setMelding(`${klaarTekst} starten mislukt: ${err.message}`);
+            setBezig(false);
+        }
+    }
+
     return (
         <main className="scherm host-scherm">
+            <Brand compact />
             <div className="raden-kop">
                 <h1 style={{ margin: 0 }}>Beheer</h1>
                 <button className="terug als-link" onClick={uitloggen}>Uitloggen</button>
@@ -152,10 +232,35 @@ function Beheer({ onUit }) {
                     <Tegel label="Cache" waarde={overzicht.cache_regels} />
                 </div>
             )}
+            {overzicht?.per_bron?.length > 0 && (
+                <p className="dim admin-bronnen">
+                    Audiobronnen:{' '}
+                    {overzicht.per_bron.map((bron) => `${bron.bron}: ${bron.n}`).join(' · ')}
+                </p>
+            )}
+
+            <Hostaccounts gebruikers={gebruikers} onWijzig={laadGebruikers} />
 
             <div className="stapel" style={{ marginTop: '1rem' }}>
-                <button className="knop knop-stil" onClick={seed} disabled={bezigSeed}>
-                    {bezigSeed ? 'Bezig…' : 'Startseed importeren (iTunes)'}
+                <button className="knop knop-stil" onClick={seed} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
+                    {bezigSeed ? 'Bezig…' : 'YouTube-first muziek vernieuwen'}
+                </button>
+                <button className="knop knop-stil" onClick={playlistImport} disabled={bezigPlaylist || bezigSeed || bezigTmdb || bezigVragen}>
+                    {bezigPlaylist ? 'Playlists importeren…' : 'YouTube-playlists verversen'}
+                </button>
+                <button
+                    className="knop knop-stil"
+                    onClick={() => achtergrondTaak(api.adminTmdbImport, api.adminTmdbStatus, setBezigTmdb, 'TMDB-titels importeren…', 'TMDB-import klaar.')}
+                    disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}
+                >
+                    {bezigTmdb ? 'TMDB importeren…' : 'TMDB-titels importeren'}
+                </button>
+                <button
+                    className="knop knop-stil"
+                    onClick={() => achtergrondTaak(() => api.adminVragenImport(false), api.adminVragenStatus, setBezigVragen, 'Bonusvragen genereren…', 'Bonusvragen genereren klaar.')}
+                    disabled={bezigVragen || bezigSeed || bezigPlaylist || bezigTmdb}
+                >
+                    {bezigVragen ? 'Vragen genereren…' : 'Bonusvragen genereren'}
                 </button>
             </div>
 
@@ -253,6 +358,61 @@ function Tegel({ label, waarde }) {
     );
 }
 
+function Hostaccounts({ gebruikers, onWijzig }) {
+    async function wissel(gebruiker) {
+        try {
+            await api.adminGebruikerStatus(gebruiker.id, !gebruiker.actief);
+            onWijzig();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+    async function reset(gebruiker) {
+        const nieuw = window.prompt(
+            `Nieuw tijdelijk wachtwoord voor ${gebruiker.gebruikersnaam} (minimaal 10 tekens):`,
+        );
+        if (nieuw === null) return;
+        try {
+            await api.adminResetWachtwoord(gebruiker.id, nieuw);
+            alert('Wachtwoord ingesteld. De host moet opnieuw inloggen.');
+            onWijzig();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    return (
+        <section className="admin-accounts">
+            <p className="kaart-label" style={{ textAlign: 'left' }}>
+                Hostaccounts ({gebruikers.length})
+            </p>
+            {gebruikers.length === 0 ? (
+                <p className="dim">Nog geen hostaccounts geregistreerd.</p>
+            ) : (
+                <ul className="spelerlijst">
+                    {gebruikers.map((gebruiker) => (
+                        <li key={gebruiker.id} className="speler-kaart">
+                            <span className="speler-naam">
+                                {gebruiker.display_naam}{' '}
+                                <span className="dim">@{gebruiker.gebruikersnaam}</span>
+                                {!gebruiker.actief && <span className="dim"> · uitgeschakeld</span>}
+                            </span>
+                            <span className="admin-account-acties">
+                                <button className="afspeelknop klein" onClick={() => reset(gebruiker)}>
+                                    Wachtwoord
+                                </button>
+                                <button className="afspeelknop klein" onClick={() => wissel(gebruiker)}>
+                                    {gebruiker.actief ? 'Uit' : 'Aan'}
+                                </button>
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
 const LEEG = { naam: '', type: 'film', taal: 'nl', jaar: '', land: '', aliassen: '', genres: '', tmdb_id: '' };
 
 function NieuweTitel({ onKlaar }) {
@@ -334,6 +494,16 @@ function TitelDetail({ titel, onWijzig }) {
         laadTracks();
         onWijzig();
     }
+    async function downloadTrack(id) {
+        try {
+            await api.adminDownloadTrack(id);
+            setMelding('Lokale fallback opgeslagen in /media.');
+            laadTracks();
+            onWijzig();
+        } catch (err) {
+            setMelding(err.message);
+        }
+    }
 
     return (
         <div className="titel-detail">
@@ -357,6 +527,9 @@ function TitelDetail({ titel, onWijzig }) {
                             </span>
                             <span className="dim">
                                 {tr.artiest} · {tr.bron} · ★{tr.herkenbaarheid}
+                                {Number(tr.verificatie_score) > 0 && ` · controle ${Math.round(Number(tr.verificatie_score) * 100)}%`}
+                                {tr.verificatie_reden && ` · ${tr.verificatie_reden}`}
+                                {tr.download_status && tr.bron === 'itunes' && ` · download: ${tr.download_status}`}
                                 {tr.fout_aantal > 0 && ` · ${tr.fout_aantal}× gemeld`}
                                 {!tr.werkt && ' · afgekeurd'}
                             </span>
@@ -387,6 +560,15 @@ function TitelDetail({ titel, onWijzig }) {
                         >
                             ★
                         </button>
+                        {tr.bron === 'itunes' && (
+                            <button
+                                className="afspeelknop klein"
+                                title="Cache deze iTunes-fallback lokaal"
+                                onClick={() => downloadTrack(tr.id)}
+                            >
+                                ⇩
+                            </button>
+                        )}
                         <button className="afspeelknop klein" onClick={() => verwijderTrack(tr.id)} aria-label="Verwijderen">✕</button>
                     </li>
                 ))}
@@ -425,13 +607,77 @@ function TitelDetail({ titel, onWijzig }) {
                 )}
             </ul>
 
-            <TrackZoeker titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
+            <YoutubeZoeker titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
             <YoutubeToevoegen titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
+            <TrackZoeker titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
         </div>
     );
 }
 
-// Voeg een YouTube-track toe (voor titels die iTunes mist).
+// Zoek automatisch een gecontroleerde YouTube-kandidaat. YouTube is de
+// hoofdbron; iTunes staat bewust pas onder deze sectie als fallback.
+function YoutubeZoeker({ titelId, onToegevoegd }) {
+    const [kandidaat, setKandidaat] = useState(null);
+    const [bezig, setBezig] = useState(false);
+    const [fout, setFout] = useState('');
+
+    async function zoek() {
+        setBezig(true);
+        setFout('');
+        try {
+            setKandidaat(await api.adminZoekYoutube(titelId));
+        } catch (err) {
+            setKandidaat(null);
+            setFout(err.message);
+        } finally {
+            setBezig(false);
+        }
+    }
+
+    async function voegToe() {
+        if (!kandidaat) return;
+        try {
+            await api.adminVoegTrack(titelId, kandidaat);
+            setKandidaat(null);
+            onToegevoegd();
+        } catch (err) {
+            setFout(err.message);
+        }
+    }
+
+    return (
+        <div className="kaart admin-bronblok" style={{ marginTop: '1rem' }}>
+            <p className="kaart-label">1. YouTube — hoofdbron</p>
+            <p className="dim">Zoek automatisch de best gecontroleerde intro of titelsong.</p>
+            {fout && <p className="waarschuwing">{fout}</p>}
+            <button className="knop" type="button" onClick={zoek} disabled={bezig}>
+                {bezig ? 'YouTube zoeken…' : 'Beste YouTube-intro zoeken'}
+            </button>
+            {kandidaat && (
+                <div className="youtube-kandidaat">
+                    <iframe
+                        title={kandidaat.tracknaam}
+                        width="100%"
+                        height="180"
+                        src={`https://www.youtube.com/embed/${kandidaat.preview_url}`}
+                        allow="encrypted-media"
+                        style={{ border: 0, borderRadius: 8 }}
+                    />
+                    <p className="track-naam">{kandidaat.tracknaam}</p>
+                    <p className="dim">
+                        {kandidaat.artiest} · controle {Math.round((kandidaat.verificatie_score || 0) * 100)}%
+                        {kandidaat.views != null ? ` · ${kandidaat.views.toLocaleString('nl-NL')} views` : ''}
+                    </p>
+                    <button className="knop knop-stil" type="button" onClick={voegToe}>
+                        YouTube-track opslaan
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Voeg handmatig een YouTube-track toe.
 function YoutubeToevoegen({ titelId, onToegevoegd }) {
     const [url, setUrl] = useState('');
     const [naam, setNaam] = useState('');
@@ -442,12 +688,13 @@ function YoutubeToevoegen({ titelId, onToegevoegd }) {
         e.preventDefault();
         const id = haalVideoId(url);
         if (!id) { setFout('Geen geldige YouTube-link.'); return; }
+        if (!naam.trim()) { setFout('Vul de volledige videotitel in, zodat VenTune kan controleren of dit nummer klopt.'); return; }
         try {
             await api.adminVoegTrack(titelId, {
                 bron: 'youtube',
                 preview_url: id,
                 start_seconde: start ? Number(start) : 0,
-                tracknaam: naam.trim() || 'YouTube',
+                tracknaam: naam.trim(),
                 artiest: 'YouTube',
             });
             setUrl(''); setNaam(''); setStart(''); setFout('');
@@ -459,12 +706,12 @@ function YoutubeToevoegen({ titelId, onToegevoegd }) {
 
     return (
         <form onSubmit={toevoegen} style={{ marginTop: '0.75rem' }}>
-            <p className="kaart-label">YouTube-link toevoegen</p>
+            <p className="kaart-label">Handmatige YouTube-link</p>
             {fout && <p className="waarschuwing">{fout}</p>}
             <div className="velden">
                 <input className="invoer" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="YouTube-URL of video-id" />
                 <div className="zoekbalk">
-                    <input className="invoer" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Naam (bv. Titelsong)" />
+                <input className="invoer" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Volledige videotitel (verplicht)" required />
                     <input className="invoer" value={start} onChange={(e) => setStart(e.target.value)} placeholder="Start (sec)" style={{ maxWidth: 110 }} />
                 </div>
                 <button className="knop knop-stil" type="submit">YouTube-track toevoegen</button>
@@ -473,7 +720,7 @@ function YoutubeToevoegen({ titelId, onToegevoegd }) {
     );
 }
 
-// Zoek op iTunes en voeg een track toe.
+// iTunes is alleen fallback als YouTube niets betrouwbaars oplevert.
 function TrackZoeker({ titelId, onToegevoegd }) {
     const [term, setTerm] = useState('');
     const [res, setRes] = useState([]);
@@ -495,6 +742,7 @@ function TrackZoeker({ titelId, onToegevoegd }) {
             preview_url: r.preview_url,
             tracknaam: r.tracknaam,
             artiest: r.artiest,
+            album: r.album,
         });
         setRes([]);
         setTerm('');
@@ -504,7 +752,7 @@ function TrackZoeker({ titelId, onToegevoegd }) {
     return (
         <div style={{ marginTop: '0.75rem' }}>
             <form className="zoekbalk" onSubmit={zoek}>
-                <input className="invoer" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Zoek clip op iTunes…" />
+                <input className="invoer" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Fallback: zoek clip op iTunes…" />
                 <button className="knop knop-stil" type="submit" disabled={bezig}>{bezig ? '…' : 'Zoek'}</button>
             </form>
             {res.length > 0 && (
@@ -513,7 +761,7 @@ function TrackZoeker({ titelId, onToegevoegd }) {
                         <li key={r.itunes_track_id} className="track">
                             <div className="track-info">
                                 <span className="track-naam">{r.tracknaam}</span>
-                                <span className="dim">{r.artiest}</span>
+                                <span className="dim">{r.artiest}{r.album ? ` · ${r.album}` : ''}</span>
                             </div>
                             <button className="afspeelknop klein" onClick={() => {
                                 if (audioRef.current) { audioRef.current.src = audioBron(r.preview_url); audioRef.current.play(); }

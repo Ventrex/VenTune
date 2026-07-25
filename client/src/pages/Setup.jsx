@@ -6,8 +6,11 @@ import {
     haalPresets,
     bewaarPreset,
     verwijderPreset,
+    authSessie,
+    authUitloggen,
 } from '../lib/api.js';
 import { bewaarSessie } from '../lib/sessie.js';
+import Brand from '../components/Brand.jsx';
 
 const NU = new Date().getFullYear();
 
@@ -80,6 +83,15 @@ export default function Setup() {
     const [presetNaam, setPresetNaam] = useState('');
     const [fout, setFout] = useState('');
     const [bezig, setBezig] = useState(false);
+    const [host, setHost] = useState(null);
+
+    // Ook bij rechtstreeks openen van /setup blijft de hostaccount verplicht.
+    useEffect(() => {
+        authSessie().then((s) => {
+            if (!s.ingelogd) navigate('/host/login?return=/setup', { replace: true });
+            else setHost(s.gebruiker);
+        }).catch(() => navigate('/host/login?return=/setup', { replace: true }));
+    }, [navigate]);
 
     // Presets laden bij binnenkomst.
     useEffect(() => {
@@ -183,6 +195,19 @@ export default function Setup() {
 
     return (
         <main className="scherm">
+            <Brand compact />
+            {host && (
+                <div className="account-balk">
+                    Host: <strong>{host.display_naam}</strong>
+                    <button
+                        className="terug als-link"
+                        type="button"
+                        onClick={async () => { await authUitloggen(); navigate('/'); }}
+                    >
+                        Uitloggen
+                    </button>
+                </div>
+            )}
             <p style={{ textAlign: 'left', margin: '0 0 0.5rem' }}>
                 <button className="terug als-link" onClick={terug}>
                     ← Terug

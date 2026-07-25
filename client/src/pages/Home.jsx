@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { haalRanking } from '../lib/api.js';
+import Brand from '../components/Brand.jsx';
 
 // Startscherm: nieuw spel maken (host) of meedoen met een code.
 export default function Home() {
@@ -15,8 +16,9 @@ export default function Home() {
     }, []);
 
     function nieuwSpel() {
-        // Host doorloopt eerst het filtermenu; daar wordt de lobby gemaakt.
-        navigate('/setup');
+        // Een host moet eerst een account hebben; het account-scherm stuurt
+        // ingelogde hosts direct door naar het filtermenu.
+        navigate('/host/login?return=/setup');
     }
 
     function meedoen(e) {
@@ -31,8 +33,13 @@ export default function Home() {
 
     return (
         <main className="scherm">
-            <h1>VenTune</h1>
+            <Brand link={false} />
+            <h1>De browser-muziekquiz</h1>
             <p className="ondertitel">Muziekquiz over films en series</p>
+            <p className="dim start-uitleg">
+                Host? Log in of maak een hostaccount. Speler? Doe gratis mee met
+                de lobbycode.
+            </p>
 
             {fout && <p className="waarschuwing">{fout}</p>}
 
@@ -87,6 +94,12 @@ export default function Home() {
                     </ul>
                 </div>
             )}
+
+            <p style={{ marginTop: '2rem' }}>
+                <Link className="terug" to="/changelog">
+                    Wat is nieuw? →
+                </Link>
+            </p>
 
             <p style={{ marginTop: '2.5rem' }}>
                 <Link className="terug" to="/muziek">

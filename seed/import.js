@@ -2,7 +2,8 @@
 // Seed-import voor VenTune.
 //
 // Leest seed/titels.json, zet de titels in de database en zoekt per titel
-// een passende 30-seconden clip op iTunes (gratis, geen account). Titels
+// een passende YouTube-intro of titelsong. Alleen als YouTube geen betrouwbare
+// match oplevert, valt de import terug op een gratis iTunes-preview. Titels
 // die al een track hebben worden overgeslagen (tenzij --force).
 //
 // Gebruik (bijv. in de servercontainer, waar iTunes bereikbaar is):
@@ -10,8 +11,8 @@
 // of lokaal met een DATABASE_URL:
 //   DATABASE_URL=postgres://... node seed/import.js [--force] [--limit N]
 //
-// De pg-pool en iTunes-helper komen uit de server, zodat er geen aparte
-// dependencies nodig zijn.
+// De pg-pool, YouTube-helper en iTunes-fallback komen uit de server, zodat er
+// geen aparte dependencies nodig zijn.
 // =====================================================================
 
 const fs = require('fs');
@@ -47,7 +48,7 @@ const GOEDE_WOORDEN = [
 ];
 
 /**
- * Kies uit de iTunes-resultaten de meest waarschijnlijke soundtrack/thema
+ * Kies uit iTunes-fallbackresultaten de meest waarschijnlijke soundtrack/thema
  * voor deze titel, in plaats van botweg het eerste resultaat.
  */
 // Weiger niet-Latijns schrift (Arabisch, Cyrillisch, CJK ...).
@@ -55,25 +56,27 @@ const NIET_LATIJN =
     /[Ѐ-ӿ֐-׿؀-ۿ܀-ݏऀ-ॿ฀-๿⺀-鿿가-힯ﭐ-﷿ﹰ-﻿]/;
 
 function kiesBeste(resultaten, titel) {
-    const titelNorm = normaliseer(titel.naam);
     let beste = null;
     let besteScore = -Infinity;
 
     resultaten = resultaten.filter(
-        (r) => !NIET_LATIJN.test(`${r.tracknaam || ''} ${r.artiest || ''}`),
+        (r) => !NIET_LATIJN.test(`${r.tracknaam || ''} ${r.album || ''} ${r.artiest || ''}`),
     );
     if (resultaten.length === 0) return null;
 
     resultaten.forEach((r, index) => {
+        const controle = pastBijTitel(titel, r);
+        // Eerst hard weigeren. Een hoge iTunes-score mag nooit een
+        // onbetrouwbare titelmatch maskeren.
+        if (!controle.past) return;
+
         const naam = normaliseer(r.tracknaam);
         const album = normaliseer(r.album);
         const hooi = `${naam} ${album}`;
-        let score = 0;
+        let score = controle.zekerheid * 100;
 
         // Titelnaam in track- of albumnaam is een sterk signaal.
-        if (titelNorm && (naam.includes(titelNorm) || album.includes(titelNorm))) {
-            score += 5;
-        }
+        score += controle.zekerheid >= 1 ? 15 : 5;
         // Soundtrack-/thema-woorden.
         for (const w of GOEDE_WOORDEN) {
             if (hooi.includes(w)) {
@@ -85,16 +88,20 @@ function kiesBeste(resultaten, titel) {
         if (titel.jaar && r.jaar && Math.abs(titel.jaar - r.jaar) <= 2) {
             score += 1;
         }
-        // Lichte voorkeur voor iTunes' eigen volgorde bij gelijkspel.
+        // Lichte voorkeur voor iTunes' eigen volgorde bij gelijkspel binnen
+        // deze fallbackbron.
         score -= index * 0.1;
 
         if (score > besteScore) {
             besteScore = score;
-            beste = r;
+            beste = { ...r, verificatie: controle };
         }
     });
 
-    return beste || resultaten[0];
+    // Geen enkele kandidaat die de titelcontrole haalt = geen track.
+    // Een willekeurig iTunes-resultaat teruggeven zou precies de fout
+    // veroorzaken die deze import probeert te voorkomen.
+    return beste;
 }
 
 async function upsertTitel(t) {
@@ -146,13 +153,14 @@ async function heeftTrack(titelId) {
     return rows.length > 0;
 }
 
-async function voegItunesTrackToe(titelId, resultaat) {
-    await pool.query(
+async function voegItunesTrackToe(titelId, resultaat, executor = pool) {
+    const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
                              tracknaam, artiest, album, herkenbaarheid,
-                             gecontroleerd)
-         VALUES ($1, 'itunes', $2, $3, $4, $5, $6, 3, true)
-         ON CONFLICT DO NOTHING`,
+                             gecontroleerd, verificatie_score, verificatie_reden,
+                             bron_url)
+         VALUES ($1, 'itunes', $2, $3, $4, $5, $6, 3, true, $7, $8, $3)
+         RETURNING id`,
         [
             titelId,
             resultaat.itunes_track_id,
@@ -160,26 +168,36 @@ async function voegItunesTrackToe(titelId, resultaat) {
             resultaat.tracknaam,
             resultaat.artiest,
             resultaat.album || null,
+            verificatieScore(resultaat),
+            resultaat.verificatie?.reden || 'iTunes-titelcontrole',
         ],
     );
+    return rows[0];
 }
 
-async function voegYoutubeTrackToe(titelId, video) {
-    await pool.query(
+function verificatieScore(resultaat) {
+    return Number(resultaat.verificatie?.zekerheid || 0);
+}
+
+async function voegYoutubeTrackToe(titelId, video, executor = pool) {
+    const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
                              tracknaam, artiest, herkenbaarheid, gecontroleerd,
-                             bron_url)
-         VALUES ($1, 'youtube', $2, $3, $4, $5, 3, true, $6)
-         ON CONFLICT DO NOTHING`,
+                             verificatie_score, verificatie_reden, bron_url)
+         VALUES ($1, 'youtube', $2, $3, $4, $5, 3, true, $6, $7, $8)
+         RETURNING id`,
         [
             titelId,
             video.videoId,
             0,
             video.titel || 'Intro',
             video.kanaal || 'YouTube',
+            verificatieScore(video),
+            video.verificatie?.reden || 'YouTube-titelcontrole',
             `https://www.youtube.com/watch?v=${video.videoId}`,
         ],
     );
+    return rows[0];
 }
 
 /**
@@ -191,7 +209,12 @@ async function vervangTracks(titelId, voegToe) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await client.query(`DELETE FROM tracks WHERE titel_id = $1`, [titelId]);
+        const nieuw = await voegToe(client);
+        if (!nieuw?.id) throw new Error('Nieuwe track kon niet worden opgeslagen.');
+        await client.query(
+            `DELETE FROM tracks WHERE titel_id = $1 AND id <> $2`,
+            [titelId, nieuw.id],
+        );
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK');
@@ -199,7 +222,6 @@ async function vervangTracks(titelId, voegToe) {
     } finally {
         client.release();
     }
-    await voegToe();
 }
 
 /**
@@ -275,13 +297,15 @@ async function importeer({
                 if (!check.past) {
                     log({ titel: t.naam, bron: 'youtube', geweigerd: keuze.titel });
                     keuze = null;
+                } else {
+                    keuze.verificatie = check;
                 }
             }
             if (keuze) {
                 // Nu er echt een treffer is, mogen oude tracks wijken.
                 if (force) {
-                    await vervangTracks(titelId, () =>
-                        voegYoutubeTrackToe(titelId, keuze),
+                    await vervangTracks(titelId, (client) =>
+                        voegYoutubeTrackToe(titelId, keuze, client),
                     );
                 } else {
                     await voegYoutubeTrackToe(titelId, keuze);
@@ -299,7 +323,7 @@ async function importeer({
             log({ titel: t.naam, bron: 'youtube', fout: err.message });
         }
 
-        // 2) Lukt YouTube niet, dan alsnog iTunes proberen.
+        // 2) Lukt YouTube niet, dan pas iTunes als fallback proberen.
         if (!gelukt) {
             try {
                 const term = t.zoekterm || `${t.naam} soundtrack`;
@@ -314,8 +338,8 @@ async function importeer({
                 }
                 if (keuze) {
                     if (force) {
-                        await vervangTracks(titelId, () =>
-                            voegItunesTrackToe(titelId, keuze),
+                        await vervangTracks(titelId, (client) =>
+                            voegItunesTrackToe(titelId, keuze, client),
                         );
                     } else {
                         await voegItunesTrackToe(titelId, keuze);
@@ -340,7 +364,7 @@ async function importeer({
     return { verwerkt, metTrack, zonder };
 }
 
-module.exports = { importeer };
+module.exports = { importeer, kiesBeste, verificatieScore };
 
 // Alleen als CLI aangeroepen: draai en sluit de pool.
 if (require.main === module) {

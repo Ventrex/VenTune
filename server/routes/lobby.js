@@ -13,15 +13,20 @@ const express = require('express');
 const lobby = require('../game/lobby');
 const logger = require('../lib/logger');
 const discord = require('../lib/discord');
+const { vereisHost } = require('../lib/auth');
 
 const router = express.Router();
 
 // Host maakt een nieuw spel.
-router.post('/api/lobby', async (req, res) => {
+router.post('/api/lobby', vereisHost, async (req, res) => {
     try {
-        const hostNaam = (req.body && req.body.naam) || 'Host';
+        const hostNaam = req.gebruiker.display_naam;
         const instellingen = (req.body && req.body.instellingen) || {};
-        const resultaat = await lobby.maakLobby({ hostNaam, instellingen });
+        const resultaat = await lobby.maakLobby({
+            hostNaam,
+            gebruikerId: req.gebruiker.id,
+            instellingen,
+        });
 
         logger.info('Nieuwe lobby aangemaakt.', { code: resultaat.code });
         await discord.meld(`Nieuwe lobby **${resultaat.code}** aangemaakt.`, {

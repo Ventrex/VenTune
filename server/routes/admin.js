@@ -11,7 +11,7 @@
 //   GET    /api/admin/titels/:id/tracks
 //   POST   /api/admin/titels/:id/tracks
 //   DELETE /api/admin/tracks/:id
-//   POST   /api/admin/seed            (iTunes-import van de startseed)
+//   POST   /api/admin/seed            (YouTube-import, iTunes als fallback)
 // =====================================================================
 
 const crypto = require('crypto');
@@ -20,6 +20,13 @@ const { pool } = require('../db/pool');
 const cookies = require('../lib/cookies');
 const logger = require('../lib/logger');
 const { importeer } = require('../../seed/import');
+const { importeerPlaylists } = require('../../seed/playlist-import');
+const { importeerTmdb } = require('../../seed/tmdb-import');
+const { importeerVragen } = require('../../seed/vragen-import');
+const { pastBijTitel } = require('../lib/trackcheck');
+const ytzoek = require('../lib/ytzoek');
+const { downloadTrack } = require('../../seed/download-track');
+const { hashWachtwoord, valideerWachtwoord } = require('../lib/auth');
 
 const router = express.Router();
 
@@ -200,6 +207,11 @@ router.patch('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
         params.push(Math.max(0, b.start_seconde));
         velden.push(`start_seconde = $${params.length}`);
     }
+    if (b.gecontroleerd === true) {
+        velden.push('verificatie_score = 1');
+        velden.push("verificatie_reden = 'handmatig goedgekeurd door admin'");
+        velden.push('laatst_gecontroleerd_op = now()');
+    }
     if (velden.length === 0) {
         return res.status(400).json({ fout: 'Niets om bij te werken.' });
     }
@@ -253,18 +265,116 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
     }
 });
 
+// Hostaccounts beheren zonder het admin-wachtwoord in de database te zetten.
+// Wachtwoorden worden nooit teruggestuurd; een reset maakt bestaande
+// hostsessies direct ongeldig.
+router.get('/api/admin/gebruikers', vereisAdmin, async (_req, res) => {
+    const { rows } = await pool.query(
+        `SELECT id, gebruikersnaam, display_naam, actief, aangemaakt_op, laatst_ingelogd
+           FROM gebruikers
+          ORDER BY gebruikersnaam_norm ASC`,
+    );
+    res.json(rows);
+});
+
+router.patch('/api/admin/gebruikers/:id', vereisAdmin, async (req, res) => {
+    const actief = req.body?.actief;
+    if (typeof actief !== 'boolean') {
+        return res.status(400).json({ fout: 'Geef actief als true of false.' });
+    }
+    const { rows } = await pool.query(
+        `UPDATE gebruikers SET actief = $2 WHERE id = $1
+         RETURNING id, gebruikersnaam, display_naam, actief`,
+        [req.params.id, actief],
+    );
+    if (!rows[0]) return res.status(404).json({ fout: 'Gebruiker niet gevonden.' });
+    if (!actief) {
+        await pool.query(`DELETE FROM auth_sessies WHERE gebruiker_id = $1`, [req.params.id]);
+    }
+    res.json(rows[0]);
+});
+
+router.post('/api/admin/gebruikers/:id/wachtwoord', vereisAdmin, async (req, res) => {
+    try {
+        const wachtwoord = valideerWachtwoord(req.body?.wachtwoord);
+        const hash = await hashWachtwoord(wachtwoord);
+        const { rowCount } = await pool.query(
+            `UPDATE gebruikers SET wachtwoord_hash = $2, actief = true WHERE id = $1`,
+            [req.params.id, hash],
+        );
+        if (!rowCount) return res.status(404).json({ fout: 'Gebruiker niet gevonden.' });
+        await pool.query(`DELETE FROM auth_sessies WHERE gebruiker_id = $1`, [req.params.id]);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(400).json({ fout: err.message || 'Wachtwoordreset mislukt.' });
+    }
+});
+
+// Zoek automatisch de beste YouTube-intro voor één titel. De admin beslist
+// daarna zelf of deze kandidaat wordt opgeslagen.
+router.post('/api/admin/titels/:id/youtube-zoek', vereisAdmin, async (req, res) => {
+    const { rows } = await pool.query(
+        `SELECT id, naam, aliassen, type, taal, jaar FROM titels WHERE id = $1`,
+        [req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
+    try {
+        const keuze = await ytzoek.zoekVoorTitel(rows[0], { pauzeMs: 100, limiet: 12 });
+        if (!keuze) return res.status(404).json({ fout: 'Geen betrouwbare YouTube-match gevonden.' });
+        res.json({
+            bron: 'youtube',
+            preview_url: keuze.videoId,
+            tracknaam: keuze.titel,
+            artiest: keuze.kanaal || 'YouTube',
+            bron_url: `https://www.youtube.com/watch?v=${keuze.videoId}`,
+            start_seconde: 0,
+            views: keuze.views ?? null,
+            duur_seconden: keuze.duurSeconden ?? null,
+            verificatie_score: keuze._controle?.zekerheid || 0,
+            verificatie_reden: keuze._controle?.reden || 'YouTube-titelcontrole',
+        });
+    } catch (err) {
+        res.status(502).json({ fout: `YouTube zoeken mislukt: ${err.message}` });
+    }
+});
+
 router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
     const b = req.body || {};
     if (!b.preview_url || !b.tracknaam) {
         return res.status(400).json({ fout: 'preview_url en tracknaam verplicht.' });
     }
-    const geldigeBron = ['itunes', 'youtube', 'lokaal'].includes(b.bron)
-        ? b.bron
-        : 'itunes';
+    const geldigeBron = ['itunes', 'youtube', 'lokaal'].includes(b.bron) ? b.bron : null;
+    if (!geldigeBron) return res.status(400).json({ fout: 'Kies expliciet YouTube, iTunes of lokaal.' });
+    if (geldigeBron === 'youtube' && !/^[A-Za-z0-9_-]{11}$/.test(String(b.preview_url))) {
+        return res.status(400).json({ fout: 'YouTube-track heeft geen geldig video-id.' });
+    }
+    const titelRij = await pool.query(
+        `SELECT id, naam, aliassen, type, taal, jaar FROM titels WHERE id = $1`,
+        [req.params.id],
+    );
+    if (!titelRij.rows[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
+
+    const titel = titelRij.rows[0];
+    const controle = geldigeBron === 'lokaal'
+        ? { past: true, zekerheid: 1, reden: 'handmatig lokaal bestand door admin' }
+        : pastBijTitel(titel, {
+            tracknaam: b.tracknaam,
+            album: b.album,
+            artiest: b.artiest,
+        });
+    if (!controle.past) {
+        return res.status(422).json({
+            fout: `Track afgewezen: ${controle.reden}. Voeg de volledige titel/alias toe aan de tracknaam of het album.`,
+        });
+    }
+
     const { rows } = await pool.query(
         `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
-                             start_seconde, tracknaam, artiest, herkenbaarheid)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+                             start_seconde, tracknaam, artiest, album,
+                             herkenbaarheid, gecontroleerd, verificatie_score,
+                             verificatie_reden, laatst_gecontroleerd_op, bron_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, now(), $12)
+         RETURNING *`,
         [
             req.params.id,
             geldigeBron,
@@ -273,7 +383,13 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
             Number.isFinite(b.start_seconde) ? b.start_seconde : 0,
             b.tracknaam,
             b.artiest || '',
+            b.album || null,
             Number.isFinite(b.herkenbaarheid) ? b.herkenbaarheid : 3,
+            controle.zekerheid,
+            controle.reden,
+            b.bron_url || (geldigeBron === 'youtube'
+                ? `https://www.youtube.com/watch?v=${b.preview_url}`
+                : b.preview_url),
         ],
     );
     res.json(rows[0]);
@@ -282,6 +398,26 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
 router.delete('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
     await pool.query(`DELETE FROM tracks WHERE id = $1`, [req.params.id]);
     res.json({ ok: true });
+});
+
+router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
+    const { rows } = await pool.query(
+        `SELECT tr.id, tr.preview_url, tr.bron, t.naam
+           FROM tracks tr
+           JOIN titels t ON t.id = tr.titel_id
+          WHERE tr.id = $1`,
+        [req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ fout: 'Track niet gevonden.' });
+    if (rows[0].bron !== 'itunes') {
+        return res.status(400).json({ fout: 'Alleen iTunes-fallbacktracks kunnen hier lokaal worden gecachet.' });
+    }
+    try {
+        await downloadTrack(rows[0]);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(502).json({ fout: err.message });
+    }
 });
 
 // ---- Meldingen (fouten die spelers doorgaven) ----
@@ -307,7 +443,7 @@ router.post('/api/admin/meldingen/:id/afgehandeld', vereisAdmin, async (req, res
     res.json({ ok: true });
 });
 
-// ---- Seed importeren (iTunes) ----
+// ---- Seed importeren (YouTube → iTunes fallback) ----
 // Draait in de achtergrond: ~290 titels duurt langer dan een tunnel/proxy
 // een HTTP-verzoek openhoudt. De client vraagt de status apart op.
 let seedStatus = {
@@ -318,36 +454,116 @@ let seedStatus = {
     fout: null,
 };
 
-router.post('/api/admin/seed', vereisAdmin, (req, res) => {
-    if (seedStatus.bezig) {
-        return res.json({ gestart: false, bezig: true });
+let playlistImportStatus = {
+    bezig: false,
+    klaar: false,
+    samenvatting: null,
+    fout: null,
+};
+let tmdbImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let vragenImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+// Imports wijzigen dezelfde vragenbank. Eén gedeelde lock voorkomt dat twee
+// admins (of twee browservensters) tegelijk tracks/titels gaan vervangen.
+let actieveAdminTaak = null;
+
+function startAdminScript(naam, status, setter, werk) {
+    if (actieveAdminTaak || status.bezig) {
+        return {
+            gestart: false,
+            bezig: true,
+            taak: actieveAdminTaak || naam,
+        };
     }
-    const force = !!(req.body && req.body.force);
-    seedStatus = {
+    const nieuw = {
         bezig: true,
         klaar: false,
         gestart_op: new Date().toISOString(),
         samenvatting: null,
         fout: null,
     };
-    logger.info('Seed-import gestart via admin (achtergrond).');
-
-    // Bewust niet awaiten: meteen antwoorden, import loopt door.
-    importeer({ force })
-        .then((s) => {
-            seedStatus = { ...seedStatus, bezig: false, klaar: true, samenvatting: s };
-            logger.info('Seed-import klaar.', s);
+    actieveAdminTaak = naam;
+    setter(nieuw);
+    Promise.resolve()
+        .then(werk)
+        .then((samenvatting) => {
+            setter({ ...nieuw, bezig: false, klaar: true, samenvatting });
         })
         .catch((err) => {
-            seedStatus = { ...seedStatus, bezig: false, klaar: true, fout: err.message };
-            logger.fout('Seed-import mislukt.', { melding: err.message });
+            setter({ ...nieuw, bezig: false, klaar: true, fout: err.message });
+            logger.fout(`Admin-taak mislukt: ${naam}.`, { melding: err.message });
+        })
+        .finally(() => {
+            if (actieveAdminTaak === naam) actieveAdminTaak = null;
         });
+    return { gestart: true, bezig: true, taak: naam };
+}
 
-    res.json({ gestart: true });
+router.post('/api/admin/seed', vereisAdmin, (req, res) => {
+    const force = !!(req.body && req.body.force);
+    const antwoord = startAdminScript(
+        'seed',
+        seedStatus,
+        (v) => { seedStatus = v; },
+        async () => {
+            logger.info('Seed-import gestart via admin (YouTube eerst, iTunes fallback).');
+            const samenvatting = await importeer({ force });
+            logger.info('Seed-import klaar.', samenvatting);
+            return samenvatting;
+        },
+    );
+    res.json(antwoord);
 });
 
 router.get('/api/admin/seed/status', vereisAdmin, (_req, res) => {
     res.json(seedStatus);
+});
+
+router.post('/api/admin/playlists/import', vereisAdmin, (req, res) => {
+    const titelFilter = String(req.body?.titel || '').trim();
+    const antwoord = startAdminScript(
+        'playlists',
+        playlistImportStatus,
+        (v) => { playlistImportStatus = v; },
+        async () => {
+            const samenvatting = await importeerPlaylists({ titelFilter });
+            logger.info('YouTube-playlist-import klaar.', samenvatting);
+            return samenvatting;
+        },
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/playlists/status', vereisAdmin, (_req, res) => {
+    res.json(playlistImportStatus);
+});
+
+router.post('/api/admin/tmdb/import', vereisAdmin, (_req, res) => {
+    const antwoord = startAdminScript(
+        'tmdb',
+        tmdbImportStatus,
+        (v) => { tmdbImportStatus = v; },
+        () => importeerTmdb(),
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/tmdb/status', vereisAdmin, (_req, res) => {
+    res.json(tmdbImportStatus);
+});
+
+router.post('/api/admin/vragen/import', vereisAdmin, (req, res) => {
+    const metTmdb = !!req.body?.tmdb;
+    const antwoord = startAdminScript(
+        'vragen',
+        vragenImportStatus,
+        (v) => { vragenImportStatus = v; },
+        () => importeerVragen({ metTmdb }),
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/vragen/status', vereisAdmin, (_req, res) => {
+    res.json(vragenImportStatus);
 });
 
 module.exports = router;

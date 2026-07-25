@@ -81,7 +81,11 @@ class SpelBeheer {
                     t.land, t.genres, t.tmdb_id, t.poster_pad, t.omschrijving
                FROM titels t
                ${where ? where + ' AND' : 'WHERE'}
-                    EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id = t.id)`,
+                    EXISTS (SELECT 1 FROM tracks tr
+                              WHERE tr.titel_id = t.id
+                                AND tr.werkt = true
+                                AND tr.preview_url IS NOT NULL
+                                AND tr.preview_url <> '')`,
             params,
         );
 
@@ -146,19 +150,26 @@ class SpelBeheer {
 
         const titel = state.pool[state.rondenummer - 1];
         // Kies de BESTE track, niet een willekeurige. Playlist-tracks
-        // (herkenbaarheid 5) verslaan zwakke zoekresultaten, en tracks met
-        // meldingen zakken naar onderen. Zo verbetert de kwaliteit langzaam
-        // in plaats van dat er soms een fout nummer langskomt.
+        // YouTube is de hoofdbron voor intro's. iTunes is alleen fallback;
+        // lokale bestanden staan ertussen voor later expliciet eigen audio.
+        // Binnen die bronvolgorde winnen verificatie en foutvrije tracks.
         const { rows } = await pool.query(
             `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
-                    tr.tracknaam, tr.artiest, tr.album
+                    tr.tracknaam, tr.artiest, tr.album,
+                    tr.verificatie_score, tr.verificatie_reden
                FROM tracks tr
               WHERE tr.titel_id = $1
                 AND tr.werkt = true
-              ORDER BY tr.fout_aantal ASC,
+                AND tr.preview_url IS NOT NULL
+                AND tr.preview_url <> ''
+              ORDER BY CASE
+                           WHEN tr.bron = 'youtube' THEN 3
+                           WHEN tr.bron = 'lokaal' THEN 2
+                           ELSE 1
+                       END DESC,
+                       tr.verificatie_score DESC,
+                       tr.fout_aantal ASC,
                        tr.herkenbaarheid DESC,
-                       (tr.bron = 'lokaal')  DESC,
-                       (tr.bron = 'youtube') DESC,
                        tr.id DESC
               LIMIT 5`,
             [titel.id],
@@ -181,9 +192,12 @@ class SpelBeheer {
             // verkeerde track in een volgend spel opnieuw voorbij.
             await pool
                 .query(
-                    `UPDATE tracks SET werkt = false, gecontroleerd = false
+                    `UPDATE tracks SET werkt = false, gecontroleerd = false,
+                            verificatie_score = 0,
+                            verificatie_reden = $2,
+                            laatst_gecontroleerd_op = now()
                       WHERE id = $1`,
-                    [kandidaat.id],
+                    [kandidaat.id, 'afgekeurd tijdens speelcontrole'],
                 )
                 .catch(() => {});
         }
@@ -236,8 +250,8 @@ class SpelBeheer {
             modus: state.modus,
         });
         // Host: krijgt de audio om af te spelen in de kamer. Afhankelijk van
-        // de bron speelt de host een audio-clip (iTunes/lokaal) of een
-        // YouTube-video af, met de visualizer eroverheen.
+        // de bron speelt de host een YouTube-video of audio-clip (lokaal/
+        // iTunes-fallback) af, met de visualizer eroverheen.
         this.io.to(hostKamer(state.code)).emit('ronde:audio', {
             rondeId: state.huidige.rondeId,
             bron: track.bron,
@@ -652,10 +666,15 @@ class SpelBeheer {
         const bij = await pool.query(
             `UPDATE tracks
                 SET fout_aantal = fout_aantal + 1,
-                    werkt = (fout_aantal + 1) < 3
+                    -- Een expliciete melding "verkeerd nummer" is direct
+                    -- genoeg bewijs om deze track niet opnieuw te spelen.
+                    werkt = CASE
+                        WHEN $2 = 'verkeerd_nummer' THEN false
+                        ELSE (fout_aantal + 1) < 3
+                    END
               WHERE id = $1
               RETURNING fout_aantal, werkt`,
-            [state.huidige.track.id],
+            [state.huidige.track.id, soortSchoon],
         );
         logger.info('Melding ontvangen.', {
             code: state.code,

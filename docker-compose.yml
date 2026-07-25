@@ -53,6 +53,7 @@ services:
     # zonder rebuild) en aanpassingen aan titels.json direct meekomen.
     volumes:
       - ./seed:/app/seed:ro
+      - ./media:/media
     ports:
       - "8090:3000"
 
@@ -67,6 +68,8 @@ services:
     restart: unless-stopped
     depends_on:
       - server
+    volumes:
+      - ./media:/usr/share/nginx/html/media:ro
     ports:
       - "8091:80"
 

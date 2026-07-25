@@ -25,7 +25,7 @@ function slaap(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }
 
-async function main() {
+async function importeerVragen({ metTmdb = METTMDB, minimaal = MINIMAAL, limiet = LIMIET } = {}) {
     // Alleen titels die daadwerkelijk speelbaar zijn (met muziek).
     const { rows: titels } = await pool.query(
         `SELECT t.id, t.naam, t.type, t.taal, t.jaar, t.land, t.genres, t.tmdb_id
@@ -34,17 +34,17 @@ async function main() {
           ORDER BY t.stemmen DESC NULLS LAST, t.id`,
     );
     console.log(
-        `${titels.length} speelbare titels. Streven: minstens ${MINIMAAL} vragen per titel.` +
-            (METTMDB ? ' Inclusief TMDB-vragen.' : ''),
+        `${titels.length} speelbare titels. Streven: minstens ${minimaal} vragen per titel.` +
+            (metTmdb ? ' Inclusief TMDB-vragen.' : ''),
     );
 
     let nieuw = 0;
     let behandeld = 0;
     for (const t of titels) {
-        if (behandeld >= LIMIET) break;
+        if (behandeld >= limiet) break;
         behandeld++;
         try {
-            const n = await vragenbank.vulAan(t, MINIMAAL, METTMDB);
+            const n = await vragenbank.vulAan(t, minimaal, metTmdb);
             nieuw += n;
             if (n > 0 && behandeld % 50 === 0) {
                 console.log(`  ${behandeld}/${titels.length} … ${nieuw} vragen`);
@@ -52,7 +52,7 @@ async function main() {
         } catch (err) {
             console.log(`  ${t.naam}: ${err.message}`);
         }
-        if (METTMDB) await slaap(120); // vriendelijk voor TMDB
+        if (metTmdb) await slaap(120); // vriendelijk voor TMDB
     }
 
     const d = await pool.query(
@@ -75,11 +75,17 @@ async function main() {
     console.log('\nPer soort:');
     for (const s of soorten.rows) console.log(`  ${s.soort}: ${s.n}`);
 
-    await pool.end();
+    return { nieuw, behandeld, vragen: d.rows[0].vragen, titels: d.rows[0].titels };
 }
 
-main().catch(async (err) => {
-    console.error('Vragen-import mislukt:', err.message);
-    await pool.end().catch(() => {});
-    process.exit(1);
-});
+module.exports = { importeerVragen };
+
+if (require.main === module) {
+    importeerVragen()
+        .then(async () => { await pool.end(); })
+        .catch(async (err) => {
+            console.error('Vragen-import mislukt:', err.message);
+            await pool.end().catch(() => {});
+            process.exit(1);
+        });
+}

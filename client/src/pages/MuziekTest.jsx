@@ -4,9 +4,8 @@ import { zoekMuziek, audioBron } from '../lib/api.js';
 
 // Muziek-testpagina (/muziek).
 //
-// Het bewijs dat er geluid uit je telefoon komt (zonder Spotify, zonder
-// login, zonder Premium) én je coverage-check: typ een titel — vooral
-// Nederlandse — en zie of iTunes bruikbare clips heeft.
+// Fallback-testpagina: typ een titel en controleer iTunes alleen wanneer
+// YouTube geen betrouwbare match oplevert.
 export default function MuziekTest() {
     const [term, setTerm] = useState('');
     const [bezig, setBezig] = useState(false);
@@ -69,13 +68,13 @@ export default function MuziekTest() {
                 </Link>
             </p>
             <h1>Muziek zoeken</h1>
-            <p className="ondertitel">Test de dekking en speel fragmenten af</p>
+            <p className="ondertitel">iTunes-fallback testen en fragmenten afspelen</p>
 
             <div className="kaart" style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
                 <p className="kaart-label">Muziek zoeken (test)</p>
                 <p className="dim" style={{ marginTop: 0 }}>
-                    Typ een filmtitel of serie en speel een fragment af. Zo test je
-                    of iTunes genoeg biedt — vooral voor Nederlandse titels.
+                    Typ een filmtitel of serie en speel een fallback-fragment af.
+                    YouTube blijft de hoofdbron van het spel.
                 </p>
 
                 <form

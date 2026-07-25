@@ -21,3 +21,7 @@ npm-debug.log*
 
 # Docker volumes (lokaal)
 pgdata/
+
+# Gedownloade audiobestanden horen niet in Git. Bewaar alleen de mapstructuur.
+media/*
+!media/.gitkeep
