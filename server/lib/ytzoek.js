@@ -534,7 +534,8 @@ const SLECHTE_WOORDEN = [
     'reaction', 'review', 'explained', 'trailer', 'full episode',
     'hele aflevering', 'behind the scenes', 'making of', 'interview',
     'tutorial', 'cover by', 'karaoke', 'lyrics only', 'compilation',
-    '1 hour', '10 hours', 'uur lang',
+    'live performance', 'live concert', 'livestream', '1 hour', '10 hours',
+    'uur lang',
 ];
 
 function normaliseer(s) {

@@ -1,5 +1,17 @@
 # VenTune changelog
 
+## [0.2.3] - 2026-07-25
+
+### Betrouwbaarheid
+
+- YouTube- en playlistmatches weigeren nu harde verkeerde varianten zoals
+  `Baantjer live`, `Baantjer deel 2`, `Baantjer episode 2` en extra
+  deelcijfers. Een viercijferig releasejaar blijft toegestaan.
+- Dezelfde controle draait vóór titelopschoning én vóór de uiteindelijke
+  YouTube-keuze. Een twijfelgeval wordt dus niet meer door populariteit of
+  weergaven gekozen; de titel blijft dan beschikbaar voor handmatige actie in
+  `/admin`.
+
 ## [0.2.2] - 2026-07-25
 
 ### Voor spelers

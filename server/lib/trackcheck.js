@@ -32,6 +32,20 @@ const RUIS = new Set([
     'feat', 'ft', 'part', 'deel', 'vol', 'edit', 'extended', 'ost',
 ]);
 
+// Deze woorden werden vroeger als onschuldige zoekruis verwijderd. Dat is
+// voor automatische selectie gevaarlijk: "Baantjer live" en "Baantjer 2"
+// zijn geen alternatieve schrijfwijzen van de intro, maar een uitvoering of
+// een ander deel. We keuren zulke markeringen daarom expliciet af. Een woord
+// mag alleen blijven staan als het daadwerkelijk onderdeel is van de
+// officiële titel/alias.
+const ONGELDIGE_VARIANT_MARKERINGEN = new Set([
+    'live', 'livestream', 'concert', 'karaoke', 'cover', 'remix', 'version',
+    'edit', 'extended', 'part', 'deel', 'vol', 'volume', 'episode',
+    'aflevering', 'season', 'seizoen', 'trailer', 'reaction', 'review',
+    'explained', 'interview', 'performance', 'optreden', 'medley',
+    'compilation', 'compilatie', 'full', 'complete',
+]);
+
 function tokens(tekst) {
     return normaliseer(tekst).split(' ').filter(Boolean);
 }
@@ -62,6 +76,36 @@ function explicieteJaren(tekst) {
     return [...String(tekst || '').matchAll(/\b(19|20)\d{2}\b/g)].map((m) => Number(m[0]));
 }
 
+function telTokens(woorden) {
+    const telling = new Map();
+    for (const woord of woorden) telling.set(woord, (telling.get(woord) || 0) + 1);
+    return telling;
+}
+
+/**
+ * Geef een reden terug als de kandidaat duidelijk een verkeerde uitvoering,
+ * aflevering/deel of genummerde variant is. Viercijferige jaartallen zijn
+ * toegestaan; overige cijfers moeten in de titel/alias zelf voorkomen.
+ */
+function variantMarkering(titel, tekst) {
+    const kandidaat = tokens(tekst);
+    const officiëleTokens = tokens(titelNamen(titel).join(' '));
+    const officiëleTelling = telTokens(officiëleTokens);
+    const kandidaatTelling = telTokens(kandidaat);
+
+    for (const [woord, aantal] of kandidaatTelling) {
+        const extra = aantal - (officiëleTelling.get(woord) || 0);
+        if (extra <= 0) continue;
+        if (ONGELDIGE_VARIANT_MARKERINGEN.has(woord)) {
+            return `ongewenste variantmarkering (${woord})`;
+        }
+        if (/^\d+$/.test(woord) && !/^\d{4}$/.test(woord)) {
+            return `genummerde variant (deel ${woord})`;
+        }
+    }
+    return null;
+}
+
 /**
  * Beoordeel een gevonden nummer.
  *
@@ -78,6 +122,11 @@ function beoordeelTrack(titel, track) {
     const hooi = normaliseer(tekst);
     if (!hooi) {
         return { past: false, zekerheid: 0, reden: 'geen tracknaam' };
+    }
+
+    const variant = variantMarkering(titel, tekst);
+    if (variant) {
+        return { past: false, zekerheid: 0, reden: variant };
     }
 
     // Een expliciet ander jaartal is een harde weigering. Dit voorkomt dat
@@ -155,4 +204,5 @@ module.exports = {
     bevatWoordreeks,
     kernWoorden,
     titelNamen,
+    variantMarkering,
 };
