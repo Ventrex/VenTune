@@ -11,11 +11,12 @@
 | `seed/download-track.js` | Handmatig toegestane iTunes-previews lokaal cachen |
 | `seed/tmdb-import.js` | Titels en metadata importeren vanuit TMDB |
 | `seed/vragen-import.js` | Bonusvragen genereren |
-| `server/game/engine.js` | Trackselectie tijdens een spel en foutmeldingen |
+| `server/game/engine.js` | Trackselectie, rondes, scoring en host als deelnemer |
 | `server/game/lobby.js` | Lobby's; hostaccount verplicht, spelers als gast |
 | `server/db/schema.sql` | Tabellen en idempotente migraties |
 | `server/routes/changelog.js` | Publieke changelog-API |
 | `server/routes/admin.js` | Centrale import, YouTube-zoekactie, tracks, meldingen en downloads |
+| `server/test/host-play.test.js` | Test dat de host meetelt als actieve speler |
 | `client/src/pages/Changelog.jsx` | Changelog die spelers kunnen openen |
 | `client/src/pages/HostAuth.jsx` | Hostaccount registreren en inloggen |
 | `client/src/components/Brand.jsx` | Logo en VenTune-merkweergave |

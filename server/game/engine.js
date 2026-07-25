@@ -1,7 +1,7 @@
 // =====================================================================
 // Game-engine: rondestate, timers en scoring. De server is de bron van
 // waarheid. Clients krijgen nooit de titel voor de ronde is afgelopen —
-// alleen de host krijgt de audio-URL (die verraadt de titel niet).
+// de host krijgt de audio-URL en mag tegelijk als speler meedoen.
 //
 // Fases per ronde: 'raden' → (bonus, stap 7) → 'scorebord' → volgende.
 // =====================================================================
@@ -59,6 +59,16 @@ function husselArray(arr) {
         [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
+}
+
+/**
+ * Bepaal of alle momenteel verbonden deelnemers klaar zijn. De host staat
+ * bewust in deze verzameling: de host speelt audio af én mag zelf raden.
+ * Pure helper zodat dit gedrag zonder database te testen blijft.
+ */
+function iedereenActiefKlaar(spelers, klaar) {
+    const actieve = spelers.filter((speler) => speler.verbonden === true);
+    return actieve.length > 0 && actieve.every((speler) => klaar.has(speler.id));
 }
 
 class SpelBeheer {
@@ -763,22 +773,23 @@ class SpelBeheer {
 
     async iedereenBonusKlaar(state) {
         const { rows } = await pool.query(
-            `SELECT COUNT(*)::int AS n FROM spelers
-              WHERE lobby_id = $1 AND verbonden = true AND is_host = false`,
+            `SELECT id, verbonden FROM spelers
+              WHERE lobby_id = $1`,
             [state.lobbyId],
         );
-        return rows[0].n > 0 && state.huidige.bonus.klaar.size >= rows[0].n;
+        return iedereenActiefKlaar(rows, state.huidige.bonus.klaar);
     }
 
     async iedereenKlaar(state) {
-        // Alleen verbonden spelers (niet de host) hoeven te raden; de host
-        // speelt de muziek. Zonder spelers eindigt de ronde via de timer.
+        // Iedere verbonden deelnemer telt mee, inclusief de host. De host
+        // speelt de muziek op hetzelfde scherm maar kan daar ook antwoorden.
+        // Zonder verbonden deelnemers eindigt de ronde via de timer.
         const { rows } = await pool.query(
-            `SELECT COUNT(*)::int AS n FROM spelers
-              WHERE lobby_id = $1 AND verbonden = true AND is_host = false`,
+            `SELECT id, verbonden FROM spelers
+              WHERE lobby_id = $1`,
             [state.lobbyId],
         );
-        return rows[0].n > 0 && state.huidige.klaar.size >= rows[0].n;
+        return iedereenActiefKlaar(rows, state.huidige.klaar);
     }
 
     async haalScorebord(state) {
@@ -796,4 +807,4 @@ class SpelBeheer {
     }
 }
 
-module.exports = { SpelBeheer, RONDE_DUUR_MS };
+module.exports = { SpelBeheer, RONDE_DUUR_MS, iedereenActiefKlaar };

@@ -14,6 +14,7 @@
 
 - [x] **P1** Hostaccount verplicht maken voor het starten van een lobby.
 - [x] **P1** Gastspelers zonder account behouden.
+- [x] **P1** Host als volwaardige speler laten meedoen op het hostscherm.
 - [x] **P1** Verificatiescore en reden in de database opslaan.
 - [x] **P1** Verificatiescore, reden en bron zichtbaar maken in `/admin`.
 - [x] **P1** Trackmeldingen blijven beschikbaar in `/admin`.
