@@ -5,6 +5,7 @@
 // =====================================================================
 
 const logger = require('./logger');
+const { pastBijTitel } = require('./trackcheck');
 
 const BASIS = 'https://api.themoviedb.org/3';
 const KEY = process.env.TMDB_API_KEY || '';
@@ -17,6 +18,7 @@ function beschikbaar() {
 // TMDB accepteert zowel een API Key (v3, als queryparameter) als een
 // Read Access Token (v4, als Bearer-header). Beide worden ondersteund.
 const IS_BEARER = KEY.startsWith('eyJ');
+const detailsCache = new Map();
 
 async function haal(pad, params = {}) {
     const zoek = new URLSearchParams({ language: TAAL, ...params });
@@ -62,13 +64,114 @@ async function haalDetails(tmdbId, type) {
     const jaar = datum ? Number(datum.slice(0, 4)) : null;
 
     return {
+        tmdbId: data.id,
         naam: data.title || data.name,
+        origineleNaam: data.original_title || data.original_name || null,
         jaar,
         genres,
         genreIds,
         regisseur,
         cast,
     };
+}
+
+/**
+ * Controleer of een lokaal titelrecord nog overeenkomt met TMDB en of de
+ * track bij die gecontroleerde titel kan horen. Dit is een tweede controle-
+ * laag ná de lokale titel-/aliasmatch. Een bekende afkorting zoals GTST mag
+ * dus blijven werken zolang de lokale titel zelf met TMDB overeenkomt.
+ *
+ * Deze functie is puur gehouden zodat de belangrijkste veiligheidsregels
+ * zonder netwerk of TMDB-sleutel getest kunnen worden.
+ */
+function beoordeelTrackMetDetails(titel, track, details) {
+    if (!details?.naam) {
+        return { beschikbaar: true, past: false, reden: 'TMDB heeft geen officiële titel teruggegeven.' };
+    }
+
+    if (titel?.jaar && details.jaar && Number(titel.jaar) !== Number(details.jaar)) {
+        return {
+            beschikbaar: true,
+            past: false,
+            reden: `TMDB-jaar wijkt af (${details.jaar} tegenover ${titel.jaar}).`,
+        };
+    }
+
+    const tmdbTitel = {
+        naam: details.naam,
+        aliassen: details.origineleNaam ? [details.origineleNaam] : [],
+        jaar: details.jaar,
+    };
+    const lokaleTitel = pastBijTitel(titel, {
+        tracknaam: details.naam,
+        album: details.origineleNaam,
+    });
+    if (!lokaleTitel.past) {
+        return {
+            beschikbaar: true,
+            past: false,
+            reden: `TMDB-titel "${details.naam}" past niet bij "${titel.naam}".`,
+        };
+    }
+
+    const officiëleTrack = pastBijTitel(tmdbTitel, track);
+    const lokaleTrack = pastBijTitel(titel, track);
+    if (!lokaleTrack.past || (!officiëleTrack.past && lokaleTrack.zekerheid < 0.94)) {
+        return {
+            beschikbaar: true,
+            past: false,
+            reden: 'Track voldoet niet aan de lokale én officiële TMDB-titelcontrole.',
+        };
+    }
+
+    return {
+        beschikbaar: true,
+        past: true,
+        zekerheid: Math.min(1, Math.max(officiëleTrack.zekerheid || 0, lokaleTrack.zekerheid || 0)),
+        reden: `TMDB bevestigd: ${details.naam}${details.jaar ? ` (${details.jaar})` : ''}`,
+    };
+}
+
+async function haalDetailsGecached(tmdbId, type) {
+    const sleutel = `${type}:${tmdbId}`;
+    if (!detailsCache.has(sleutel)) {
+        detailsCache.set(sleutel, haalDetails(tmdbId, type));
+    }
+    try {
+        return await detailsCache.get(sleutel);
+    } catch (err) {
+        detailsCache.delete(sleutel);
+        throw err;
+    }
+}
+
+/**
+ * Controleer één kandidaat. Zonder sleutel of tmdb_id wordt de tweede laag
+ * expliciet gemarkeerd als niet beschikbaar; de lokale harde controle blijft
+ * dan verplicht en er wordt nooit een onzekere kandidaat toegevoegd.
+ */
+async function controleerTrackMetTmdb(titel, track) {
+    if (!beschikbaar() || !titel?.tmdb_id) {
+        return {
+            beschikbaar: false,
+            past: true,
+            reden: 'TMDB-controle niet beschikbaar; lokale titelcontrole gebruikt.',
+        };
+    }
+    try {
+        const details = await haalDetailsGecached(titel.tmdb_id, titel.type);
+        return beoordeelTrackMetDetails(titel, track, details);
+    } catch (err) {
+        logger.waarschuwing('TMDB-controle tijdelijk overgeslagen.', {
+            tmdb_id: titel.tmdb_id,
+            melding: err.message,
+        });
+        return {
+            beschikbaar: false,
+            past: true,
+            reden: 'TMDB tijdelijk niet bereikbaar; lokale titelcontrole gebruikt.',
+        };
+    }
 }
 
 /**
@@ -100,4 +203,10 @@ async function haalAfleiderPool(genreId, type, exclusiefTmdbId) {
     return { regisseurs: [...regisseurs], acteurs: [...acteurs] };
 }
 
-module.exports = { beschikbaar, haalDetails, haalAfleiderPool };
+module.exports = {
+    beschikbaar,
+    haalDetails,
+    haalAfleiderPool,
+    beoordeelTrackMetDetails,
+    controleerTrackMetTmdb,
+};

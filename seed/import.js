@@ -21,6 +21,7 @@ const { pool } = require('../server/db/pool');
 const itunes = require('../server/lib/itunes');
 const ytzoek = require('../server/lib/ytzoek');
 const { pastBijTitel } = require('../server/lib/trackcheck');
+const tmdb = require('../server/lib/tmdb');
 
 const args = process.argv.slice(2);
 const FORCE = args.includes('--force');
@@ -179,6 +180,19 @@ function verificatieScore(resultaat) {
     return Number(resultaat.verificatie?.zekerheid || 0);
 }
 
+async function controleerMetLagen(titel, track, lokaleControle) {
+    if (!lokaleControle?.past) return null;
+    const tmdbControle = await tmdb.controleerTrackMetTmdb(titel, track);
+    if (!tmdbControle.past) return null;
+    return {
+        ...lokaleControle,
+        tmdb: tmdbControle,
+        reden: tmdbControle.beschikbaar
+            ? `${lokaleControle.reden}; ${tmdbControle.reden}`
+            : lokaleControle.reden,
+    };
+}
+
 async function voegYoutubeTrackToe(titelId, video, executor = pool) {
     const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
@@ -290,11 +304,15 @@ async function importeer({
             let keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250 });
             // Extra slot op de deur: hoort deze video echt bij deze titel?
             if (keuze) {
-                const check = pastBijTitel(t, {
+                const lokaleControle = pastBijTitel(t, {
                     tracknaam: keuze.titel,
                     artiest: keuze.kanaal,
                 });
-                if (!check.past) {
+                const check = await controleerMetLagen(t, {
+                    tracknaam: keuze.titel,
+                    artiest: keuze.kanaal,
+                }, lokaleControle);
+                if (!check) {
                     log({ titel: t.naam, bron: 'youtube', geweigerd: keuze.titel });
                     keuze = null;
                 } else {
@@ -330,10 +348,13 @@ async function importeer({
                 const resultaten = await itunes.zoek(term, { limiet: 8 });
                 let keuze = resultaten.length ? kiesBeste(resultaten, t) : null;
                 if (keuze) {
-                    const check = pastBijTitel(t, keuze);
-                    if (!check.past) {
+                    const lokaleControle = pastBijTitel(t, keuze);
+                    const check = await controleerMetLagen(t, keuze, lokaleControle);
+                    if (!check) {
                         log({ titel: t.naam, bron: 'itunes', geweigerd: keuze.tracknaam });
                         keuze = null;
+                    } else {
+                        keuze.verificatie = check;
                     }
                 }
                 if (keuze) {

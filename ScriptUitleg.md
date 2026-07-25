@@ -17,7 +17,9 @@ genereren. De CLI-commando's blijven handig voor herstel en automatisering.
     docker compose exec server node /app/seed/vragen-import.js
 
 Begin bij voorkeur met `--droog`. Alleen duidelijke matches worden gekoppeld;
-de rest blijft zichtbaar als overgeslagen.
+de rest blijft zichtbaar als overgeslagen. Als een titel een `tmdb_id` heeft en
+`TMDB_API_KEY` is ingesteld, moet de kandidaat ook met de officiële TMDB-titel
+en het jaar overeenkomen.
 
 ## Lokale preview-cache
 

@@ -19,6 +19,8 @@
 - Titels en aliassen worden nu gecontroleerd als volledige woordreeks.
 - Een expliciet afwijkend jaartal wordt geweigerd.
 - Onzekere YouTube- en iTunes-resultaten worden niet opgeslagen.
+- Als een titel een TMDB-koppeling heeft, controleert VenTune naast de lokale
+  aliasmatch ook de officiële TMDB-titel en het jaar.
 - Playlisttracks worden atomair vervangen; een mislukte import wist geen goede track.
 - Een expliciete melding **verkeerd nummer** schakelt die track direct uit.
 - Imports zijn server-side vergrendeld, zodat twee adminvensters elkaar niet

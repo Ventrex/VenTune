@@ -5,8 +5,8 @@ zetten.
 
 - **P2** Een kwaliteitsdashboard met per titel: matchscore, bron, meldingen,
   afspeelfouten en laatste controle.
-- **P1** Een tweede controlelaag met TMDB-metadata en de officiële titel/het
-  jaar.
+- **Afgerond 2026-07-25 (P1)** Een tweede controlelaag met TMDB-metadata en de
+  officiële titel/het jaar. Zie `Todo.md` en `server/lib/tmdb.js`.
 - **P2** Een "alleen geverifieerde tracks"-modus voor belangrijke quizavonden.
 - **P3** Meerdere veilige tracks per titel bewaren en de beste track roteren.
 - **P3** Eigen legale audiobestanden per titel uploaden naar `/media`.

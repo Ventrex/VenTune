@@ -5,6 +5,7 @@
 | `server/lib/trackcheck.js` | Conservatieve controle titel, alias en jaar |
 | `server/lib/title-match.js` | Koppeling van playlistvideotitels aan database-titels |
 | `server/lib/ytzoek.js` | YouTube-zoeken, playlistlezen en kandidaten rangschikken |
+| `server/lib/tmdb.js` | TMDB-details, caching en tweede titel-/jaarcontrole |
 | `server/lib/auth.js` | Hostregistratie, login en server-side sessies |
 | `seed/import.js` | YouTube/iTunes-vragenbank vullen |
 | `seed/playlist-import.js` | Betrouwbare playlisttracks importeren |
@@ -17,6 +18,7 @@
 | `server/routes/changelog.js` | Publieke changelog-API |
 | `server/routes/admin.js` | Centrale import, YouTube-zoekactie, tracks, meldingen en downloads |
 | `server/test/host-play.test.js` | Test dat de host meetelt als actieve speler |
+| `server/test/tmdb.test.js` | Test officiële TMDB-titel- en jaarcontrole |
 | `client/src/pages/Changelog.jsx` | Changelog die spelers kunnen openen |
 | `client/src/pages/HostAuth.jsx` | Hostaccount registreren en inloggen |
 | `client/src/components/Brand.jsx` | Logo en VenTune-merkweergave |

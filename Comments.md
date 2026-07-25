@@ -9,6 +9,9 @@
   bedoeld is voor intro's. Ze worden toch opnieuw gecontroleerd.
 - YouTube is de bronvolgorde voor automatisch zoeken en spelen. iTunes komt pas
   na een mislukte YouTube-match; de admin toont die volgorde ook expliciet.
+- Bij een beschikbare TMDB-koppeling voert VenTune na de lokale match een tweede
+  controle uit op de officiële titel en het jaar. Zonder TMDB-sleutel blijft de
+  lokale controle actief; een onzekere lokale match wordt nog steeds geweigerd.
 - Hostaccounts zijn bewust losgekoppeld van het admin-account. Het admin-
   wachtwoord blijft in `.env`; spelers krijgen alleen een tijdelijke gastsessie
   binnen een lobby.

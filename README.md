@@ -187,6 +187,10 @@ elke film- en seriemuziek, ook de Nederlandse) en valt terug op iTunes als daar
 niets bruikbaars staat. Per titel wordt de meest waarschijnlijke intro gekozen:
 reaction-video's, trailers en hele afleveringen worden weggefilterd.
 
+Als een titel een `tmdb_id` heeft en `TMDB_API_KEY` is ingesteld, controleert
+VenTune daarnaast de officiële TMDB-titel en het jaar. Zonder TMDB-configuratie
+blijft de lokale conservatieve titel-/aliascontrole actief.
+
 > Optioneel: zet `YOUTUBE_API_KEY` in `.env` om de officiële YouTube Data API te
 > gebruiken in plaats van de publieke zoekpagina. Werkt zonder key ook.
 

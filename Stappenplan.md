@@ -9,6 +9,8 @@
 - [x] **P1** Verkeerde track tijdens een spel direct uitschakelen na expliciete
   melding.
 - [x] **P1** Importvervanging transactioneel maken.
+- [x] **P1** TMDB-metadata als tweede controlelaag gebruiken wanneer een
+  `tmdb_id` en `TMDB_API_KEY` beschikbaar zijn.
 
 ## Fase 2 — Beheer en inzicht
 
