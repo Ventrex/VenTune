@@ -80,22 +80,8 @@ function duurNaarSeconden(tekst) {
  * @returns {Array<{videoId, titel, kanaal, duurSeconden}>}
  */
 function leesResultaten(html) {
-    const start = html.indexOf('ytInitialData');
-    if (start < 0) return [];
-
-    // Pak het JSON-object achter "ytInitialData = " tot de afsluitende ;
-    const gelijk = html.indexOf('=', start);
-    if (gelijk < 0) return [];
-    const rest = html.slice(gelijk + 1);
-    const eind = rest.indexOf(';</script>');
-    const ruw = (eind > 0 ? rest.slice(0, eind) : rest).trim();
-
-    let data;
-    try {
-        data = JSON.parse(ruw);
-    } catch {
-        return [];
-    }
+    const data = leesYtInitialData(html);
+    if (!data) return [];
 
     const gevonden = [];
 
@@ -156,7 +142,7 @@ function leesResultaten(html) {
  * @param {string} playlistId
  * @returns {Promise<Array<{videoId, titel, kanaal}>>}
  */
-async function haalPlaylist(playlistId) {
+async function haalPlaylistHtml(playlistId) {
     const url = `https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`;
     const headers = {
         'User-Agent':
@@ -169,10 +155,7 @@ async function haalPlaylist(playlistId) {
     let laatsteStatus = 0;
     for (let poging = 0; poging < 4; poging++) {
         const resp = await fetch(url, { headers });
-        if (resp.ok) {
-            const html = await resp.text();
-            return leesPlaylistItems(html);
-        }
+        if (resp.ok) return resp.text();
         laatsteStatus = resp.status;
         if (resp.status !== 429 && resp.status !== 403) break;
         await new Promise((r) => setTimeout(r, 4000 * Math.pow(2, poging)));
@@ -180,59 +163,171 @@ async function haalPlaylist(playlistId) {
     throw new Error(`YouTube playlist status ${laatsteStatus}`);
 }
 
-/** Haal playlistVideoRenderer-items uit de ytInitialData van een playlist. */
-function leesPlaylistItems(html) {
-    const start = html.indexOf('ytInitialData');
-    if (start < 0) return [];
-    const gelijk = html.indexOf('=', start);
-    if (gelijk < 0) return [];
-    const rest = html.slice(gelijk + 1);
-    const eind = rest.indexOf(';</script>');
-    const ruw = (eind > 0 ? rest.slice(0, eind) : rest).trim();
+async function haalPlaylist(playlistId) {
+    const html = await haalPlaylistHtml(playlistId);
+    return leesPlaylistItems(html);
+}
 
-    let data;
-    try {
-        data = JSON.parse(ruw);
-    } catch {
-        return [];
+/**
+ * Haal de ytInitialData-JSON uit een YouTube-pagina.
+ * Zoekt het begin van het object en leest tot de bijbehorende sluitaccolade,
+ * zodat het ook werkt als er nog script-code achteraan staat.
+ */
+function leesYtInitialData(html) {
+    const merk = html.indexOf('ytInitialData');
+    if (merk < 0) return null;
+    const begin = html.indexOf('{', merk);
+    if (begin < 0) return null;
+
+    let diepte = 0;
+    let inTekst = false;
+    let ontsnapt = false;
+    for (let i = begin; i < html.length; i++) {
+        const c = html[i];
+        if (inTekst) {
+            if (ontsnapt) ontsnapt = false;
+            else if (c === '\\') ontsnapt = true;
+            else if (c === '"') inTekst = false;
+            continue;
+        }
+        if (c === '"') inTekst = true;
+        else if (c === '{') diepte++;
+        else if (c === '}') {
+            diepte--;
+            if (diepte === 0) {
+                try {
+                    return JSON.parse(html.slice(begin, i + 1));
+                } catch {
+                    return null;
+                }
+            }
+        }
     }
+    return null;
+}
+
+/**
+ * Haal video's uit de ytInitialData van een playlistpagina.
+ *
+ * YouTube wijzigt de opbouw van deze pagina's regelmatig. Daarom lopen we
+ * de hele payload door en pakken elk object dat een video beschrijft,
+ * ongeacht hoe het heet: playlistVideoRenderer (klassiek), lockupViewModel
+ * (nieuw), of iets anders met een videoId plus titel.
+ */
+function leesPlaylistItems(html) {
+    const data = leesYtInitialData(html);
+    if (!data) return [];
 
     const items = [];
+    const gezien = new Set();
+
+    const tekstUit = (veld) => {
+        if (!veld) return '';
+        if (typeof veld === 'string') return veld;
+        if (veld.simpleText) return veld.simpleText;
+        if (veld.content) return veld.content;
+        if (Array.isArray(veld.runs)) {
+            return veld.runs.map((r) => r.text || '').join('');
+        }
+        return '';
+    };
+
+    const voegToe = (videoId, titel, kanaal, duurTekst) => {
+        if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) return;
+        if (gezien.has(videoId)) return;
+        if (!titel) return;
+        gezien.add(videoId);
+        items.push({
+            videoId,
+            titel,
+            kanaal: kanaal || '',
+            duurSeconden: duurNaarSeconden(duurTekst),
+            views: null,
+        });
+    };
+
     const bezoek = (knoop) => {
         if (!knoop || typeof knoop !== 'object') return;
         if (Array.isArray(knoop)) {
             for (const k of knoop) bezoek(k);
             return;
         }
-        const pv = knoop.playlistVideoRenderer;
-        if (pv && pv.videoId) {
-            const titel =
-                (pv.title && pv.title.runs && pv.title.runs[0] && pv.title.runs[0].text) ||
-                (pv.title && pv.title.simpleText) ||
-                '';
-            const kanaal =
-                (pv.shortBylineText &&
-                    pv.shortBylineText.runs &&
-                    pv.shortBylineText.runs[0] &&
-                    pv.shortBylineText.runs[0].text) ||
-                '';
-            const duurTekst =
-                (pv.lengthText && pv.lengthText.simpleText) || null;
-            items.push({
-                videoId: pv.videoId,
-                titel,
-                kanaal,
-                duurSeconden: duurNaarSeconden(duurTekst),
-                views: null,
-            });
+
+        // Klassiek: playlistVideoRenderer / videoRenderer.
+        for (const naam of ['playlistVideoRenderer', 'videoRenderer']) {
+            const v = knoop[naam];
+            if (v && v.videoId) {
+                voegToe(
+                    v.videoId,
+                    tekstUit(v.title),
+                    tekstUit(v.shortBylineText) || tekstUit(v.ownerText),
+                    v.lengthText && v.lengthText.simpleText,
+                );
+            }
         }
-        for (const s of Object.keys(knoop)) {
-            if (s === 'playlistVideoRenderer') continue;
-            bezoek(knoop[s]);
+
+        // Nieuw: lockupViewModel met contentId + metadata.
+        const lockup = knoop.lockupViewModel;
+        if (lockup && lockup.contentId) {
+            const meta = lockup.metadata && lockup.metadata.lockupMetadataViewModel;
+            const titel = meta ? tekstUit(meta.title) : '';
+            let kanaal = '';
+            try {
+                const rijen =
+                    meta.metadata.contentMetadataViewModel.metadataRows || [];
+                for (const rij of rijen) {
+                    for (const deel of rij.metadataParts || []) {
+                        const t = tekstUit(deel.text);
+                        if (t && !kanaal) kanaal = t;
+                    }
+                }
+            } catch {
+                /* kanaal is optioneel */
+            }
+            voegToe(lockup.contentId, titel, kanaal, null);
+        }
+
+        for (const sleutel of Object.keys(knoop)) {
+            bezoek(knoop[sleutel]);
         }
     };
     bezoek(data);
+
     return items;
+}
+
+/**
+ * Diagnose-hulp: welke soorten video-objecten komen in deze pagina voor?
+ * Gebruikt door seed/diagnose-playlist.js zodat we niet hoeven te gokken
+ * als YouTube de opbouw weer wijzigt.
+ */
+function inspecteerPagina(html) {
+    const data = leesYtInitialData(html);
+    const uitkomst = {
+        ytInitialDataGevonden: !!data,
+        htmlLengte: html.length,
+        sleutels: {},
+        videoIdVoorkomens: (html.match(/"videoId":"[A-Za-z0-9_-]{11}"/g) || []).length,
+        contentIdVoorkomens: (html.match(/"contentId":"[A-Za-z0-9_-]{11}"/g) || []).length,
+        cookiemuur: /consent\.youtube\.com|Voordat je verdergaat|Before you continue/i.test(html),
+    };
+    if (!data) return uitkomst;
+
+    const tel = (knoop) => {
+        if (!knoop || typeof knoop !== 'object') return;
+        if (Array.isArray(knoop)) {
+            for (const k of knoop) tel(k);
+            return;
+        }
+        for (const s of Object.keys(knoop)) {
+            if (/Renderer$|ViewModel$/.test(s)) {
+                uitkomst.sleutels[s] = (uitkomst.sleutels[s] || 0) + 1;
+            }
+            tel(knoop[s]);
+        }
+    };
+    tel(data);
+    return uitkomst;
 }
 
 /** Zoek via de officiële Data API (alleen als er een key is ingesteld). */
@@ -489,7 +584,10 @@ module.exports = {
     zoek,
     zoekVoorTitel,
     haalPlaylist,
+    haalPlaylistHtml,
     leesPlaylistItems,
+    leesYtInitialData,
+    inspecteerPagina,
     leesResultaten,
     normaliseer,
     isLatijnsSchrift,
