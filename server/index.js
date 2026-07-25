@@ -44,7 +44,7 @@ async function start() {
     app.use(lobbyRoutes);
     // Setup-routes (filter-telling en presets).
     app.use(setupRoutes);
-    // Admin-portal (titels, tracks, seed).
+    // Admin-portal (titels, tracks, lokale audio, gebruikers en seed).
     app.use(adminRoutes);
     // Publiek: spelers mogen zien wat er veranderd is.
     app.use(changelogRoutes);

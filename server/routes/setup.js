@@ -40,6 +40,9 @@ router.get('/api/tracks/telling', async (req, res) => {
                     COUNT(tr.id)::int        AS tracks
                FROM titels t
                JOIN tracks tr ON tr.titel_id = t.id
+                              AND tr.werkt = true
+                              AND tr.preview_url IS NOT NULL
+                              AND tr.preview_url <> ''
                ${where}`,
             params,
         );

@@ -24,7 +24,18 @@
   wordt uit de resterende pool verwijderd zonder een rondenummer over te
   slaan.
 - Een database-transactie beschermt de vorige goede track tijdens een import.
-- Downloaden staat niet standaard aan. Alleen de expliciete iTunes-cacheflow
-  is aanwezig als fallback; willekeurige YouTube-downloads worden geweigerd.
+- Downloaden staat niet standaard aan. Alleen een bestaande, gecontroleerde
+  track die de admin expliciet kiest wordt lokaal gecachet. YouTube wordt met
+  `yt-dlp` naar browser-vriendelijke m4a-audio omgezet; de game downloadt nooit
+  vanzelf.
+- Lokale audio staat in het persistente `./media`-volume en wint bij selectie
+  van YouTube en iTunes. Eigen uploads horen alleen eigen of gelicentieerde
+  bestanden te zijn.
+- Een titel zonder speelbare track wordt niet geforceerd gekoppeld. De engine
+  maakt één open `geen_track`-melding en de admin toont de titel in **Tracks
+  nodig** totdat een track wordt toegevoegd.
+- Hints zijn bewust oplopend: cast, speelplek, genre/land, beginletters, jaar
+  en type. TMDB vult hoofdrollen alleen aan als die nog ontbreken; zonder TMDB
+  blijft handmatig ingevulde metadata werken.
 - `CHANGELOG.md` is spelerzichtbaar. Zet daar geen wachtwoorden, interne IP's,
   tokens of operationele details in.

@@ -42,7 +42,8 @@ met iTunes-previews en eigen clips als fallback.
 4. **Raden.** Spelers typen de titel. Fuzzy matching vangt typefouten op. Sneller
    raden = meer punten.
 5. **Hints.** Elke speler heeft 3 hints (+1 per 10 vragen). Een hint kost punten.
-   Volgorde: (1) jaar, (2) genre + land, (3) beginletters van de titel.
+   Waar beschikbaar: hoofdrollen, speelplek, genre/land, beginletters, jaar en
+   type. Het jaartal is niet meer standaard de eerste hint.
 6. **Bonusvraag.** Na de gokfase een meerkeuzevraag over dezelfde titel
    (regisseur, hoofdrolspeler, jaar of genre) uit TMDB. Optioneel — zonder
    TMDB-key wordt de bonus overgeslagen.
@@ -215,17 +216,20 @@ Dat betekent bewust: bij twijfel liever geen ronde dan muziek van een andere
 film of serie onder de verkeerde naam. Zoekresultaten van YouTube en iTunes
 kunnen immers veranderen.
 
-### Lokale audio voor later
+### Lokale audio en YouTube-cache
 
-De compose-stack bevat een `./media`-volume. De handmatige downloader accepteert
-alleen iTunes/Apple-preview-URL's die al aan een track gekoppeld zijn:
+De compose-stack bevat een persistent `./media`-volume. Vanuit `/admin` kun je
+een bestaande, gecontroleerde YouTube- of iTunes-track expliciet lokaal cachen,
+of een eigen/gelicentieerd audiobestand uploaden:
 
     docker compose exec server node /app/seed/download-track.js --track 42 --droog
     docker compose exec server node /app/seed/download-track.js --track 42
+    docker compose exec server node /app/seed/download-track.js --all
 
-Willekeurige YouTube-downloads staan niet automatisch aan. Eigen volledige
-bestanden kunnen later via een expliciete adminflow worden toegevoegd met bron-
-en rechtenregistratie.
+YouTube wordt met `yt-dlp` en `ffmpeg` als m4a-audio opgeslagen. Lokale audio
+krijgt voorrang bij het spelen, zodat een later verwijderde YouTube-video geen
+probleem meer is. De game downloadt nooit vanzelf en de cache is niet
+automatisch rechtenvrij: gebruik alleen bronnen/bestanden die je mag gebruiken.
 
 ---
 
@@ -240,8 +244,10 @@ Inloggen met `ADMIN_PASSWORD` uit je `.env`. Je kunt er:
 - per titel eerst de beste YouTube-intro automatisch zoeken en toevoegen;
 - handmatig een **YouTube-link** plakken (met optionele startseconde);
 - iTunes pas als fallback zoeken, beluisteren en toevoegen;
-- tracks verwijderen, goedkeuren, afkeuren en controleren.
-- hostaccounts bekijken, uitschakelen en voorzien van een nieuw wachtwoord;
+- tracks verwijderen, goedkeuren, afkeuren, controleren en lokaal cachen;
+- titels in **Tracks nodig** openen als er geen speelbare track gekoppeld is;
+- eigen/gelicentieerde audio uploaden en direct koppelen;
+- hostaccounts aanmaken, bewerken, uitschakelen en voorzien van een nieuw wachtwoord;
 - importstatus, open meldingen en aantallen per audiobron bekijken.
 
 **YouTube als hoofdbron.** De host speelt een YouTube-video af met de visualizer
@@ -346,7 +352,8 @@ Kopieer `.env.example` naar `.env` en vul in. Het minimum om te starten:
 
 YouTube werkt zonder sleutel via de zoekpagina. Een optionele
 `YOUTUBE_API_KEY` maakt de zoekresultaten stabieler. iTunes is alleen de gratis
-fallback en vereist geen account.
+fallback en vereist geen account. `MEDIA_DIR` is optioneel en staat standaard op
+`/media` in de servercontainer.
 
 ---
 
@@ -416,4 +423,6 @@ leesbaar en filterbaar.
 - [Comments.md](Comments.md) — technische keuzes en grenzen.
 - [GevraagdeAI.md](GevraagdeAI.md) — instructies voor vervolgwerk.
 - [Stappenplan.md](Stappenplan.md) — voortgang per fase.
+- [AdminHandleiding.md](AdminHandleiding.md) — ontbrekende tracks, lokale audio,
+  hints en hostaccounts.
 - [LICENSES.md](LICENSES.md) — bron- en licentiebeleid.

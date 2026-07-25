@@ -4,10 +4,12 @@ VenTune slaat standaard geen muziekbestanden op in Git.
 
 ## Audio
 
-- iTunes-preview-URL's blijven eigendom van de bron en worden alleen op
-  expliciete handmatige opdracht lokaal gecachet.
+- YouTube- en iTunes-bronnen blijven eigendom van hun rechthebbenden. Een
+  bestaande track wordt alleen op expliciete handmatige adminopdracht lokaal
+  gecachet; VenTune downloadt niet automatisch uit zoekresultaten.
 - Voor eigen volledige audiobestanden moet de beheerder zelf controleren dat
-  gebruik en opslag zijn toegestaan.
+  gebruik en opslag zijn toegestaan. Upload alleen eigen of gelicentieerde
+  audio.
 - Voeg voor ieder eigen lokaal bestand later bron, licentie en toestemming toe
   aan de adminregistratie.
 

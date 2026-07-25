@@ -16,6 +16,10 @@
 - `./media:/usr/share/nginx/html/media:ro`: dezelfde lokale audio voor de
   speler.
 
+De serverimage bevat `yt-dlp`, Python en `ffmpeg` voor een expliciete admin-
+cacheactie van een bestaande YouTube-track. De image downloadt niets tijdens
+het opstarten; lokale bestanden blijven in `./media` staan.
+
 ## Update
 
     git pull --ff-only

@@ -201,6 +201,16 @@ export async function adminVerwijderTrack(id) {
 export async function adminDownloadTrack(id) {
     return adminFetch(`/api/admin/tracks/${id}/download`, { method: 'POST' });
 }
+export async function adminUploadTrack(titelId, bestand, gegevens = {}) {
+    const form = new FormData();
+    form.append('bestand', bestand);
+    if (gegevens.tracknaam) form.append('tracknaam', gegevens.tracknaam);
+    if (gegevens.artiest) form.append('artiest', gegevens.artiest);
+    return adminFetch(`/api/admin/titels/${titelId}/tracks/upload`, {
+        method: 'POST',
+        body: form,
+    });
+}
 export async function adminSeed(force = false) {
     return adminFetch('/api/admin/seed', { method: 'POST', ...jsonBody({ force }) });
 }
@@ -234,8 +244,17 @@ export async function adminVragenStatus() {
 export async function adminOverzicht() {
     return adminFetch('/api/admin/overzicht');
 }
+export async function adminOntbrekendeTracks() {
+    return adminFetch('/api/admin/ontbrekende-tracks');
+}
 export async function adminGebruikers() {
     return adminFetch('/api/admin/gebruikers');
+}
+export async function adminMaakGebruiker(data) {
+    return adminFetch('/api/admin/gebruikers', { method: 'POST', ...jsonBody(data) });
+}
+export async function adminBewerkGebruiker(id, data) {
+    return adminFetch(`/api/admin/gebruikers/${id}`, { method: 'PATCH', ...jsonBody(data) });
 }
 export async function adminGebruikerStatus(id, actief) {
     return adminFetch(`/api/admin/gebruikers/${id}`, {

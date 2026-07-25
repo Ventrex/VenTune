@@ -66,10 +66,12 @@ function Beheer({ onUit }) {
     const [meldingen, setMeldingen] = useState([]);
     const [overzicht, setOverzicht] = useState(null);
     const [gebruikers, setGebruikers] = useState([]);
+    const [ontbrekend, setOntbrekend] = useState([]);
 
-    async function laad() {
+    async function laad(zoekOverride = zoek) {
         try {
-            setTitels(await api.adminTitels(zoek));
+            setTitels(await api.adminTitels(zoekOverride));
+            setOntbrekend(await api.adminOntbrekendeTracks());
         } catch (err) {
             setMelding(err.message);
         }
@@ -225,6 +227,7 @@ function Beheer({ onUit }) {
                 <div className="overzicht">
                     <Tegel label="Titels" waarde={overzicht.titels} />
                     <Tegel label="Speelbaar" waarde={overzicht.speelbaar} />
+                    <Tegel label="Tracks nodig" waarde={overzicht.ontbrekende_tracks} />
                     <Tegel label="Tracks" waarde={overzicht.tracks} />
                     <Tegel label="Afgekeurd" waarde={overzicht.afgekeurd} />
                     <Tegel label="Vragen" waarde={overzicht.vragen} />
@@ -240,6 +243,34 @@ function Beheer({ onUit }) {
             )}
 
             <Hostaccounts gebruikers={gebruikers} onWijzig={laadGebruikers} />
+
+            {ontbrekend.length > 0 && (
+                <section className="admin-accounts" style={{ marginTop: '1rem' }}>
+                    <p className="kaart-label" style={{ textAlign: 'left' }}>
+                        Tracks nodig ({ontbrekend.length})
+                    </p>
+                    <p className="dim">
+                        Deze titels worden niet in een spel gekozen totdat je via YouTube
+                        een match opslaat of zelf audio uploadt.
+                    </p>
+                    <ul className="spelerlijst">
+                        {ontbrekend.map((t) => (
+                            <li key={t.id} className="speler-kaart">
+                                <span className="speler-naam">
+                                    {t.naam}
+                                    <span className="dim"> · {t.type} · {t.jaar || 'jaar onbekend'}</span>
+                                </span>
+                                <button
+                                    className="afspeelknop klein"
+                                    onClick={() => { setZoek(t.naam); setOpen(t.id); laad(t.naam); }}
+                                >
+                                    Toevoegen
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
 
             <div className="stapel" style={{ marginTop: '1rem' }}>
                 <button className="knop knop-stil" onClick={seed} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
@@ -381,11 +412,25 @@ function Hostaccounts({ gebruikers, onWijzig }) {
         }
     }
 
+    async function bewerk(gebruiker) {
+        const gebruikersnaam = window.prompt('Gebruikersnaam:', gebruiker.gebruikersnaam);
+        if (gebruikersnaam === null) return;
+        const displayNaam = window.prompt('Zichtbare hostnaam:', gebruiker.display_naam);
+        if (displayNaam === null) return;
+        try {
+            await api.adminBewerkGebruiker(gebruiker.id, { gebruikersnaam, display_naam: displayNaam });
+            onWijzig();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
     return (
         <section className="admin-accounts">
             <p className="kaart-label" style={{ textAlign: 'left' }}>
                 Hostaccounts ({gebruikers.length})
             </p>
+            <NieuweHost onKlaar={onWijzig} />
             {gebruikers.length === 0 ? (
                 <p className="dim">Nog geen hostaccounts geregistreerd.</p>
             ) : (
@@ -398,6 +443,9 @@ function Hostaccounts({ gebruikers, onWijzig }) {
                                 {!gebruiker.actief && <span className="dim"> · uitgeschakeld</span>}
                             </span>
                             <span className="admin-account-acties">
+                                <button className="afspeelknop klein" onClick={() => bewerk(gebruiker)}>
+                                    Bewerk
+                                </button>
                                 <button className="afspeelknop klein" onClick={() => reset(gebruiker)}>
                                     Wachtwoord
                                 </button>
@@ -413,7 +461,48 @@ function Hostaccounts({ gebruikers, onWijzig }) {
     );
 }
 
-const LEEG = { naam: '', type: 'film', taal: 'nl', jaar: '', land: '', aliassen: '', genres: '', tmdb_id: '' };
+function NieuweHost({ onKlaar }) {
+    const [open, setOpen] = useState(false);
+    const [gegevens, setGegevens] = useState({ gebruikersnaam: '', display_naam: '', wachtwoord: '' });
+    const [fout, setFout] = useState('');
+
+    async function verstuur(e) {
+        e.preventDefault();
+        setFout('');
+        try {
+            await api.adminMaakGebruiker(gegevens);
+            setGegevens({ gebruikersnaam: '', display_naam: '', wachtwoord: '' });
+            setOpen(false);
+            onKlaar();
+        } catch (err) {
+            setFout(err.message);
+        }
+    }
+
+    if (!open) {
+        return (
+            <button className="knop knop-stil" type="button" onClick={() => setOpen(true)}>
+                + Hostaccount aanmaken
+            </button>
+        );
+    }
+    return (
+        <form className="kaart" onSubmit={verstuur} style={{ marginBottom: '1rem' }}>
+            {fout && <p className="waarschuwing">{fout}</p>}
+            <div className="velden">
+                <input className="invoer" required value={gegevens.gebruikersnaam} placeholder="Gebruikersnaam" onChange={(e) => setGegevens({ ...gegevens, gebruikersnaam: e.target.value })} />
+                <input className="invoer" required value={gegevens.display_naam} placeholder="Zichtbare naam" onChange={(e) => setGegevens({ ...gegevens, display_naam: e.target.value })} />
+                <input className="invoer" required minLength={10} type="password" value={gegevens.wachtwoord} placeholder="Wachtwoord (minimaal 10 tekens)" onChange={(e) => setGegevens({ ...gegevens, wachtwoord: e.target.value })} />
+            </div>
+            <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
+                <button className="knop" type="submit">Aanmaken</button>
+                <button className="knop knop-stil" type="button" onClick={() => setOpen(false)}>Annuleer</button>
+            </div>
+        </form>
+    );
+}
+
+const LEEG = { naam: '', type: 'film', taal: 'nl', jaar: '', land: '', aliassen: '', genres: '', hoofdrollen: '', speelplek: '', tmdb_id: '' };
 
 function NieuweTitel({ onKlaar }) {
     const [uit, setUit] = useState(false);
@@ -456,6 +545,9 @@ function TitelDetail({ titel, onWijzig }) {
     const [tracks, setTracks] = useState([]);
     const [vragen, setVragen] = useState([]);
     const [melding, setMelding] = useState('');
+    const [uploadFile, setUploadFile] = useState(null);
+    const [uploadNaam, setUploadNaam] = useState('');
+    const [uploadArtiest, setUploadArtiest] = useState('');
 
     async function laadTracks() {
         setTracks(await api.adminTracks(titel.id));
@@ -504,6 +596,27 @@ function TitelDetail({ titel, onWijzig }) {
             setMelding(err.message);
         }
     }
+    async function uploadTrack(e) {
+        e.preventDefault();
+        if (!uploadFile) {
+            setMelding('Kies eerst een audiobestand.');
+            return;
+        }
+        try {
+            await api.adminUploadTrack(titel.id, uploadFile, {
+                tracknaam: uploadNaam.trim() || titel.naam,
+                artiest: uploadArtiest.trim() || 'Eigen upload',
+            });
+            setUploadFile(null);
+            setUploadNaam('');
+            setUploadArtiest('');
+            setMelding('Audio geüpload en als lokale track gekoppeld.');
+            laadTracks();
+            onWijzig();
+        } catch (err) {
+            setMelding(err.message);
+        }
+    }
 
     return (
         <div className="titel-detail">
@@ -529,7 +642,7 @@ function TitelDetail({ titel, onWijzig }) {
                                 {tr.artiest} · {tr.bron} · ★{tr.herkenbaarheid}
                                 {Number(tr.verificatie_score) > 0 && ` · controle ${Math.round(Number(tr.verificatie_score) * 100)}%`}
                                 {tr.verificatie_reden && ` · ${tr.verificatie_reden}`}
-                                {tr.download_status && tr.bron === 'itunes' && ` · download: ${tr.download_status}`}
+                                {tr.download_status && ` · lokaal: ${tr.download_status}`}
                                 {tr.fout_aantal > 0 && ` · ${tr.fout_aantal}× gemeld`}
                                 {!tr.werkt && ' · afgekeurd'}
                             </span>
@@ -560,10 +673,10 @@ function TitelDetail({ titel, onWijzig }) {
                         >
                             ★
                         </button>
-                        {tr.bron === 'itunes' && (
+                        {(tr.bron === 'itunes' || tr.bron === 'youtube') && (
                             <button
                                 className="afspeelknop klein"
-                                title="Cache deze iTunes-fallback lokaal"
+                                title="Sla deze track lokaal op"
                                 onClick={() => downloadTrack(tr.id)}
                             >
                                 ⇩
@@ -574,6 +687,17 @@ function TitelDetail({ titel, onWijzig }) {
                 ))}
                 {tracks.length === 0 && <li className="dim">Nog geen tracks.</li>}
             </ul>
+
+            <form className="kaart admin-bronblok" style={{ marginTop: '1rem' }} onSubmit={uploadTrack}>
+                <p className="kaart-label">Eigen audio uploaden</p>
+                <p className="dim">Gebruik een eigen of gelicentieerd audiobestand. Dit wordt lokale audio en krijgt voorrang bij het spelen.</p>
+                <input className="invoer" type="file" accept="audio/*" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
+                <div className="zoekbalk" style={{ marginTop: '0.5rem' }}>
+                    <input className="invoer" value={uploadNaam} onChange={(e) => setUploadNaam(e.target.value)} placeholder="Tracknaam (optioneel)" />
+                    <input className="invoer" value={uploadArtiest} onChange={(e) => setUploadArtiest(e.target.value)} placeholder="Artiest (optioneel)" />
+                </div>
+                <button className="knop knop-stil" type="submit">Audiobestand koppelen</button>
+            </form>
 
             <p className="kaart-label" style={{ marginTop: '1rem' }}>
                 Bonusvragen ({vragen.length})
@@ -793,8 +917,10 @@ function TitelVelden({ f, setF }) {
                 <input className="invoer" value={f.jaar} onChange={zet('jaar')} placeholder="Jaar" style={{ maxWidth: 90 }} />
             </div>
             <input className="invoer" value={f.land} onChange={zet('land')} placeholder="Land" />
+            <input className="invoer" value={f.speelplek} onChange={zet('speelplek')} placeholder="Waar speelt het zich af? (optioneel)" />
             <input className="invoer" value={f.aliassen} onChange={zet('aliassen')} placeholder="Aliassen (komma-gescheiden)" />
             <input className="invoer" value={f.genres} onChange={zet('genres')} placeholder="Genres (komma-gescheiden)" />
+            <input className="invoer" value={f.hoofdrollen} onChange={zet('hoofdrollen')} placeholder="Hoofdrollen (komma-gescheiden, optioneel)" />
             <input className="invoer" value={f.tmdb_id} onChange={zet('tmdb_id')} placeholder="TMDB-id (optioneel, voor bonus)" />
         </div>
     );
@@ -808,8 +934,10 @@ function naarForm(t) {
         taal: t.taal || 'nl',
         jaar: t.jaar || '',
         land: t.land || '',
+        speelplek: t.speelplek || '',
         aliassen: (t.aliassen || []).join(', '),
         genres: (t.genres || []).join(', '),
+        hoofdrollen: (t.hoofdrollen || []).join(', '),
         tmdb_id: t.tmdb_id || '',
     };
 }
@@ -821,8 +949,10 @@ function naarPayload(f) {
         taal: f.taal,
         jaar: f.jaar ? Number(f.jaar) : null,
         land: f.land.trim() || null,
+        speelplek: f.speelplek.trim() || null,
         aliassen: lijst(f.aliassen),
         genres: lijst(f.genres),
+        hoofdrollen: lijst(f.hoofdrollen),
         tmdb_id: f.tmdb_id ? Number(f.tmdb_id) : null,
     };
 }

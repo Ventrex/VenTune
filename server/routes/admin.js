@@ -12,10 +12,16 @@
 //   POST   /api/admin/titels/:id/tracks
 //   DELETE /api/admin/tracks/:id
 //   POST   /api/admin/seed            (YouTube-import, iTunes als fallback)
+//   POST   /api/admin/titels/:id/tracks/upload
+//   GET    /api/admin/ontbrekende-tracks
+//   POST/PATCH /api/admin/gebruikers  (hostaccounts)
 // =====================================================================
 
 const crypto = require('crypto');
+const fs = require('fs/promises');
+const path = require('path');
 const express = require('express');
+const multer = require('multer');
 const { pool } = require('../db/pool');
 const cookies = require('../lib/cookies');
 const logger = require('../lib/logger');
@@ -27,12 +33,32 @@ const { pastBijTitel } = require('../lib/trackcheck');
 const ytzoek = require('../lib/ytzoek');
 const tmdb = require('../lib/tmdb');
 const { downloadTrack } = require('../../seed/download-track');
-const { hashWachtwoord, valideerWachtwoord } = require('../lib/auth');
+const {
+    hashWachtwoord,
+    valideerWachtwoord,
+    valideerGebruikersnaam,
+    valideerDisplayNaam,
+} = require('../lib/auth');
 
 const router = express.Router();
 
 const COOKIE = 'ventune_admin';
 const HTTPS = (process.env.APP_URL || '').startsWith('https');
+const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 },
+});
+
+function uploadAudio(req, res, next) {
+    upload.single('bestand')(req, res, (err) => {
+        if (!err) return next();
+        if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({ fout: 'Audiobestand is groter dan 50 MB.' });
+        }
+        return res.status(400).json({ fout: `Upload mislukt: ${err.message}` });
+    });
+}
 
 // Vast token afgeleid van het wachtwoord + geheim. Verandert het wachtwoord,
 // dan zijn oude cookies ongeldig.
@@ -129,8 +155,9 @@ router.post('/api/admin/titels', vereisAdmin, async (req, res) => {
         return res.status(400).json({ fout: 'Naam, type en taal zijn verplicht.' });
     }
     const { rows } = await pool.query(
-        `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres, tmdb_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        `INSERT INTO titels
+             (naam, aliassen, type, taal, jaar, land, genres, tmdb_id, hoofdrollen, speelplek)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
         [
             b.naam,
             b.aliassen || [],
@@ -140,6 +167,8 @@ router.post('/api/admin/titels', vereisAdmin, async (req, res) => {
             b.land || null,
             b.genres || [],
             b.tmdb_id ?? null,
+            b.hoofdrollen || [],
+            b.speelplek || null,
         ],
     );
     res.json(rows[0]);
@@ -149,7 +178,8 @@ router.put('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
     const b = req.body || {};
     const { rows } = await pool.query(
         `UPDATE titels SET naam = $2, aliassen = $3, type = $4, taal = $5,
-                jaar = $6, land = $7, genres = $8, tmdb_id = $9
+                jaar = $6, land = $7, genres = $8, tmdb_id = $9,
+                hoofdrollen = $10, speelplek = $11
           WHERE id = $1 RETURNING *`,
         [
             req.params.id,
@@ -161,6 +191,8 @@ router.put('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
             b.land || null,
             b.genres || [],
             b.tmdb_id ?? null,
+            b.hoofdrollen || [],
+            b.speelplek || null,
         ],
     );
     if (!rows[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
@@ -251,9 +283,15 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                (SELECT count(*)::int FROM tracks WHERE gecontroleerd) AS gecontroleerd,
                (SELECT count(*)::int FROM titels t
                  WHERE EXISTS (SELECT 1 FROM tracks x
-                                WHERE x.titel_id = t.id AND x.werkt)) AS speelbaar,
+                                WHERE x.titel_id = t.id AND x.werkt
+                                  AND x.preview_url IS NOT NULL AND x.preview_url <> '')) AS speelbaar,
                (SELECT count(*)::int FROM vragen) AS vragen,
                (SELECT count(*)::int FROM meldingen WHERE afgehandeld = false) AS open_meldingen,
+               (SELECT count(*)::int FROM titels t
+                 WHERE NOT EXISTS (SELECT 1 FROM tracks x
+                                    WHERE x.titel_id = t.id AND x.werkt
+                                      AND x.preview_url IS NOT NULL AND x.preview_url <> ''))
+                 AS ontbrekende_tracks,
                (SELECT count(*)::int FROM zoek_cache) AS cache_regels`,
         );
         const perBron = await pool.query(
@@ -266,9 +304,51 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
     }
 });
 
+// Titels zonder speelbare track. Dit is de vaste werklijst voor handmatige
+// audio-upload of een gecontroleerde nieuwe YouTube-koppeling.
+router.get('/api/admin/ontbrekende-tracks', vereisAdmin, async (_req, res) => {
+    const { rows } = await pool.query(
+        `SELECT t.id, t.naam, t.type, t.taal, t.jaar, t.land, t.genres,
+                t.tmdb_id, t.hoofdrollen, t.speelplek,
+                EXISTS (SELECT 1 FROM meldingen m
+                         WHERE m.titel_id = t.id
+                           AND m.soort = 'geen_track'
+                           AND m.afgehandeld = false) AS gemeld
+           FROM titels t
+          WHERE NOT EXISTS (SELECT 1 FROM tracks tr
+                             WHERE tr.titel_id = t.id
+                               AND tr.werkt = true
+                               AND tr.preview_url IS NOT NULL
+                               AND tr.preview_url <> '')
+          ORDER BY t.naam ASC
+          LIMIT 500`,
+    );
+    res.json(rows);
+});
+
 // Hostaccounts beheren zonder het admin-wachtwoord in de database te zetten.
 // Wachtwoorden worden nooit teruggestuurd; een reset maakt bestaande
 // hostsessies direct ongeldig.
+router.post('/api/admin/gebruikers', vereisAdmin, async (req, res) => {
+    try {
+        const gebruikersnaam = valideerGebruikersnaam(req.body?.gebruikersnaam);
+        const wachtwoord = valideerWachtwoord(req.body?.wachtwoord);
+        const displayNaam = valideerDisplayNaam(req.body?.display_naam, gebruikersnaam);
+        const hash = await hashWachtwoord(wachtwoord);
+        const { rows } = await pool.query(
+            `INSERT INTO gebruikers
+                (gebruikersnaam, gebruikersnaam_norm, display_naam, wachtwoord_hash)
+             VALUES ($1, $1, $2, $3)
+             RETURNING id, gebruikersnaam, display_naam, actief`,
+            [gebruikersnaam, displayNaam, hash],
+        );
+        res.status(201).json(rows[0]);
+    } catch (err) {
+        if (err.code === '23505') return res.status(409).json({ fout: 'Deze gebruikersnaam bestaat al.' });
+        res.status(400).json({ fout: err.message || 'Gebruiker aanmaken mislukt.' });
+    }
+});
+
 router.get('/api/admin/gebruikers', vereisAdmin, async (_req, res) => {
     const { rows } = await pool.query(
         `SELECT id, gebruikersnaam, display_naam, actief, aangemaakt_op, laatst_ingelogd
@@ -279,20 +359,42 @@ router.get('/api/admin/gebruikers', vereisAdmin, async (_req, res) => {
 });
 
 router.patch('/api/admin/gebruikers/:id', vereisAdmin, async (req, res) => {
-    const actief = req.body?.actief;
-    if (typeof actief !== 'boolean') {
-        return res.status(400).json({ fout: 'Geef actief als true of false.' });
+    try {
+        const velden = [];
+        const params = [req.params.id];
+        if (typeof req.body?.actief === 'boolean') {
+            params.push(req.body.actief);
+            velden.push(`actief = $${params.length}`);
+        }
+        if (req.body?.gebruikersnaam != null) {
+            const gebruikersnaam = valideerGebruikersnaam(req.body.gebruikersnaam);
+            params.push(gebruikersnaam);
+            velden.push(`gebruikersnaam = $${params.length}`);
+            params.push(gebruikersnaam);
+            velden.push(`gebruikersnaam_norm = $${params.length}`);
+        }
+        if (req.body?.display_naam != null) {
+            const displayNaam = valideerDisplayNaam(req.body.display_naam, 'Host');
+            params.push(displayNaam);
+            velden.push(`display_naam = $${params.length}`);
+        }
+        if (velden.length === 0) {
+            return res.status(400).json({ fout: 'Geef actief, gebruikersnaam of display_naam.' });
+        }
+        const { rows } = await pool.query(
+            `UPDATE gebruikers SET ${velden.join(', ')} WHERE id = $1
+             RETURNING id, gebruikersnaam, display_naam, actief`,
+            params,
+        );
+        if (!rows[0]) return res.status(404).json({ fout: 'Gebruiker niet gevonden.' });
+        if (req.body?.actief === false || req.body?.gebruikersnaam != null) {
+            await pool.query(`DELETE FROM auth_sessies WHERE gebruiker_id = $1`, [req.params.id]);
+        }
+        res.json(rows[0]);
+    } catch (err) {
+        if (err.code === '23505') return res.status(409).json({ fout: 'Deze gebruikersnaam bestaat al.' });
+        res.status(400).json({ fout: err.message || 'Gebruiker bijwerken mislukt.' });
     }
-    const { rows } = await pool.query(
-        `UPDATE gebruikers SET actief = $2 WHERE id = $1
-         RETURNING id, gebruikersnaam, display_naam, actief`,
-        [req.params.id, actief],
-    );
-    if (!rows[0]) return res.status(404).json({ fout: 'Gebruiker niet gevonden.' });
-    if (!actief) {
-        await pool.query(`DELETE FROM auth_sessies WHERE gebruiker_id = $1`, [req.params.id]);
-    }
-    res.json(rows[0]);
 });
 
 router.post('/api/admin/gebruikers/:id/wachtwoord', vereisAdmin, async (req, res) => {
@@ -416,6 +518,11 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
                 : b.preview_url),
         ],
     );
+    await pool.query(
+        `UPDATE meldingen SET afgehandeld = true
+          WHERE titel_id = $1 AND soort = 'geen_track' AND afgehandeld = false`,
+        [req.params.id],
+    );
     res.json(rows[0]);
 });
 
@@ -426,23 +533,81 @@ router.delete('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
 
 router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
-        `SELECT tr.id, tr.preview_url, tr.bron, t.naam
+        `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
+                t.naam
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
           WHERE tr.id = $1`,
         [req.params.id],
     );
     if (!rows[0]) return res.status(404).json({ fout: 'Track niet gevonden.' });
-    if (rows[0].bron !== 'itunes') {
-        return res.status(400).json({ fout: 'Alleen iTunes-fallbacktracks kunnen hier lokaal worden gecachet.' });
+    if (!['itunes', 'youtube'].includes(rows[0].bron)) {
+        return res.status(400).json({ fout: 'Alleen YouTube- of iTunes-tracks kunnen lokaal worden gecachet.' });
     }
     try {
-        await downloadTrack(rows[0]);
+        await downloadTrack({ ...rows[0], naam: rows[0].tracknaam || rows[0].naam });
         res.json({ ok: true });
     } catch (err) {
         res.status(502).json({ fout: err.message });
     }
 });
+
+// Upload een eigen/gelicentieerd audiobestand. Het bestand blijft in het
+// gemounte /media-volume en krijgt een unieke naam; de originele uploadnaam
+// wordt nooit als pad gebruikt.
+router.post(
+    '/api/admin/titels/:id/tracks/upload',
+    vereisAdmin,
+    uploadAudio,
+    async (req, res) => {
+        if (!req.file) return res.status(400).json({ fout: 'Kies een audiobestand.' });
+        const { rows: titels } = await pool.query(
+            `SELECT id, naam FROM titels WHERE id = $1`,
+            [req.params.id],
+        );
+        if (!titels[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
+
+        const extensie = path.extname(req.file.originalname || '').toLowerCase().replace(/[^a-z0-9.]/g, '');
+        const audioExtensies = ['.mp3', '.m4a', '.mp4', '.wav', '.ogg', '.oga', '.webm', '.aac', '.flac'];
+        const type = String(req.file.mimetype || '').toLowerCase();
+        if (!type.startsWith('audio/') && !audioExtensies.includes(extensie)) {
+            return res.status(415).json({ fout: 'Upload een audiobestand (mp3, m4a, wav, ogg of webm).' });
+        }
+        const veiligeExtensie = audioExtensies.includes(extensie)
+            ? extensie
+            : '.audio';
+        const bestandsnaam = `upload-${req.params.id}-${crypto.randomUUID()}${veiligeExtensie}`;
+        const absoluut = path.join(MEDIA_DIR, bestandsnaam);
+        const lokaal = `/media/${bestandsnaam}`;
+        const hash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+
+        try {
+            await fs.mkdir(MEDIA_DIR, { recursive: true });
+            await fs.writeFile(absoluut, req.file.buffer, { flag: 'wx' });
+            const titelNaam = String(req.body?.tracknaam || titels[0].naam).trim().slice(0, 200);
+            const artiest = String(req.body?.artiest || 'Eigen upload').trim().slice(0, 200);
+            const { rows } = await pool.query(
+                `INSERT INTO tracks
+                    (titel_id, bron, preview_url, bestand_pad, tracknaam, artiest,
+                     herkenbaarheid, gecontroleerd, verificatie_score,
+                     verificatie_reden, bron_url, download_status, audio_sha256, gedownload_op)
+                 VALUES ($1, 'lokaal', $2, $2, $3, $4, 5, true, 1,
+                         'handmatig audiobestand door admin', $5, 'available', $6, now())
+                 RETURNING *`,
+                [req.params.id, lokaal, titelNaam, artiest, req.file.originalname, hash],
+            );
+            await pool.query(
+                `UPDATE meldingen SET afgehandeld = true
+                  WHERE titel_id = $1 AND soort = 'geen_track' AND afgehandeld = false`,
+                [req.params.id],
+            );
+            res.status(201).json(rows[0]);
+        } catch (err) {
+            await fs.unlink(absoluut).catch(() => {});
+            res.status(500).json({ fout: `Upload opslaan mislukt: ${err.message}` });
+        }
+    },
+);
 
 // ---- Meldingen (fouten die spelers doorgaven) ----
 router.get('/api/admin/meldingen', vereisAdmin, async (_req, res) => {

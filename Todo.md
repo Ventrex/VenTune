@@ -13,10 +13,18 @@
       de lokale titel-/aliascontrole.
 - [x] **P1** Ronde-overgangen idempotent gemaakt: timers, bonusafronding en
       hostacties kunnen geen ronde dubbel starten of stil overslaan.
+- [x] **P1** Variabele hints toegevoegd: hoofdrollen, speelplek, genre/land,
+      beginletters en het jaar als reservehint.
+- [x] **P1** Titels zonder bruikbare track melden en in een admin-wachtrij tonen.
+- [x] **P1** Admin kan een betrouwbare YouTube-track lokaal cachen; lokale audio
+      krijgt voorrang bij het spelen.
+- [x] **P1** Admin kan een eigen of gelicentieerd audiobestand uploaden en koppelen.
+- [x] **P1** Admin kan hostaccounts aanmaken, bewerken, uitschakelen en
+      wachtwoorden resetten; het admin-wachtwoord blijft in `.env`.
 - [ ] **P2** Playlist-import periodiek uitvoeren vanuit admin met voortgang.
-- [ ] **P2** Lokale audio ook kunnen toevoegen via admin zonder handmatige
+- [x] **P2** Lokale audio ook kunnen toevoegen via admin zonder handmatige
       databaseactie.
-- [ ] **P2** Downloadstatus en mislukte downloads zichtbaar maken in `/admin`.
+- [x] **P2** Downloadstatus en mislukte downloads zichtbaar maken in `/admin`.
 
 ## Daarna
 
@@ -27,9 +35,11 @@
 - [ ] **P2** Track opnieuw zoeken vanuit de melding in `/admin`.
 - [ ] **P2** Bewaarde lokale audio controleren op hash en ontbrekende bestanden.
 - [ ] **P2** Optionele automatische playlist-refresh met veilige rate-limit.
+- [ ] **P2** Lokale bestanden controleren op hash en aanwezigheid.
+- [ ] **P2** Bulk-cacheactie met voortgang, retry en foutreden bouwen.
 - [ ] **P3** Afgekeurde tracks exporteren voor handmatige controle.
 
 ## Bewust niet automatisch
 
-- [ ] **P4** Geen willekeurige YouTube-downloads activeren zonder expliciete
-      bron- en rechtenkeuze.
+- [x] **P4** Geen willekeurige YouTube-downloads activeren zonder expliciete
+      adminactie, bron- en rechtenkeuze.
