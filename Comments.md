@@ -9,6 +9,10 @@
   bedoeld is voor intro's. Ze worden toch opnieuw gecontroleerd.
 - YouTube is de bronvolgorde voor automatisch zoeken en spelen. iTunes komt pas
   na een mislukte YouTube-match; de admin toont die volgorde ook expliciet.
+- Uitvoerings- en deelmarkeringen zijn extra streng: `live`, `livestream`,
+  `deel/part`, `aflevering/episode`, seizoenmarkeringen en losse extra cijfers
+  worden niet automatisch gekoppeld. Alleen cijfers die werkelijk in de
+  officiële titel/alias staan of een viercijferig releasejaar zijn toegestaan.
 - Bij een beschikbare TMDB-koppeling voert VenTune na de lokale match een tweede
   controle uit op de officiële titel en het jaar. Zonder TMDB-sleutel blijft de
   lokale controle actief; een onzekere lokale match wordt nog steeds geweigerd.

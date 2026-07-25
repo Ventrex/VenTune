@@ -19,6 +19,8 @@
 - [x] **P1** Admin kan een betrouwbare YouTube-track lokaal cachen; lokale audio
       krijgt voorrang bij het spelen.
 - [x] **P1** Admin kan een eigen of gelicentieerd audiobestand uploaden en koppelen.
+- [x] **P1** YouTube-/playlistmatches weigeren `live`, deel/aflevering-markeringen
+      en extra deelcijfers; Baantjer is als regressie vastgelegd.
 - [x] **P1** Admin kan hostaccounts aanmaken, bewerken, uitschakelen en
       wachtwoorden resetten; het admin-wachtwoord blijft in `.env`.
 - [ ] **P2** Playlist-import periodiek uitvoeren vanuit admin met voortgang.

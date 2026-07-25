@@ -4,7 +4,12 @@
 // twee titels wordt bewust niets gekoppeld.
 // =====================================================================
 
-const { normaliseer, bevatWoordreeks, titelNamen } = require('./trackcheck');
+const {
+    normaliseer,
+    bevatWoordreeks,
+    titelNamen,
+    variantMarkering,
+} = require('./trackcheck');
 
 const RUIS = [
     'intro', 'outro', 'opening', 'openingstune', 'titelsong', 'titelmuziek',
@@ -39,6 +44,9 @@ function matchTitel(videoTitel, titels) {
 
     const kandidaten = [];
     for (const titel of titels) {
+        // Controleer dit vóór schoonTitel(): woorden als "live", "deel" en
+        // een nummer mogen niet eerst als onschuldige ruis verdwijnen.
+        if (variantMarkering(titel, videoTitel)) continue;
         for (const naam of titelNamen(titel)) {
             const genorm = normaliseer(naam);
             if (genorm.length < 3) continue;
