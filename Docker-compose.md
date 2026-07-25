@@ -18,7 +18,7 @@
 
 ## Update
 
-    git pull
+    git pull origin main
     docker compose up -d --build
 
 De migratie draait bij het starten van de server. Controleer daarna:

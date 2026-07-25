@@ -12,6 +12,7 @@ const { pool } = require('../server/db/pool');
 const ytzoek = require('../server/lib/ytzoek');
 const { matchTitel } = require('../server/lib/title-match');
 const { pastBijTitel } = require('../server/lib/trackcheck');
+const tmdb = require('../server/lib/tmdb');
 
 const args = process.argv.slice(2);
 const CLI_DROOG = args.includes('--droog');
@@ -31,7 +32,7 @@ async function haalTitels(titelFilter = '') {
         where = 'WHERE naam ILIKE $1';
     }
     const { rows } = await pool.query(
-        `SELECT id, naam, aliassen, type, taal, jaar
+        `SELECT id, naam, aliassen, type, taal, jaar, tmdb_id
            FROM titels ${where}
           ORDER BY id`,
         params,
@@ -49,7 +50,7 @@ async function maakTitel(naam, type, taal) {
 }
 
 /** Voeg een playlisttrack toe via de meegegeven executor/transaction. */
-async function zetTrack(titelId, video, playlistNaam, executor = pool) {
+async function zetTrack(titelId, video, playlistNaam, executor = pool, tmdbControle = null) {
     const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
                              tracknaam, artiest, herkenbaarheid, gecontroleerd,
@@ -61,7 +62,7 @@ async function zetTrack(titelId, video, playlistNaam, executor = pool) {
             video.videoId,
             video.titel.slice(0, 200),
             video.kanaal || 'YouTube',
-            `playlist-match: ${playlistNaam}`.slice(0, 200),
+            `playlist-match: ${playlistNaam}${tmdbControle?.beschikbaar ? `; ${tmdbControle.reden}` : ''}`.slice(0, 200),
             `https://www.youtube.com/watch?v=${video.videoId}`,
         ],
     );
@@ -69,11 +70,11 @@ async function zetTrack(titelId, video, playlistNaam, executor = pool) {
 }
 
 /** Vervang tracks atomair; bij een fout blijven de oude tracks bestaan. */
-async function vervangTracks(titelId, video, playlistNaam) {
+async function vervangTracks(titelId, video, playlistNaam, tmdbControle = null) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const nieuw = await zetTrack(titelId, video, playlistNaam, client);
+        const nieuw = await zetTrack(titelId, video, playlistNaam, client, tmdbControle);
         await client.query(
             `DELETE FROM tracks WHERE titel_id = $1 AND id <> $2`,
             [titelId, nieuw.id],
@@ -117,18 +118,23 @@ async function importeerPlaylists({ droog = false, nieuw = false, titelFilter = 
             if (!ytzoek.isLatijnsSchrift(v.titel)) continue;
 
             const match = matchTitel(v.titel, titels);
-            const geldig =
-                match &&
-                pastBijTitel(match.titel, {
+            const lokaleControle = match && pastBijTitel(match.titel, {
                     tracknaam: v.titel,
                     artiest: v.kanaal,
-                }).past;
+                });
+            const tmdbControle = match && lokaleControle?.past
+                ? await tmdb.controleerTrackMetTmdb(match.titel, {
+                    tracknaam: v.titel,
+                    artiest: v.kanaal,
+                })
+                : null;
+            const geldig = !!(match && lokaleControle?.past && tmdbControle?.past);
 
             if (match && geldig) {
                 if (droog) {
                     console.log(`   ✓ "${v.titel}" → ${match.titel.naam}`);
                 } else {
-                    await vervangTracks(match.titel.id, v, pl.naam);
+                    await vervangTracks(match.titel.id, v, pl.naam, tmdbControle);
                 }
                 gekoppeld++;
                 playlistGekoppeld++;

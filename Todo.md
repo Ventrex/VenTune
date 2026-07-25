@@ -9,6 +9,8 @@
 - [x] **P1** Admin laat verificatiescore, volledige reden en audiobron zien.
 - [x] **P1** PostgreSQL-integratietest/CI toegevoegd met een
       verkeerde-track-scenario.
+- [x] **P1** TMDB-controlelaag toegevoegd voor officiële titel en jaar naast
+      de lokale titel-/aliascontrole.
 - [ ] **P2** Playlist-import periodiek uitvoeren vanuit admin met voortgang.
 - [ ] **P2** Lokale audio ook kunnen toevoegen via admin zonder handmatige
       databaseactie.

@@ -25,6 +25,7 @@ const { importeerTmdb } = require('../../seed/tmdb-import');
 const { importeerVragen } = require('../../seed/vragen-import');
 const { pastBijTitel } = require('../lib/trackcheck');
 const ytzoek = require('../lib/ytzoek');
+const tmdb = require('../lib/tmdb');
 const { downloadTrack } = require('../../seed/download-track');
 const { hashWachtwoord, valideerWachtwoord } = require('../lib/auth');
 
@@ -314,13 +315,23 @@ router.post('/api/admin/gebruikers/:id/wachtwoord', vereisAdmin, async (req, res
 // daarna zelf of deze kandidaat wordt opgeslagen.
 router.post('/api/admin/titels/:id/youtube-zoek', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
-        `SELECT id, naam, aliassen, type, taal, jaar FROM titels WHERE id = $1`,
+        `SELECT id, naam, aliassen, type, taal, jaar, tmdb_id FROM titels WHERE id = $1`,
         [req.params.id],
     );
     if (!rows[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
     try {
         const keuze = await ytzoek.zoekVoorTitel(rows[0], { pauzeMs: 100, limiet: 12 });
         if (!keuze) return res.status(404).json({ fout: 'Geen betrouwbare YouTube-match gevonden.' });
+        const tmdbControle = await tmdb.controleerTrackMetTmdb(rows[0], {
+            tracknaam: keuze.titel,
+            artiest: keuze.kanaal,
+        });
+        if (!tmdbControle.past) {
+            return res.status(422).json({ fout: `YouTube-match afgewezen: ${tmdbControle.reden}` });
+        }
+        const verificatieReden = tmdbControle.beschikbaar
+            ? `${keuze._controle?.reden || 'YouTube-titelcontrole'}; ${tmdbControle.reden}`
+            : keuze._controle?.reden || 'YouTube-titelcontrole';
         res.json({
             bron: 'youtube',
             preview_url: keuze.videoId,
@@ -331,7 +342,7 @@ router.post('/api/admin/titels/:id/youtube-zoek', vereisAdmin, async (req, res) 
             views: keuze.views ?? null,
             duur_seconden: keuze.duurSeconden ?? null,
             verificatie_score: keuze._controle?.zekerheid || 0,
-            verificatie_reden: keuze._controle?.reden || 'YouTube-titelcontrole',
+            verificatie_reden: verificatieReden,
         });
     } catch (err) {
         res.status(502).json({ fout: `YouTube zoeken mislukt: ${err.message}` });
@@ -349,13 +360,13 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
         return res.status(400).json({ fout: 'YouTube-track heeft geen geldig video-id.' });
     }
     const titelRij = await pool.query(
-        `SELECT id, naam, aliassen, type, taal, jaar FROM titels WHERE id = $1`,
+        `SELECT id, naam, aliassen, type, taal, jaar, tmdb_id FROM titels WHERE id = $1`,
         [req.params.id],
     );
     if (!titelRij.rows[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
 
     const titel = titelRij.rows[0];
-    const controle = geldigeBron === 'lokaal'
+    let controle = geldigeBron === 'lokaal'
         ? { past: true, zekerheid: 1, reden: 'handmatig lokaal bestand door admin' }
         : pastBijTitel(titel, {
             tracknaam: b.tracknaam,
@@ -366,6 +377,19 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
         return res.status(422).json({
             fout: `Track afgewezen: ${controle.reden}. Voeg de volledige titel/alias toe aan de tracknaam of het album.`,
         });
+    }
+    if (geldigeBron !== 'lokaal') {
+        const tmdbControle = await tmdb.controleerTrackMetTmdb(titel, {
+            tracknaam: b.tracknaam,
+            album: b.album,
+            artiest: b.artiest,
+        });
+        if (!tmdbControle.past) {
+            return res.status(422).json({ fout: `Track afgewezen door TMDB: ${tmdbControle.reden}` });
+        }
+        if (tmdbControle.beschikbaar) {
+            controle = { ...controle, reden: `${controle.reden}; ${tmdbControle.reden}` };
+        }
     }
 
     const { rows } = await pool.query(

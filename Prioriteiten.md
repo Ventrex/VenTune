@@ -24,8 +24,9 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 
 ## Huidige volgorde
 
-1. Open P0 — momenteel geen.
-2. Open P1 — momenteel geen open technische P1-items. De TMDB-controle in
-   `Ideeen.md` is eerst een ontwerpbesluit voordat het een concrete Todo wordt.
+1. Open P0 — momenteel geen; de verkeerde GitHub-standaardbranch is op
+   2026-07-25 gesynchroniseerd met de actuele VenTune-code.
+2. Open P1 — momenteel geen; de TMDB-controlelaag is op 2026-07-25
+   geïmplementeerd en getest.
 3. Open P2 — rate-limit-herstel, importbeheer, downloadcontrole en dashboards.
 4. Open P3/P4 — gemak, uitbreidingen, ideeën en rechten-/onderzoekskeuzes.
