@@ -233,20 +233,26 @@ function zoektermenVoor(titel) {
     const jaar = titel.jaar ? ` ${titel.jaar}` : '';
 
     if (titel.type === 'serie') {
-        return [
-            `${naam} official theme`,
-            `${naam} intro`,
+        // 'intro' levert de herkenbare titelsequentie op; 'soundtrack' geeft
+        // vaak een willekeurig albumnummer en staat daarom achteraan.
+        const termen = [`${naam} intro`];
+        if (titel.taal === 'nl') termen.push(`${naam} titelsong`);
+        termen.push(
+            `${naam} opening theme`,
             `${naam} theme song`,
-            `${naam} titelsong intro`,
             `${naam} soundtrack`,
-        ];
+        );
+        return termen;
     }
+
+    // Films: het jaartal erbij, want delen uit een reeks hebben elk hun
+    // eigen muziek (Pirates 2003 vs 2006, enzovoort).
     return [
-        `${naam} official theme`,
-        `${naam} soundtrack main theme`,
-        `${naam}${jaar} soundtrack`,
+        `${naam}${jaar} main theme`,
+        `${naam}${jaar} official theme`,
+        `${naam}${jaar} soundtrack main title`,
         `${naam} theme song`,
-        `${naam} muziek thema`,
+        `${naam}${jaar} soundtrack`,
     ];
 }
 
@@ -289,11 +295,27 @@ async function zoekVoorTitel(titel, opties = {}) {
     return beste;
 }
 
-// Woorden die wijzen op precies wat we willen.
-const GOEDE_WOORDEN = [
-    'intro', 'opening', 'theme', 'title', 'titelsong', 'titelmuziek',
-    'tune', 'soundtrack', 'main theme', 'ost', 'score', 'generiek',
+// Signaalwoorden, gewogen. Een 'intro' of 'titelsong' is precies wat we
+// zoeken; 'soundtrack' of 'score' is vaak zomaar een albumnummer en telt
+// daarom lichter mee.
+const SIGNAAL_NIVEAUS = [
+    { niveau: 3, woorden: ['intro', 'titelsong', 'titelmuziek', 'opening', 'main title', 'generiek', 'tune'] },
+    { niveau: 2, woorden: ['main theme', 'theme song', 'official theme', 'title theme'] },
+    { niveau: 1, woorden: ['theme', 'title'] },
+    { niveau: 0.5, woorden: ['soundtrack', 'ost', 'score'] },
 ];
+
+// Alle signaalwoorden samen (voor de eerdere, ongewogen controle).
+const GOEDE_WOORDEN = SIGNAAL_NIVEAUS.flatMap((n) => n.woorden);
+
+/** Hoe sterk kondigt deze videotitel zich aan als intro/thema? */
+function signaalNiveau(videoTitel) {
+    const t = normaliseer(videoTitel);
+    for (const { niveau, woorden } of SIGNAAL_NIVEAUS) {
+        if (woorden.some((w) => t.includes(w))) return niveau;
+    }
+    return 0;
+}
 // Woorden die we juist niet willen (reacties, uitleg, hele afleveringen).
 const SLECHTE_WOORDEN = [
     'reaction', 'review', 'explained', 'trailer', 'full episode',
@@ -351,13 +373,19 @@ function kiesBeste(resultaten, titel) {
 
     if (bruikbaar.length === 0) return null;
 
-    // Voorkeursgroep: video's die zich expliciet als intro/theme aankondigen.
-    const metSignaal = bruikbaar.filter((r) =>
-        GOEDE_WOORDEN.some((w) => normaliseer(r.titel).includes(w)),
-    );
-    const groep = metSignaal.length > 0 ? metSignaal : bruikbaar;
+    // Eerst op sóórt kiezen: een 'intro' wint van een willekeurig
+    // soundtrack-nummer, ook als dat laatste meer weergaven heeft.
+    let hoogste = 0;
+    for (const r of bruikbaar) {
+        const n = signaalNiveau(r.titel);
+        if (n > hoogste) hoogste = n;
+    }
+    const groep =
+        hoogste > 0
+            ? bruikbaar.filter((r) => signaalNiveau(r.titel) === hoogste)
+            : bruikbaar;
 
-    // Binnen de groep: de populairste wint (meeste weergaven).
+    // Binnen dezelfde soort: de populairste wint (meeste weergaven).
     const gesorteerd = groep.slice().sort((a, b) => {
         const va = a.views ?? -1;
         const vb = b.views ?? -1;

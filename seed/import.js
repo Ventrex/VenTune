@@ -196,11 +196,27 @@ async function vervangTracks(titelId, voegToe) {
  * @param {object} opties { force, limiet, onLog }
  * @returns {Promise<{verwerkt, metTrack, zonder:string[]}>}
  */
-async function importeer({ force = false, limiet = Infinity, onLog, alleenDb = false } = {}) {
+async function importeer({
+    force = false,
+    limiet = Infinity,
+    onLog,
+    alleenDb = false,
+    titelFilter = null,
+} = {}) {
     const log = onLog || (() => {});
 
     let titels;
-    if (alleenDb) {
+    if (titelFilter) {
+        // Eén (of enkele) titels gericht opnieuw doen, bijvoorbeeld als de
+        // gekozen muziek niet klopte. Vervangt altijd de bestaande track.
+        const { rows } = await pool.query(
+            `SELECT id, naam, aliassen, type, taal, jaar, land, genres, tmdb_id
+               FROM titels WHERE naam ILIKE $1 ORDER BY id`,
+            [`%${titelFilter}%`],
+        );
+        titels = rows.map((r) => ({ ...r, _id: r.id }));
+        force = true;
+    } else if (alleenDb) {
         // Alle titels uit de database die nog geen muziek hebben. Zo krijgen
         // ook de titels die via TMDB zijn toegevoegd een intro/thema.
         const { rows } = await pool.query(
@@ -302,10 +318,13 @@ if (require.main === module) {
     // Standaard: eerst de vaste startseed, daarna alle titels in de database
     // die nog geen muziek hebben (bijvoorbeeld via TMDB toegevoegd).
     const alleenDb = args.includes('--db');
+    const titelIndex = args.indexOf('--titel');
+    const titelFilter = titelIndex >= 0 ? args[titelIndex + 1] : null;
     importeer({
         force: FORCE,
         limiet: LIMIET,
         alleenDb,
+        titelFilter,
         onLog: (r) => console.log(JSON.stringify(r)),
     })
         .then(async (s) => {
