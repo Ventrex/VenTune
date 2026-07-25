@@ -2,8 +2,9 @@
 // useSpel: gedeelde React-hook die de socket opzet en de volledige
 // spelstate bijhoudt. Zowel het Host- als het Play-scherm gebruikt hem.
 //
-// De host speelt de audio af (in de kamer); spelers horen niets op hun
-// telefoon en zien alleen de visualizer — geen titel tot de ronde klaar is.
+// De host speelt de audio af (in de kamer) en kan op hetzelfde scherm
+// meespelen; andere spelers horen niets op hun telefoon en zien alleen de
+// visualizer — geen titel tot de ronde klaar is.
 // =====================================================================
 
 import { useEffect, useState, useCallback } from 'react';

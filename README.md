@@ -4,9 +4,9 @@ Self-hosted, mobile-first multiplayer **muziekquiz over films en series**, in de
 stijl van Hitster. Draait volledig in Docker op een homelab en wordt ontsloten
 via een tunnel op `ventune.ventrex.cc`.
 
-De host speelt de muziek, spelers scannen een QR-code, kiezen een naam en raden
-de titel op hun telefoon. Spelers hebben geen account nodig; een host logt wel in
-met een hostaccount. **Geen Spotify** — de muziek komt primair van YouTube,
+De host speelt de muziek en kan tegelijk zelf raden; spelers scannen een QR-code,
+kiezen een naam en raden de titel op hun telefoon. Spelers hebben geen account
+nodig; een host logt wel in met een hostaccount. **Geen Spotify** — de muziek komt primair van YouTube,
 met iTunes-previews en eigen clips als fallback.
 
 ---
@@ -32,7 +32,8 @@ met iTunes-previews en eigen clips als fallback.
 ## Hoe het werkt
 
 1. **Host maakt een spel** en doorloopt het filtermenu (categorie, taal, periode,
-   aantal rondes). Er verschijnt een 4-letterige code en een QR-code.
+   aantal rondes). Er verschijnt een 4-letterige code en een QR-code. De host
+   speelt standaard ook zelf mee vanaf het hostscherm.
 2. **Spelers joinen** door de QR te scannen (`/join/ABCD`) of de code te typen,
    en kiezen een naam.
 3. **Ronde start.** De host speelt de muziek (30 sec tot het hele nummer,

@@ -6,6 +6,8 @@
 
 - Hosts kunnen een eigen hostaccount registreren en inloggen; spelers hebben
   nog steeds geen account nodig.
+- De host kan nu op het grote hostscherm zelf meespelen, antwoorden insturen,
+  hints gebruiken en bonusvragen beantwoorden.
 - Nieuw scherm **Wat is nieuw?** is vanaf het startscherm bereikbaar.
 - De host kan een ronde pauzeren en opnieuw afspelen.
 - Na een ronde worden titel, poster, jaar, land en genres duidelijk getoond.
@@ -31,3 +33,5 @@
 - Admin kan hostaccounts deactiveren en een hostwachtwoord resetten; het
   admin-wachtwoord blijft uitsluitend in `.env`.
 - CI test de Nederlandse matchfixtures en de echte PostgreSQL-trackkeuze.
+- De host telt mee als actieve deelnemer voor ronde- en bonusafronding;
+  offline spelers worden automatisch niet meegeteld.

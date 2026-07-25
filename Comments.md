@@ -12,6 +12,9 @@
 - Hostaccounts zijn bewust losgekoppeld van het admin-account. Het admin-
   wachtwoord blijft in `.env`; spelers krijgen alleen een tijdelijke gastsessie
   binnen een lobby.
+- De host is ook een normale speler: dezelfde hostsocket speelt audio af én
+  kan gokken, hints gebruiken en bonusvragen beantwoorden. Bij het bepalen of
+  iedereen klaar is telt de host mee zolang de host verbonden is.
 - Een database-transactie beschermt de vorige goede track tijdens een import.
 - Downloaden staat niet standaard aan. Alleen de expliciete iTunes-cacheflow
   is aanwezig als fallback; willekeurige YouTube-downloads worden geweigerd.

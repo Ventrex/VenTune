@@ -2,6 +2,8 @@
 
 ## Eerstvolgend
 
+- [x] **P1** Host kan meespelen vanaf hetzelfde scherm waarop de muziek wordt
+      afgespeeld; hostscore en bonusantwoorden tellen mee.
 - [x] **P1** Admin-accountbeheer toegevoegd: host deactiveren en wachtwoord
       resetten zonder het admin-wachtwoord uit `.env` te vervangen.
 - [x] **P1** Admin laat verificatiescore, volledige reden en audiobron zien.

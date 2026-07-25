@@ -764,6 +764,24 @@ h1 {
     z-index: 2;
 }
 
+.host-raadkaart {
+    margin: 0 0 1rem;
+    text-align: left;
+}
+
+.host-raadkaart .zoekbalk {
+    margin: 0.5rem 0 0;
+}
+
+.host-hintknop {
+    margin-top: 0.6rem;
+    width: 100%;
+}
+
+.host-bonus-keuzes {
+    margin-top: 1rem;
+}
+
 /* Valt terug op een tik als de browser autoplay blokkeert (iOS). */
 .tik-start {
     position: absolute;
