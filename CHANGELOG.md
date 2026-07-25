@@ -1,5 +1,30 @@
 # VenTune changelog
 
+## [0.2.2] - 2026-07-25
+
+### Voor spelers
+
+- Hints zijn nu titelgericht: hoofdrollen, speelplek, genre/land en
+  beginletters zoals `S.....s` voor **Sliders**. Het jaartal is een reservehint.
+- Lokale audio wordt afgespeeld zodra de admin een track heeft gecachet of
+  een eigen/gelicentieerd audiobestand heeft geüpload. Daardoor is spelen niet
+  meer afhankelijk van het blijvend bestaan van één YouTube-video.
+
+### Voor beheerders
+
+- Titels zonder speelbare track komen automatisch in **Tracks nodig** en worden
+  niet stil als een ronde gebruikt.
+- De admin kan een gecontroleerde YouTube-track expliciet lokaal cachen met
+  `yt-dlp`/`ffmpeg`, of een eigen/gelicentieerd audiobestand uploaden.
+- Hostaccounts kunnen vanuit `/admin` worden aangemaakt, hernoemd,
+  uitgeschakeld en van een nieuw wachtwoord worden voorzien.
+
+### Veiligheid en betrouwbaarheid
+
+- Er wordt nooit automatisch een willekeurige YouTube-video gedownload.
+- Een onzekere track blijft geweigerd; de admin moet een match controleren of
+  handmatig audio toevoegen.
+
 ## [0.2.1] - 2026-07-25
 
 ### Voor spelers

@@ -53,6 +53,8 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS populariteit REAL NOT NULL DEFAULT 0
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS stemmen INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS poster_pad TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS omschrijving TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS hoofdrollen TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS speelplek TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_titels_type    ON titels (type);
 CREATE INDEX IF NOT EXISTS idx_titels_pop     ON titels (populariteit DESC);
@@ -327,11 +329,18 @@ CREATE TABLE IF NOT EXISTS meldingen (
     track_id       INTEGER     REFERENCES tracks (id) ON DELETE CASCADE,
     titel_id       INTEGER     REFERENCES titels (id) ON DELETE CASCADE,
     soort          TEXT        NOT NULL DEFAULT 'fout'
-                   CHECK (soort IN ('fout', 'geen_geluid', 'verkeerd_nummer', 'anders')),
+                   CHECK (soort IN ('fout', 'geen_geluid', 'verkeerd_nummer', 'geen_track', 'anders')),
     toelichting    TEXT,
     afgehandeld    BOOLEAN     NOT NULL DEFAULT false,
     aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+DO $$
+BEGIN
+    ALTER TABLE meldingen DROP CONSTRAINT IF EXISTS meldingen_soort_check;
+    ALTER TABLE meldingen ADD CONSTRAINT meldingen_soort_check
+        CHECK (soort IN ('fout', 'geen_geluid', 'verkeerd_nummer', 'geen_track', 'anders'));
+END$$;
 
 CREATE INDEX IF NOT EXISTS idx_meldingen_open ON meldingen (afgehandeld, aangemaakt_op DESC);
 

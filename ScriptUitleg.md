@@ -29,12 +29,16 @@ De download start nooit vanzelf:
     docker compose exec server node /app/seed/download-track.js --track 42
     docker compose exec server node /app/seed/download-track.js --all
 
-Dit script accepteert alleen Apple/iTunes-preview-URL's die al bij een track
-staan. Voor eigen volledige audiobestanden moet later een expliciete adminflow
-worden toegevoegd met bron- en rechtenregistratie.
+Dit script accepteert bestaande Apple/iTunes-preview-URL's en expliciet
+opgeslagen YouTube-tracks. YouTube wordt met `yt-dlp` en `ffmpeg` naar m4a
+gecachet. Het script draait nooit automatisch en zoekt zelf geen nieuwe video.
+Gebruik YouTube-cache alleen voor tracks waarvoor je de bron en rechten mag
+gebruiken.
 
-Een iTunes-fallback kan ook direct vanuit `/admin` met de downloadknop naast de
-track naar het gedeelde `/media`-volume worden gecachet.
+Elke YouTube- of iTunes-track kan ook direct vanuit `/admin` met de
+downloadknop naast de track naar het gedeelde `/media`-volume worden gecachet.
+Voor volledig eigen of gelicentieerd geluid gebruik je **Eigen audio uploaden**
+bij de titel.
 
 ## Herstel bij verkeerde muziek
 

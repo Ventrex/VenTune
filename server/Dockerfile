@@ -14,6 +14,12 @@ COPY server/package-lock.jso[n] ./
 
 RUN npm install --omit=dev
 
+# Lokale, door de admin aangevraagde YouTube-caches. yt-dlp haalt alleen
+# expliciet aangewezen video's op; ffmpeg zet ze om naar browser-vriendelijke
+# m4a-audio. Eigen uploads blijven ook ondersteund via /media.
+RUN apk add --no-cache python3 py3-pip ffmpeg \
+    && python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
+
 # Servercode en seed kopiëren.
 COPY server/ ./
 COPY seed/ /app/seed/

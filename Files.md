@@ -9,17 +9,18 @@
 | `server/lib/auth.js` | Hostregistratie, login en server-side sessies |
 | `seed/import.js` | YouTube/iTunes-vragenbank vullen |
 | `seed/playlist-import.js` | Betrouwbare playlisttracks importeren |
-| `seed/download-track.js` | Handmatig toegestane iTunes-previews lokaal cachen |
+| `seed/download-track.js` | Handmatig toegestane YouTube-/iTunes-tracks lokaal cachen |
 | `seed/tmdb-import.js` | Titels en metadata importeren vanuit TMDB |
 | `seed/vragen-import.js` | Bonusvragen genereren |
 | `server/game/engine.js` | Trackselectie, rondes, scoring en host als deelnemer |
 | `server/game/lobby.js` | Lobby's; hostaccount verplicht, spelers als gast |
 | `server/db/schema.sql` | Tabellen en idempotente migraties |
 | `server/routes/changelog.js` | Publieke changelog-API |
-| `server/routes/admin.js` | Centrale import, YouTube-zoekactie, tracks, meldingen en downloads |
+| `server/routes/admin.js` | Centrale import, YouTube-zoekactie, tracks, meldingen, lokale uploads en gebruikersbeheer |
 | `server/test/host-play.test.js` | Test dat de host meetelt als actieve speler |
 | `server/test/round-flow.test.js` | Regressietest voor dubbele overgangen en ronde-nummering |
 | `server/test/tmdb.test.js` | Test officiële TMDB-titel- en jaarcontrole |
+| `server/test/hints.test.js` | Test variabele hints en beginletters zoals `S.....s` |
 | `client/src/pages/Changelog.jsx` | Changelog die spelers kunnen openen |
 | `client/src/pages/HostAuth.jsx` | Hostaccount registreren en inloggen |
 | `client/src/components/Brand.jsx` | Logo en VenTune-merkweergave |
@@ -34,3 +35,4 @@
 | `Comments.md` | Technische beslissingen en waarschuwingen |
 | `GevraagdeAI.md` | AI-opdrachten en gewenste uitkomst |
 | `Stappenplan.md` | Werkvolgorde van ontwikkeling tot productie |
+| `AdminHandleiding.md` | Werkwijze voor ontbrekende tracks, lokale audio en hosts |

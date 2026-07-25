@@ -214,4 +214,6 @@ module.exports = {
     hashWachtwoord,
     controleerWachtwoord,
     valideerWachtwoord,
+    valideerGebruikersnaam,
+    valideerDisplayNaam,
 };

@@ -24,9 +24,17 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 
 ## Huidige volgorde
 
-1. Open P0 — momenteel geen; de verkeerde GitHub-standaardbranch is op
-   2026-07-25 gesynchroniseerd met de actuele VenTune-code.
-2. Open P1 — momenteel geen; de TMDB-controlelaag en de stabiele
-   ronde-overgangen zijn op 2026-07-25 geïmplementeerd en getest.
-3. Open P2 — rate-limit-herstel, importbeheer, downloadcontrole en dashboards.
-4. Open P3/P4 — gemak, uitbreidingen, ideeën en rechten-/onderzoekskeuzes.
+1. Open P0 — momenteel geen; de standaardbranch en productie-updateprocedure
+   zijn gecontroleerd.
+2. Open P1 — momenteel geen; ronde-overgangen, variabele hints, ontbrekende
+   tracks, lokale audio en hostaccountbeheer zijn op 2026-07-25 geïmplementeerd.
+3. Open P2 — bestandscontrole, bulk-cache, rate-limit-herstel, importbeheer en
+   kwaliteitsdashboard.
+4. Open P3/P4 — gemak, uitbreidingen en rechten-/onderzoekskeuzes.
+
+## Door te geven aan Codex
+
+Gebruik bijvoorbeeld: **“Pak alle open P1-punten op.”**
+
+De volgende opdracht is dan P2: lokale bestanden periodiek controleren,
+downloadfouten opnieuw proberen en bulkacties zichtbaar maken.

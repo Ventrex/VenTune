@@ -14,6 +14,7 @@ const { genereerBonus } = require('./bonus');
 const vragenbank = require('./vragen');
 const { pastBijTitel } = require('../lib/trackcheck');
 const logger = require('../lib/logger');
+const tmdb = require('../lib/tmdb');
 
 const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
 // 'Heel nummer': ruime bovengrens; de ronde eindigt zodra iedereen geraden
@@ -69,6 +70,58 @@ function husselArray(arr) {
 function iedereenActiefKlaar(spelers, klaar) {
     const actieve = spelers.filter((speler) => speler.verbonden === true);
     return actieve.length > 0 && actieve.every((speler) => klaar.has(speler.id));
+}
+
+function beginLetters(naam) {
+    return String(naam || '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((woord) => {
+            const letters = Array.from(woord);
+            if (letters.length <= 2) return letters[0]?.toUpperCase() || '';
+            const stippen = '.'.repeat(Math.max(3, Math.min(5, letters.length - 2)));
+            return `${letters[0].toUpperCase()}${stippen}${letters[letters.length - 1].toLowerCase()}`;
+        })
+        .join(' ');
+}
+
+/**
+ * Bouw verschillende, niet-spoilerende hints. Het jaartal is bewust een
+ * reservehint en niet langer standaard hint nummer één.
+ */
+function bouwHinten(titel) {
+    const hints = [];
+    const rollen = Array.isArray(titel.hoofdrollen)
+        ? titel.hoofdrollen.filter(Boolean).slice(0, 4)
+        : [];
+    const genres = Array.isArray(titel.genres) ? titel.genres.filter(Boolean) : [];
+
+    if (rollen.length) {
+        hints.push({ type: 'hoofdrollen', tekst: `Hoofdrollen: ${rollen.join(', ')}` });
+    }
+    if (titel.speelplek) {
+        hints.push({ type: 'speelplek', tekst: `Speelt zich af in: ${titel.speelplek}` });
+    }
+    if (genres.length || titel.land) {
+        const kenmerken = [];
+        if (genres.length) kenmerken.push(`genre: ${genres.slice(0, 2).join(', ')}`);
+        if (titel.land) kenmerken.push(`land van herkomst: ${titel.land}`);
+        hints.push({ type: 'kenmerken', tekst: kenmerken.join(' · ') });
+    }
+    if (titel.naam) {
+        hints.push({ type: 'letters', tekst: `Beginletters: ${beginLetters(titel.naam)}` });
+    }
+    if (titel.jaar !== null && titel.jaar !== undefined && titel.jaar !== ''
+        && Number.isFinite(Number(titel.jaar))) {
+        hints.push({ type: 'jaar', tekst: `Uitgekomen in: ${titel.jaar}` });
+    }
+    if (titel.type) {
+        hints.push({
+            type: 'type',
+            tekst: `Het is een ${titel.type === 'serie' ? 'serie' : 'film'}.`,
+        });
+    }
+    return hints;
 }
 
 /**
@@ -133,7 +186,8 @@ class SpelBeheer {
         const { where, params } = bouwFilter(instellingen || {});
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
-                    t.land, t.genres, t.tmdb_id, t.poster_pad, t.omschrijving
+                    t.land, t.genres, t.tmdb_id, t.poster_pad, t.omschrijving,
+                    t.hoofdrollen, t.speelplek
                FROM titels t
                ${where ? where + ' AND' : 'WHERE'}
                     EXISTS (SELECT 1 FROM tracks tr
@@ -143,6 +197,8 @@ class SpelBeheer {
                                 AND tr.preview_url <> '')`,
             params,
         );
+
+        await this.registreerOntbrekendeTitels(where, params);
 
         if (titels.length === 0) {
             this.io.to(kamer(code)).emit('spel:fout', {
@@ -190,6 +246,57 @@ class SpelBeheer {
         logger.info('Spel gestart.', { code, totaal });
 
         await this.volgendeRonde(state);
+    }
+
+    async registreerOntbrekendeTitels(where, params) {
+        const voorwaarde = where ? `${where} AND` : 'WHERE';
+        try {
+            await pool.query(
+                `INSERT INTO meldingen (titel_id, soort, toelichting)
+                 SELECT t.id, 'geen_track',
+                        'Geen bruikbare track gekoppeld; voeg audio toe via het adminportaal.'
+                   FROM titels t
+                  ${voorwaarde}
+                    NOT EXISTS (
+                        SELECT 1 FROM tracks tr
+                         WHERE tr.titel_id = t.id
+                           AND tr.werkt = true
+                           AND tr.preview_url IS NOT NULL
+                           AND tr.preview_url <> ''
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM meldingen m
+                         WHERE m.titel_id = t.id
+                           AND m.soort = 'geen_track'
+                           AND m.afgehandeld = false
+                    )`,
+                params,
+            );
+        } catch (err) {
+            logger.waarschuwing('Ontbrekende tracks konden niet worden geregistreerd.', {
+                melding: err.message,
+            });
+        }
+    }
+
+    async registreerOntbrekendeTitel(titelId) {
+        try {
+            await pool.query(
+                `INSERT INTO meldingen (titel_id, soort, toelichting)
+                 SELECT $1, 'geen_track',
+                        'Alle gekoppelde tracks zijn tijdens controle afgekeurd; voeg audio toe via het adminportaal.'
+                  WHERE NOT EXISTS (
+                      SELECT 1 FROM meldingen
+                       WHERE titel_id = $1 AND soort = 'geen_track' AND afgehandeld = false
+                  )`,
+                [titelId],
+            );
+        } catch (err) {
+            logger.waarschuwing('Ontbrekende track kon niet worden gemeld.', {
+                titelId,
+                melding: err.message,
+            });
+        }
     }
 
     // ---- Volgende ronde ----
@@ -243,8 +350,8 @@ class SpelBeheer {
                         AND tr.preview_url IS NOT NULL
                         AND tr.preview_url <> ''
                       ORDER BY CASE
+                                   WHEN tr.bron = 'lokaal' THEN 4
                                    WHEN tr.bron = 'youtube' THEN 3
-                                   WHEN tr.bron = 'lokaal' THEN 2
                                    ELSE 1
                                END DESC,
                                tr.verificatie_score DESC,
@@ -287,6 +394,7 @@ class SpelBeheer {
                     logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
                         titel: titel.naam,
                     });
+                    await this.registreerOntbrekendeTitel(titel.id);
                     if (!verwijderOnspeelbareTitel(state)) {
                         return await this.eindigSpel(state);
                     }
@@ -455,6 +563,7 @@ class SpelBeheer {
             return;
         }
 
+        await this.verrijkHintMetadata(h.titel);
         const nr = gegeven + 1;
         h.hints.set(spelerId, nr);
         state.voorraad.set(spelerId, voorraad - 1);
@@ -467,25 +576,31 @@ class SpelBeheer {
         });
     }
 
+    async verrijkHintMetadata(titel) {
+        if (!tmdb.beschikbaar() || !titel?.tmdb_id || titel.hoofdrollen?.length) return;
+        try {
+            const details = await tmdb.haalDetails(titel.tmdb_id, titel.type);
+            const hoofdrollen = (details.cast || []).slice(0, 5);
+            if (!hoofdrollen.length) return;
+            titel.hoofdrollen = hoofdrollen;
+            await pool.query(
+                `UPDATE titels SET hoofdrollen = $2::text[] WHERE id = $1`,
+                [titel.id, hoofdrollen],
+            );
+        } catch (err) {
+            logger.waarschuwing('Hoofdrollen voor hint konden niet worden opgehaald.', {
+                titel: titel.naam,
+                melding: err.message,
+            });
+        }
+    }
+
     bouwHint(nr, titel) {
-        if (nr === 1) {
-            return {
-                type: 'jaar',
-                tekst: `Jaar van uitgave: ${titel.jaar ?? 'onbekend'}`,
-            };
-        }
-        if (nr === 2) {
-            const genres = (titel.genres || []).join(', ') || 'onbekend genre';
-            return {
-                type: 'genre-land',
-                tekst: `${genres} · ${titel.land || 'onbekend land'}`,
-            };
-        }
-        const letters = String(titel.naam)
-            .split(/\s+/)
-            .map((w) => (w[0] ? w[0].toUpperCase() : ''))
-            .join('. ');
-        return { type: 'letters', tekst: `Beginletters: ${letters}.` };
+        const hints = bouwHinten(titel);
+        return hints[Math.min(Math.max(nr - 1, 0), hints.length - 1)] || {
+            type: 'geen',
+            tekst: 'Er is geen extra hint beschikbaar.',
+        };
     }
 
     // ---- Gokfase beëindigen: titel onthullen en (optioneel) bonusvraag ----
@@ -902,4 +1017,6 @@ module.exports = {
     RONDE_DUUR_MS,
     iedereenActiefKlaar,
     verwijderOnspeelbareTitel,
+    beginLetters,
+    bouwHinten,
 };

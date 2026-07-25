@@ -1,10 +1,10 @@
 // =====================================================================
 // Download een toegestane audiopreview naar het lokale /media-volume.
 //
-// Dit script start nooit automatisch. Het downloadt uitsluitend Apple/iTunes
-// preview-URL's die al in de database staan. Zo kan VenTune later lokaal
-// afspelen zonder dat willekeurige externe URL's of ongeautoriseerde bronnen
-// als downloader worden gebruikt.
+// Dit script start nooit automatisch. Het downloadt uitsluitend bestaande
+// Apple/iTunes-preview-URL's of expliciet door de admin aangewezen YouTube-
+// tracks. Zo kan VenTune later lokaal afspelen zonder blind zoekresultaten
+// of willekeurige externe URL's als downloader te gebruiken.
 //
 // Gebruik:
 //   node /app/seed/download-track.js --track 42
@@ -13,6 +13,8 @@
 // =====================================================================
 
 const crypto = require('crypto');
+const { promisify } = require('util');
+const { execFile } = require('child_process');
 const fs = require('fs/promises');
 const path = require('path');
 const { pool } = require('../server/db/pool');
@@ -20,6 +22,7 @@ const { pool } = require('../server/db/pool');
 const args = process.argv.slice(2);
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
 const MAX_BYTES = 50 * 1024 * 1024;
+const execFileAsync = promisify(execFile);
 
 function optie(naam) {
     const index = args.indexOf(`--${naam}`);
@@ -61,7 +64,7 @@ async function markeerMislukt(id, melding) {
     );
 }
 
-async function downloadTrack(track, droog = false) {
+async function downloadAppleTrack(track, droog = false) {
     if (!isToegestanePreview(track.preview_url)) {
         if (!droog) {
             await markeerMislukt(track.id, 'Bron is geen toegestane iTunes/Apple-preview-URL.');
@@ -69,11 +72,12 @@ async function downloadTrack(track, droog = false) {
         throw new Error('Bron is geen toegestane iTunes/Apple-preview-URL.');
     }
 
-    const bestandsnaam = `${veiligeNaam(track.naam)}-${track.id}.m4a`;
+    const naam = String(track.naam || track.tracknaam || 'track');
+    const bestandsnaam = `${veiligeNaam(naam)}-${track.id}.m4a`;
     const bestand = path.join(MEDIA_DIR, bestandsnaam);
     const lokaal = `/media/${bestandsnaam}`;
     if (droog) {
-        console.log(`DRY  ${track.id}: ${track.naam} → ${bestand}`);
+        console.log(`DRY  ${track.id}: ${naam} → ${bestand}`);
         return;
     }
 
@@ -140,7 +144,100 @@ async function downloadTrack(track, droog = false) {
         await markeerMislukt(track.id, err.message);
         throw err;
     }
-    console.log(`OK   ${track.id}: ${track.naam} → ${bestand} (${bytes.length} bytes)`);
+    console.log(`OK   ${track.id}: ${naam} → ${bestand} (${bytes.length} bytes)`);
+}
+
+function youtubeUrl(track) {
+    try {
+        const bron = new URL(String(track.bron_url || ''));
+        const host = bron.hostname.toLowerCase();
+        const toegestaan = host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com');
+        if (toegestaan && host === 'youtu.be' && /^[A-Za-z0-9_-]{11}$/.test(bron.pathname.slice(1))) {
+            return `https://www.youtube.com/watch?v=${bron.pathname.slice(1)}`;
+        }
+        const id = bron.searchParams.get('v');
+        if (toegestaan && bron.pathname === '/watch' && /^[A-Za-z0-9_-]{11}$/.test(id || '')) {
+            return `https://www.youtube.com/watch?v=${id}`;
+        }
+    } catch {
+        /* fallback naar het opgeslagen video-id */
+    }
+    if (/^[A-Za-z0-9_-]{11}$/.test(String(track.preview_url || ''))) {
+        return `https://www.youtube.com/watch?v=${String(track.preview_url)}`;
+    }
+    return null;
+}
+
+/**
+ * Downloadt alleen een expliciet door de admin aangewezen YouTube-track.
+ * yt-dlp en ffmpeg moeten in de servercontainer aanwezig zijn. De lokale
+ * kopie wordt audio (m4a), zodat browsers hem snel en zonder iframe kunnen
+ * afspelen.
+ */
+async function downloadYoutubeTrack(track, droog = false) {
+    const bronUrl = youtubeUrl(track);
+    if (!bronUrl) {
+        const fout = 'Track heeft geen geldig YouTube-video-id of bron-URL.';
+        if (!droog) await markeerMislukt(track.id, fout);
+        throw new Error(fout);
+    }
+
+    const naam = String(track.naam || track.tracknaam || 'track');
+    const bestandsnaam = `${veiligeNaam(naam)}-${track.id}.m4a`;
+    const bestand = path.join(MEDIA_DIR, bestandsnaam);
+    const lokaal = `/media/${bestandsnaam}`;
+    if (droog) {
+        console.log(`DRY  ${track.id}: ${naam} → ${bestand}`);
+        return;
+    }
+
+    await fs.mkdir(MEDIA_DIR, { recursive: true });
+    await pool.query(
+        `UPDATE tracks SET download_status = 'pending', download_melding = NULL WHERE id = $1`,
+        [track.id],
+    );
+
+    try {
+        await execFileAsync(
+            'yt-dlp',
+            [
+                '--no-playlist',
+                '--extract-audio',
+                '--audio-format', 'm4a',
+                '--audio-quality', '5',
+                '--no-part',
+                '--output', bestand,
+                bronUrl,
+            ],
+            { timeout: 180000, maxBuffer: 2 * 1024 * 1024 },
+        );
+        const info = await fs.stat(bestand);
+        if (!info.size || info.size > MAX_BYTES) {
+            throw new Error(`Gedownload bestand is leeg of groter dan ${MAX_BYTES} bytes.`);
+        }
+        const bytes = await fs.readFile(bestand);
+        const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+        await pool.query(
+            `UPDATE tracks
+                SET bron = 'lokaal', preview_url = $2, bestand_pad = $2,
+                    bron_url = $3, download_status = 'available',
+                    download_melding = NULL, audio_sha256 = $4,
+                    gedownload_op = now(), verificatie_score = GREATEST(verificatie_score, 0.95),
+                    verificatie_reden = COALESCE(verificatie_reden, 'lokale admin-download van YouTube-track')
+              WHERE id = $1`,
+            [track.id, lokaal, bronUrl, hash],
+        );
+        console.log(`OK   ${track.id}: ${naam} → ${bestand} (${info.size} bytes)`);
+    } catch (err) {
+        await markeerMislukt(track.id, err.message);
+        throw new Error(`YouTube lokaal opslaan mislukt: ${err.message}`);
+    }
+}
+
+async function downloadTrack(track, droog = false) {
+    if (track.bron === 'youtube') return downloadYoutubeTrack(track, droog);
+    if (track.bron === 'itunes') return downloadAppleTrack(track, droog);
+    throw new Error('Deze track is al lokaal of heeft geen ondersteunde downloadbron.');
 }
 
 async function main() {
@@ -152,20 +249,20 @@ async function main() {
     }
 
     const params = [];
-    let where = `t.bron = 'itunes' AND t.preview_url IS NOT NULL`;
+    let where = `(tr.bron = 'itunes' OR tr.bron = 'youtube') AND tr.preview_url IS NOT NULL`;
     if (id) {
         params.push(Number(id));
-        where += ` AND t.id = $${params.length}`;
+        where += ` AND tr.id = $${params.length}`;
     }
     const { rows } = await pool.query(
-        `SELECT tr.id, tr.preview_url, t.naam
+        `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, t.naam
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
           WHERE ${where}
           ORDER BY tr.id`,
         params,
     );
-    if (!rows.length) throw new Error('Geen passende iTunes-track gevonden.');
+    if (!rows.length) throw new Error('Geen passende YouTube- of iTunes-track gevonden.');
 
     let mislukt = 0;
     for (const track of rows) {
@@ -188,4 +285,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { downloadTrack, isToegestanePreview };
+module.exports = { downloadTrack, downloadYoutubeTrack, isToegestanePreview, youtubeUrl };

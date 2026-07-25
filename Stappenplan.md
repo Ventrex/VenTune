@@ -10,7 +10,9 @@
   melding.
 - [x] **P1** Importvervanging transactioneel maken.
 - [x] **P1** TMDB-metadata als tweede controlelaag gebruiken wanneer een
-  `tmdb_id` en `TMDB_API_KEY` beschikbaar zijn.
+      `tmdb_id` en `TMDB_API_KEY` beschikbaar zijn.
+- [x] **P1** Variabele hints tonen; jaar is geen vaste eerste hint meer.
+- [x] **P1** Titels zonder speelbare track melden en niet als ronde gebruiken.
 
 ## Fase 2 — Beheer en inzicht
 
@@ -22,6 +24,7 @@
 - [x] **P1** Trackmeldingen blijven beschikbaar in `/admin`.
 - [x] **P1** Admin-imports met één gedeelde lock uitvoeren.
 - [x] **P1** Hostaccounts beheren en wachtwoorden resetten vanuit `/admin`.
+- [x] **P1** Hostaccounts aanmaken, hernoemen en uitschakelen vanuit `/admin`.
 - [x] **P2** Documentatiebestanden toevoegen.
 - [x] **P2** Publieke changelog toevoegen.
 - [ ] **P3** Admin-wizard voor importpreview en bevestiging.
@@ -29,8 +32,9 @@
 ## Fase 3 — Lokale audio
 
 - [x] **P2** `/media`-volume voorbereiden.
-- [x] **P2** Handmatige iTunes-previewcache toevoegen.
-- [ ] **P3** Eigen legale audiobestanden uploaden via admin.
+- [x] **P2** Handmatige YouTube-/iTunes-cache toevoegen; YouTube blijft leidend.
+- [x] **P2** Eigen of gelicentieerde audiobestanden uploaden via admin.
+- [x] **P2** Downloadstatus en foutmelding per track tonen.
 - [ ] **P2** Hash- en bestand-beschikbaarheidscontrole bij serverstart.
 - [ ] **P3** Beleid en bron/licentie per lokaal bestand zichtbaar maken.
 
@@ -42,3 +46,4 @@
       bonusafronding en een onbruikbare titel die de nummering laat springen.
 - [ ] **P2** Periodieke kwaliteitsrapportage bouwen.
 - [ ] **P2** YouTube-playlist-refresh met rate-limit en retry-dashboard toevoegen.
+- [ ] **P2** Lokale bestanden controleren op hash en aanwezigheid.
