@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { haalRanking } from '../lib/api.js';
 import Brand from '../components/Brand.jsx';
+import { ThemaContext } from '../lib/thema.js';
 
 // Startscherm: nieuw spel maken (host) of meedoen met een code.
 export default function Home() {
     const navigate = useNavigate();
+    const thema = useContext(ThemaContext);
     const [code, setCode] = useState('');
     const [fout, setFout] = useState('');
     const [ranking, setRanking] = useState([]);
@@ -35,7 +37,7 @@ export default function Home() {
         <main className="scherm">
             <Brand link={false} />
             <h1>De browser-muziekquiz</h1>
-            <p className="ondertitel">Muziekquiz over films en series</p>
+            <p className="ondertitel">{thema.ondertitel || 'Muziekquiz over films en series'}</p>
             <p className="dim start-uitleg">
                 Host? Log in of maak een hostaccount. Speler? Doe gratis mee met
                 de lobbycode.

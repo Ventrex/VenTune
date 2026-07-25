@@ -102,6 +102,8 @@ export async function haalTelling(filters) {
         eind: String(filters.periode_eind),
         bekendheid: String(filters.min_bekendheid ?? 0),
         zonder: (filters.zonder_genres || []).join(','),
+        leeftijd_max: String(filters.leeftijd_max ?? 0),
+        alleen_nl_tv: String(filters.alleen_nl_tv !== false),
     });
     const resp = await fetch(`/api/tracks/telling?${params.toString()}`);
     const data = await jsonOfNull(resp);
@@ -144,6 +146,13 @@ export async function haalChangelog() {
     const data = await jsonOfNull(resp);
     if (!resp.ok) throw new Error(data?.fout || 'Changelog kon niet worden geladen.');
     return data?.entries || [];
+}
+
+export async function haalAppInstellingen() {
+    const resp = await fetch('/api/instellingen');
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Instellingen konden niet worden geladen.');
+    return data || {};
 }
 
 // --- Admin ---
@@ -250,6 +259,9 @@ export async function adminOntbrekendeTracks() {
 export async function adminGebruikers() {
     return adminFetch('/api/admin/gebruikers');
 }
+export async function adminSpelers() {
+    return adminFetch('/api/admin/spelers');
+}
 export async function adminMaakGebruiker(data) {
     return adminFetch('/api/admin/gebruikers', { method: 'POST', ...jsonBody(data) });
 }
@@ -277,11 +289,34 @@ export async function adminVragen(titelId) {
 export async function adminVerwijderVraag(id) {
     return adminFetch(`/api/admin/vragen/${id}`, { method: 'DELETE' });
 }
-export async function adminMeldingen() {
-    return adminFetch('/api/admin/meldingen');
+export async function adminMeldingen(alle = true) {
+    return adminFetch(`/api/admin/meldingen?alle=${alle ? '1' : '0'}`);
 }
 export async function adminMeldingAf(id) {
     return adminFetch(`/api/admin/meldingen/${id}/afgehandeld`, { method: 'POST' });
+}
+export async function adminDatabase() {
+    return adminFetch('/api/admin/database');
+}
+export async function adminDatabaseOpschonen(actie) {
+    return adminFetch('/api/admin/database/opschonen', {
+        method: 'POST',
+        ...jsonBody({ actie }),
+    });
+}
+export async function adminInstellingen() {
+    return adminFetch('/api/admin/instellingen');
+}
+export async function adminBewaarThema(thema) {
+    return adminFetch('/api/admin/instellingen', {
+        method: 'PATCH',
+        ...jsonBody({ thema }),
+    });
+}
+export async function adminUploadLogo(bestand) {
+    const form = new FormData();
+    form.append('logo', bestand);
+    return adminFetch('/api/admin/instellingen/logo', { method: 'POST', body: form });
 }
 
 /** Controleer of een lobbycode bestaat en of je kunt joinen. */
@@ -294,11 +329,11 @@ export async function checkLobby(code) {
 }
 
 /** Speler doet mee. Geeft { token, spelerId, code, is_host }. */
-export async function joinLobby(code, naam) {
+export async function joinLobby(code, naam, leeftijd = null) {
     const resp = await fetch(`/api/lobby/${encodeURIComponent(code)}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ naam }),
+        body: JSON.stringify({ naam, leeftijd }),
     });
     const data = await jsonOfNull(resp);
     if (!resp.ok) throw new Error(data?.fout || 'Meedoen mislukt.');

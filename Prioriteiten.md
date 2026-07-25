@@ -24,17 +24,19 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 
 ## Huidige volgorde
 
-1. Open P0 — momenteel geen; de standaardbranch en productie-updateprocedure
-   zijn gecontroleerd.
-2. Open P1 — momenteel geen; ronde-overgangen, variabele hints, ontbrekende
-   tracks, lokale audio en hostaccountbeheer zijn op 2026-07-25 geïmplementeerd.
-3. Open P2 — bestandscontrole, bulk-cache, rate-limit-herstel, importbeheer en
-   kwaliteitsdashboard.
-4. Open P3/P4 — gemak, uitbreidingen en rechten-/onderzoekskeuzes.
+1. Open P0 — momenteel geen.
+2. Open P1 — momenteel geen; verkeerde muziek, live/nummer-varianten,
+   ronde-overgangen, lokale downloads, hostmeespelen en accounttoegang zijn
+   afgedekt.
+3. Open P2 — automatische leeftijdsclassificatie, bulk-downloads met
+   voortgang/retry, YouTube-rate-limit-herstel, curatie-dashboard en
+   periodieke controle van ontbrekende lokale bestanden.
+4. Open P3/P4 — profielen, verdere spelvarianten en rechten-/onderzoekskeuzes.
 
 ## Door te geven aan Codex
 
 Gebruik bijvoorbeeld: **“Pak alle open P1-punten op.”**
 
 De volgende opdracht is dan P2: lokale bestanden periodiek controleren,
-downloadfouten opnieuw proberen en bulkacties zichtbaar maken.
+downloadfouten opnieuw proberen, bulkacties zichtbaar maken en TMDB/importbeheer
+verder opschalen.

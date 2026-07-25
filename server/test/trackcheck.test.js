@@ -21,6 +21,8 @@ const gtst = {
 const gooische = { id: 3, naam: 'Gooische Vrouwen', aliassen: ['Gooise Vrouwen'], jaar: 2005 };
 const baantjer = { id: 4, naam: 'Baantjer', aliassen: ['De Cock'], type: 'serie', jaar: 1995 };
 const lotr = { id: 5, naam: 'The Lord of the Rings', aliassen: ['Lord of the Rings'], jaar: 2001 };
+const terminator2 = { id: 6, naam: 'Terminator 2', aliassen: ['T2'], jaar: 1991 };
+const baantjerFilm = { id: 7, naam: 'Baantjer 2', aliassen: [], type: 'film', jaar: 2019 };
 
 goed(flodder, { tracknaam: 'Flodder intro (1986)', artiest: 'Nederlandse TV' });
 goed(gtst, { tracknaam: 'GTST intro', artiest: 'TV Tunes' });
@@ -36,6 +38,12 @@ fout(baantjer, { tracknaam: 'Baantjer deel 2', album: 'TV Tunes' });
 fout(gtst, { tracknaam: 'GTST live', album: 'TV Tunes' });
 fout(lotr, { tracknaam: 'Lord of the Rings live', album: 'Movie Themes' });
 goed(baantjer, { tracknaam: 'Baantjer intro (1995)', album: 'TV Tunes' });
+goed(terminator2, { tracknaam: 'Terminator 2 theme', album: 'Judgment Day' });
+goed(baantjerFilm, { tracknaam: 'Baantjer 2 soundtrack', album: 'Film' });
+fout({ naam: 'Terminator', aliassen: [], jaar: 1984 }, {
+    tracknaam: 'Terminator 2 theme',
+    album: 'Judgment Day',
+});
 
 assert.equal(
     matchTitel('Flodder intro (1986)', [flodder, gtst, gooische]).titel.naam,

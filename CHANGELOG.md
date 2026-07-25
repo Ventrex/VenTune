@@ -1,5 +1,55 @@
 # VenTune changelog
 
+## [0.2.6] - 2026-07-25
+
+### Voor spelers
+
+- Setup heeft nu een leeftijdsfilter, waaronder **Gezinsvriendelijk t/m 10**.
+  Een opgegeven leeftijd van een speler kan de selectie automatisch verder
+  begrenzen op de jongste deelnemer.
+- De standaardcatalogus gebruikt alleen goedgekeurde titels die als bekend van
+  Nederlandse tv zijn gemarkeerd. TMDB-imports blijven eerst op **te beoordelen**.
+- De basislijst is uitgebreid met herkenbare Nederlandse kinderklassiekers en
+  veel meer Amerikaanse films en series.
+
+### Beheer
+
+- `/admin` heeft tabs voor overzicht, titels/muziek, imports/downloads,
+  meldingen, users, database en uiterlijk.
+- Elke titel bewaart nu een toevoegreden, curatiestatus, Nederlandse-tv-status
+  en leeftijdsgrens.
+- Downloads zijn echte lokale mp3-bestanden in `./media/downloads`, met Docker-
+  volume en nginx-toegang; uploads staan in `./media/uploads`.
+- Uiterlijk, kleuren, teksten, lettertype en logo zijn vanuit de admin-tabs
+  aanpasbaar. Het admin-wachtwoord blijft uitsluitend in `.env`.
+- De databasetab kan exporteren en beperkte categorieën veilig opschonen.
+
+## [0.2.5] - 2026-07-25
+
+### Voor spelers
+
+- Jaren 90 bevat nu veel meer seedtitels: van 52 naar 132 titels in
+  `seed/titels.json`.
+- "Heel nummer" is de standaard speeltijd. VenTune blijft maximaal 5 minuten
+  per ronde gebruiken.
+- Nieuwe antwoordmodus: **6 opties**. De host kan per spel kiezen tussen typen
+  of zes meerkeuze-antwoorden.
+- Nieuwe hulplijn bij meerkeuze: **verwijder 3 foute antwoorden**. Bij 10
+  rondes krijgt elke speler 1 van deze hulplijn, bij 20 rondes 2, bij eindeloos
+  3.
+- Bonusvragen gebruiken voortaan ook zes opties; oude 4-optievragen worden bij
+  opnieuw genereren opgewaardeerd.
+
+### Betrouwbaarheid
+
+- Bij spelstart probeert de server de geplande YouTube-tracks vooraf lokaal te
+  cachen met `yt-dlp`/`ffmpeg`. Als dat lukt speelt de ronde vanaf `/media`
+  in plaats van live via YouTube.
+- YouTube-downloads worden begrensd op maximaal 5 minuten vanaf de ingestelde
+  startpositie.
+- Officiele genummerde titels zoals **Terminator 2** blijven toegestaan, terwijl
+  extra deelcijfers zoals **Baantjer 2** geweigerd blijven.
+
 ## [0.2.4] - 2026-07-25
 
 ### Voor spelers

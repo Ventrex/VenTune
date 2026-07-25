@@ -226,10 +226,12 @@ of een eigen/gelicentieerd audiobestand uploaden:
     docker compose exec server node /app/seed/download-track.js --track 42
     docker compose exec server node /app/seed/download-track.js --all
 
-YouTube wordt met `yt-dlp` en `ffmpeg` als m4a-audio opgeslagen. Lokale audio
-krijgt voorrang bij het spelen, zodat een later verwijderde YouTube-video geen
-probleem meer is. De game downloadt nooit vanzelf en de cache is niet
-automatisch rechtenvrij: gebruik alleen bronnen/bestanden die je mag gebruiken.
+YouTube wordt met `yt-dlp` en `ffmpeg` als mp3-audio opgeslagen in
+`./media/downloads`. Lokale audio krijgt voorrang bij het spelen, zodat een
+later verwijderde YouTube-video geen probleem meer is. Bij spelstart worden
+alleen al bekende/gecontroleerde tracks vooraf gedownload; de game zoekt of
+downloadt geen willekeurige video's. Gebruik alleen bronnen/bestanden die je
+mag gebruiken.
 
 ---
 

@@ -141,6 +141,10 @@ function naarTitel(r, type) {
         populariteit: r.popularity || 0,
         poster_pad: r.poster_path || null,
         omschrijving: r.overview || null,
+        nl_tv_bekend: false,
+        curatie_status: 'te_beoordelen',
+        leeftijdsgrens: 16,
+        toevoeg_reden: 'Automatisch toegevoegd via TMDB-populariteitsimport; Nederlandse tv-bekendheid moet nog door de admin worden gecontroleerd.',
     };
 }
 
@@ -176,11 +180,14 @@ async function bewaarTitel(t) {
     await pool.query(
         `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres,
                              tmdb_id, populariteit, stemmen, poster_pad,
-                             omschrijving)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                             omschrijving, nl_tv_bekend, curatie_status,
+                             leeftijdsgrens, toevoeg_reden)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                 $13, $14, $15, $16)`,
         [
             t.naam, t.aliassen, t.type, t.taal, t.jaar, t.land, t.genres,
             t.tmdb_id, t.populariteit, t.stemmen, t.poster_pad, t.omschrijving,
+            t.nl_tv_bekend, t.curatie_status, t.leeftijdsgrens, t.toevoeg_reden,
         ],
     );
     return true;

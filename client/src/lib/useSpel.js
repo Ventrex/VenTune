@@ -19,6 +19,9 @@ export function useSpel() {
     const [spelers, setSpelers] = useState([]);
     const [fase, setFase] = useState('wachten'); // wachten|raden|onthul|bonus|scorebord|einde
     const [ronde, setRonde] = useState(null); // {rondenummer, totaal, durationMs, startTs}
+    const [antwoordOpties, setAntwoordOpties] = useState(null);
+    const [verwijderdeOpties, setVerwijderdeOpties] = useState([]);
+    const [hulplijnen, setHulplijnen] = useState({ verwijder3: null });
     const [resultaat, setResultaat] = useState(null); // laatste gok-uitslag
     const [hints, setHints] = useState([]); // ontvangen hints deze ronde
     const [antwoord, setAntwoord] = useState(null); // onthuld na de ronde
@@ -43,6 +46,7 @@ export function useSpel() {
         };
         const bijSpelers = (lijst) => setSpelers(lijst);
         const bijFout = ({ melding }) => setFout(melding);
+        const bijVoorbereiden = ({ melding }) => setFout(melding || 'Muziek voorbereiden...');
         const bijVerbroken = () => setVerbonden(false);
 
         const bijStart = (d) => {
@@ -55,6 +59,8 @@ export function useSpel() {
             setWinnaarId(null);
             setGepauzeerd(false);
             setMelded(false);
+            setAntwoordOpties(d.opties || null);
+            setVerwijderdeOpties([]);
             setRonde({ ...d, startTs: Date.now() });
             setAudio(null);
             setFase('raden');
@@ -81,6 +87,13 @@ export function useSpel() {
         const bijHint = (h) => {
             if (h.fout) setResultaat({ status: 'hint-fout', melding: h.fout });
             else setHints((lijst) => [...lijst, h]);
+        };
+        const bijVerwijder3 = (d) => {
+            if (d.fout) setResultaat({ status: 'hint-fout', melding: d.fout });
+            else {
+                setVerwijderdeOpties(d.indexen || []);
+                setHulplijnen((h) => ({ ...h, verwijder3: d.voorraad }));
+            }
         };
         const bijOnthul = ({ antwoord: a }) => {
             setAudio(null); // Muziek stoppen bij de host.
@@ -109,6 +122,7 @@ export function useSpel() {
         socket.on('lobby:spelers', bijSpelers);
         socket.on('lobby:fout', bijFout);
         socket.on('spel:fout', bijFout);
+        socket.on('spel:voorbereiden', bijVoorbereiden);
         socket.on('ronde:start', bijStart);
         socket.on('ronde:audio', bijAudio);
         socket.on('ronde:resultaat', bijResultaat);
@@ -118,6 +132,7 @@ export function useSpel() {
         socket.on('ronde:audio-pauze', bijAudioPauze);
         socket.on('ronde:audio-hervat', bijAudioHervat);
         socket.on('ronde:hint', bijHint);
+        socket.on('ronde:verwijder3', bijVerwijder3);
         socket.on('ronde:onthul', bijOnthul);
         socket.on('ronde:bonus', bijBonus);
         socket.on('ronde:bonus-resultaat', bijBonusResultaat);
@@ -133,6 +148,7 @@ export function useSpel() {
             socket.off('lobby:spelers', bijSpelers);
             socket.off('lobby:fout', bijFout);
             socket.off('spel:fout', bijFout);
+            socket.off('spel:voorbereiden', bijVoorbereiden);
             socket.off('ronde:start', bijStart);
             socket.off('ronde:audio', bijAudio);
             socket.off('ronde:resultaat', bijResultaat);
@@ -142,6 +158,7 @@ export function useSpel() {
             socket.off('ronde:audio-pauze', bijAudioPauze);
             socket.off('ronde:audio-hervat', bijAudioHervat);
             socket.off('ronde:hint', bijHint);
+            socket.off('ronde:verwijder3', bijVerwijder3);
             socket.off('ronde:onthul', bijOnthul);
             socket.off('ronde:bonus', bijBonus);
             socket.off('ronde:bonus-resultaat', bijBonusResultaat);
@@ -155,6 +172,7 @@ export function useSpel() {
     const startSpel = useCallback(() => haalSocket().emit('spel:start'), []);
     const gok = useCallback((tekst) => haalSocket().emit('ronde:gok', { gok: tekst }), []);
     const vraagHint = useCallback(() => haalSocket().emit('ronde:hint'), []);
+    const verwijder3 = useCallback(() => haalSocket().emit('ronde:verwijder3'), []);
     const volgende = useCallback(() => haalSocket().emit('ronde:volgende'), []);
     const herhaal = useCallback(() => haalSocket().emit('ronde:herhaal'), []);
     const pauzeer = useCallback(() => haalSocket().emit('ronde:pauzeer'), []);
@@ -176,6 +194,9 @@ export function useSpel() {
         spelers,
         fase,
         ronde,
+        antwoordOpties,
+        verwijderdeOpties,
+        hulplijnen,
         resultaat,
         hints,
         antwoord,
@@ -195,6 +216,7 @@ export function useSpel() {
         meldFout,
         gok,
         vraagHint,
+        verwijder3,
         bonusAntwoord,
     };
 }

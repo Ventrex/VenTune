@@ -24,6 +24,18 @@ const { pastBijTitel } = require('../server/lib/trackcheck');
 const tmdb = require('../server/lib/tmdb');
 
 const args = process.argv.slice(2);
+
+function leesSeedCatalogus() {
+    const bestanden = [path.join(__dirname, 'titels.json'), path.join(__dirname, 'titels-extra.json')];
+    return bestanden.flatMap((bestand) => {
+        try {
+            return JSON.parse(fs.readFileSync(bestand, 'utf8'));
+        } catch (err) {
+            if (path.basename(bestand) === 'titels-extra.json' && err.code === 'ENOENT') return [];
+            throw err;
+        }
+    });
+}
 const FORCE = args.includes('--force');
 const LIMIET = (() => {
     const i = args.indexOf('--limit');
@@ -32,6 +44,18 @@ const LIMIET = (() => {
 
 function slaap(ms) {
     return new Promise((r) => setTimeout(r, ms));
+}
+
+const KINDERKLASSIEKERS = new Set([
+    'Bassie en Adriaan', 'De Fabeltjeskrant', 'Het Huis Anubis', 'SpangaS',
+    'Zoop', 'Pippi Langkous', 'Heidi', 'Telekids', 'Sesamstraat', 'Samson en Gert',
+]);
+
+function leeftijdVoor(t) {
+    if (t.leeftijdsgrens !== undefined && t.leeftijdsgrens !== null) return t.leeftijdsgrens;
+    if (KINDERKLASSIEKERS.has(t.naam)) return 10;
+    if ((t.genres || []).some((genre) => ['Familie', 'Animatie'].includes(genre))) return 10;
+    return 16;
 }
 
 function normaliseer(s) {
@@ -115,7 +139,11 @@ async function upsertTitel(t) {
         const id = bestaand.rows[0].id;
         await pool.query(
             `UPDATE titels SET aliassen = $2, type = $3, taal = $4, land = $5,
-                    genres = $6, tmdb_id = COALESCE($7, tmdb_id)
+                    genres = $6, tmdb_id = COALESCE($7, tmdb_id),
+                    toevoeg_reden = COALESCE($8, toevoeg_reden),
+                    nl_tv_bekend = COALESCE($9, nl_tv_bekend),
+                    curatie_status = COALESCE($10, curatie_status),
+                    leeftijdsgrens = COALESCE($11, leeftijdsgrens)
               WHERE id = $1`,
             [
                 id,
@@ -125,13 +153,21 @@ async function upsertTitel(t) {
                 t.land || null,
                 t.genres || [],
                 t.tmdb_id ?? null,
+                t.toevoeg_reden || null,
+                typeof t.nl_tv_bekend === 'boolean' ? t.nl_tv_bekend : null,
+                t.curatie_status || null,
+                t.leeftijdsgrens ?? (
+                    (KINDERKLASSIEKERS.has(t.naam) || (t.genres || []).some((genre) => ['Familie', 'Animatie'].includes(genre)))
+                        ? 10 : null
+                ),
             ],
         );
         return id;
     }
     const nieuw = await pool.query(
-        `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres, tmdb_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres, tmdb_id,
+                            toevoeg_reden, nl_tv_bekend, curatie_status, leeftijdsgrens)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
         [
             t.naam,
             t.aliassen || [],
@@ -141,6 +177,10 @@ async function upsertTitel(t) {
             t.land || null,
             t.genres || [],
             t.tmdb_id ?? null,
+            t.toevoeg_reden || 'Gecureerde VenTune-lijst: herkenbare film of serie die in Nederland breed te zien was.',
+            t.nl_tv_bekend ?? true,
+            t.curatie_status || 'goedgekeurd',
+            leeftijdVoor(t),
         ],
     );
     return nieuw.rows[0].id;
@@ -274,8 +314,7 @@ async function importeer({
         );
         titels = rows.map((r) => ({ ...r, _id: r.id }));
     } else {
-        const bestand = path.join(__dirname, 'titels.json');
-        titels = JSON.parse(fs.readFileSync(bestand, 'utf8'));
+        titels = leesSeedCatalogus();
     }
 
     let verwerkt = 0;

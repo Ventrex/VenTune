@@ -42,9 +42,10 @@ async function haalTitels(titelFilter = '') {
 
 async function maakTitel(naam, type, taal) {
     const { rows } = await pool.query(
-        `INSERT INTO titels (naam, aliassen, type, taal, genres)
-         VALUES ($1, '{}', $2, $3, '{}') RETURNING id`,
-        [naam, type, taal],
+        `INSERT INTO titels (naam, aliassen, type, taal, genres, toevoeg_reden,
+                             nl_tv_bekend, curatie_status)
+         VALUES ($1, '{}', $2, $3, '{}', $4, false, 'te_beoordelen') RETURNING id`,
+        [naam, type, taal, 'Automatisch gevonden via een YouTube-playlist; Nederlandse tv-bekendheid moet nog door de admin worden gecontroleerd.'],
     );
     return rows[0].id;
 }

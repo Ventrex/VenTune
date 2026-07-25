@@ -21,7 +21,9 @@ const { pool } = require('../server/db/pool');
 
 const args = process.argv.slice(2);
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
+const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(MEDIA_DIR, 'downloads');
 const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_YOUTUBE_SECONDS = 5 * 60;
 const execFileAsync = promisify(execFile);
 
 function optie(naam) {
@@ -74,14 +76,14 @@ async function downloadAppleTrack(track, droog = false) {
 
     const naam = String(track.naam || track.tracknaam || 'track');
     const bestandsnaam = `${veiligeNaam(naam)}-${track.id}.m4a`;
-    const bestand = path.join(MEDIA_DIR, bestandsnaam);
-    const lokaal = `/media/${bestandsnaam}`;
+    const bestand = path.join(DOWNLOAD_DIR, bestandsnaam);
+    const lokaal = `/media/downloads/${bestandsnaam}`;
     if (droog) {
         console.log(`DRY  ${track.id}: ${naam} → ${bestand}`);
         return;
     }
 
-    await fs.mkdir(MEDIA_DIR, { recursive: true });
+    await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
     await pool.query(
         `UPDATE tracks SET download_status = 'pending', download_melding = NULL
           WHERE id = $1`,
@@ -168,10 +170,26 @@ function youtubeUrl(track) {
     return null;
 }
 
+/** Controleer of een eerder opgeslagen lokale kopie nog echt op disk staat. */
+async function lokaalBestandBeschikbaar(track) {
+    if (track?.bron !== 'lokaal' || !track.preview_url) return false;
+    const pad = String(track.preview_url);
+    const prefix = '/media/';
+    const absoluut = pad.startsWith(prefix)
+        ? path.join(MEDIA_DIR, pad.slice(prefix.length))
+        : pad;
+    try {
+        const info = await fs.stat(absoluut);
+        return info.isFile() && info.size > 0;
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Downloadt alleen een expliciet door de admin aangewezen YouTube-track.
  * yt-dlp en ffmpeg moeten in de servercontainer aanwezig zijn. De lokale
- * kopie wordt audio (m4a), zodat browsers hem snel en zonder iframe kunnen
+ * kopie wordt audio (mp3), zodat browsers hem snel en zonder iframe kunnen
  * afspelen.
  */
 async function downloadYoutubeTrack(track, droog = false) {
@@ -183,27 +201,31 @@ async function downloadYoutubeTrack(track, droog = false) {
     }
 
     const naam = String(track.naam || track.tracknaam || 'track');
-    const bestandsnaam = `${veiligeNaam(naam)}-${track.id}.m4a`;
-    const bestand = path.join(MEDIA_DIR, bestandsnaam);
-    const lokaal = `/media/${bestandsnaam}`;
+    const bestandsnaam = `${veiligeNaam(naam)}-${track.id}.mp3`;
+    const bestand = path.join(DOWNLOAD_DIR, bestandsnaam);
+    const lokaal = `/media/downloads/${bestandsnaam}`;
     if (droog) {
         console.log(`DRY  ${track.id}: ${naam} → ${bestand}`);
         return;
     }
 
-    await fs.mkdir(MEDIA_DIR, { recursive: true });
+    await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
     await pool.query(
         `UPDATE tracks SET download_status = 'pending', download_melding = NULL WHERE id = $1`,
         [track.id],
     );
 
     try {
+        const start = Math.max(0, Number(track.start_seconde) || 0);
+        const eind = start + MAX_YOUTUBE_SECONDS;
         await execFileAsync(
             'yt-dlp',
             [
                 '--no-playlist',
+                '--download-sections', `*${start}-${eind}`,
+                '--force-keyframes-at-cuts',
                 '--extract-audio',
-                '--audio-format', 'm4a',
+                '--audio-format', 'mp3',
                 '--audio-quality', '5',
                 '--no-part',
                 '--output', bestand,
@@ -255,7 +277,7 @@ async function main() {
         where += ` AND tr.id = $${params.length}`;
     }
     const { rows } = await pool.query(
-        `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, t.naam
+        `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.start_seconde, t.naam
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
           WHERE ${where}
@@ -285,4 +307,10 @@ if (require.main === module) {
     });
 }
 
-module.exports = { downloadTrack, downloadYoutubeTrack, isToegestanePreview, youtubeUrl };
+module.exports = {
+    downloadTrack,
+    downloadYoutubeTrack,
+    isToegestanePreview,
+    youtubeUrl,
+    lokaalBestandBeschikbaar,
+};

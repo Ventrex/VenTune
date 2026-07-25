@@ -6,6 +6,7 @@
 //   'spel:start'   {}            — host start het spel
 //   'ronde:gok'    { gok }       — titel raden
 //   'ronde:hint'   {}            — volgende hint opvragen
+//   'ronde:verwijder3' {}        — hulplijn bij meerkeuze
 //
 // Server → client (o.a.):
 //   'lobby:welkom', 'lobby:spelers', 'lobby:fout'
@@ -110,6 +111,17 @@ function setupSockets(io) {
                 await spel.vraagHint(socket);
             } catch (err) {
                 logger.waarschuwing('Hint mislukt.', { melding: err.message });
+            }
+        });
+
+        // Hulplijn: verwijder drie foute antwoorden bij meerkeuze.
+        socket.on('ronde:verwijder3', () => {
+            try {
+                spel.verwijderDrieFouteOpties(socket);
+            } catch (err) {
+                logger.waarschuwing('Verwijder-3 hulplijn mislukt.', {
+                    melding: err.message,
+                });
             }
         });
 

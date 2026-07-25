@@ -25,3 +25,9 @@ pgdata/
 # Gedownloade audiobestanden horen niet in Git. Bewaar alleen de mapstructuur.
 media/*
 !media/.gitkeep
+!media/downloads/
+media/downloads/*
+!media/downloads/.gitkeep
+!media/uploads/
+media/uploads/*
+!media/uploads/.gitkeep

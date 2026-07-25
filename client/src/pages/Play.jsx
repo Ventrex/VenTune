@@ -17,6 +17,8 @@ export default function Play() {
         ronde,
         resultaat,
         hints,
+        antwoordOpties,
+        verwijderdeOpties,
         antwoord,
         bonus,
         bonusResultaat,
@@ -57,6 +59,12 @@ export default function Play() {
         e.preventDefault();
         if (!gok.trim() || goedGeraden) return;
         spel.gok(gok.trim());
+    }
+
+    function kiesAntwoord(optie) {
+        if (!optie || goedGeraden) return;
+        setGok(optie);
+        spel.gok(optie);
     }
 
     function verlaten() {
@@ -129,23 +137,41 @@ export default function Play() {
                         </div>
                     ) : (
                         <>
-                            <form
-                                onSubmit={versturen}
-                                className="zoekbalk"
-                                style={{ marginTop: '1.5rem' }}
-                            >
-                                <input
-                                    className="invoer"
-                                    value={gok}
-                                    onChange={(e) => setGok(e.target.value)}
-                                    placeholder="Titel raden…"
-                                    aria-label="Jouw titel"
-                                    autoFocus
-                                />
-                                <button className="knop" type="submit">
-                                    Raad
-                                </button>
-                            </form>
+                            {antwoordOpties ? (
+                                <div className="keuzes meerkeuze-antwoorden">
+                                    {antwoordOpties.map((optie, i) => {
+                                        const weg = verwijderdeOpties.includes(i);
+                                        return (
+                                            <button
+                                                key={`${optie}-${i}`}
+                                                className={'keuze' + (gok === optie ? ' gekozen' : '')}
+                                                onClick={() => kiesAntwoord(optie)}
+                                                disabled={weg}
+                                            >
+                                                {weg ? '—' : optie}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <form
+                                    onSubmit={versturen}
+                                    className="zoekbalk"
+                                    style={{ marginTop: '1.5rem' }}
+                                >
+                                    <input
+                                        className="invoer"
+                                        value={gok}
+                                        onChange={(e) => setGok(e.target.value)}
+                                        placeholder="Titel raden…"
+                                        aria-label="Jouw titel"
+                                        autoFocus
+                                    />
+                                    <button className="knop" type="submit">
+                                        Raad
+                                    </button>
+                                </form>
+                            )}
 
                             <button
                                 className="knop knop-stil"
@@ -154,6 +180,18 @@ export default function Play() {
                             >
                                 Hint (−25)
                             </button>
+                            {antwoordOpties && (
+                                <button
+                                    className="knop knop-stil"
+                                    style={{ marginTop: '0.75rem', width: '100%' }}
+                                    onClick={spel.verwijder3}
+                                >
+                                    Verwijder 3 foute antwoorden
+                                    {spel.hulplijnen.verwijder3 !== null
+                                        ? ` (${spel.hulplijnen.verwijder3} over)`
+                                        : ''}
+                                </button>
+                            )}
 
                             <button
                                 className="terug als-link"

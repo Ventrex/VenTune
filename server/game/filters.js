@@ -8,7 +8,9 @@
 /**
  * Bouw WHERE-condities voor een query op titels (alias 't').
  *
- * @param {object} f  { categorie, taal, periode_start, periode_eind }
+ * @param {object} f  { categorie, taal, periode_start, periode_eind,
+ *                      min_bekendheid, zonder_genres, leeftijd_max,
+ *                      alleen_nl_tv }
  * @returns {{ where: string, params: any[] }}
  */
 function bouwFilter(f = {}) {
@@ -58,6 +60,21 @@ function bouwFilter(f = {}) {
     if (Array.isArray(f.zonder_genres) && f.zonder_genres.length > 0) {
         params.push(f.zonder_genres);
         condities.push(`NOT (t.genres && $${params.length}::text[])`);
+    }
+
+    // De standaard spelcatalogus is gecureerd voor titels die in Nederland
+    // op televisie of breed via de Nederlandse zenders te zien waren. Nieuwe
+    // TMDB-imports blijven eerst buiten het spel tot de admin ze beoordeelt.
+    if (f.alleen_nl_tv !== false) {
+        condities.push(`t.nl_tv_bekend = true AND t.curatie_status = 'goedgekeurd'`);
+    }
+
+    // Een leeftijdsfilter is optioneel. Onbekende/ongeclassificeerde titels
+    // staan op 16 en vallen dus bewust buiten een kindvriendelijke selectie.
+    const leeftijd = Number(f.leeftijd_max);
+    if (Number.isFinite(leeftijd) && leeftijd > 0) {
+        params.push(leeftijd);
+        condities.push(`t.leeftijdsgrens <= $${params.length}`);
     }
 
     const where = condities.length ? `WHERE ${condities.join(' AND ')}` : '';

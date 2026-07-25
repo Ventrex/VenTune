@@ -12,13 +12,16 @@
 
 - `pgdata`: databasegegevens; blijft bestaan na een rebuild.
 - `./seed:/app/seed:ro`: seeddata en scripts.
-- `./media:/media`: lokale audiobestanden; wordt niet naar Git gestuurd.
+- `./media:/media`: persistente lokale audio; echte downloads staan in
+  `./media/downloads`, uploads in `./media/uploads`; audiobestanden worden niet
+  naar Git gestuurd.
 - `./media:/usr/share/nginx/html/media:ro`: dezelfde lokale audio voor de
   speler.
 
-De serverimage bevat `yt-dlp`, Python en `ffmpeg` voor een expliciete admin-
-cacheactie van een bestaande YouTube-track. De image downloadt niets tijdens
-het opstarten; lokale bestanden blijven in `./media` staan.
+De serverimage bevat `yt-dlp`, Python en `ffmpeg`. Bij spelstart worden geplande
+gecontroleerde tracks echt gedownload naar `./media/downloads`; de image
+downloadt niets blind tijdens het opstarten. Lokale bestanden blijven in
+`./media` staan.
 
 ## Update
 

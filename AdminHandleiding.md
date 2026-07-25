@@ -4,6 +4,13 @@ Het adminportaal is de centrale plek om de vragenbank, audio en hostaccounts
 te beheren. Het admin-wachtwoord blijft uitsluitend in `.env`; het portaal zet
 dit wachtwoord nooit in de gebruikersdatabase.
 
+## Tabs
+
+Gebruik de tabs bovenaan: **Overzicht**, **Titels & muziek**, **Import &
+downloads**, **Meldingen**, **Users**, **Database** en **Uiterlijk**. Zo staan
+lopende imports, meldingen en gevaarlijke opschoonacties niet meer tussen de
+dagelijkse titelbewerking.
+
 ## Ontbrekende tracks
 
 Open `/admin` en kijk naar **Tracks nodig**. Een titel verschijnt daar wanneer
@@ -24,16 +31,20 @@ gecontroleerd en lokale audio krijgt bij het spelen de hoogste voorkeur.
 
 ## Lokale cache
 
-Bij een bestaande YouTube- of iTunes-track staat een downloadknop. Die actie is
-expliciet en handmatig: VenTune zoekt geen nieuwe video en downloadt niets bij
-het starten van een spel. YouTube wordt met `yt-dlp` en `ffmpeg` als m4a-audio
-opgeslagen in het persistente `./media`-volume.
+Bij een bestaande YouTube- of iTunes-track staat een downloadknop. Daarnaast
+downloadt VenTune bij het starten van een spel de geplande, al gecontroleerde
+tracks vooraf. VenTune zoekt tijdens deze downloadactie geen nieuwe video:
+alleen een al opgeslagen en gecontroleerde track mag worden binnengehaald.
+YouTube wordt met `yt-dlp` en `ffmpeg` als mp3-audio opgeslagen in
+`./media/downloads`; eigen uploads staan in `./media/uploads`. Beide mappen
+komen via Docker en nginx mee en blijven na een rebuild bestaan. Per YouTube-
+track geldt maximaal 5 minuten audio.
 
 De status is zichtbaar per track:
 
 - `not_requested`: nog niet gecachet;
 - `pending`: cacheactie loopt;
-- `available`: lokale kopie is beschikbaar;
+- `available`: lokaal bestand is echt aanwezig;
 - `failed`: cacheactie mislukte; lees de foutmelding en probeer opnieuw.
 
 Controleer voor YouTube-cache altijd of je de betreffende bron en audio mag
@@ -41,6 +52,15 @@ gebruiken. Een lokale cache beschermt tegen verwijderde video's, maar maakt een
 bron niet automatisch rechtenvrij.
 
 ## Titels en hints
+
+In **Uiterlijk** kun je kleuren, teksten, lettertype en logo wijzigen. In het
+titelbeheer staat per titel waarom hij is toegevoegd, of hij als Nederlandse-tv
+bekend is goedgekeurd, welke leeftijdsgrens geldt en of hij nog beoordeeld moet
+worden. TMDB- en automatische playlist-imports krijgen standaard
+`te_beoordelen`.
+
+In **Database** kun je de veilige JSON-export maken en afzonderlijke categorieën
+opschonen. Het admin-wachtwoord en wachtwoordhashes worden niet geëxporteerd.
 
 Bij een titel kun je `Waar speelt het zich af?` en `Hoofdrollen` invullen. Met
 een TMDB-koppeling vult VenTune hoofdrollen tijdens de eerste hint automatisch

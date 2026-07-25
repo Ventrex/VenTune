@@ -15,6 +15,7 @@ const vragenbank = require('./vragen');
 const { pastBijTitel } = require('../lib/trackcheck');
 const logger = require('../lib/logger');
 const tmdb = require('../lib/tmdb');
+const { downloadTrack, lokaalBestandBeschikbaar } = require('../../seed/download-track');
 
 const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
 // 'Heel nummer': ruime bovengrens; de ronde eindigt zodra iedereen geraden
@@ -42,6 +43,7 @@ function modusUit(instellingen) {
 const BONUS_DUUR_MS = 15000; // 15 seconden voor de bonusvraag
 const SCOREBORD_PAUZE_MS = 7000; // pauze tussen rondes
 const GOK_INTERVAL_MS = 1000; // max 1 gok per seconde per speler
+const AANTAL_MEERKEUZE_OPTIES = 6;
 
 function kamer(code) {
     return `lobby:${code}`;
@@ -60,6 +62,40 @@ function husselArray(arr) {
         [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
+}
+
+function lifelineAantal(instellingen) {
+    const rondes = Number(instellingen?.rondes) || 0;
+    if (rondes <= 0) return 3;
+    return Math.max(1, Math.floor(rondes / 10));
+}
+
+function antwoordModusUit(instellingen) {
+    return instellingen?.antwoord_modus === 'meerkeuze' ? 'meerkeuze' : 'typen';
+}
+
+function bouwMeerkeuzeOpties(titel, pool_) {
+    const kandidaten = husselArray(
+        pool_
+            .filter((t) => t.id !== titel.id)
+            .filter((t) => !titel.jaar || !t.jaar || Math.abs(Number(t.jaar) - Number(titel.jaar)) <= 12)
+            .map((t) => t.naam),
+    );
+    const opties = [titel.naam];
+    const gezien = new Set([String(titel.naam).toLowerCase()]);
+    for (const naam of kandidaten) {
+        const sleutel = String(naam).toLowerCase();
+        if (gezien.has(sleutel)) continue;
+        gezien.add(sleutel);
+        opties.push(naam);
+        if (opties.length >= AANTAL_MEERKEUZE_OPTIES) break;
+    }
+    if (opties.length < AANTAL_MEERKEUZE_OPTIES) return null;
+    const gehusseld = husselArray(opties);
+    return {
+        opties: gehusseld,
+        correctIndex: gehusseld.findIndex((optie) => optie === titel.naam),
+    };
 }
 
 /**
@@ -183,11 +219,31 @@ class SpelBeheer {
     async startSpel({ lobbyId, code, instellingen }) {
         if (this.spellen.has(lobbyId)) return;
 
-        const { where, params } = bouwFilter(instellingen || {});
+        // De jongste deelnemer bepaalt automatisch de veilige bovengrens.
+        // De host kan daarnaast in Setup een strengere grens kiezen.
+        const { rows: spelers } = await pool.query(
+            `SELECT id, leeftijd FROM spelers WHERE lobby_id = $1`,
+            [lobbyId],
+        );
+        const leeftijden = spelers
+            .map((s) => Number(s.leeftijd))
+            .filter((leeftijd) => Number.isInteger(leeftijd) && leeftijd > 0);
+        const gekozenLeeftijd = Number(instellingen?.leeftijd_max) || 0;
+        const jongste = leeftijden.length ? Math.min(...leeftijden) : 0;
+        const leeftijdMax = gekozenLeeftijd > 0 && jongste > 0
+            ? Math.min(gekozenLeeftijd, jongste)
+            : gekozenLeeftijd || jongste;
+        const spelInstellingen = {
+            ...(instellingen || {}),
+            leeftijd_max: leeftijdMax,
+        };
+
+        const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
                     t.land, t.genres, t.tmdb_id, t.poster_pad, t.omschrijving,
-                    t.hoofdrollen, t.speelplek
+                    t.hoofdrollen, t.speelplek, t.leeftijdsgrens,
+                    t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
                ${where ? where + ' AND' : 'WHERE'}
                     EXISTS (SELECT 1 FROM tracks tr
@@ -207,27 +263,31 @@ class SpelBeheer {
             return;
         }
 
-        const gevraagd = Number(instellingen?.rondes) || 0; // 0 = eindeloos
+        const gevraagd = Number(spelInstellingen?.rondes) || 0; // 0 = eindeloos
         const pool_ = husselArray(titels);
         const totaal = gevraagd > 0 ? Math.min(gevraagd, pool_.length) : pool_.length;
 
-        const { rows: spelers } = await pool.query(
-            `SELECT id FROM spelers WHERE lobby_id = $1`,
-            [lobbyId],
-        );
+        const aantalHulplijnen = lifelineAantal(spelInstellingen);
         const voorraad = new Map();
-        for (const s of spelers) voorraad.set(s.id, 3); // 3 hints per speler
+        const verwijder3Voorraad = new Map();
+        for (const s of spelers) {
+            voorraad.set(s.id, aantalHulplijnen);
+            verwijder3Voorraad.set(s.id, aantalHulplijnen);
+        }
 
         const state = {
             lobbyId,
             code,
-            instellingen,
-            rondeDuurMs: rondeDuurUit(instellingen),
-            modus: modusUit(instellingen),
+            instellingen: spelInstellingen,
+            rondeDuurMs: rondeDuurUit(spelInstellingen),
+            modus: modusUit(spelInstellingen),
+            antwoordModus: antwoordModusUit(spelInstellingen),
             pool: pool_,
             totaalRondes: totaal,
             rondenummer: 0,
             voorraad,
+            verwijder3Voorraad,
+            voorbereideTracks: new Map(),
             // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
             // titel niet twee keer dezelfde bonusvraag geeft.
             gebruikteVragen: new Set(),
@@ -245,7 +305,94 @@ class SpelBeheer {
         );
         logger.info('Spel gestart.', { code, totaal });
 
+        this.io.to(kamer(code)).emit('spel:voorbereiden', {
+            melding: 'Muziek voorbereiden...',
+            totaal,
+        });
+        await this.bereidTracksVoor(state);
+
         await this.volgendeRonde(state);
+    }
+
+    async bereidTracksVoor(state) {
+        const gepland = state.pool.slice(0, state.totaalRondes);
+        for (const titel of gepland) {
+            const track = await this.kiesTrackVoorTitel(titel);
+            if (!track) continue;
+            state.voorbereideTracks.set(titel.id, track);
+            if (!['youtube', 'itunes'].includes(track.bron) || track.download_status === 'available') continue;
+            try {
+                await downloadTrack(track, false);
+                const { rows } = await pool.query(
+                    `SELECT id, bron, preview_url, start_seconde, tracknaam, artiest,
+                            album, verificatie_score, verificatie_reden, download_status
+                       FROM tracks WHERE id = $1`,
+                    [track.id],
+                );
+                if (rows[0]) state.voorbereideTracks.set(titel.id, rows[0]);
+            } catch (err) {
+                logger.waarschuwing('Track kon niet vooraf lokaal worden opgeslagen; externe fallback blijft beschikbaar.', {
+                    titel: titel.naam,
+                    trackId: track.id,
+                    melding: err.message,
+                });
+            }
+        }
+    }
+
+    async kiesTrackVoorTitel(titel) {
+        const { rows } = await pool.query(
+            `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
+                    tr.tracknaam, tr.artiest, tr.album,
+                    tr.verificatie_score, tr.verificatie_reden, tr.download_status
+               FROM tracks tr
+              WHERE tr.titel_id = $1
+                AND tr.werkt = true
+                AND tr.preview_url IS NOT NULL
+                AND tr.preview_url <> ''
+              ORDER BY CASE
+                           WHEN tr.bron = 'lokaal' THEN 4
+                           WHEN tr.bron = 'youtube' THEN 3
+                           ELSE 1
+                       END DESC,
+                       tr.fout_aantal ASC,
+                       tr.keer_gespeeld ASC,
+                       tr.laatst_gespeeld ASC NULLS FIRST,
+                       tr.verificatie_score DESC,
+                       tr.herkenbaarheid DESC,
+                       random(),
+                       tr.id DESC
+              LIMIT 5`,
+            [titel.id],
+        );
+
+        for (const kandidaat of rows) {
+            if (kandidaat.bron === 'lokaal' && !(await lokaalBestandBeschikbaar(kandidaat))) {
+                await pool.query(
+                    `UPDATE tracks SET werkt = false, download_status = 'failed',
+                            download_melding = 'Lokaal bestand ontbreekt op disk; opnieuw downloaden via admin.'
+                      WHERE id = $1`,
+                    [kandidaat.id],
+                ).catch(() => {});
+                continue;
+            }
+            if (pastBijTitel(titel, kandidaat).past) return kandidaat;
+            logger.waarschuwing('Track past niet bij de titel, afgekeurd.', {
+                titel: titel.naam,
+                tracknaam: kandidaat.tracknaam,
+            });
+            await pool
+                .query(
+                    `UPDATE tracks SET werkt = false, gecontroleerd = false,
+                            verificatie_score = 0,
+                            verificatie_reden = $2,
+                            laatst_gecontroleerd_op = now()
+                      WHERE id = $1`,
+                    [kandidaat.id, 'afgekeurd tijdens speelcontrole'],
+                )
+                .catch(() => {});
+        }
+        return null;
     }
 
     async registreerOntbrekendeTitels(where, params) {
@@ -335,67 +482,8 @@ class SpelBeheer {
                 }
 
                 const titel = state.pool[state.rondenummer - 1];
-                // Kies de BESTE track, niet een willekeurige. Playlist-tracks
-                // YouTube is de hoofdbron voor intro's. iTunes is alleen
-                // fallback; lokale bestanden staan ertussen voor later
-                // expliciet eigen audio. Binnen die bronvolgorde winnen
-                // verificatie en foutvrije tracks.
-                const { rows } = await pool.query(
-                    `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
-                            tr.tracknaam, tr.artiest, tr.album,
-                            tr.verificatie_score, tr.verificatie_reden
-                       FROM tracks tr
-                      WHERE tr.titel_id = $1
-                        AND tr.werkt = true
-                        AND tr.preview_url IS NOT NULL
-                        AND tr.preview_url <> ''
-                      ORDER BY CASE
-                                   WHEN tr.bron = 'lokaal' THEN 4
-                                   WHEN tr.bron = 'youtube' THEN 3
-                                   ELSE 1
-                               END DESC,
-                               tr.fout_aantal ASC,
-                               -- Kies binnen een veilige bron eerst de
-                               -- minst gebruikte track. Zo wint een nieuw
-                               -- goedgekeurd alternatief niet telkens door
-                               -- id/volgorde van de import.
-                               tr.keer_gespeeld ASC,
-                               tr.laatst_gespeeld ASC NULLS FIRST,
-                               tr.verificatie_score DESC,
-                               tr.herkenbaarheid DESC,
-                               random(),
-                               tr.id DESC
-                      LIMIT 5`,
-                    [titel.id],
-                );
-
-                // Laatste slot op de deur: speel nooit muziek die niet bij
-                // deze titel hoort. Zo'n track wordt meteen afgekeurd, zodat
-                // hij ook in volgende spellen niet meer voorbijkomt.
-                let track = null;
-                for (const kandidaat of rows) {
-                    if (pastBijTitel(titel, kandidaat).past) {
-                        track = kandidaat;
-                        break;
-                    }
-                    logger.waarschuwing('Track past niet bij de titel, afgekeurd.', {
-                        titel: titel.naam,
-                        tracknaam: kandidaat.tracknaam,
-                    });
-                    // Bewust awaiten: de afkeuring moet vaststaan, anders
-                    // komt deze verkeerde track in een volgend spel opnieuw
-                    // voorbij.
-                    await pool
-                        .query(
-                            `UPDATE tracks SET werkt = false, gecontroleerd = false,
-                                    verificatie_score = 0,
-                                    verificatie_reden = $2,
-                                    laatst_gecontroleerd_op = now()
-                              WHERE id = $1`,
-                            [kandidaat.id, 'afgekeurd tijdens speelcontrole'],
-                        )
-                        .catch(() => {});
-                }
+                const track = state.voorbereideTracks.get(titel.id)
+                    || await this.kiesTrackVoorTitel(titel);
 
                 if (!track) {
                     logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
@@ -425,6 +513,10 @@ class SpelBeheer {
                     hints: new Map(), // spelerId -> aantal hints deze ronde
                     antwoorden: new Map(), // spelerId -> {punten, verstreken}
                     laatsteGok: new Map(), // spelerId -> timestamp (rate limit)
+                    antwoordOpties: state.antwoordModus === 'meerkeuze'
+                        ? bouwMeerkeuzeOpties(titel, state.pool)
+                        : null,
+                    verwijderdeOpties: new Map(), // spelerId -> indexen
                     timer: null,
                 };
                 state.fase = 'raden';
@@ -442,6 +534,8 @@ class SpelBeheer {
                     totaal: state.totaalRondes,
                     durationMs: state.modus === 'kenner' ? null : state.rondeDuurMs,
                     modus: state.modus,
+                    antwoordModus: state.antwoordModus,
+                    opties: state.huidige.antwoordOpties?.opties || null,
                 });
                 // Host: krijgt de audio om af te spelen in de kamer.
                 this.io.to(hostKamer(state.code)).emit('ronde:audio', {
@@ -582,6 +676,39 @@ class SpelBeheer {
             nr,
             ...this.bouwHint(nr, h.titel),
             kosten: 25,
+            voorraad: voorraad - 1,
+        });
+    }
+
+    verwijderDrieFouteOpties(socket) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || state.fase !== 'raden' || !state.huidige?.antwoordOpties) return;
+        const spelerId = socket.data.spelerId;
+        if (!spelerId || state.huidige.klaar.has(spelerId)) return;
+
+        const voorraad = state.verwijder3Voorraad.get(spelerId) || 0;
+        if (voorraad <= 0) {
+            this.io.to(spelerKamer(spelerId)).emit('ronde:verwijder3', {
+                fout: 'Deze hulplijn is op.',
+            });
+            return;
+        }
+        if (state.huidige.verwijderdeOpties.has(spelerId)) {
+            this.io.to(spelerKamer(spelerId)).emit('ronde:verwijder3', {
+                fout: 'Je hebt deze hulplijn deze ronde al gebruikt.',
+            });
+            return;
+        }
+
+        const correct = state.huidige.antwoordOpties.correctIndex;
+        const fout = state.huidige.antwoordOpties.opties
+            .map((_optie, index) => index)
+            .filter((index) => index !== correct);
+        const indexen = husselArray(fout).slice(0, 3);
+        state.huidige.verwijderdeOpties.set(spelerId, indexen);
+        state.verwijder3Voorraad.set(spelerId, voorraad - 1);
+        this.io.to(spelerKamer(spelerId)).emit('ronde:verwijder3', {
+            indexen,
             voorraad: voorraad - 1,
         });
     }
@@ -1029,4 +1156,6 @@ module.exports = {
     verwijderOnspeelbareTitel,
     beginLetters,
     bouwHinten,
+    bouwMeerkeuzeOpties,
+    lifelineAantal,
 };

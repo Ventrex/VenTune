@@ -55,12 +55,29 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS poster_pad TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS omschrijving TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS hoofdrollen TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS speelplek TEXT;
+-- Curatie: waarom staat een titel in de database en is hij geschikt voor de
+-- standaardselectie "bekend van Nederlandse tv"?
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS toevoeg_reden TEXT NOT NULL
+    DEFAULT 'Bestaande VenTune-basislijst; controle door beheerder nodig.';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_tv_bekend BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS curatie_status TEXT NOT NULL DEFAULT 'goedgekeurd';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS leeftijdsgrens SMALLINT NOT NULL DEFAULT 16;
+DO $$
+BEGIN
+    ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_curatie_status_check;
+    ALTER TABLE titels ADD CONSTRAINT titels_curatie_status_check
+        CHECK (curatie_status IN ('goedgekeurd', 'te_beoordelen', 'uitgesloten'));
+    ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_leeftijdsgrens_check;
+    ALTER TABLE titels ADD CONSTRAINT titels_leeftijdsgrens_check
+        CHECK (leeftijdsgrens IN (0, 6, 10, 12, 16, 18));
+END$$;
 
 CREATE INDEX IF NOT EXISTS idx_titels_type    ON titels (type);
 CREATE INDEX IF NOT EXISTS idx_titels_pop     ON titels (populariteit DESC);
 CREATE INDEX IF NOT EXISTS idx_titels_taal    ON titels (taal);
 CREATE INDEX IF NOT EXISTS idx_titels_jaar    ON titels (jaar);
 CREATE INDEX IF NOT EXISTS idx_titels_genres  ON titels USING GIN (genres);
+CREATE INDEX IF NOT EXISTS idx_titels_curatie ON titels (nl_tv_bekend, curatie_status, leeftijdsgrens);
 
 -- ---------------------------------------------------------------------
 -- Vragenbank: tracks (per titel één of meer nummers)
@@ -184,16 +201,26 @@ CREATE TABLE IF NOT EXISTS presets (
     periode_start  INTEGER     NOT NULL DEFAULT 1950,
     periode_eind   INTEGER     NOT NULL DEFAULT 2100,
     rondes         INTEGER     NOT NULL DEFAULT 10,        -- 10 | 20 | 30 | 0 (eindeloos)
-    -- Speeltijd per ronde in seconden; 0 = heel nummer.
-    speeltijd      INTEGER     NOT NULL DEFAULT 60,
+    -- Speeltijd per ronde in seconden; 0 = heel nummer, max 5 minuten.
+    speeltijd      INTEGER     NOT NULL DEFAULT 0,
     aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Migratie voor bestaande databases.
-ALTER TABLE presets ADD COLUMN IF NOT EXISTS speeltijd INTEGER NOT NULL DEFAULT 60;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS speeltijd INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE presets ALTER COLUMN speeltijd SET DEFAULT 0;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS modus TEXT NOT NULL DEFAULT 'snelste';
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS min_bekendheid INTEGER NOT NULL DEFAULT 200;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS zonder_genres TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijd_max INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS alleen_nl_tv BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS antwoord_modus TEXT NOT NULL DEFAULT 'typen';
+DO $$
+BEGIN
+    ALTER TABLE presets DROP CONSTRAINT IF EXISTS presets_antwoord_modus_check;
+    ALTER TABLE presets ADD CONSTRAINT presets_antwoord_modus_check
+        CHECK (antwoord_modus IN ('typen', 'meerkeuze'));
+END$$;
 
 -- ---------------------------------------------------------------------
 -- Lobbies: één actief spel per lobbycode
@@ -251,6 +278,13 @@ CREATE TABLE IF NOT EXISTS spelers (
 CREATE INDEX IF NOT EXISTS idx_spelers_lobby_id ON spelers (lobby_id);
 CREATE INDEX IF NOT EXISTS idx_spelers_token    ON spelers (sessie_token);
 ALTER TABLE spelers ADD COLUMN IF NOT EXISTS gebruiker_id UUID;
+ALTER TABLE spelers ADD COLUMN IF NOT EXISTS leeftijd SMALLINT;
+DO $$
+BEGIN
+    ALTER TABLE spelers DROP CONSTRAINT IF EXISTS spelers_leeftijd_check;
+    ALTER TABLE spelers ADD CONSTRAINT spelers_leeftijd_check
+        CHECK (leeftijd IS NULL OR leeftijd BETWEEN 4 AND 120);
+END$$;
 CREATE INDEX IF NOT EXISTS idx_spelers_gebruiker_id ON spelers (gebruiker_id);
 DO $$
 BEGIN
@@ -343,6 +377,33 @@ BEGIN
 END$$;
 
 CREATE INDEX IF NOT EXISTS idx_meldingen_open ON meldingen (afgehandeld, aangemaakt_op DESC);
+
+-- Beheerbare applicatie-instellingen. Het admin-wachtwoord staat hier
+-- bewust niet in; dat blijft uitsluitend in .env.
+CREATE TABLE IF NOT EXISTS app_instellingen (
+    sleutel        TEXT PRIMARY KEY,
+    waarde         JSONB NOT NULL,
+    bijgewerkt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO app_instellingen (sleutel, waarde)
+VALUES (
+    'thema',
+    '{
+      "appNaam": "VenTune",
+      "ondertitel": "Muziekquiz over films en series",
+      "logoPad": "/icon.svg",
+      "achtergrond": "#000000",
+      "oppervlak": "#0a0a0a",
+      "rand": "#1c1c1c",
+      "accent": "#c41230",
+      "accentDonker": "#8b0f1d",
+      "tekst": "#f5f5f5",
+      "tekstDim": "#8a8a8a",
+      "lettertype": "system-ui"
+    }'::jsonb
+)
+ON CONFLICT (sleutel) DO NOTHING;
 
 -- ---------------------------------------------------------------------
 -- Zoekcache: onthoudt wat er al opgehaald is (YouTube/iTunes), zodat

@@ -24,6 +24,12 @@ const TALEN = [
     { waarde: 'en', label: 'Internationaal' },
     { waarde: 'beide', label: 'Beide' },
 ];
+const LEEFTIJDEN = [
+    { waarde: 0, label: 'Alle leeftijden', uitleg: 'Volledige gecureerde catalogus' },
+    { waarde: 10, label: 'Gezinsvriendelijk t/m 10', uitleg: 'Geschikt als een kind van 10 meedoet' },
+    { waarde: 12, label: 'T/m 12 jaar', uitleg: 'Geen 16+ of 18+-titels' },
+    { waarde: 16, label: 'T/m 16 jaar', uitleg: 'Geen 18+-titels' },
+];
 const RONDES = [
     { waarde: 10, label: '10' },
     { waarde: 20, label: '20' },
@@ -48,11 +54,15 @@ const MODI = [
     { waarde: 'snelste', label: 'Snelste', uitleg: 'Eerste goede antwoord wint de ronde' },
     { waarde: 'kenner', label: 'Kenner', uitleg: 'Iedereen raadt door tot jij verder klikt' },
 ];
+const ANTWOORD_MODI = [
+    { waarde: 'typen', label: 'Typen', uitleg: 'Spelers vullen zelf de titel in' },
+    { waarde: 'meerkeuze', label: '6 opties', uitleg: 'Zes antwoorden met hulplijn' },
+];
 const SPEELTIJDEN = [
+    { waarde: 0, label: 'Heel nummer' },
     { waarde: 30, label: '30 sec' },
     { waarde: 60, label: '1 min' },
     { waarde: 90, label: '1½ min' },
-    { waarde: 0, label: 'Heel nummer' },
 ];
 const PERIODE_SNEL = [
     { label: 'Alles', van: 1950, tot: NU },
@@ -73,10 +83,13 @@ export default function Setup() {
         periode_start: 1950,
         periode_eind: NU,
         rondes: 10,
-        speeltijd: 60,
+        speeltijd: 0,
         modus: 'snelste',
+        antwoord_modus: 'typen',
         min_bekendheid: 200,
         zonder_genres: [],
+        leeftijd_max: 0,
+        alleen_nl_tv: true,
     });
     const [telling, setTelling] = useState(null);
     const [presets, setPresets] = useState([]);
@@ -158,10 +171,13 @@ export default function Setup() {
             periode_start: p.periode_start,
             periode_eind: p.periode_eind,
             rondes: p.rondes,
-            speeltijd: p.speeltijd ?? 60,
+            speeltijd: p.speeltijd ?? 0,
             modus: p.modus || 'snelste',
+            antwoord_modus: p.antwoord_modus || 'typen',
             min_bekendheid: p.min_bekendheid ?? 200,
             zonder_genres: p.zonder_genres || [],
+            leeftijd_max: p.leeftijd_max ?? 0,
+            alleen_nl_tv: p.alleen_nl_tv !== false,
         });
         setStap(4);
     }
@@ -400,6 +416,37 @@ export default function Setup() {
                         })}
                     </div>
 
+                    <p
+                        className="kaart-label"
+                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
+                    >
+                        Leeftijd
+                    </p>
+                    <div className="keuzes">
+                        {LEEFTIJDEN.map((l) => (
+                            <button
+                                key={l.waarde}
+                                className={'keuze klein' + (filters.leeftijd_max === l.waarde ? ' gekozen' : '')}
+                                onClick={() => zet('leeftijd_max', l.waarde)}
+                            >
+                                <span>{l.label}</span>
+                                <span className="keuze-uitleg">{l.uitleg}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
+                        <input
+                            type="checkbox"
+                            checked={filters.alleen_nl_tv !== false}
+                            onChange={(e) => zet('alleen_nl_tv', e.target.checked)}
+                        />
+                        <span>
+                            <strong>Alleen titels die op Nederlandse tv te zien waren</strong>
+                            <span className="keuze-uitleg">Nieuwe/importtitels blijven verborgen tot de admin ze goedkeurt</span>
+                        </span>
+                    </label>
+
                     {/* Spelsoort */}
                     <p
                         className="kaart-label"
@@ -416,6 +463,29 @@ export default function Setup() {
                                     (filters.modus === m.waarde ? ' gekozen' : '')
                                 }
                                 onClick={() => zet('modus', m.waarde)}
+                            >
+                                <span>{m.label}</span>
+                                <span className="keuze-uitleg">{m.uitleg}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Antwoordwijze */}
+                    <p
+                        className="kaart-label"
+                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
+                    >
+                        Antwoordwijze
+                    </p>
+                    <div className="keuzes">
+                        {ANTWOORD_MODI.map((m) => (
+                            <button
+                                key={m.waarde}
+                                className={
+                                    'keuze klein' +
+                                    (filters.antwoord_modus === m.waarde ? ' gekozen' : '')
+                                }
+                                onClick={() => zet('antwoord_modus', m.waarde)}
                             >
                                 <span>{m.label}</span>
                                 <span className="keuze-uitleg">{m.uitleg}</span>
@@ -542,5 +612,8 @@ function labelVoor(p) {
     const taal = p.taal === 'nl' ? 'NL' : p.taal === 'en' ? 'Int' : 'NL+Int';
     const rondes = p.rondes === 0 ? 'eindeloos' : `${p.rondes} rondes`;
     const tijd = p.speeltijd === 0 ? 'heel nummer' : `${p.speeltijd}s`;
-    return `${cat} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd}`;
+    const antwoord = p.antwoord_modus === 'meerkeuze' ? '6 opties' : 'typen';
+    const leeftijd = p.leeftijd_max ? `t/m ${p.leeftijd_max}` : 'alle leeftijden';
+    const tv = p.alleen_nl_tv === false ? 'alle catalogus' : 'NL-tv';
+    return `${cat} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd} · ${antwoord} · ${leeftijd} · ${tv}`;
 }

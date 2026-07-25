@@ -97,9 +97,15 @@ async function haalLobby(code) {
  * Laat een speler meedoen aan een lobby.
  * @returns {Promise<{spelerId, token, lobbyId}>}
  */
-async function doeMee({ code, naam }) {
+async function doeMee({ code, naam, leeftijd = null }) {
     const schoneNaam = String(naam || '').trim().slice(0, 24);
     if (!schoneNaam) throw new Error('Geef een naam op.');
+    const leeftijdGetal = leeftijd === null || leeftijd === '' || leeftijd === undefined
+        ? null
+        : Number(leeftijd);
+    if (leeftijdGetal !== null && (!Number.isInteger(leeftijdGetal) || leeftijdGetal < 4 || leeftijdGetal > 120)) {
+        throw new Error('Leeftijd moet tussen 4 en 120 jaar liggen.');
+    }
 
     const lobby = await haalLobby(code);
     if (!lobby) throw new Error('Deze lobby bestaat niet (meer).');
@@ -109,10 +115,10 @@ async function doeMee({ code, naam }) {
 
     const token = maakToken();
     const { rows } = await pool.query(
-        `INSERT INTO spelers (lobby_id, naam, sessie_token, verbonden)
-         VALUES ($1, $2, $3, true)
+        `INSERT INTO spelers (lobby_id, naam, leeftijd, sessie_token, verbonden)
+         VALUES ($1, $2, $3, $4, true)
          RETURNING id`,
-        [lobby.id, schoneNaam, token],
+        [lobby.id, schoneNaam, leeftijdGetal, token],
     );
     return { spelerId: rows[0].id, token, lobbyId: lobby.id };
 }

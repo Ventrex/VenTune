@@ -18,6 +18,8 @@ export default function Host() {
         ronde,
         resultaat,
         hints,
+        antwoordOpties,
+        verwijderdeOpties,
         antwoord,
         bonus,
         bonusResultaat,
@@ -52,6 +54,12 @@ export default function Host() {
         e.preventDefault();
         if (!gok.trim() || goedGeraden) return;
         spel.gok(gok.trim());
+    }
+
+    function kiesAntwoord(optie) {
+        if (!optie || goedGeraden) return;
+        setGok(optie);
+        spel.gok(optie);
     }
 
     function kiesBonus(i) {
@@ -153,6 +161,22 @@ export default function Host() {
                         <p className="kaart-label">Jij speelt mee</p>
                         {goedGeraden ? (
                             <p className="goed-tekst">Goed! +{resultaat.punten}</p>
+                        ) : antwoordOpties ? (
+                            <div className="keuzes meerkeuze-antwoorden">
+                                {antwoordOpties.map((optie, i) => {
+                                    const weg = verwijderdeOpties.includes(i);
+                                    return (
+                                        <button
+                                            key={`${optie}-${i}`}
+                                            className={'keuze' + (gok === optie ? ' gekozen' : '')}
+                                            onClick={() => kiesAntwoord(optie)}
+                                            disabled={weg}
+                                        >
+                                            {weg ? '—' : optie}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         ) : (
                             <form className="zoekbalk" onSubmit={verstuurGok}>
                                 <input
@@ -175,13 +199,27 @@ export default function Host() {
                             </p>
                         )}
                         {!goedGeraden && (
-                            <button
-                                className="knop knop-stil host-hintknop"
-                                type="button"
-                                onClick={spel.vraagHint}
-                            >
-                                Hint (−25)
-                            </button>
+                            <>
+                                <button
+                                    className="knop knop-stil host-hintknop"
+                                    type="button"
+                                    onClick={spel.vraagHint}
+                                >
+                                    Hint (−25)
+                                </button>
+                                {antwoordOpties && (
+                                    <button
+                                        className="knop knop-stil host-hintknop"
+                                        type="button"
+                                        onClick={spel.verwijder3}
+                                    >
+                                        Verwijder 3 foute antwoorden
+                                        {spel.hulplijnen.verwijder3 !== null
+                                            ? ` (${spel.hulplijnen.verwijder3} over)`
+                                            : ''}
+                                    </button>
+                                )}
+                            </>
                         )}
                         {hints.length > 0 && (
                             <ul className="hintlijst">

@@ -34,7 +34,7 @@ function hussel(arr) {
 }
 
 /** Kies tot n afleiders uit een pool, zonder het juiste antwoord. */
-function afleiders(pool_, juist, n = 3) {
+function afleiders(pool_, juist, n = 5) {
     const juistLaag = String(juist).toLowerCase();
     const uniek = [];
     for (const k of hussel(pool_)) {
@@ -48,10 +48,10 @@ function afleiders(pool_, juist, n = 3) {
     return uniek;
 }
 
-/** Bouw een vraagobject met vier opties en het juiste antwoord erin. */
+/** Bouw een vraagobject met zes opties en het juiste antwoord erin. */
 function maakVraag(soort, vraag, juist, afleiderLijst) {
-    if (afleiderLijst.length < 3) return null;
-    const opties = hussel([juist, ...afleiderLijst.slice(0, 3)]);
+    if (afleiderLijst.length < 5) return null;
+    const opties = hussel([juist, ...afleiderLijst.slice(0, 5)]);
     return {
         soort,
         vraag,
@@ -70,8 +70,8 @@ function bouwBasisVragen(titel) {
 
     // 1. Jaar
     if (Number.isFinite(titel.jaar)) {
-        const jaarAfleiders = hussel([-6, -4, -3, -2, 2, 3, 4, 6])
-            .slice(0, 3)
+        const jaarAfleiders = hussel([-8, -6, -4, -3, -2, 2, 3, 4, 6, 8])
+            .slice(0, 5)
             .map((o) => String(titel.jaar + o));
         const v = maakVraag(
             'jaar',
@@ -83,8 +83,8 @@ function bouwBasisVragen(titel) {
 
         // 2. Decennium (andere invalshoek dan het exacte jaar)
         const decennium = Math.floor(titel.jaar / 10) * 10;
-        const decAfleiders = hussel([-20, -10, 10, 20])
-            .slice(0, 3)
+        const decAfleiders = hussel([-30, -20, -10, 10, 20, 30])
+            .slice(0, 5)
             .map((o) => `jaren ${String(decennium + o).slice(-2)}`);
         const v2 = maakVraag(
             'decennium',
@@ -127,8 +127,8 @@ function bouwBasisVragen(titel) {
         `Is ${naam} een film of een serie?`,
         typeJuist,
         typeJuist === 'Film'
-            ? ['Serie', 'Documentaire', 'Korte film']
-            : ['Film', 'Documentaire', 'Realityshow'],
+            ? ['Serie', 'Documentaire', 'Korte film', 'Miniserie', 'Realityshow']
+            : ['Film', 'Documentaire', 'Realityshow', 'Korte film', 'Televisiefilm'],
     );
     if (v5) vragen.push(v5);
 
@@ -185,7 +185,10 @@ async function bewaarVragen(titelId, vragen) {
         const res = await pool.query(
             `INSERT INTO vragen (titel_id, soort, vraag, opties, correct_index)
              VALUES ($1, $2, $3, $4::jsonb, $5)
-             ON CONFLICT (titel_id, soort, vraag) DO NOTHING`,
+             ON CONFLICT (titel_id, soort, vraag) DO UPDATE SET
+               opties = EXCLUDED.opties,
+               correct_index = EXCLUDED.correct_index
+             WHERE jsonb_array_length(vragen.opties) < 6`,
             [titelId, v.soort, v.vraag, JSON.stringify(v.opties), v.correct_index],
         );
         if (res.rowCount > 0) nieuw++;
@@ -199,7 +202,10 @@ async function bewaarVragen(titelId, vragen) {
  */
 async function vulAan(titel, minimaal = 3, metTmdb = false) {
     const { rows } = await pool.query(
-        `SELECT count(*)::int AS n FROM vragen WHERE titel_id = $1`,
+        `SELECT count(*)::int AS n
+           FROM vragen
+          WHERE titel_id = $1
+            AND jsonb_array_length(opties) >= 6`,
         [titel.id],
     );
     if (rows[0].n >= minimaal) return 0;
@@ -223,6 +229,7 @@ async function haalVraag(titelId, alGebruikt = new Set()) {
         `SELECT id, soort, vraag, opties, correct_index
            FROM vragen
           WHERE titel_id = $1
+            AND jsonb_array_length(opties) >= 6
           ORDER BY keer_gebruikt ASC, random()
           LIMIT 10`,
         [titelId],
