@@ -10,6 +10,46 @@ import Visualizer from './Visualizer.jsx';
 import { maakSpeler } from '../lib/youtube.js';
 import { audioBron } from '../lib/api.js';
 
+function wacht(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Wacht totdat de browser metadata heeft en start daarna pas de audio. */
+async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
+    element.pause();
+    element.src = audioBron(url);
+    element.load();
+
+    if (element.readyState < 1) {
+        await new Promise((resolve, reject) => {
+            let klaar = false;
+            const opruimen = () => {
+                element.removeEventListener('loadedmetadata', metadata);
+                element.removeEventListener('error', fout);
+            };
+            const metadata = () => {
+                if (klaar) return;
+                klaar = true;
+                opruimen();
+                resolve();
+            };
+            const fout = () => {
+                if (klaar) return;
+                klaar = true;
+                opruimen();
+                reject(new Error('Audio kon niet worden geladen.'));
+            };
+            element.addEventListener('loadedmetadata', metadata);
+            element.addEventListener('error', fout);
+            if (element.readyState >= 1) metadata();
+        });
+    }
+    if (!isActief()) return false;
+    element.currentTime = Number(startSeconde) || 0;
+    await element.play();
+    return true;
+}
+
 // Speelt de muziek af op het host-scherm en toont de visualizer.
 // - YouTube: via de IFrame-speler, volledig afgedekt zodat de titel
 //   nooit zichtbaar is.
@@ -23,27 +63,39 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
     const audioRef = useRef(null);
     const ytMountRef = useRef(null);
     const ytSpelerRef = useRef(null);
+    const ytSpelerPromiseRef = useRef(null);
     const ontgrendeldRef = useRef(false);
+    const speelTokenRef = useRef(0);
     const [moetTikken, setMoetTikken] = useState(false);
 
     const isYoutube = !!audio && audio.bron === 'youtube';
 
+    // Gebruik één gedeelde promise. Zonder deze wachtrij konden het
+    // voorbereidende effect en de eerste ronde tegelijk twee YouTube-players
+    // in hetzelfde element maken; dan ging de eerste ronde soms stil voorbij.
+    const haalYtSpeler = useCallback(async () => {
+        if (ytSpelerRef.current) return ytSpelerRef.current;
+        if (!ytMountRef.current) throw new Error('YouTube-element ontbreekt.');
+        if (!ytSpelerPromiseRef.current) {
+            ytSpelerPromiseRef.current = maakSpeler(ytMountRef.current)
+                .then((speler) => {
+                    ytSpelerRef.current = speler;
+                    return speler;
+                })
+                .catch((err) => {
+                    ytSpelerPromiseRef.current = null;
+                    throw err;
+                });
+        }
+        return ytSpelerPromiseRef.current;
+    }, []);
+
     // Speler alvast klaarzetten zodra het host-scherm laadt.
     useEffect(() => {
-        let weg = false;
-        (async () => {
-            if (!ytMountRef.current || ytSpelerRef.current) return;
-            try {
-                const speler = await maakSpeler(ytMountRef.current);
-                if (!weg) ytSpelerRef.current = speler;
-            } catch {
-                /* zonder YT-API werken audio-bronnen nog steeds */
-            }
-        })();
-        return () => {
-            weg = true;
-        };
-    }, []);
+        haalYtSpeler().catch(() => {
+            /* zonder YouTube-track is dit geen fout */
+        });
+    }, [haalYtSpeler]);
 
     // Wordt aangeroepen vanuit de tik op "Start spel": geeft de browser het
     // signaal dat afspelen door de gebruiker is gestart.
@@ -63,7 +115,7 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
             }
         }
         // YouTube-speler ontgrendelen.
-        const speler = ytSpelerRef.current;
+        const speler = await haalYtSpeler().catch(() => null);
         if (speler && speler.playVideo) {
             try {
                 speler.mute();
@@ -80,25 +132,24 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
                 /* niet fataal */
             }
         }
-    }, []);
+    }, [haalYtSpeler]);
 
     useImperativeHandle(ref, () => ({ ontgrendel }), [ontgrendel]);
 
     // Start (of herstart) het afspelen van de huidige opdracht.
-    const start = useCallback(async () => {
+    const start = useCallback(async (token = ++speelTokenRef.current) => {
         if (!audio) return;
+        const isActief = () => speelTokenRef.current === token;
 
         if (audio.bron === 'youtube') {
-            let speler = ytSpelerRef.current;
-            if (!speler && ytMountRef.current) {
-                try {
-                    speler = await maakSpeler(ytMountRef.current);
-                    ytSpelerRef.current = speler;
-                } catch {
-                    setMoetTikken(true);
-                    return;
-                }
+            let speler;
+            try {
+                speler = await haalYtSpeler();
+            } catch {
+                if (isActief()) setMoetTikken(true);
+                return;
             }
+            if (!isActief()) return;
             if (!speler || !speler.loadVideoById) {
                 setMoetTikken(true);
                 return;
@@ -109,38 +160,45 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
                     startSeconds: audio.startSeconde || 0,
                 });
                 speler.unMute();
-                speler.setVolume(100);
+                if (speler.setVolume) speler.setVolume(100);
                 speler.playVideo();
             } catch {
-                setMoetTikken(true);
+                if (isActief()) setMoetTikken(true);
                 return;
             }
-            // Controleer of hij echt speelt (1 = PLAYING, 3 = bufferen).
-            setTimeout(() => {
+            // Controleer meerdere keren: loadVideoById is asynchroon en kan
+            // tijdens de eerste poging nog -1 (unstarted) teruggeven.
+            for (let poging = 0; poging < 6; poging++) {
+                await wacht(350);
+                if (!isActief()) return;
                 try {
                     const staat = speler.getPlayerState && speler.getPlayerState();
-                    setMoetTikken(!(staat === 1 || staat === 3));
+                    if (staat === 1 || staat === 3) {
+                        setMoetTikken(false);
+                        return;
+                    }
+                    speler.playVideo();
                 } catch {
-                    setMoetTikken(true);
+                    /* volgende poging probeert opnieuw */
                 }
-            }, 1500);
+            }
+            if (isActief()) setMoetTikken(true);
             return;
         }
 
         // iTunes of lokaal bestand.
         const el = audioRef.current;
         if (!el) return;
-        el.src = audioBron(audio.url);
-        el.currentTime = audio.startSeconde || 0;
         try {
-            await el.play();
-            setMoetTikken(false);
+            await laadEnSpeelAudio(el, audio.url, audio.startSeconde, isActief);
+            if (isActief()) setMoetTikken(false);
         } catch {
-            setMoetTikken(true);
+            if (isActief()) setMoetTikken(true);
         }
-    }, [audio]);
+    }, [audio, haalYtSpeler]);
 
     useEffect(() => {
+        const token = ++speelTokenRef.current;
         if (!audio) {
             setMoetTikken(false);
             if (audioRef.current) audioRef.current.pause();
@@ -183,12 +241,14 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
                 } catch {
                     /* negeren */
                 }
+            } else {
+                start(token);
             }
             return;
         }
 
         setMoetTikken(false);
-        start();
+        start(token);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [audio, start]);
 

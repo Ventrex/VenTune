@@ -211,7 +211,8 @@ router.get('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
         `SELECT * FROM tracks
           WHERE titel_id = $1
-          ORDER BY werkt DESC, fout_aantal ASC, herkenbaarheid DESC, id DESC`,
+          ORDER BY werkt DESC, fout_aantal ASC, keer_gespeeld ASC,
+                   laatst_gespeeld ASC NULLS FIRST, herkenbaarheid DESC, id DESC`,
         [req.params.id],
     );
     res.json(rows);

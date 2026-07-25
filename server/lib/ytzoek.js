@@ -574,6 +574,11 @@ function kiesBeste(resultaten, titel) {
         // Nooit resultaten met Arabisch/Cyrillisch/CJK e.d.
         if (!isLatijnsSchrift(r.titel)) return null;
         if (SLECHTE_WOORDEN.some((w) => t.includes(w))) return null;
+        // Een automatische zoekopdracht moet expliciet naar muziek voor de
+        // titel wijzen. Een exact klinkende naam zonder theme/intro-signaal
+        // is vaak een willekeurig nummer met dezelfde zoekwoorden.
+        const minimumSignaal = titel?.type === 'serie' ? 2 : 1;
+        if (signaalNiveau(r.titel) < minimumSignaal) return null;
         if (r.duurSeconden != null) {
             if (r.duurSeconden < MIN_SECONDEN || r.duurSeconden > MAX_SECONDEN) return null;
         }

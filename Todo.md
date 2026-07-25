@@ -21,6 +21,12 @@
 - [x] **P1** Admin kan een eigen of gelicentieerd audiobestand uploaden en koppelen.
 - [x] **P1** YouTube-/playlistmatches weigeren `live`, deel/aflevering-markeringen
       en extra deelcijfers; Baantjer is als regressie vastgelegd.
+- [x] **P1** Host-audio robuuster starten: wachten op metadata/player-ready en
+      automatisch opnieuw proberen bij een late ronde-overgang.
+- [x] **P1** Automatische seriesearch alleen accepteren met een intro/theme-
+      signaal; `live` en `livestream` altijd blokkeren.
+- [x] **P2** Trackgebruik (`keer_gespeeld`, `laatst_gespeeld`) gebruiken voor
+      afwisseling en de teller in `/admin` tonen.
 - [x] **P1** Admin kan hostaccounts aanmaken, bewerken, uitschakelen en
       wachtwoorden resetten; het admin-wachtwoord blijft in `.env`.
 - [ ] **P2** Playlist-import periodiek uitvoeren vanuit admin met voortgang.

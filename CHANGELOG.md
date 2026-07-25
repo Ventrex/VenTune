@@ -1,5 +1,24 @@
 # VenTune changelog
 
+## [0.2.4] - 2026-07-25
+
+### Voor spelers
+
+- De host-audio wacht nu op een geladen YouTube-/audio-element en probeert
+  automatisch opnieuw wanneer de eerste ronde nog aan het bufferen is. Bij een
+  echte afspeelfout verschijnt direct de knop **Tik om de muziek te starten**.
+- Tracks worden niet meer telkens in dezelfde vaste databasevolgorde gekozen:
+  `keer_gespeeld` en `laatst_gespeeld` bepalen nu de afwisseling binnen de
+  veilige bronvolgorde. De teller is ook zichtbaar in het adminportaal.
+
+### Betrouwbaarheid
+
+- `live` en `livestream` zijn absolute uitsluitregels voor automatische
+  matches, ook bij bestaande tracks die eerder al waren opgeslagen.
+- Automatische YouTube-zoekresultaten moeten nu expliciet een intro/theme-
+  signaal hebben. Vooral series zoals GTST worden daardoor niet meer aan een
+  willekeurig nummer met alleen dezelfde titelwoorden gekoppeld.
+
 ## [0.2.3] - 2026-07-25
 
 ### Betrouwbaarheid
