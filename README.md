@@ -130,6 +130,25 @@ Stap 2 kan lang duren (YouTube knijpt af bij te veel verzoeken). Het script is
 hervatbaar: draai het gerust nogmaals, het pakt alleen de titels op die nog geen
 muziek hebben.
 
+**A3. Intro's uit YouTube-playlists (beste kwaliteit).** Playlists als
+"Nederlandse tv-series intro's" bevatten per definitie de échte intro's — geen
+soundtrackalbums of misgrepen. De playlists staan in `seed/playlists.json`:
+
+```bash
+# Eerst kijken wat er gekoppeld zou worden (slaat niets op)
+docker compose exec server node /app/seed/playlist-import.js --droog
+
+# Koppelen aan bestaande titels
+docker compose exec server node /app/seed/playlist-import.js
+
+# Ook onbekende titels uit de playlists aanmaken
+docker compose exec server node /app/seed/playlist-import.js --nieuw
+```
+
+Playlist-tracks krijgen herkenbaarheid 5 en vervangen een eerder gevonden
+track, omdat ze betrouwbaarder zijn. Je kunt eigen playlists toevoegen aan
+`seed/playlists.json`.
+
 **B. Via de command line** (in de servercontainer):
 
 ```bash

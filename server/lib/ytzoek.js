@@ -147,6 +147,94 @@ function leesResultaten(html) {
     return gevonden;
 }
 
+/**
+ * Lees de video's uit een YouTube-playlist.
+ *
+ * Waarom: een playlist als "Nederlandse tv-series intro's" bevat per
+ * definitie de juiste intro's. Dat is veel betrouwbaarder dan zoeken.
+ *
+ * @param {string} playlistId
+ * @returns {Promise<Array<{videoId, titel, kanaal}>>}
+ */
+async function haalPlaylist(playlistId) {
+    const url = `https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`;
+    const headers = {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+            '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8',
+        Cookie: 'CONSENT=YES+cb; SOCS=CAI',
+    };
+
+    let laatsteStatus = 0;
+    for (let poging = 0; poging < 4; poging++) {
+        const resp = await fetch(url, { headers });
+        if (resp.ok) {
+            const html = await resp.text();
+            return leesPlaylistItems(html);
+        }
+        laatsteStatus = resp.status;
+        if (resp.status !== 429 && resp.status !== 403) break;
+        await new Promise((r) => setTimeout(r, 4000 * Math.pow(2, poging)));
+    }
+    throw new Error(`YouTube playlist status ${laatsteStatus}`);
+}
+
+/** Haal playlistVideoRenderer-items uit de ytInitialData van een playlist. */
+function leesPlaylistItems(html) {
+    const start = html.indexOf('ytInitialData');
+    if (start < 0) return [];
+    const gelijk = html.indexOf('=', start);
+    if (gelijk < 0) return [];
+    const rest = html.slice(gelijk + 1);
+    const eind = rest.indexOf(';</script>');
+    const ruw = (eind > 0 ? rest.slice(0, eind) : rest).trim();
+
+    let data;
+    try {
+        data = JSON.parse(ruw);
+    } catch {
+        return [];
+    }
+
+    const items = [];
+    const bezoek = (knoop) => {
+        if (!knoop || typeof knoop !== 'object') return;
+        if (Array.isArray(knoop)) {
+            for (const k of knoop) bezoek(k);
+            return;
+        }
+        const pv = knoop.playlistVideoRenderer;
+        if (pv && pv.videoId) {
+            const titel =
+                (pv.title && pv.title.runs && pv.title.runs[0] && pv.title.runs[0].text) ||
+                (pv.title && pv.title.simpleText) ||
+                '';
+            const kanaal =
+                (pv.shortBylineText &&
+                    pv.shortBylineText.runs &&
+                    pv.shortBylineText.runs[0] &&
+                    pv.shortBylineText.runs[0].text) ||
+                '';
+            const duurTekst =
+                (pv.lengthText && pv.lengthText.simpleText) || null;
+            items.push({
+                videoId: pv.videoId,
+                titel,
+                kanaal,
+                duurSeconden: duurNaarSeconden(duurTekst),
+                views: null,
+            });
+        }
+        for (const s of Object.keys(knoop)) {
+            if (s === 'playlistVideoRenderer') continue;
+            bezoek(knoop[s]);
+        }
+    };
+    bezoek(data);
+    return items;
+}
+
 /** Zoek via de officiële Data API (alleen als er een key is ingesteld). */
 async function zoekViaApi(term, limiet) {
     const params = new URLSearchParams({
@@ -400,7 +488,11 @@ function kiesBeste(resultaten, titel) {
 module.exports = {
     zoek,
     zoekVoorTitel,
+    haalPlaylist,
+    leesPlaylistItems,
     leesResultaten,
+    normaliseer,
+    isLatijnsSchrift,
     kiesBeste,
     zoektermVoor,
     zoektermenVoor,
