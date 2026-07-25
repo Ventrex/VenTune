@@ -38,5 +38,7 @@
 
 - [x] **P1** Geautomatiseerde importfixtures voor Nederlandse titels toevoegen.
 - [x] **P1** PostgreSQL-integratietest met een verkeerde-track-scenario toevoegen.
+- [x] **P1** Ronde-overgangen beveiligen tegen dubbele timers, dubbele
+      bonusafronding en een onbruikbare titel die de nummering laat springen.
 - [ ] **P2** Periodieke kwaliteitsrapportage bouwen.
 - [ ] **P2** YouTube-playlist-refresh met rate-limit en retry-dashboard toevoegen.

@@ -1,5 +1,14 @@
 # VenTune changelog
 
+## [0.2.1] - 2026-07-25
+
+### Voor spelers
+
+- Ronde-overgangen zijn stabieler: een nummer wordt niet meer stil
+  overgeslagen en elke nieuwe ronde toont weer de normale vraag en audio.
+- Het scorebord gaat automatisch door naar de volgende ronde; een dubbele
+  overgang door een gelijktijdige timer of antwoord is afgevangen.
+
 ## [0.2.0] - 2026-07-25
 
 ### Voor spelers

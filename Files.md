@@ -18,6 +18,7 @@
 | `server/routes/changelog.js` | Publieke changelog-API |
 | `server/routes/admin.js` | Centrale import, YouTube-zoekactie, tracks, meldingen en downloads |
 | `server/test/host-play.test.js` | Test dat de host meetelt als actieve speler |
+| `server/test/round-flow.test.js` | Regressietest voor dubbele overgangen en ronde-nummering |
 | `server/test/tmdb.test.js` | Test officiële TMDB-titel- en jaarcontrole |
 | `client/src/pages/Changelog.jsx` | Changelog die spelers kunnen openen |
 | `client/src/pages/HostAuth.jsx` | Hostaccount registreren en inloggen |

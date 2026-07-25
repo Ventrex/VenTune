@@ -285,11 +285,9 @@ export default function Host() {
                         </>
                     )}
                     <Scorebord lijst={scorebord} mijnId={sessie.spelerId} />
-                    <div className="host-knoppen">
-                        <button className="knop" onClick={spel.volgende}>
-                            Volgende →
-                        </button>
-                    </div>
+                    <p className="dim" style={{ marginTop: '1rem' }}>
+                        De volgende ronde start automatisch…
+                    </p>
                 </>
             )}
 

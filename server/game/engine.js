@@ -71,6 +71,22 @@ function iedereenActiefKlaar(spelers, klaar) {
     return actieve.length > 0 && actieve.every((speler) => klaar.has(speler.id));
 }
 
+/**
+ * Verwijder een titel waarvoor tijdens het spel geen geldige track meer
+ * bestaat. De huidige ronde telt dan niet mee. De volgende titel komt op
+ * exact hetzelfde rondenummer, zodat een foutieve track nooit een ronde
+ * overslaat of een nummering-gat veroorzaakt.
+ */
+function verwijderOnspeelbareTitel(state) {
+    const index = state.rondenummer - 1;
+    if (index < 0 || index >= state.pool.length) return false;
+
+    state.pool.splice(index, 1);
+    state.rondenummer -= 1;
+    state.totaalRondes = Math.min(state.totaalRondes, state.pool.length);
+    return state.pool.length > 0 && state.rondenummer < state.totaalRondes;
+}
+
 class SpelBeheer {
     constructor(io) {
         this.io = io;
@@ -79,6 +95,35 @@ class SpelBeheer {
 
     heeftSpel(lobbyId) {
         return this.spellen.has(lobbyId);
+    }
+
+    rapporteerOvergangsfout(state, err, context) {
+        logger.fout('Automatische spelovergang mislukt.', {
+            code: state.code,
+            context,
+            melding: err.message,
+        });
+        this.io.to(kamer(state.code)).emit('spel:fout', {
+            melding: 'De ronde kon niet automatisch doorgaan. De host kan opnieuw proberen.',
+        });
+    }
+
+    planVolgendeRonde(state) {
+        if (state.scorebordTimer) clearTimeout(state.scorebordTimer);
+        const versie = ++state.overgangVersie;
+        state.scorebordTimer = setTimeout(() => {
+            state.scorebordTimer = null;
+            if (
+                this.spellen.get(state.lobbyId) !== state ||
+                state.fase !== 'scorebord' ||
+                state.overgangVersie !== versie
+            ) {
+                return;
+            }
+            this.volgendeRonde(state).catch((err) =>
+                this.rapporteerOvergangsfout(state, err, 'scorebord timer'),
+            );
+        }, SCOREBORD_PAUZE_MS);
     }
 
     // ---- Spel starten ----
@@ -132,6 +177,9 @@ class SpelBeheer {
             gebruikteVragen: new Set(),
             fase: 'wachten',
             huidige: null,
+            volgendeBezig: false,
+            scorebordTimer: null,
+            overgangVersie: 0,
         };
         this.spellen.set(lobbyId, state);
 
@@ -146,143 +194,169 @@ class SpelBeheer {
 
     // ---- Volgende ronde ----
     async volgendeRonde(state) {
-        state.rondenummer += 1;
-        if (state.rondenummer > state.totaalRondes) {
-            return this.eindigSpel(state);
+        if (
+            !state ||
+            this.spellen.get(state.lobbyId) !== state ||
+            state.fase === 'einde' ||
+            state.volgendeBezig
+        ) {
+            return;
         }
 
-        // Hintvoorraad aanvullen: +1 per 10 gespeelde vragen.
-        if (state.rondenummer > 1 && (state.rondenummer - 1) % 10 === 0) {
-            for (const id of state.voorraad.keys()) {
-                state.voorraad.set(id, state.voorraad.get(id) + 1);
+        state.volgendeBezig = true;
+        if (state.scorebordTimer) {
+            clearTimeout(state.scorebordTimer);
+            state.scorebordTimer = null;
+        }
+        state.overgangVersie += 1;
+
+        try {
+            // Een titel zonder bruikbare track telt niet als ronde. Blijf in
+            // dezelfde overgang zoeken, zodat meerdere onbruikbare titels
+            // geen concurrerende recursieve overgang kunnen starten.
+            while (true) {
+                state.rondenummer += 1;
+                if (state.rondenummer > state.totaalRondes) {
+                    return await this.eindigSpel(state);
+                }
+
+                // Hintvoorraad aanvullen: +1 per 10 gespeelde vragen.
+                if (state.rondenummer > 1 && (state.rondenummer - 1) % 10 === 0) {
+                    for (const id of state.voorraad.keys()) {
+                        state.voorraad.set(id, state.voorraad.get(id) + 1);
+                    }
+                }
+
+                const titel = state.pool[state.rondenummer - 1];
+                // Kies de BESTE track, niet een willekeurige. Playlist-tracks
+                // YouTube is de hoofdbron voor intro's. iTunes is alleen
+                // fallback; lokale bestanden staan ertussen voor later
+                // expliciet eigen audio. Binnen die bronvolgorde winnen
+                // verificatie en foutvrije tracks.
+                const { rows } = await pool.query(
+                    `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
+                            tr.tracknaam, tr.artiest, tr.album,
+                            tr.verificatie_score, tr.verificatie_reden
+                       FROM tracks tr
+                      WHERE tr.titel_id = $1
+                        AND tr.werkt = true
+                        AND tr.preview_url IS NOT NULL
+                        AND tr.preview_url <> ''
+                      ORDER BY CASE
+                                   WHEN tr.bron = 'youtube' THEN 3
+                                   WHEN tr.bron = 'lokaal' THEN 2
+                                   ELSE 1
+                               END DESC,
+                               tr.verificatie_score DESC,
+                               tr.fout_aantal ASC,
+                               tr.herkenbaarheid DESC,
+                               tr.id DESC
+                      LIMIT 5`,
+                    [titel.id],
+                );
+
+                // Laatste slot op de deur: speel nooit muziek die niet bij
+                // deze titel hoort. Zo'n track wordt meteen afgekeurd, zodat
+                // hij ook in volgende spellen niet meer voorbijkomt.
+                let track = null;
+                for (const kandidaat of rows) {
+                    if (pastBijTitel(titel, kandidaat).past) {
+                        track = kandidaat;
+                        break;
+                    }
+                    logger.waarschuwing('Track past niet bij de titel, afgekeurd.', {
+                        titel: titel.naam,
+                        tracknaam: kandidaat.tracknaam,
+                    });
+                    // Bewust awaiten: de afkeuring moet vaststaan, anders
+                    // komt deze verkeerde track in een volgend spel opnieuw
+                    // voorbij.
+                    await pool
+                        .query(
+                            `UPDATE tracks SET werkt = false, gecontroleerd = false,
+                                    verificatie_score = 0,
+                                    verificatie_reden = $2,
+                                    laatst_gecontroleerd_op = now()
+                              WHERE id = $1`,
+                            [kandidaat.id, 'afgekeurd tijdens speelcontrole'],
+                        )
+                        .catch(() => {});
+                }
+
+                if (!track) {
+                    logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
+                        titel: titel.naam,
+                    });
+                    if (!verwijderOnspeelbareTitel(state)) {
+                        return await this.eindigSpel(state);
+                    }
+                    continue;
+                }
+
+                const rondeRij = await pool.query(
+                    `INSERT INTO rondes
+                       (lobby_id, rondenummer, titel_id, track_id, start_ms, duur_ms, status)
+                     VALUES ($1, $2, $3, $4, 0, $5, 'raden')
+                     RETURNING id`,
+                    [state.lobbyId, state.rondenummer, titel.id, track.id, state.rondeDuurMs],
+                );
+
+                state.huidige = {
+                    rondeId: rondeRij.rows[0].id,
+                    titel,
+                    track,
+                    startTijd: Date.now(),
+                    klaar: new Set(), // spelers die goed hebben
+                    hints: new Map(), // spelerId -> aantal hints deze ronde
+                    antwoorden: new Map(), // spelerId -> {punten, verstreken}
+                    laatsteGok: new Map(), // spelerId -> timestamp (rate limit)
+                    timer: null,
+                };
+                state.fase = 'raden';
+
+                await pool.query(`UPDATE lobbies SET huidige_ronde = $1 WHERE id = $2`, [
+                    state.rondenummer,
+                    state.lobbyId,
+                ]);
+
+                // Spelers: geen titel, geen audio-URL. In kennersmodus telt
+                // er niets af — de host bepaalt wanneer de ronde voorbij is.
+                this.io.to(kamer(state.code)).emit('ronde:start', {
+                    rondeId: state.huidige.rondeId,
+                    rondenummer: state.rondenummer,
+                    totaal: state.totaalRondes,
+                    durationMs: state.modus === 'kenner' ? null : state.rondeDuurMs,
+                    modus: state.modus,
+                });
+                // Host: krijgt de audio om af te spelen in de kamer.
+                this.io.to(hostKamer(state.code)).emit('ronde:audio', {
+                    rondeId: state.huidige.rondeId,
+                    bron: track.bron,
+                    url: track.preview_url,
+                    startSeconde: track.start_seconde || 0,
+                    durationMs: state.rondeDuurMs,
+                });
+
+                // Bijhouden hoe vaak en wanneer deze track gespeeld is.
+                pool.query(
+                    `UPDATE tracks SET keer_gespeeld = keer_gespeeld + 1,
+                            laatst_gespeeld = now() WHERE id = $1`,
+                    [track.id],
+                ).catch(() => {});
+
+                // In kennersmodus loopt er geen klok: de host klikt op
+                // 'Volgende'.
+                if (state.modus !== 'kenner') {
+                    state.huidige.timer = setTimeout(() => {
+                        this.onthulEnBonus(state).catch((err) =>
+                            this.rapporteerOvergangsfout(state, err, 'ronde timer'),
+                        );
+                    }, state.rondeDuurMs);
+                }
+                return;
             }
-        }
-
-        const titel = state.pool[state.rondenummer - 1];
-        // Kies de BESTE track, niet een willekeurige. Playlist-tracks
-        // YouTube is de hoofdbron voor intro's. iTunes is alleen fallback;
-        // lokale bestanden staan ertussen voor later expliciet eigen audio.
-        // Binnen die bronvolgorde winnen verificatie en foutvrije tracks.
-        const { rows } = await pool.query(
-            `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
-                    tr.tracknaam, tr.artiest, tr.album,
-                    tr.verificatie_score, tr.verificatie_reden
-               FROM tracks tr
-              WHERE tr.titel_id = $1
-                AND tr.werkt = true
-                AND tr.preview_url IS NOT NULL
-                AND tr.preview_url <> ''
-              ORDER BY CASE
-                           WHEN tr.bron = 'youtube' THEN 3
-                           WHEN tr.bron = 'lokaal' THEN 2
-                           ELSE 1
-                       END DESC,
-                       tr.verificatie_score DESC,
-                       tr.fout_aantal ASC,
-                       tr.herkenbaarheid DESC,
-                       tr.id DESC
-              LIMIT 5`,
-            [titel.id],
-        );
-
-        // Laatste slot op de deur: speel nooit muziek die niet bij deze
-        // titel hoort. Zo'n track wordt meteen afgekeurd, zodat hij ook in
-        // volgende spellen niet meer voorbijkomt.
-        let track = null;
-        for (const kandidaat of rows) {
-            if (pastBijTitel(titel, kandidaat).past) {
-                track = kandidaat;
-                break;
-            }
-            logger.waarschuwing('Track past niet bij de titel, afgekeurd.', {
-                titel: titel.naam,
-                tracknaam: kandidaat.tracknaam,
-            });
-            // Bewust awaiten: de afkeuring moet vaststaan, anders komt deze
-            // verkeerde track in een volgend spel opnieuw voorbij.
-            await pool
-                .query(
-                    `UPDATE tracks SET werkt = false, gecontroleerd = false,
-                            verificatie_score = 0,
-                            verificatie_reden = $2,
-                            laatst_gecontroleerd_op = now()
-                      WHERE id = $1`,
-                    [kandidaat.id, 'afgekeurd tijdens speelcontrole'],
-                )
-                .catch(() => {});
-        }
-
-        if (!track) {
-            // Alle tracks van deze titel zijn afgekeurd: sla de ronde over.
-            logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
-                titel: titel.naam,
-            });
-            state.rondenummer -= 1;
-            state.pool.splice(state.rondenummer, 1);
-            if (state.pool.length === 0) return this.eindigSpel(state);
-            state.totaalRondes = Math.min(state.totaalRondes, state.pool.length);
-            return this.volgendeRonde(state);
-        }
-
-        const rondeRij = await pool.query(
-            `INSERT INTO rondes
-               (lobby_id, rondenummer, titel_id, track_id, start_ms, duur_ms, status)
-             VALUES ($1, $2, $3, $4, 0, $5, 'raden')
-             RETURNING id`,
-            [state.lobbyId, state.rondenummer, titel.id, track.id, state.rondeDuurMs],
-        );
-
-        state.huidige = {
-            rondeId: rondeRij.rows[0].id,
-            titel,
-            track,
-            startTijd: Date.now(),
-            klaar: new Set(), // spelers die goed hebben
-            hints: new Map(), // spelerId -> aantal hints deze ronde
-            antwoorden: new Map(), // spelerId -> {punten, verstreken}
-            laatsteGok: new Map(), // spelerId -> timestamp (rate limit)
-            timer: null,
-        };
-        state.fase = 'raden';
-
-        await pool.query(`UPDATE lobbies SET huidige_ronde = $1 WHERE id = $2`, [
-            state.rondenummer,
-            state.lobbyId,
-        ]);
-
-        // Spelers: geen titel, geen audio-URL. In kennersmodus telt er niets
-        // af — de host bepaalt wanneer de ronde voorbij is.
-        this.io.to(kamer(state.code)).emit('ronde:start', {
-            rondeId: state.huidige.rondeId,
-            rondenummer: state.rondenummer,
-            totaal: state.totaalRondes,
-            durationMs: state.modus === 'kenner' ? null : state.rondeDuurMs,
-            modus: state.modus,
-        });
-        // Host: krijgt de audio om af te spelen in de kamer. Afhankelijk van
-        // de bron speelt de host een YouTube-video of audio-clip (lokaal/
-        // iTunes-fallback) af, met de visualizer eroverheen.
-        this.io.to(hostKamer(state.code)).emit('ronde:audio', {
-            rondeId: state.huidige.rondeId,
-            bron: track.bron,
-            url: track.preview_url,
-            startSeconde: track.start_seconde || 0,
-            durationMs: state.rondeDuurMs,
-        });
-
-        // Bijhouden hoe vaak en wanneer deze track gespeeld is.
-        pool.query(
-            `UPDATE tracks SET keer_gespeeld = keer_gespeeld + 1,
-                    laatst_gespeeld = now() WHERE id = $1`,
-            [track.id],
-        ).catch(() => {});
-
-        // In kennersmodus loopt er geen klok: de host klikt op 'Volgende'.
-        if (state.modus !== 'kenner') {
-            state.huidige.timer = setTimeout(
-                () => this.onthulEnBonus(state),
-                state.rondeDuurMs,
-            );
+        } finally {
+            state.volgendeBezig = false;
         }
     }
 
@@ -337,10 +411,14 @@ class SpelBeheer {
                 this.io.to(kamer(state.code)).emit('ronde:gewonnen', {
                     spelerId,
                 });
-                this.onthulEnBonus(state);
+                this.onthulEnBonus(state).catch((err) =>
+                    this.rapporteerOvergangsfout(state, err, 'juiste gok'),
+                );
             } else if (await this.iedereenKlaar(state)) {
                 // Iedereen heeft het goed: dan hoeft de host niet te wachten.
-                this.onthulEnBonus(state);
+                this.onthulEnBonus(state).catch((err) =>
+                    this.rapporteerOvergangsfout(state, err, 'iedereen klaar'),
+                );
             }
         } else if (uitslag.status === 'bijna') {
             this.io.to(spelerKamer(spelerId)).emit('ronde:resultaat', {
@@ -485,7 +563,11 @@ class SpelBeheer {
             durationMs: BONUS_DUUR_MS,
         });
 
-        h.bonusTimer = setTimeout(() => this.eindBonus(state), BONUS_DUUR_MS);
+        h.bonusTimer = setTimeout(() => {
+            this.eindBonus(state).catch((err) =>
+                this.rapporteerOvergangsfout(state, err, 'bonus timer'),
+            );
+        }, BONUS_DUUR_MS);
     }
 
     // ---- Bonusantwoord verwerken ----
@@ -534,21 +616,25 @@ class SpelBeheer {
         }
 
         if (await this.iedereenBonusKlaar(state)) {
-            this.eindBonus(state);
+            this.eindBonus(state).catch((err) =>
+                this.rapporteerOvergangsfout(state, err, 'iedereen bonus klaar'),
+            );
         }
     }
 
     async eindBonus(state) {
+        if (!state || state.fase !== 'bonus') return;
         const h = state.huidige;
         if (h?.bonusTimer) clearTimeout(h.bonusTimer);
         if (h) h.bonusTimer = null;
-        this.naarScorebord(state);
+        return this.naarScorebord(state);
     }
 
     // ---- Scorebord tonen en door naar de volgende ronde ----
     async naarScorebord(state) {
         const h = state.huidige;
-        if (!h) return;
+        if (!h || state.fase === 'scorebord' || state.fase === 'einde') return;
+        if (state.fase !== 'onthul' && state.fase !== 'bonus') return;
         state.fase = 'scorebord';
         await pool.query(`UPDATE rondes SET status = 'afgelopen' WHERE id = $1`, [
             h.rondeId,
@@ -556,16 +642,15 @@ class SpelBeheer {
 
         const scorebord = await this.haalScorebord(state);
         this.io.to(kamer(state.code)).emit('ronde:afgelopen', { scorebord });
-
-        setTimeout(() => {
-            if (this.spellen.get(state.lobbyId) === state) {
-                this.volgendeRonde(state);
-            }
-        }, SCOREBORD_PAUZE_MS);
+        this.planVolgendeRonde(state);
     }
 
     // ---- Spel beëindigen ----
     async eindigSpel(state) {
+        if (!state || state.fase === 'einde') return;
+        if (state.scorebordTimer) clearTimeout(state.scorebordTimer);
+        state.scorebordTimer = null;
+        state.overgangVersie += 1;
         state.fase = 'einde';
         await pool.query(`UPDATE lobbies SET status = 'afgelopen' WHERE id = $1`, [
             state.lobbyId,
@@ -584,9 +669,10 @@ class SpelBeheer {
         if (!state || !socket.data.isHost) return;
         if (state.fase === 'raden') return this.onthulEnBonus(state);
         if (state.fase === 'bonus') return this.eindBonus(state);
-        if (state.fase === 'onthul' || state.fase === 'scorebord') {
-            return this.volgendeRonde(state);
-        }
+        if (state.fase === 'onthul') return this.naarScorebord(state);
+        // Het scorebord heeft één eigenaar: de servertimer. Een handmatige
+        // klik mag geen tweede overgang naast die timer starten.
+        if (state.fase === 'scorebord') return;
     }
 
     /** Host pauzeert: klok stilzetten en de muziek stoppen. */
@@ -624,7 +710,11 @@ class SpelBeheer {
         h.gepauzeerdOp = null;
 
         if (state.modus !== 'kenner' && h.restMs > 0) {
-            h.timer = setTimeout(() => this.onthulEnBonus(state), h.restMs);
+            h.timer = setTimeout(() => {
+                this.onthulEnBonus(state).catch((err) =>
+                    this.rapporteerOvergangsfout(state, err, 'hervatte ronde timer'),
+                );
+            }, h.restMs);
         }
 
         this.io.to(kamer(state.code)).emit('ronde:pauze', {
@@ -807,4 +897,9 @@ class SpelBeheer {
     }
 }
 
-module.exports = { SpelBeheer, RONDE_DUUR_MS, iedereenActiefKlaar };
+module.exports = {
+    SpelBeheer,
+    RONDE_DUUR_MS,
+    iedereenActiefKlaar,
+    verwijderOnspeelbareTitel,
+};

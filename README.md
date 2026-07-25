@@ -102,11 +102,14 @@ Open daarna **http://192.168.0.76:8091** in de browser.
 **Updaten** na een nieuwe versie (nooit een branch wisselen):
 
 ```bash
-cd /opt/VenTune && git pull && docker compose up -d --build
+cd /opt/VenTune
+git pull --ff-only
+docker compose up -d --build
 ```
 
 Je `.env` en de database (Docker-volume `pgdata`) blijven bij een update
-behouden.
+behouden. Wissel hiervoor niet van branch en gebruik geen `docker compose down
+-v`; zo blijft de aangemelde host-sessie beschikbaar.
 
 ---
 
