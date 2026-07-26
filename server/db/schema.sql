@@ -240,6 +240,7 @@ ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijdspunten_aan BOOLEAN NOT NUL
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijdsfactoren JSONB NOT NULL DEFAULT '{"6": 2, "9": 1.75, "12": 1.5, "16": 1.25, "18": 1}'::jsonb;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS gebruiker_id UUID;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS alleen_gecontroleerd BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS kindvriendelijk BOOLEAN NOT NULL DEFAULT false;
 DO $$
 BEGIN
     ALTER TABLE presets DROP CONSTRAINT IF EXISTS presets_antwoord_modus_check;
@@ -292,6 +293,7 @@ INSERT INTO collecties (sleutel, naam, beschrijving, standaard_type, toevoeg_red
 VALUES
     ('disney', 'Disney', 'Disney-films en -series', 'beide', 'Bekende Disney-titels voor een eigen Disney-editie.'),
     ('pixar', 'Pixar', 'Pixar-animatiefilms', 'film', 'Bekende Pixar-films voor een eigen Pixar-editie.'),
+    ('kids', 'Kids', 'Kindvriendelijke films en series', 'beide', 'Titels voor de kindvriendelijke VenTune-editie.'),
     ('marvel', 'Marvel', 'Marvel-films en -series', 'beide', 'Iconische Marvel-titels voor een superheldeneditie.'),
     ('streaming', 'Streaming', 'Bekende streamingfilms en -series', 'beide', 'Bekende streamingtitels voor een Streaming Edition.'),
     ('smartlappen', 'Smartlappen', 'Nederlandse levensliederen en smartlappen', 'muziek', 'Herkenbare Nederlandse muziek voor een Smartlappen-editie.'),

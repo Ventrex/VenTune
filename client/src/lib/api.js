@@ -124,6 +124,7 @@ export async function haalTelling(filters) {
         zonder: (filters.zonder_genres || []).join(','),
         collectie: (filters.collecties || []).join(',') || filters.collectie || 'alles',
         leeftijd_max: String(filters.leeftijd_max ?? 0),
+        kindvriendelijk: String(filters.kindvriendelijk === true),
         alleen_nl_tv: String(filters.alleen_nl_tv !== false),
         alleen_gecontroleerd: String(filters.alleen_gecontroleerd === true),
     });

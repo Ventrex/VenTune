@@ -10,7 +10,11 @@ export default function Home() {
     const thema = useContext(ThemaContext);
     const [code, setCode] = useState('');
     const [fout, setFout] = useState('');
-    const [ranking, setRanking] = useState([]);
+    const [ranking, setRanking] = useState({
+        beste_gemiddeld: [],
+        meeste_spellen: [],
+        punten_gemiddeld: [],
+    });
 
     // Ranglijst over eerdere spellen.
     useEffect(() => {
@@ -71,29 +75,16 @@ export default function Home() {
                 </form>
             </div>
 
-            {ranking.length > 0 && (
+            {(ranking.beste_gemiddeld?.length > 0 || ranking.meeste_spellen?.length > 0 || ranking.punten_gemiddeld?.length > 0) && (
                 <div style={{ marginTop: '2.5rem' }}>
                     <p className="kaart-label" style={{ textAlign: 'left' }}>
-                        Ranglijst
+                        Topscores
                     </p>
-                    <ul className="scorebord">
-                        {ranking.slice(0, 10).map((r, i) => (
-                            <li
-                                key={r.naam}
-                                className={'score-rij' + (i === 0 ? ' winnaar' : '')}
-                            >
-                                <span className="score-plek">{i + 1}</span>
-                                <span className="score-naam">
-                                    {r.naam}
-                                    <span className="dim">
-                                        {' '}
-                                        · {r.spellen} spel{r.spellen === 1 ? '' : 'len'}
-                                    </span>
-                                </span>
-                                <span className="score-punten">{r.totaal}</span>
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="ranking-blokken">
+                        <RankingBlok titel="Beste gemiddelde per spel" veld="gemiddelde" suffix=" pnt" lijst={ranking.beste_gemiddeld} />
+                        <RankingBlok titel="Meeste spellen" veld="spellen" suffix=" spel" lijst={ranking.meeste_spellen} />
+                        <RankingBlok titel="Meeste punten gemiddeld" veld="punten_gemiddeld" suffix=" pnt/ronde" lijst={ranking.punten_gemiddeld} />
+                    </div>
                 </div>
             )}
 
@@ -109,5 +100,24 @@ export default function Home() {
                 </Link>
             </p>
         </main>
+    );
+}
+
+function RankingBlok({ titel, veld, suffix, lijst = [] }) {
+    return (
+        <section className="kaart ranking-blok">
+            <p className="kaart-label">{titel}</p>
+            {lijst.length === 0 ? <p className="dim">Nog geen resultaten</p> : (
+                <ol className="ranking-lijst">
+                    {lijst.slice(0, 5).map((r) => (
+                        <li key={`${titel}-${r.sleutel || r.naam}`}>
+                            <span>{r.naam}</span>
+                            <strong>{Number(r[veld] || 0).toFixed(veld === 'spellen' ? 0 : 1)}{suffix}</strong>
+                        </li>
+                    ))}
+                </ol>
+            )}
+            <p className="dim ranking-uitleg">Gebaseerd op {lijst[0]?.spellen || 0} gespeelde spellen; punten/ronde maakt 10 vragen en eindeloos eerlijk vergelijkbaar.</p>
+        </section>
     );
 }

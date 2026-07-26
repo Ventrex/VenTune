@@ -1,5 +1,32 @@
 # VenTune changelog
 
+## [0.3.8] - 2026-07-26
+
+### Betrouwbaarder spelen
+
+- Een spel start pas nadat alle geplande nummers volledig naar de persistente
+  lokale mediamap zijn gedownload en gecontroleerd. Een mislukte download mag
+  niet meer terugvallen op live YouTube tijdens de ronde.
+- De host ziet tijdens het voorbereiden per nummer de voortgang. Lokale audio
+  gebruikt nu automatisch voorladen en korte retries bij het starten.
+- Een ontbrekend lokaal bestand stopt de overgang met een herstelmelding in
+  plaats van stil een ronde over te slaan.
+
+### Spelregels
+
+- Normale titelpunten lopen van 100 naar 0 in 10 seconden.
+- Een solo-speler mag een tweede titelgok doen; die tweede gok telt voor 50%.
+- Bonusjaartallen worden gecontroleerd tegen de gekozen periode en het lokale
+  titeljaar.
+- Nieuwe kindvriendelijke editie: alleen familie/animatie/fantasy/musical of
+  kindercollecties tot en met 12+, 200 punten en 20 seconden leestijd.
+
+### Topscores
+
+- Het startscherm toont aparte lijsten voor beste gemiddelde per spel, meeste
+  gespeelde spellen en gemiddelde punten per ronde. Daardoor worden spellen
+  met 10 vragen en eindeloze spellen eerlijker vergeleken.
+
 ## [0.3.7] - 2026-07-26
 
 ### Lokale muziek en imports
@@ -22,8 +49,9 @@
   Alleen de speler die fout zat krijgt vijf seconden cooldown.
 - Bonusvragen hebben geen automatische eindtijd meer: goed antwoord, opgeven of
   de host bepaalt het einde. Sneller goed antwoorden levert meer punten op.
-- Een titelgok kan per speler nog maar één keer worden ingestuurd. Antwoordtiles
-  kleuren fout donkerrood en goed groen.
+- Meerdere spelers hebben één titelgok; een solo-speler mag maximaal twee keer
+  gokken, waarbij de tweede goede gok voor 50% telt. Antwoordtiles kleuren fout
+  donkerrood en goed groen.
 
 ### Beheer
 

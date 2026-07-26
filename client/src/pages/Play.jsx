@@ -44,6 +44,9 @@ export default function Play() {
         setGok('');
         setGokIngediend(false);
     }, [ronde?.rondeId]);
+    useEffect(() => {
+        if (resultaat?.opnieuw) setGokIngediend(false);
+    }, [resultaat]);
 
     // Nieuwe bonusvraag → keuze resetten.
     useEffect(() => {
@@ -274,8 +277,9 @@ export default function Play() {
                                     }
                                 >
                                     {resultaat.status === 'bijna' &&
-                                        'Bijna — je antwoord is ingestuurd.'}
-                                    {resultaat.status === 'fout' && 'Helaas, mis.'}
+                                        (resultaat.melding || 'Bijna — je antwoord is ingestuurd.')}
+                                    {resultaat.status === 'fout' &&
+                                        (resultaat.melding || 'Helaas, mis.')}
                                     {resultaat.status === 'tempo' && resultaat.melding}
                                     {resultaat.status === 'hint-fout' &&
                                         resultaat.melding}

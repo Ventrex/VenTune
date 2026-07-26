@@ -74,8 +74,10 @@ function bouwFilter(f = {}) {
 
     // Periode: jaar binnen [start, eind]. Titels zonder jaar vallen buiten
     // een beperkte periode maar tellen mee bij de volledige reeks.
-    const start = Number.isFinite(f.periode_start) ? f.periode_start : 1930;
-    const eind = Number.isFinite(f.periode_eind) ? f.periode_eind : 2100;
+    const startGetal = Number(f.periode_start);
+    const eindGetal = Number(f.periode_eind);
+    const start = Number.isFinite(startGetal) ? startGetal : 1930;
+    const eind = Number.isFinite(eindGetal) ? eindGetal : 2100;
     params.push(start);
     const iStart = params.length;
     params.push(eind);
@@ -104,6 +106,26 @@ function bouwFilter(f = {}) {
     // TMDB-imports blijven eerst buiten het spel tot de admin ze beoordeelt.
     if (f.alleen_nl_tv !== false) {
         condities.push(`t.nl_tv_bekend = true AND t.curatie_status = 'goedgekeurd'`);
+    }
+
+    // Kindmodus is een echte inhoudsfilter, niet alleen een scorebonus:
+    // maximaal 12+, alleen familie/animatie/fantasy/musical/avontuur/komedie/
+    // sciencefiction of een expliciete
+    // kindercollectie. Zo blijven volwassen drama's en actiefilms buiten de
+    // kindereditie, ook als hun leeftijdsgrens toevallig laag staat.
+    if (f.kindvriendelijk === true) {
+        params.push(['Animatie', 'Animation', 'Familie', 'Family', 'Fantasy', 'Musical', 'Avontuur', 'Adventure', 'Komedie', 'Comedy', 'Sciencefiction', 'Science Fiction']);
+        const genreParam = params.length;
+        condities.push(
+            `(t.leeftijdsgrens <= 12 AND
+              (t.genres && $${genreParam}::text[] OR EXISTS (
+                  SELECT 1 FROM titel_collecties tc
+                  JOIN collecties c ON c.id = tc.collectie_id
+                 WHERE tc.titel_id = t.id
+                   AND c.actief = true
+                   AND c.sleutel IN ('kids', 'disney', 'pixar')
+              )))`,
+        );
     }
 
     // Een leeftijdsfilter is optioneel. Onbekende/ongeclassificeerde titels

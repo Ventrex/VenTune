@@ -73,7 +73,7 @@ async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
 // Daarom wordt de speler bij de "Start spel"-tik eenmalig ontgrendeld
 // (ontgrendel()); daarna mag hij ook in latere rondes vanzelf spelen.
 // Lukt het toch niet, dan verschijnt een grote "Tik om te starten"-knop.
-const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
+const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, ref) {
     const audioRef = useRef(null);
     const ytMountRef = useRef(null);
     const ytSpelerRef = useRef(null);
@@ -208,14 +208,28 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
             return;
         }
 
-        // iTunes of lokaal bestand.
+        // iTunes of lokaal bestand. Een lokale download hoort niet opnieuw
+        // afhankelijk te zijn van YouTube; probeer een korte race opnieuw
+        // wanneer de browser de eerste lokale play-call te vroeg afwijst.
         const el = audioRef.current;
         if (!el) return;
-        try {
-            await laadEnSpeelAudio(el, audio.url, audio.startSeconde, isActief);
-            if (isActief()) setMoetTikken(false);
-        } catch {
-            if (isActief()) setMoetTikken(true);
+        let laatsteFout = null;
+        for (let poging = 0; poging < 3; poging++) {
+            try {
+                await laadEnSpeelAudio(el, audio.url, audio.startSeconde, isActief);
+                if (isActief()) setMoetTikken(false);
+                return;
+            } catch (err) {
+                laatsteFout = err;
+                if (!isActief()) return;
+                await wacht(250 * (poging + 1));
+            }
+        }
+        if (isActief()) {
+            // Alleen autoplay blokkade of een echte disk/netwerkfout mag de
+            // handmatige startknop tonen; de korte retries zijn dan op.
+            setMoetTikken(true);
+            console.warn('Lokale audio kon niet starten.', laatsteFout);
         }
     }, [audio, haalYtSpeler]);
 
@@ -275,7 +289,7 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
     }, [audio, start]);
 
     return (
-        <div className="host-speler">
+        <div className={'host-speler' + (verborgen ? ' host-speler-verborgen' : '')}>
             <div className={'yt-laag' + (isYoutube ? ' actief' : '')}>
                 <div ref={ytMountRef} className="yt-mount" />
                 <div className="yt-cover" />
@@ -298,7 +312,7 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
                 </button>
             )}
 
-            <audio ref={audioRef} preload="none" playsInline />
+            <audio ref={audioRef} preload="auto" playsInline />
         </div>
     );
 });

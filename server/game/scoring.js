@@ -1,7 +1,8 @@
 // =====================================================================
 // Puntentelling.
 //
-// - Titel goed: 100 punten, minus 2 per verstreken seconde (minimum 20).
+// - Titel goed: 100 punten, lineair naar 0 na 10 seconden.
+// - Kindmodus: 200 punten, lineair naar 0 na 20 seconden.
 // - Per gebruikte hint: −25.
 // - Bonusvraag goed: basis +50, met een snelheidsbonus die afneemt naarmate
 //   de speler langer wacht. Een tweede poging heeft een lagere basis.
@@ -11,10 +12,14 @@
  * Punten voor een goed geraden titel.
  * @param {number} verstrekenMs  Tijd sinds rondestart.
  * @param {number} hintsGebruikt Aantal hints deze ronde.
+ * @param {object} instellingen Spelinstellingen, inclusief kindvriendelijk.
  */
-function titelPunten(verstrekenMs, hintsGebruikt = 0) {
-    const seconden = Math.floor(Math.max(0, verstrekenMs) / 1000);
-    const basis = Math.max(20, 100 - 2 * seconden);
+function titelPunten(verstrekenMs, hintsGebruikt = 0, instellingen = {}) {
+    const kindvriendelijk = instellingen.kindvriendelijk === true;
+    const maximum = kindvriendelijk ? 200 : 100;
+    const vervaltNaMs = kindvriendelijk ? 20000 : 10000;
+    const verstreken = Math.max(0, Number(verstrekenMs) || 0);
+    const basis = Math.max(0, Math.round(maximum * (1 - (verstreken / vervaltNaMs))));
     const punten = basis - 25 * hintsGebruikt;
     return Math.max(0, punten);
 }
@@ -39,6 +44,10 @@ function bonusPunten(poging, verstrekenMs = 0) {
  * De eerste passende grens geldt: tot en met 6, tot en met 9, enzovoort.
  */
 function leeftijdsFactor(leeftijd, instellingen = {}) {
+    // Kindmodus heeft een eigen basis (200/20 seconden) en gebruikt geen
+    // vermenigvuldiger. Zo wordt een kind niet kunstmatig boven volwassenen
+    // gezet door én 200 basispunten én ×2 te krijgen.
+    if (instellingen.kindvriendelijk === true) return 1;
     if (instellingen.leeftijdspunten_aan !== true) return 1;
     const leeftijdGetal = Number(leeftijd);
     if (!Number.isFinite(leeftijdGetal)) return 1;

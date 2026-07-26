@@ -24,6 +24,10 @@ const HEEL_NUMMER_MS = 5 * 60 * 1000;
 
 /** Bepaal de rondeduur uit de lobby-instellingen. */
 function rondeDuurUit(instellingen) {
+    // Kinderen krijgen bewust twintig seconden om te lezen en te kiezen.
+    // Dit staat los van de ingestelde fragmentduur; het spel blijft daarna
+    // wel strikt lokaal afspelen.
+    if (instellingen?.kindvriendelijk === true) return 20000;
     const s = Number(instellingen && instellingen.speeltijd);
     if (s === 0) return HEEL_NUMMER_MS; // heel nummer
     if (Number.isFinite(s) && s >= 10 && s <= 300) return s * 1000;
@@ -74,6 +78,15 @@ function lifelineAantal(instellingen) {
 
 function antwoordModusUit(instellingen) {
     return instellingen?.antwoord_modus === 'meerkeuze' ? 'meerkeuze' : 'typen';
+}
+
+function kindmodusUit(instellingen) {
+    return instellingen?.kindvriendelijk === true;
+}
+
+/** Alleen een solo-speler krijgt een tweede titelgok. */
+function maxTitelPogingen(state) {
+    return state.solo ? 2 : 1;
 }
 
 function bouwMeerkeuzeOpties(titel, pool_) {
@@ -129,6 +142,19 @@ function beginLetters(naam) {
             return `${letters[0].toUpperCase()}${stippen}${letters[letters.length - 1].toLowerCase()}`;
         })
         .join(' ');
+}
+
+function bonusVraagPastPeriode(vraag, titel, instellingen = {}) {
+    if (!['jaar', 'releasejaar'].includes(vraag?.soort)) return true;
+    const jaar = Number(vraag?.opties?.[vraag.correctIndex]);
+    const titelJaar = Number(titel?.jaar);
+    const start = Number(instellingen.periode_start);
+    const eind = Number(instellingen.periode_eind);
+    if (!Number.isInteger(jaar) || !Number.isInteger(titelJaar)) return false;
+    if (jaar !== titelJaar) return false;
+    if (Number.isInteger(start) && jaar < start) return false;
+    if (Number.isInteger(eind) && jaar > eind) return false;
+    return true;
 }
 
 /**
@@ -316,7 +342,7 @@ class SpelBeheer {
         // De jongste deelnemer bepaalt automatisch de veilige bovengrens.
         // De host kan daarnaast in Setup een strengere grens kiezen.
         const { rows: spelers } = await pool.query(
-            `SELECT id, leeftijd FROM spelers WHERE lobby_id = $1`,
+            `SELECT id, leeftijd, verbonden FROM spelers WHERE lobby_id = $1`,
             [lobbyId],
         );
         const leeftijden = spelers
@@ -333,6 +359,7 @@ class SpelBeheer {
         const spelInstellingen = {
             ...(instellingen || {}),
             leeftijd_max: leeftijdMax,
+            kindvriendelijk: kindmodusUit(instellingen),
         };
 
         const { where, params } = bouwFilter(spelInstellingen);
@@ -387,6 +414,8 @@ class SpelBeheer {
             voorbereideTracks: new Map(),
             gebruikteTrackIds: new Set(),
             leeftijden: new Map(spelers.map((s) => [s.id, Number(s.leeftijd)])),
+            solo: spelers.filter((speler) => speler.verbonden !== false).length === 1,
+            alleenLokaal: false,
             // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
             // titel niet twee keer dezelfde bonusvraag geeft.
             gebruikteVragen: new Set(),
@@ -405,29 +434,79 @@ class SpelBeheer {
         logger.info('Spel gestart.', { code, totaal });
 
         this.io.to(kamer(code)).emit('spel:voorbereiden', {
-            melding: 'Muziek voorbereiden...',
+            melding: 'Nummers volledig lokaal opslaan...',
+            verwerkt: 0,
             totaal,
         });
-        await this.bereidTracksVoor(state);
+        const voorbereiding = await this.bereidTracksVoor(state);
+        if (!voorbereiding.geslaagd) {
+            this.spellen.delete(lobbyId);
+            await pool.query(
+                `UPDATE lobbies SET status = 'wachten', huidige_ronde = 0 WHERE id = $1`,
+                [lobbyId],
+            );
+            const eersteFout = voorbereiding.mislukt[0];
+            this.io.to(kamer(code)).emit('spel:fout', {
+                melding: `Spel niet gestart: ${voorbereiding.mislukt.length} van ${voorbereiding.totaal} nummers zijn niet volledig gedownload. ${eersteFout ? `${eersteFout.titel}: ${eersteFout.melding}` : 'Controleer de downloads in het adminportaal.'}`,
+            });
+            logger.waarschuwing('Spelstart afgebroken omdat niet alle audio lokaal beschikbaar is.', {
+                code,
+                totaal: voorbereiding.totaal,
+                mislukt: voorbereiding.mislukt.length,
+            });
+            return;
+        }
+        state.alleenLokaal = true;
 
         await this.volgendeRonde(state);
     }
 
     async bereidTracksVoor(state) {
         const gepland = state.pool.slice(0, state.totaalRondes);
+        const mislukt = [];
+        let verwerkt = 0;
         for (const titel of gepland) {
-            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen);
-            if (!track) continue;
+            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen, false);
+            if (!track) {
+                mislukt.push({ titel: titel.naam, melding: 'Geen werkende track gekoppeld.' });
+                verwerkt += 1;
+                this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
+                    melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
+                    verwerkt,
+                    totaal: gepland.length,
+                    huidige: titel.naam,
+                });
+                continue;
+            }
             state.voorbereideTracks.set(titel.id, track);
             const lokaleKopie = track.bron === 'lokaal'
                 && track.download_status === 'available'
                 && await lokaalBestandBeschikbaar(track);
-            if (lokaleKopie) continue;
+            if (lokaleKopie) {
+                verwerkt += 1;
+                this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
+                    melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
+                    verwerkt,
+                    totaal: gepland.length,
+                    huidige: titel.naam,
+                });
+                continue;
+            }
             // Een lokale track waarvan het bestand verdwenen is, probeert via
             // de bewaarde bron_url te herstellen. Zo speelt een stale DB-pad
             // nooit stilzwijgend een ronde zonder muziek.
             if (!['youtube', 'itunes'].includes(track.bron)
-                && !(track.bron === 'lokaal' && track.bron_url)) continue;
+                && !(track.bron === 'lokaal' && track.bron_url)) {
+                mislukt.push({ titel: titel.naam, melding: 'Track heeft geen herstelbare bron.' });
+                verwerkt += 1;
+                this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
+                    melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
+                    verwerkt,
+                    totaal: gepland.length,
+                    huidige: titel.naam,
+                });
+                continue;
+            }
             try {
                 await downloadTrack(track, false);
                 const { rows } = await pool.query(
@@ -437,18 +516,36 @@ class SpelBeheer {
                        FROM tracks WHERE id = $1`,
                     [track.id],
                 );
-                if (rows[0]) state.voorbereideTracks.set(titel.id, rows[0]);
+                const lokaal = rows[0]
+                    && rows[0].bron === 'lokaal'
+                    && rows[0].download_status === 'available'
+                    && await lokaalBestandBeschikbaar(rows[0]);
+                if (lokaal) state.voorbereideTracks.set(titel.id, rows[0]);
+                else mislukt.push({ titel: titel.naam, melding: 'Download werd niet als volledig lokaal bevestigd.' });
             } catch (err) {
-                logger.waarschuwing('Track kon niet vooraf lokaal worden opgeslagen; externe fallback blijft beschikbaar.', {
+                mislukt.push({ titel: titel.naam, melding: err.message });
+                logger.waarschuwing('Track kon niet vooraf lokaal worden opgeslagen.', {
                     titel: titel.naam,
                     trackId: track.id,
                     melding: err.message,
                 });
             }
+            verwerkt += 1;
+            this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
+                melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
+                verwerkt,
+                totaal: gepland.length,
+                huidige: titel.naam,
+            });
         }
+        return {
+            totaal: gepland.length,
+            mislukt,
+            geslaagd: mislukt.length === 0 && verwerkt === gepland.length,
+        };
     }
 
-    async kiesTrackVoorTitel(titel, uitgesloten = new Set(), instellingen = {}) {
+    async kiesTrackVoorTitel(titel, uitgesloten = new Set(), instellingen = {}, alleenLokaal = false) {
         const { rows } = await pool.query(
             `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
                     tr.tracknaam, tr.artiest, tr.album,
@@ -461,6 +558,8 @@ class SpelBeheer {
                 AND tr.preview_url <> ''
                 AND ($2::boolean = false
                      OR (tr.gecontroleerd = true AND tr.verificatie_score >= 0.85))
+                AND ($3::boolean = false
+                     OR (tr.bron = 'lokaal' AND tr.download_status = 'available'))
               ORDER BY CASE
                            -- YouTube blijft de hoofdbron, ook nadat de clip
                            -- lokaal is opgeslagen. bron_url bewaart de
@@ -480,7 +579,7 @@ class SpelBeheer {
                        random(),
                        tr.id DESC
               LIMIT 20`,
-            [titel.id, instellingen?.alleen_gecontroleerd === true],
+            [titel.id, instellingen?.alleen_gecontroleerd === true, alleenLokaal],
         );
 
         let eersteGeldige = null;
@@ -611,9 +710,17 @@ class SpelBeheer {
                 const titel = state.pool[state.rondenummer - 1];
                 let track = state.voorbereideTracks.get(titel.id);
                 if (track && state.gebruikteTrackIds.has(track.id)) track = null;
-                track = track || await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen);
+                track = track || await this.kiesTrackVoorTitel(
+                    titel,
+                    state.gebruikteTrackIds,
+                    state.instellingen,
+                    state.alleenLokaal,
+                );
 
                 if (!track) {
+                    if (state.alleenLokaal) {
+                        throw new Error(`Lokaal audiobestand ontbreekt voor "${titel.naam}". Herstel de download via het adminportaal.`);
+                    }
                     logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
                         titel: titel.naam,
                     });
@@ -642,7 +749,8 @@ class SpelBeheer {
                     klaar: new Set(), // spelers die goed hebben
                     hints: new Map(), // spelerId -> aantal hints deze ronde
                     antwoorden: new Map(), // spelerId -> {punten, verstreken}
-                    ingediend: new Set(), // titelgok is per speler maximaal één keer
+                    ingediend: new Set(), // geen pogingen meer toegestaan
+                    gokPogingen: new Map(), // solo mag twee titelgokken doen
                     laatsteGok: new Map(), // spelerId -> timestamp (rate limit)
                     antwoordOpties: state.antwoordModus === 'meerkeuze'
                         ? bouwMeerkeuzeOpties(titel, state.pool)
@@ -739,19 +847,22 @@ class SpelBeheer {
             return;
         }
         h.laatsteGok.set(spelerId, nu);
-        // Eén ingestuurde titelgok per ronde. Meerkeuze is een enkele tik;
-        // typen gebruikt dezelfde serverregel zodra de speler op insturen
-        // drukt. Zo kunnen dubbele taps nooit meerdere pogingen opleveren.
-        h.ingediend.add(spelerId);
+        const poging = (h.gokPogingen.get(spelerId) || 0) + 1;
+        const maximaal = maxTitelPogingen(state);
+        h.gokPogingen.set(spelerId, poging);
+        // Meerdere snelle taps kunnen niet meer pogingen veroorzaken: het
+        // aantal wordt vóór de vergelijking server-side vastgelegd.
+        if (poging >= maximaal) h.ingediend.add(spelerId);
 
         const uitslag = vergelijk(gok, h.titel);
 
         if (uitslag.status === 'goed') {
             const verstreken = nu - h.startTijd;
             const hintsGebruikt = h.hints.get(spelerId) || 0;
-            const basisPunten = titelPunten(verstreken, hintsGebruikt);
+            const basisPunten = titelPunten(verstreken, hintsGebruikt, state.instellingen);
             const factor = leeftijdsFactor(state.leeftijden.get(spelerId), state.instellingen);
-            const punten = Math.round(basisPunten * factor);
+            const gokFactor = poging >= 2 ? 0.5 : 1;
+            const punten = Math.round(basisPunten * factor * gokFactor);
             h.klaar.add(spelerId);
             h.antwoorden.set(spelerId, { punten, verstreken, hintsGebruikt });
 
@@ -767,6 +878,9 @@ class SpelBeheer {
                 status: 'goed',
                 punten,
                 keuze: gok,
+                poging,
+                maxPogingen: maximaal,
+                tweedeGok: poging >= 2,
                 ingediend: true,
             });
             await this.stuurScores(state);
@@ -789,13 +903,20 @@ class SpelBeheer {
         } else if (uitslag.status === 'bijna') {
             this.io.to(spelerKamer(spelerId)).emit('ronde:resultaat', {
                 status: 'bijna',
-                melding: 'Bijna! Probeer nog eens.',
-                ingediend: true,
+                melding: poging < maximaal ? 'Bijna! Je mag nog één keer gokken.' : 'Bijna — je laatste gok is ingestuurd.',
+                poging,
+                maxPogingen: maximaal,
+                opnieuw: poging < maximaal,
+                ingediend: poging >= maximaal,
             });
         } else {
             this.io.to(spelerKamer(spelerId)).emit('ronde:resultaat', {
                 status: 'fout',
-                ingediend: true,
+                melding: poging < maximaal ? 'Fout. Je mag nog één keer gokken.' : 'Fout. Je laatste gok is ingestuurd.',
+                poging,
+                maxPogingen: maximaal,
+                opnieuw: poging < maximaal,
+                ingediend: poging >= maximaal,
             });
         }
     }
@@ -926,6 +1047,7 @@ class SpelBeheer {
             const uitBank = await vragenbank.haalVraag(
                 h.titel.id,
                 state.gebruikteVragen,
+                (vraag) => bonusVraagPastPeriode(vraag, h.titel, state.instellingen),
             );
             if (uitBank) {
                 state.gebruikteVragen.add(uitBank.id);
@@ -941,9 +1063,16 @@ class SpelBeheer {
         }
 
         if (!vraagTekst) {
-            const bonus = await genereerBonus(h.titel);
+            const bonus = await genereerBonus(h.titel, {
+                jaarMin: Number(state.instellingen?.periode_start),
+                jaarMax: Number(state.instellingen?.periode_eind),
+            });
             if (!bonus) {
                 return this.naarScorebord(state);
+            }
+            if (bonus.type === 'jaar') {
+                const liveJaar = Number(bonus.opties.find((optie) => optie.correct)?.tekst);
+                if (liveJaar !== Number(h.titel.jaar)) return this.naarScorebord(state);
             }
             vraagTekst = bonus.vraag;
             opties = bonus.opties.map((o) => o.tekst);

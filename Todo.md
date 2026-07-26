@@ -2,6 +2,18 @@
 
 ## Eerstvolgend
 
+- [x] **P1** Spelstart blokkeren totdat alle geplande tracks 100% lokaal zijn
+      opgeslagen en na een diskfout niet stil naar YouTube terugvallen.
+- [x] **P1** Bonusvragen controleren tegen het geselecteerde periodefilter en
+      het titeljaar als bron van waarheid gebruiken.
+- [x] **P1** Solo-speler een tweede titelgok geven tegen 50% van de normale
+      titelpunten; bij meerdere spelers blijft één gok de regel.
+- [x] **P1** Kindvriendelijke editie toevoegen met kindcatalogusfilter,
+      200-puntenbasis en 20 seconden leestijd.
+- [x] **P2** Topscores splitsen in beste gemiddelde per spel, meeste spellen en
+      gemiddelde punten per ronde; de laatste maakt eindeloze spellen eerlijk
+      vergelijkbaar met spellen van 10 vragen.
+
 - [x] **P1** Zoekgeschiedenis opslaan voor iedere YouTube-, iTunes- en
       playlistactie; lege en foutresultaten tellen ook mee.
 - [x] **P1** Werkende gecontroleerde tracks minimaal zeven dagen overslaan;
@@ -12,8 +24,8 @@
       YouTube-fragment van maximaal vijf minuten.
 - [x] **P1** Bonusopties globaal verwijderen na een fout, speler-cooldown van
       vijf seconden, geen bonus-timeout en sneller antwoord beloont meer.
-- [x] **P1** Titelantwoord per speler één keer accepteren en fout/groen-rood
-      feedback in de antwoordvlakken tonen.
+- [x] **P1** Titelantwoord per speler begrenzen; meerdere spelers één gok en
+      solo maximaal twee; fout/groen-rood feedback blijft zichtbaar.
 - [x] **P2** Admin-overzicht vullen met nulwaarden/foutdiagnose, zoeklog-tegel
       en zoeklog in de JSON-export.
 - [x] **P2** Opgeloste meldingen definitief verwijderbaar maken.

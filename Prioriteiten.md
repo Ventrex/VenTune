@@ -50,8 +50,9 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
   en downloadt YouTube-audio lokaal als `yt-dlp` en `ffmpeg` beschikbaar zijn.
 - **P1 opgelost:** een verkeerde bonusoptie verdwijnt bij iedereen; de speler
   die fout koos krijgt vijf seconden cooldown en kan daarna opnieuw proberen.
-- **P1 opgelost:** titelantwoorden kunnen per speler nog maar één keer worden
-  ingestuurd; bonusvragen hebben geen automatische eindtimer.
+- **P1 opgelost:** titelantwoorden zijn server-side begrensd; meerdere spelers
+  hebben één gok en een solo-speler maximaal twee; bonusvragen hebben geen
+  automatische eindtimer.
 - **P2 open:** iTunes levert alleen previews; voor een volledig nummer tot
   maximaal vijf minuten is een geldige YouTube-download of eigen upload nodig.
 - **P2 opgelost:** admin-overzicht geeft vaste nulwaarden en een zichtbare
@@ -59,6 +60,17 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 - **P2 opgelost:** afgehandelde meldingen kunnen na bevestiging definitief weg.
 
 ## Afgerond in deze werkronde — 2026-07-26
+
+- **P1:** Spelstart wacht op 100% lokale downloads; een ontbrekende lokale kopie
+  veroorzaakt geen stille externe fallback of ronde-sprong meer.
+- **P1:** Bonusjaartallen worden begrensd door de gekozen periode en gebruiken
+  het titeljaar als bron van waarheid.
+- **P1:** Solo krijgt een tweede titelgok voor 50% punten; normale scoring is
+  100 naar 0 in 10 seconden.
+- **P1:** Kindvriendelijke editie met inhoudsfilter, 200 punten en 20 seconden
+  leestijd toegevoegd.
+- **P2:** Openbare topscores gesplitst in gemiddelde per spel, meeste spellen
+  en gemiddelde punten per ronde.
 
 - P1: categorie heet **Films & Series** en de standaardfilter kan nooit
   muziek bevatten; muziek blijft alleen een expliciete aparte keuze.

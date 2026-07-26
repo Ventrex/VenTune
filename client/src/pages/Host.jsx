@@ -31,6 +31,7 @@ export default function Host() {
         verbonden,
         herstelNodig,
         herstelBezig,
+        voorbereiding,
     } = spel;
     const spelerRef = useRef(null);
     const [gok, setGok] = useState('');
@@ -49,6 +50,9 @@ export default function Host() {
     }
 
     useEffect(() => { setGok(''); setGokIngediend(false); }, [ronde?.rondeId]);
+    useEffect(() => {
+        if (resultaat?.opnieuw) setGokIngediend(false);
+    }, [resultaat]);
     useEffect(() => { setBonusKeuze(null); setBonusWachtTot(0); }, [bonus?.vraag]);
     useEffect(() => {
         if (!bonusWachtTot) return undefined;
@@ -107,6 +111,9 @@ export default function Host() {
     return (
         <main className="scherm host-scherm">
             <Brand compact />
+            {/* Al vóór de start gemonteerd: de klik op "Start spel" kan de
+                browser zo echt ontgrendelen voor latere lokale audio. */}
+            <HostPlayer ref={spelerRef} audio={audio} verborgen={fase !== 'raden'} />
             {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
             {((!verbonden && fase !== 'wachten') || herstelNodig) && (
                 <div className="herstelkaart" role="status">
@@ -201,13 +208,27 @@ export default function Host() {
                                 </div>}
                                 <button className="knop knop-stil" type="button" onClick={() => spel.bewaarLobbyInstellingen(lobbyWijziging || {})}>Instellingen opslaan</button>
                             </div>
+                            {voorbereiding && (
+                                <div className="kaart" style={{ marginTop: '1.5rem' }} role="status">
+                                    <strong>{voorbereiding.melding || 'Nummers voorbereiden…'}</strong>
+                                    {voorbereiding.totaal > 0 && (
+                                        <>
+                                            <div className="admin-progress" style={{ marginTop: '0.75rem' }}>
+                                                <span style={{ width: `${Math.min(100, Math.round(((voorbereiding.verwerkt || 0) / voorbereiding.totaal) * 100))}%` }} />
+                                            </div>
+                                            <p className="dim">{voorbereiding.verwerkt || 0} van {voorbereiding.totaal} volledig opgeslagen</p>
+                                        </>
+                                    )}
+                                    <p className="dim">Het spel start pas wanneer elk nummer 100% lokaal beschikbaar is.</p>
+                                </div>
+                            )}
                             <div className="stapel" style={{ marginTop: '1.5rem' }}>
                                 <button
                                     className="knop"
                                     onClick={startMetGeluid}
-                                    disabled={spelers.length < 1}
+                                    disabled={spelers.length < 1 || !!voorbereiding}
                                 >
-                                    Start spel
+                                    {voorbereiding ? 'Nummers voorbereiden…' : 'Start spel'}
                                 </button>
                             </div>
                         </div>
@@ -250,7 +271,6 @@ export default function Host() {
                     ) : (
                         <p className="ronde-teller">Kennersmodus — raad maar raak</p>
                     )}
-                    <HostPlayer ref={spelerRef} audio={audio} />
                     <div className="kaart host-raadkaart">
                         <p className="kaart-label">Jij speelt mee</p>
                         {goedGeraden ? (
@@ -287,8 +307,8 @@ export default function Host() {
                         )}
                         {resultaat && !goedGeraden && (
                             <p className={'feedback ' + (resultaat.status === 'bijna' ? 'bijna' : resultaat.status === 'fout' ? 'mis' : 'neutraal')}>
-                                {resultaat.status === 'bijna' && 'Bijna — je antwoord is ingestuurd.'}
-                                {resultaat.status === 'fout' && 'Helaas, mis.'}
+                                {resultaat.status === 'bijna' && (resultaat.melding || 'Bijna — je antwoord is ingestuurd.')}
+                                {resultaat.status === 'fout' && (resultaat.melding || 'Helaas, mis.')}
                                 {resultaat.status === 'tempo' && resultaat.melding}
                                 {resultaat.status === 'hint-fout' && resultaat.melding}
                             </p>

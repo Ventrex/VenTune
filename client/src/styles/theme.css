@@ -1071,8 +1071,55 @@ h1 {
     font-variant-numeric: tabular-nums;
 }
 
+.ranking-blokken {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.ranking-blok {
+    text-align: left;
+}
+
+.ranking-lijst {
+    margin: 0;
+    padding-left: 1.4rem;
+}
+
+.ranking-lijst li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+}
+
+.ranking-lijst strong {
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+.ranking-uitleg {
+    font-size: 0.75rem;
+    margin: 0.75rem 0 0;
+}
+
+@media (max-width: 760px) {
+    .ranking-blokken { grid-template-columns: 1fr; }
+}
+
 .host-scherm {
     max-width: 40rem;
+}
+
+.host-speler-verborgen {
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    left: -10px;
+    top: -10px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* --- Admin-overzicht --- */

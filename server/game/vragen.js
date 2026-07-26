@@ -223,8 +223,9 @@ async function vulAan(titel, minimaal = 3, metTmdb = false) {
  *
  * @param {number} titelId
  * @param {Set<number>} alGebruikt  vraag-id's die deze lobby al had
+ * @param {Function|null} geldig    optionele inhoudscontrole vóór gebruik
  */
-async function haalVraag(titelId, alGebruikt = new Set()) {
+async function haalVraag(titelId, alGebruikt = new Set(), geldig = null) {
     const { rows } = await pool.query(
         `SELECT id, soort, vraag, opties, correct_index
            FROM vragen
@@ -236,8 +237,16 @@ async function haalVraag(titelId, alGebruikt = new Set()) {
     );
     if (rows.length === 0) return null;
 
-    const vers = rows.find((r) => !alGebruikt.has(r.id));
-    const gekozen = vers || rows[0];
+    const bruikbaar = geldig ? rows.filter((r) => geldig({
+        id: r.id,
+        soort: r.soort,
+        vraag: r.vraag,
+        opties: r.opties,
+        correctIndex: r.correct_index,
+    })) : rows;
+    if (bruikbaar.length === 0) return null;
+    const vers = bruikbaar.find((r) => !alGebruikt.has(r.id));
+    const gekozen = vers || bruikbaar[0];
 
     await pool.query(
         `UPDATE vragen SET keer_gebruikt = keer_gebruikt + 1 WHERE id = $1`,

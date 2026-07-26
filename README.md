@@ -249,9 +249,10 @@ of een eigen/gelicentieerd audiobestand uploaden:
 YouTube wordt met `yt-dlp` en `ffmpeg` als mp3-audio opgeslagen in
 `./media/downloads`. Lokale audio krijgt voorrang bij het spelen, zodat een
 later verwijderde YouTube-video geen probleem meer is. Bij spelstart worden
-alleen al bekende/gecontroleerde tracks vooraf gedownload; de game zoekt of
-downloadt geen willekeurige video's. De admin controleert vóór een download of
-de URL nog bestaat. Gebruik alleen bronnen/bestanden die je mag gebruiken.
+alle geplande tracks vooraf volledig gedownload en gecontroleerd; als één
+download mislukt start het spel niet en valt het nooit terug op live YouTube.
+De game zoekt geen willekeurige video's. De admin controleert vóór een download
+of de URL nog bestaat. Gebruik alleen bronnen/bestanden die je mag gebruiken.
 
 In de tab **Kwaliteit** kun je daarnaast lokaal opgeslagen bestanden met
 SHA-256 controleren. Een dagelijkse controle kan automatisch draaien zonder
@@ -426,8 +427,9 @@ Controleer of `DATABASE_URL` hetzelfde wachtwoord heeft als `POSTGRES_PASSWORD`.
 importeer de seed via `/admin` of de CLI. Je hebt minstens 15 passende titels
 nodig.
 
-**Geen geluid.** Alleen de **host** speelt audio (in de kamer). Tik op het
-host-scherm één keer als de browser autoplay blokkeert. Spelers horen bewust
+**Geen geluid.** Alleen de **host** speelt audio (in de kamer). Lokale MP3's
+worden vóór de eerste ronde klaargezet; als de browser autoplay blokkeert,
+verschijnt op het hostscherm een duidelijke startknop. Spelers horen bewust
 niets op hun telefoon.
 
 **Nederlandse titels zonder clip.** Niet elke Nederlandse titel heeft een

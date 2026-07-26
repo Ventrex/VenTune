@@ -72,6 +72,7 @@ router.get('/api/tracks/telling', async (req, res) => {
             ? String(req.query.collectie).split(',').filter(Boolean)
             : [],
         leeftijd_max: Number(req.query.leeftijd_max),
+        kindvriendelijk: req.query.kindvriendelijk === 'true',
         alleen_nl_tv: req.query.alleen_nl_tv !== 'false',
         alleen_gecontroleerd: req.query.alleen_gecontroleerd === 'true',
     };
@@ -115,6 +116,7 @@ router.get('/api/presets', async (_req, res) => {
                 leeftijd_max, alleen_nl_tv, collecties,
                 antwoord_modus, leeftijd_deelnemer_min, leeftijd_deelnemer_max,
                leeftijdspunten_aan, leeftijdsfactoren, alleen_gecontroleerd,
+               kindvriendelijk,
                 aangemaakt_op
            FROM presets
           ORDER BY aangemaakt_op DESC`,
@@ -135,14 +137,14 @@ router.post('/api/presets', async (req, res) => {
                 speeltijd, modus, min_bekendheid, zonder_genres, leeftijd_max,
                 alleen_nl_tv, antwoord_modus, collecties, leeftijd_deelnemer_min,
                 leeftijd_deelnemer_max, leeftijdspunten_aan, leeftijdsfactoren,
-                gebruiker_id, alleen_gecontroleerd)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+                gebruiker_id, alleen_gecontroleerd, kindvriendelijk)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
              RETURNING id, naam, categorie, categorieen, taal, periode_start, periode_eind,
                        rondes, speeltijd, modus, min_bekendheid, zonder_genres,
                        leeftijd_max, alleen_nl_tv, antwoord_modus, collecties,
                        leeftijd_deelnemer_min, leeftijd_deelnemer_max,
                        leeftijdspunten_aan, leeftijdsfactoren, gebruiker_id,
-                       alleen_gecontroleerd, aangemaakt_op`,
+                       alleen_gecontroleerd, kindvriendelijk, aangemaakt_op`,
             [
                 naam,
                 b.categorie || 'beide',
@@ -165,6 +167,7 @@ router.post('/api/presets', async (req, res) => {
                 b.leeftijdsfactoren || { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
                 (await require('../lib/auth').gebruikerUitRequest(req))?.id || null,
                 b.alleen_gecontroleerd === true,
+                b.kindvriendelijk === true,
             ],
         );
         res.json(rows[0]);
@@ -180,25 +183,62 @@ router.delete('/api/presets/:id', async (req, res) => {
     res.json({ ok: true });
 });
 
-// Ranglijst over alle gespeelde spellen, op spelersnaam.
+// Ranglijsten over afgeronde spellen. Scores worden zowel per spel als per
+// gespeelde ronde berekend, zodat een eindeloos spel niet automatisch wint
+// van een spel met tien vragen.
 router.get('/api/ranking', async (_req, res) => {
     try {
         const { rows } = await pool.query(
-            `SELECT naam,
-                    SUM(score)::int      AS totaal,
-                    MAX(score)::int      AS beste,
-                    COUNT(*)::int        AS spellen
-               FROM spelers
-              WHERE is_host = false OR score > 0
-              GROUP BY naam
-              HAVING SUM(score) > 0
-              ORDER BY totaal DESC
-              LIMIT 20`,
+            `WITH per_spel AS (
+                SELECT p.naam,
+                       p.gebruiker_id,
+                       p.score,
+                       l.id AS lobby_id,
+                       COUNT(DISTINCT r.id)::int AS gespeelde_rondes
+                  FROM spelers p
+                  JOIN lobbies l ON l.id = p.lobby_id
+                  LEFT JOIN rondes r ON r.lobby_id = l.id
+                 WHERE l.status = 'afgelopen'
+                 GROUP BY p.id, p.naam, p.gebruiker_id, p.score, l.id
+            ), aggregatie AS (
+                SELECT COALESCE(gebruiker_id::text, 'gast:' || lower(trim(naam))) AS sleutel,
+                       MAX(naam) AS naam,
+                       COUNT(*)::int AS spellen,
+                       SUM(score)::int AS totaal,
+                       MAX(score)::int AS beste,
+                       ROUND(AVG(score)::numeric, 1) AS gemiddelde,
+                       SUM(gespeelde_rondes)::int AS rondes,
+                       ROUND(AVG(
+                           CASE WHEN gespeelde_rondes > 0
+                                THEN score::numeric / gespeelde_rondes
+                                ELSE 0 END
+                       ), 1) AS punten_gemiddeld
+                  FROM per_spel
+                 GROUP BY COALESCE(gebruiker_id::text, 'gast:' || lower(trim(naam)))
+            )
+            SELECT sleutel, naam, spellen, totaal, beste, gemiddelde, rondes,
+                   punten_gemiddeld
+              FROM aggregatie
+             WHERE spellen > 0`,
         );
-        res.json(rows);
+        const sorteer = (veld) => rows
+            .slice()
+            .sort((a, b) => Number(b[veld] || 0) - Number(a[veld] || 0)
+                || Number(b.spellen || 0) - Number(a.spellen || 0)
+                || String(a.naam).localeCompare(String(b.naam), 'nl'))
+            .slice(0, 10);
+        const besteGemiddeld = sorteer('gemiddelde');
+        res.json({
+            // `ranking` blijft als compatibiliteitsveld bestaan voor oudere
+            // clients; nieuwe clients gebruiken de drie duidelijke lijsten.
+            ranking: besteGemiddeld,
+            beste_gemiddeld: besteGemiddeld,
+            meeste_spellen: sorteer('spellen'),
+            punten_gemiddeld: sorteer('punten_gemiddeld'),
+        });
     } catch (err) {
         logger.waarschuwing('Ranking ophalen mislukt.', { melding: err.message });
-        res.json([]);
+        res.json({ ranking: [], beste_gemiddeld: [], meeste_spellen: [], punten_gemiddeld: [] });
     }
 });
 

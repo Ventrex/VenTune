@@ -97,6 +97,7 @@ export default function Setup() {
         min_bekendheid: 0,
         zonder_genres: [],
         leeftijd_max: 0,
+        kindvriendelijk: false,
         leeftijd_deelnemer_min: 4,
         leeftijd_deelnemer_max: 99,
         alleen_nl_tv: true,
@@ -254,6 +255,7 @@ export default function Setup() {
             min_bekendheid: p.min_bekendheid ?? 0,
             zonder_genres: p.zonder_genres || [],
             leeftijd_max: p.leeftijd_max ?? 0,
+            kindvriendelijk: p.kindvriendelijk === true,
             leeftijd_deelnemer_min: p.leeftijd_deelnemer_min ?? 4,
             leeftijd_deelnemer_max: p.leeftijd_deelnemer_max ?? 99,
             alleen_nl_tv: p.alleen_nl_tv !== false,
@@ -616,6 +618,22 @@ export default function Setup() {
                         </label>
                     )}
 
+                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
+                        <input
+                            type="checkbox"
+                            checked={filters.kindvriendelijk === true}
+                            onChange={(e) => setFilters((f) => ({
+                                ...f,
+                                kindvriendelijk: e.target.checked,
+                                leeftijd_max: e.target.checked ? Math.min(Number(f.leeftijd_max) || 12, 12) : f.leeftijd_max,
+                            }))}
+                        />
+                        <span>
+                            <strong>Kindvriendelijke editie</strong>
+                            <span className="keuze-uitleg">Alleen kindvriendelijke familie-, animatie-, avontuur- en comedy-inhoud tot en met 12+; 200 punten en 20 seconden leestijd.</span>
+                        </span>
+                    </label>
+
                     {/* Spelsoort */}
                     <p
                         className="kaart-label"
@@ -709,6 +727,20 @@ export default function Setup() {
                         )}
                     </div>
 
+                    <div className="kaart setup-samenvatting" style={{ marginTop: '1rem', textAlign: 'left' }}>
+                        <p className="kaart-label">Jouw spel</p>
+                        <p style={{ margin: 0 }}>
+                            <strong>{filters.categorie === 'beide' ? 'Films & Series' : filters.categorie === 'films' ? 'Films' : filters.categorie === 'series' ? 'Series' : 'Muziek'}</strong>
+                            {' · '}{filters.periode_start}–{filters.periode_eind}
+                            {' · '}{filters.rondes === 0 ? 'eindeloos' : `${filters.rondes} rondes`}
+                        </p>
+                        <p className="dim" style={{ marginBottom: 0 }}>
+                            {filters.antwoord_modus === 'meerkeuze' ? '6 antwoordopties' : 'zelf typen'}
+                            {' · '}{filters.speeltijd === 0 ? 'heel nummer' : `${filters.speeltijd} seconden`}
+                            {filters.kindvriendelijk === true ? ' · kindvriendelijk: 200 punten / 20 seconden' : ''}
+                        </p>
+                    </div>
+
                     <button
                         className="knop"
                         style={{ width: '100%' }}
@@ -797,5 +829,6 @@ function labelVoor(p) {
     const tv = p.alleen_nl_tv === false ? 'alle catalogus' : 'NL-tv';
     const controle = p.alleen_gecontroleerd === true ? ' · alleen gecontroleerd' : '';
     const collecties = (p.collecties || []).length ? ` · ${p.collecties.join(', ')}` : '';
-    return `${cat}${collecties} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd} · ${antwoord} · ${leeftijd} · ${tv}${controle}`;
+    const kind = p.kindvriendelijk === true ? ' · kindvriendelijk' : '';
+    return `${cat}${collecties} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd} · ${antwoord} · ${leeftijd} · ${tv}${controle}${kind}`;
 }

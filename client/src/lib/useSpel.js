@@ -34,6 +34,7 @@ export function useSpel() {
     const [gepauzeerd, setGepauzeerd] = useState(false);
     const [melded, setMelded] = useState(false);
     const [fout, setFout] = useState('');
+    const [voorbereiding, setVoorbereiding] = useState(null);
     const [herstelNodig, setHerstelNodig] = useState(false);
     const [herstelBezig, setHerstelBezig] = useState(false);
     // Afspeel-opdracht voor de host: { bron, url, startSeconde }. Spelers
@@ -59,12 +60,16 @@ export function useSpel() {
             setTeams(d.teams || d.instellingen?.teams || []);
         };
         const bijFout = ({ melding } = {}) => {
+            setVoorbereiding(null);
             setFout(melding || 'Er ging iets mis.');
             if (melding?.includes('opnieuw') || melding?.includes('herstel')) {
                 setHerstelNodig(true);
             }
         };
-        const bijVoorbereiden = ({ melding }) => setFout(melding || 'Muziek voorbereiden...');
+        const bijVoorbereiden = (d = {}) => {
+            setFout('');
+            setVoorbereiding(d);
+        };
         const bijVerbroken = () => {
             setVerbonden(false);
             setHerstelNodig(true);
@@ -73,6 +78,7 @@ export function useSpel() {
 
         const bijStart = (d) => {
             setFout('');
+            setVoorbereiding(null);
             setResultaat(null);
             setHints([]);
             setAntwoord(null);
@@ -283,6 +289,7 @@ export function useSpel() {
         fout,
         herstelNodig,
         herstelBezig,
+        voorbereiding,
         startSpel,
         wijzigTeam,
         bewaarLobbyInstellingen,

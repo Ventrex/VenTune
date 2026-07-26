@@ -31,9 +31,10 @@
   wordt uit de resterende pool verwijderd zonder een rondenummer over te
   slaan.
 - Een database-transactie beschermt de vorige goede track tijdens een import.
-- Bij spelstart probeert VenTune bestaande, gecontroleerde YouTube-tracks uit
-  de geplande rondes vooraf echt te downloaden. Er wordt geen nieuwe video
-  gezocht tijdens downloaden: alleen al opgeslagen tracks mogen naar `/media`.
+- Bij spelstart downloadt VenTune alle geplande tracks volledig voordat de
+  eerste ronde mag starten. Een mislukte download geeft een herstelmelding en
+  mag niet terugvallen op live YouTube. Er wordt geen nieuwe video gezocht
+  tijdens downloaden: alleen al opgeslagen tracks mogen naar `/media`.
   YouTube wordt met `yt-dlp`/`ffmpeg` naar mp3-audio omgezet in
   `/media/downloads` en is begrensd op maximaal 5 minuten.
 - Lokale audio staat in het persistente `./media`-volume en wint bij selectie
@@ -46,9 +47,9 @@
 - Een titel zonder speelbare track wordt niet geforceerd gekoppeld. De engine
   maakt één open `geen_track`-melding en de admin toont de titel in **Tracks
   nodig** totdat een track wordt toegevoegd.
-- De hostspeler wacht bij een nieuwe opdracht op de YouTube-player of
-  `loadedmetadata` en probeert meerdere keren opnieuw. Daardoor is **Opnieuw**
-  een herstelactie, geen vereiste om normaal een ronde te starten.
+- De hostspeler speelt lokale audio met `preload="auto"`, wacht bij een nieuwe
+  opdracht op `loadedmetadata` en probeert meerdere keren opnieuw. Daardoor is
+  **Opnieuw** een herstelactie, geen vereiste om normaal een ronde te starten.
 - Hints zijn bewust oplopend: cast, speelplek, genre/land, beginletters, jaar
   en type. TMDB vult hoofdrollen alleen aan als die nog ontbreken; zonder TMDB
   blijft handmatig ingevulde metadata werken.

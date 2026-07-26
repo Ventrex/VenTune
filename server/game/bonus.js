@@ -49,7 +49,7 @@ function kiesAfleiders(kandidaten, juist, aantal = 5) {
  *
  * @returns {{vraag, type, opties:{tekst,correct}[]}|null}
  */
-function bouwVraag(details, pool = {}) {
+function bouwVraag(details, pool = {}, instellingen = {}) {
     const mogelijk = [];
 
     // Regisseur
@@ -85,7 +85,10 @@ function bouwVraag(details, pool = {}) {
     }
 
     // Jaar
-    if (Number.isFinite(details.jaar)) {
+    const jaarBinnenKeuze = Number.isFinite(details.jaar)
+        && (!Number.isFinite(Number(instellingen.jaarMin)) || details.jaar >= Number(instellingen.jaarMin))
+        && (!Number.isFinite(Number(instellingen.jaarMax)) || details.jaar <= Number(instellingen.jaarMax));
+    if (jaarBinnenKeuze) {
         mogelijk.push(() => {
             const offsets = hussel([-6, -4, -3, -2, -1, 1, 2, 3, 4, 6]).slice(0, 5);
             const afl = offsets.map((o) => String(details.jaar + o));
@@ -135,10 +138,15 @@ function bouwVraag(details, pool = {}) {
  * Genereer een bonusvraag voor een titel via TMDB. Geeft null als TMDB
  * niet beschikbaar is, er geen tmdb_id is, of er iets misgaat.
  */
-async function genereerBonus(titel) {
+async function genereerBonus(titel, instellingen = {}) {
     if (!tmdb.beschikbaar() || !titel.tmdb_id) return null;
     try {
         const details = await tmdb.haalDetails(titel.tmdb_id, titel.type);
+        // De catalogus/titel is de bron van waarheid voor het releasejaar.
+        // TMDB kan bij remakes, re-releases of een foutieve match een ander
+        // jaar teruggeven; dat mag nooit een bonusvraag buiten de spelperiode
+        // introduceren.
+        if (Number.isFinite(Number(titel.jaar))) details.jaar = Number(titel.jaar);
         let pool = { regisseurs: [], acteurs: [] };
         if (details.genreIds && details.genreIds.length) {
             pool = await tmdb.haalAfleiderPool(
@@ -147,7 +155,7 @@ async function genereerBonus(titel) {
                 titel.tmdb_id,
             );
         }
-        return bouwVraag(details, pool);
+        return bouwVraag(details, pool, instellingen);
     } catch (err) {
         logger.waarschuwing('Bonusvraag overgeslagen.', { melding: err.message });
         return null;
