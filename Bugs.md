@@ -5,6 +5,8 @@ verwacht gedrag en werkelijk gedrag toe.
 
 | Prioriteit | Status | Datum | Onderwerp | Reproduceerstappen | Verwacht | Werkelijk |
 |---|---|---|---|---|---|---|
+| P0 | Opgelost | 2026-07-26 | Spelstart bleef hangen op “Beschikbare titels tellen…” | Open Setup met Films & Series geselecteerd | De telling geeft speelbare titels terug en Start spel wordt beschikbaar | PostgreSQL vergeleek het `titel_type`-enum rechtstreeks met een tekstarray en gaf een queryfout; de client maskeerde die als eindeloos laden |
+| P0 | Opgelost | 2026-07-26 | Jongste/oudste deelnemer was niet bewerkbaar | Selecteer de standaard `4` en probeer die te wissen of `10` te typen | Het veld mag leeg tijdens invoer en wordt pas daarna begrensd op 4–120 | De onChange-handler zette direct opnieuw 4 of 99 terug |
 | P1 | Opgelost | 2026-07-26 | YouTube-first seed kon niet starten door circulaire React-eventdata | Klik op “YouTube-first muziek vernieuwen” | De seed start met gewone booleans | De directe `onClick` gaf het browser-event mee aan `JSON.stringify`; daarna leek de taak vast te staan |
 | P1 | Opgelost | 2026-07-26 | Lopende admin-taken waren niet zichtbaar | Start een import/download | Admin toont actieve taak, voortgang en foutstatus | Alleen een algemene melding zoals “seed is al bezig” was zichtbaar |
 | P1 | Opgelost | 2026-07-26 | Spel bleef vanaf ronde 5 laden en een refresh verloor de ronde | Speel meerdere rondes en laat een overgang of verbinding tijdelijk falen | De server herstelt de actuele fase; audio laden geeft na een timeout een herstelactie; sessie blijft behouden | De client bleef op het scorebord/laden staan zonder herstelknop en een refresh replayde de ronde niet |

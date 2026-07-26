@@ -114,6 +114,10 @@
 - [x] **P1** Admin-seed starten via een expliciete callback; browser-events
       mogen nooit in de JSON-payload terechtkomen.
 - [x] **P2** Actieve admin-taken zichtbaar maken met naam, status en voortgang.
+- [x] **P0** Films & Series veilig vergelijken met het PostgreSQL-enum in de
+      telling, zodat Setup niet op oneindig laden blijft staan.
+- [x] **P0** Leeftijdsvelden voor jongste en oudste deelnemer leeg kunnen maken
+      en pas bij blur/start begrenzen op 4–120.
 
 ## Daarna
 

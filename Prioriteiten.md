@@ -62,6 +62,8 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 - P1/P2: admin-taakmonitor en herstel van de seedknop na circulaire JSON-data.
 - P2: afzonderlijke dagelijkse planning voor playlist, TMDB, YouTube-aanvulling,
   goedgekeurde downloads en lokale bestandscontrole.
+- P0: telling en leeftijdsinvoer in Setup zijn gerepareerd; er staat momenteel
+  geen open P0-blokkade in de code.
 
 ## Door te geven aan Codex
 

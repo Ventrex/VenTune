@@ -1,5 +1,16 @@
 # VenTune changelog
 
+## [0.3.6] - 2026-07-26
+
+### Kritiek opgelost
+
+- Setup telt Films & Series weer correct; de PostgreSQL-enumvergelijking is
+  typeveilig gemaakt.
+- Leeftijd jongste en oudste deelnemer kunnen nu normaal worden gewist en
+  opnieuw ingevoerd, met begrenzing pas na invoer.
+- Een tellingfout blijft niet meer verborgen achter oneindig laden; Setup toont
+  een foutmelding met knop **Opnieuw proberen**.
+
 ## [0.3.5] - 2026-07-26
 
 ### Voor spelers

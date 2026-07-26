@@ -27,7 +27,7 @@ const standaard = bouwFilter({ categorie: 'beide', periode_start: 1950, periode_
 assert(standaard.where.includes("t.type IN ('film', 'serie')"), 'standaardspel mag geen muziek bevatten');
 
 const meerdere = bouwFilter({ categorieen: ['film', 'serie'], periode_start: 1950, periode_eind: 2026 });
-assert(meerdere.where.includes('t.type = ANY'), 'meerdere inhoudstypen moeten expliciet filterbaar zijn');
+assert(meerdere.where.includes('t.type::text = ANY'), 'meerdere inhoudstypen moeten enum-veilig filterbaar zijn');
 
 const gecontroleerd = bouwFilter({ categorie: 'beide', alleen_gecontroleerd: true, periode_start: 1950, periode_eind: 2026 });
 assert(gecontroleerd.where.includes('vc.gecontroleerd = true'), 'geverifieerde spelmodus ontbreekt');

@@ -25,7 +25,10 @@ function bouwFilter(f = {}) {
         : [];
     if (categorieen.length) {
         params.push([...new Set(categorieen)]);
-        condities.push(`t.type = ANY($${params.length}::text[])`);
+        // `type` is a PostgreSQL enum. Cast it to text before comparing with
+        // the text array from the URL; otherwise PostgreSQL rejects the
+        // telling query with "operator does not exist: titel_type = text".
+        condities.push(`t.type::text = ANY($${params.length}::text[])`);
     } else if (f.categorie === 'films') {
         params.push('film');
         condities.push(`t.type = $${params.length}`);

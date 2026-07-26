@@ -111,6 +111,7 @@ export default function Setup() {
     const [bezig, setBezig] = useState(false);
     const [host, setHost] = useState(null);
     const [collecties, setCollecties] = useState([]);
+    const [tellingFout, setTellingFout] = useState('');
 
     // Ook bij rechtstreeks openen van /setup blijft de hostaccount verplicht.
     useEffect(() => {
@@ -128,9 +129,16 @@ export default function Setup() {
 
     // Live telling ophalen wanneer de filters veranderen.
     const ververTelling = useCallback(() => {
+        setTellingFout('');
         haalTelling(filters)
-            .then(setTelling)
-            .catch(() => setTelling(null));
+            .then((nieuw) => {
+                setTelling(nieuw);
+                setTellingFout('');
+            })
+            .catch((err) => {
+                setTelling(null);
+                setTellingFout(err.message || 'Kon de beschikbare titels niet tellen.');
+            });
     }, [filters]);
 
     useEffect(() => {
@@ -168,6 +176,43 @@ export default function Setup() {
         zet('periode_eind', tot);
     }
 
+    function wijzigDeelnemerLeeftijd(sleutel, waarde) {
+        // Laat tijdelijk leegmaken toe. De oude Math.max(... || 4)-logica
+        // zette direct opnieuw een 4 terug, waardoor 10/410 typen onmogelijk
+        // werd op mobiel en desktop.
+        setFilters((f) => ({ ...f, [sleutel]: waarde }));
+    }
+
+    function normaliseerDeelnemerLeeftijden() {
+        setFilters((f) => {
+            const jongsteGetal = Number(f.leeftijd_deelnemer_min);
+            const jongste = Number.isFinite(jongsteGetal)
+                ? Math.min(120, Math.max(4, jongsteGetal)) : 4;
+            const oudsteGetal = Number(f.leeftijd_deelnemer_max);
+            const oudste = Number.isFinite(oudsteGetal)
+                ? Math.min(120, Math.max(jongste, oudsteGetal)) : Math.max(jongste, 99);
+            return {
+                ...f,
+                leeftijd_deelnemer_min: jongste,
+                leeftijd_deelnemer_max: oudste,
+            };
+        });
+    }
+
+    function instellingenMetLeeftijden(basis = filters) {
+        const jongsteGetal = Number(basis.leeftijd_deelnemer_min);
+        const jongste = Number.isFinite(jongsteGetal)
+            ? Math.min(120, Math.max(4, jongsteGetal)) : 4;
+        const oudsteGetal = Number(basis.leeftijd_deelnemer_max);
+        const oudste = Number.isFinite(oudsteGetal)
+            ? Math.min(120, Math.max(jongste, oudsteGetal)) : Math.max(jongste, 99);
+        return {
+            ...basis,
+            leeftijd_deelnemer_min: jongste,
+            leeftijd_deelnemer_max: oudste,
+        };
+    }
+
     function wisselCollectie(collectie) {
         setFilters((f) => {
             const huidig = f.collecties || [];
@@ -186,7 +231,7 @@ export default function Setup() {
     async function opslaanPreset() {
         if (!presetNaam.trim()) return;
         try {
-            const nieuw = await bewaarPreset({ naam: presetNaam.trim(), ...filters });
+            const nieuw = await bewaarPreset({ naam: presetNaam.trim(), ...instellingenMetLeeftijden() });
             setPresets((p) => [nieuw, ...p]);
             setPresetNaam('');
         } catch (err) {
@@ -229,7 +274,7 @@ export default function Setup() {
         setBezig(true);
         setFout('');
         try {
-            const lobby = await maakLobby(filters);
+            const lobby = await maakLobby(instellingenMetLeeftijden());
             bewaarSessie({
                 token: lobby.token,
                 code: lobby.code,
@@ -366,8 +411,8 @@ export default function Setup() {
                         Leeftijd deelnemers (standaard 4–99; individuele leeftijden in de lobby bepalen automatisch de jongste)
                     </p>
                     <div className="velden leeftijdsbereik">
-                        <label>Jongste<input className="invoer" type="number" min="4" max="120" value={filters.leeftijd_deelnemer_min} onChange={(e) => zet('leeftijd_deelnemer_min', Math.max(4, Number(e.target.value) || 4))} /></label>
-                        <label>Oudste<input className="invoer" type="number" min="4" max="120" value={filters.leeftijd_deelnemer_max} onChange={(e) => zet('leeftijd_deelnemer_max', Math.max(filters.leeftijd_deelnemer_min, Number(e.target.value) || 99))} /></label>
+                        <label>Jongste<input className="invoer" type="number" min="4" max="120" inputMode="numeric" value={filters.leeftijd_deelnemer_min ?? ''} onChange={(e) => wijzigDeelnemerLeeftijd('leeftijd_deelnemer_min', e.target.value)} onBlur={normaliseerDeelnemerLeeftijden} /></label>
+                        <label>Oudste<input className="invoer" type="number" min="4" max="120" inputMode="numeric" value={filters.leeftijd_deelnemer_max ?? ''} onChange={(e) => wijzigDeelnemerLeeftijd('leeftijd_deelnemer_max', e.target.value)} onBlur={normaliseerDeelnemerLeeftijden} /></label>
                     </div>
                 </section>
             )}
@@ -640,7 +685,12 @@ export default function Setup() {
 
                     {/* Live telling */}
                     <div className="telling">
-                        {telling ? (
+                        {tellingFout ? (
+                            <p className="waarschuwing">
+                                {tellingFout}{' '}
+                                <button className="afspeelknop klein" type="button" onClick={ververTelling}>Opnieuw proberen</button>
+                            </p>
+                        ) : telling ? (
                             telling.genoeg ? (
                                 <p className="dim">
                                     {telling.titels} speelbare titels beschikbaar met deze filters.
