@@ -158,6 +158,14 @@ blijft een film en staat daarnaast in Disney. De knop **Vullen + MP3** zoekt de
 tracks, controleert de URLs en downloadt ze vóór het spel naar de vaste
 `/media/downloads`-map.
 
+De admin-tabs **Imports** en **Downloads** zijn bewust gescheiden. De
+Downloads-tab toont de bulkactie en heeft een ingeklapte herstelwachtrij voor
+titels zonder track. Een losse download geeft direct status terug en draait op
+de achtergrond. In het **Overzicht** zijn de tellingen klikbaar; zo open je
+meteen de lijst of actie waarmee je een probleem kunt bekijken of herstellen.
+YouTube blijft de voorkeursbron, ook nadat een YouTube-track lokaal is
+opgeslagen; iTunes is alleen fallback.
+
 Stap 2 kan lang duren (YouTube knijpt af bij te veel verzoeken). Het script is
 hervatbaar: draai het gerust nogmaals, het pakt alleen de titels op die nog geen
 muziek hebben.

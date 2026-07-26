@@ -75,6 +75,13 @@
       collectiecatalogi en vooraf downloaden.
 - [x] **P2** Admin kan nieuwe collecties aanmaken en titels aan meerdere
       collecties koppelen.
+- [x] **P1** Imports en downloads als aparte admin-tabs tonen; de lijst met
+      ontbrekende tracks staat ingeklapt onder Downloads.
+- [x] **P1** Losse MP3-downloads als achtergrondtaak uitvoeren met status,
+      voortgang en foutmelding in de admininterface.
+- [x] **P1** Admin-overzichtstegels klikbaar maken met herstelgerichte filters.
+- [x] **P1** YouTube als bronprioriteit behouden na lokale download; iTunes
+      blijft een herkenbare fallback.
 
 ## Daarna
 
@@ -86,8 +93,8 @@
 - [ ] **P2** Bewaarde lokale audio controleren op hash en ontbrekende bestanden.
 - [ ] **P2** Optionele automatische playlist-refresh met veilige rate-limit.
 - [ ] **P2** Lokale bestanden controleren op hash en aanwezigheid.
-- [ ] **P2** Bulk-cacheactie met voortgang, retry en foutreden bouwen voor
-      beheer buiten de automatische pregame-cache.
+- [x] **P2** Bulk-cacheactie met voortgang en foutreden bouwen voor beheer buiten
+      de automatische pregame-download.
 - [ ] **P3** Afgekeurde tracks exporteren voor handmatige controle.
 
 ## Bewust niet automatisch

@@ -61,6 +61,7 @@ assert.equal(matchTitel('Baantjer intro', [baantjer]).titel.naam, 'Baantjer');
 
 const youtubeKeuze = kiesBeste([
     { videoId: 'wrong-number', titel: 'Baantjer 2 intro', kanaal: 'TV Tunes', duurSeconden: 80, views: 900000 },
+    { videoId: 'wrong-live-intro', titel: 'Baantjer live intro', kanaal: 'TV Tunes', duurSeconden: 80, views: 9999999 },
     { videoId: 'wrong-live', titel: 'Baantjer live', kanaal: 'TV Tunes', duurSeconden: 80, views: 900000 },
     { videoId: 'wrong-song', titel: 'Baantjer random song', kanaal: 'TV Tunes', duurSeconden: 80, views: 999999 },
     { videoId: 'right', titel: 'Baantjer intro', kanaal: 'TV Tunes', duurSeconden: 80, views: 10 },

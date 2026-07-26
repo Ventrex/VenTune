@@ -1029,6 +1029,21 @@ h1 {
     border-radius: 12px;
 }
 
+.tegel.klikbaar {
+    width: 100%;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.tegel.klikbaar:hover,
+.tegel.klikbaar:focus-visible {
+    border-color: var(--red-hot);
+    background: rgba(196, 18, 48, 0.14);
+    transform: translateY(-1px);
+}
+
 .tegel-waarde {
     font-size: 1.5rem;
     font-weight: 800;

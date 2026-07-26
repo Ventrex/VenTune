@@ -351,8 +351,14 @@ class SpelBeheer {
                 AND tr.preview_url IS NOT NULL
                 AND tr.preview_url <> ''
               ORDER BY CASE
-                           WHEN tr.bron = 'lokaal' THEN 4
-                           WHEN tr.bron = 'youtube' THEN 3
+                           -- YouTube blijft de hoofdbron, ook nadat de clip
+                           -- lokaal is opgeslagen. bron_url bewaart de
+                           -- oorspronkelijke herkomst.
+                           WHEN tr.bron = 'lokaal'
+                                AND lower(COALESCE(tr.bron_url, '')) LIKE '%youtube%' THEN 5
+                           WHEN tr.bron = 'youtube' THEN 4
+                           WHEN tr.bron = 'lokaal' THEN 3
+                           WHEN tr.bron = 'itunes' THEN 2
                            ELSE 1
                        END DESC,
                        tr.fout_aantal ASC,

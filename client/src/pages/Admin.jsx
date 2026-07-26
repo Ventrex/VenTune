@@ -57,6 +57,7 @@ function Login({ onIn }) {
 function Beheer({ onUit }) {
     const [titels, setTitels] = useState([]);
     const [zoek, setZoek] = useState('');
+    const [titelFilter, setTitelFilter] = useState('');
     const [melding, setMelding] = useState('');
     const [bezigSeed, setBezigSeed] = useState(false);
     const [bezigPlaylist, setBezigPlaylist] = useState(false);
@@ -73,13 +74,22 @@ function Beheer({ onUit }) {
     const [collecties, setCollecties] = useState([]);
     const [tab, setTab] = useState('overzicht');
 
-    async function laad(zoekOverride = zoek) {
+    async function laadTitels(zoekOverride = zoek, filterOverride = titelFilter) {
         try {
-            setTitels(await api.adminTitels(zoekOverride));
+            setTitels(await api.adminTitels(zoekOverride, filterOverride));
+        } catch (err) {
+            setMelding(err.message);
+        }
+    }
+    async function laadOntbrekend() {
+        try {
             setOntbrekend(await api.adminOntbrekendeTracks());
         } catch (err) {
             setMelding(err.message);
         }
+    }
+    async function laad(zoekOverride = zoek, filterOverride = titelFilter) {
+        await Promise.all([laadTitels(zoekOverride, filterOverride), laadOntbrekend()]);
     }
     async function laadMeldingen() {
         try {
@@ -101,13 +111,17 @@ function Beheer({ onUit }) {
         try { setCollecties(await api.adminCollecties()); } catch { /* niet fataal */ }
     }
     useEffect(() => {
-        laad();
+        laadOntbrekend();
         laadMeldingen();
         laadOverzicht();
         laadGebruikers();
         laadCollecties();
         /* eslint-disable-next-line */
     }, []);
+    useEffect(() => {
+        if (tab === 'titels') laadTitels();
+        /* eslint-disable-next-line */
+    }, [tab]);
 
     async function meldingAf(id) {
         await api.adminMeldingAf(id);
@@ -230,9 +244,11 @@ function Beheer({ onUit }) {
                     if (st.klaar) {
                         clearInterval(poll);
                         setBezig(false);
-                        setMelding(st.fout ? `${klaarTekst} mislukt: ${st.fout}` : klaarTekst);
+                        setMelding(st.fout ? `${klaarTekst} mislukt: ${st.fout}` : tekstVoorTaak(klaarTekst, st.samenvatting));
                         laad();
                         laadOverzicht();
+                    } else if (st.bezig && st.totaal) {
+                        setMelding(`MP3 downloaden… ${st.verwerkt || 0}/${st.totaal}${st.huidige ? ` · ${st.huidige}` : ''}`);
                     }
                 } catch {
                     /* blijf pollen */
@@ -241,6 +257,15 @@ function Beheer({ onUit }) {
         } catch (err) {
             setMelding(`${klaarTekst} starten mislukt: ${err.message}`);
             setBezig(false);
+        }
+    }
+
+    function openTab(waarde, opties = {}) {
+        if (opties.filter !== undefined) setTitelFilter(opties.filter);
+        if (opties.zoek !== undefined) setZoek(opties.zoek);
+        setTab(waarde);
+        if (waarde === 'titels') {
+            laadTitels(opties.zoek ?? zoek, opties.filter ?? titelFilter);
         }
     }
 
@@ -256,7 +281,8 @@ function Beheer({ onUit }) {
                 {[
                     ['overzicht', 'Overzicht'],
                     ['titels', 'Titels & muziek'],
-                    ['import', 'Import & downloads'],
+                    ['import', 'Imports'],
+                    ['downloads', 'Downloads'],
                     ['collecties', 'Spelcollecties'],
                     ['meldingen', `Meldingen${meldingen.length ? ` (${meldingen.length})` : ''}`],
                     ['users', `Users (${gebruikers.length})`],
@@ -278,14 +304,14 @@ function Beheer({ onUit }) {
 
             {tab === 'overzicht' && overzicht && (
                 <div className="overzicht">
-                    <Tegel label="Titels" waarde={overzicht.titels} />
-                    <Tegel label="Speelbaar" waarde={overzicht.speelbaar} />
-                    <Tegel label="Tracks nodig" waarde={overzicht.ontbrekende_tracks} />
-                    <Tegel label="Tracks" waarde={overzicht.tracks} />
-                    <Tegel label="Afgekeurd" waarde={overzicht.afgekeurd} />
-                    <Tegel label="Vragen" waarde={overzicht.vragen} />
-                    <Tegel label="Open meldingen" waarde={overzicht.open_meldingen} />
-                    <Tegel label="Cache" waarde={overzicht.cache_regels} />
+                    <Tegel label="Titels" waarde={overzicht.titels} onClick={() => openTab('titels', { filter: '' })} />
+                    <Tegel label="Speelbaar" waarde={overzicht.speelbaar} onClick={() => openTab('titels', { filter: 'speelbaar' })} />
+                    <Tegel label="Tracks nodig" waarde={overzicht.ontbrekende_tracks} onClick={() => openTab('downloads')} />
+                    <Tegel label="Tracks" waarde={overzicht.tracks} onClick={() => openTab('downloads')} />
+                    <Tegel label="Afgekeurd" waarde={overzicht.afgekeurd} onClick={() => openTab('titels', { filter: 'afgekeurd' })} />
+                    <Tegel label="Vragen" waarde={overzicht.vragen} onClick={() => openTab('titels')} />
+                    <Tegel label="Open meldingen" waarde={overzicht.open_meldingen} onClick={() => openTab('meldingen')} />
+                    <Tegel label="Cache" waarde={overzicht.cache_regels} onClick={() => openTab('database')} />
                 </div>
             )}
             {tab === 'overzicht' && overzicht?.per_bron?.length > 0 && (
@@ -297,67 +323,82 @@ function Beheer({ onUit }) {
 
             {tab === 'users' && <Hostaccounts gebruikers={gebruikers} spelers={spelers} onWijzig={laadGebruikers} />}
 
-            {tab === 'import' && ontbrekend.length > 0 && (
-                <section className="admin-accounts" style={{ marginTop: '1rem' }}>
-                    <p className="kaart-label" style={{ textAlign: 'left' }}>
-                        Tracks nodig ({ontbrekend.length})
-                    </p>
-                    <p className="dim">
-                        Deze titels worden niet in een spel gekozen totdat je via YouTube
-                        een match opslaat of zelf audio uploadt.
-                    </p>
-                    <ul className="spelerlijst">
-                        {ontbrekend.map((t) => (
-                            <li key={t.id} className="speler-kaart">
-                                <span className="speler-naam">
-                                    {t.naam}
-                                    <span className="dim"> · {t.type} · {t.jaar || 'jaar onbekend'}</span>
-                                </span>
-                                <button
-                                    className="afspeelknop klein"
-                                    onClick={() => { setZoek(t.naam); setOpen(t.id); laad(t.naam); }}
-                                >
-                                    Toevoegen
+            {tab === 'import' && (
+                <section className="admin-panel admin-acties" style={{ marginTop: '1rem' }}>
+                    <div className="kaart">
+                        <p className="kaart-label">Titels en vragen importeren</p>
+                        <p className="dim">Deze acties vullen de database. Voor MP3’s ga je naar de aparte tab Downloads.</p>
+                        <div className="stapel">
+                            <button className="knop knop-stil" onClick={seed} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
+                                {bezigSeed ? 'Bezig…' : 'YouTube-first muziek vernieuwen'}
+                            </button>
+                            <button className="knop knop-stil" onClick={playlistImport} disabled={bezigPlaylist || bezigSeed || bezigTmdb || bezigVragen}>
+                                {bezigPlaylist ? 'Playlists importeren…' : 'YouTube-playlists verversen'}
+                            </button>
+                            <button
+                                className="knop knop-stil"
+                                onClick={() => achtergrondTaak(api.adminTmdbImport, api.adminTmdbStatus, setBezigTmdb, 'TMDB-titels importeren…', 'TMDB-import klaar.')}
+                                disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}
+                            >
+                                {bezigTmdb ? 'TMDB importeren…' : 'TMDB-titels importeren'}
+                            </button>
+                            <div className="zoekbalk">
+                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('film'), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe films ophalen…', 'Nieuwe films ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
+                                    Nieuwe films ophalen
                                 </button>
-                            </li>
-                        ))}
-                    </ul>
+                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('serie'), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe series ophalen…', 'Nieuwe series ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
+                                    Nieuwe series ophalen
+                                </button>
+                            </div>
+                            <button
+                                className="knop knop-stil"
+                                onClick={() => achtergrondTaak(() => api.adminVragenImport(false), api.adminVragenStatus, setBezigVragen, 'Bonusvragen genereren…', 'Bonusvragen genereren klaar.')}
+                                disabled={bezigVragen || bezigSeed || bezigPlaylist || bezigTmdb}
+                            >
+                                {bezigVragen ? 'Vragen genereren…' : 'Bonusvragen genereren'}
+                            </button>
+                        </div>
+                    </div>
                 </section>
             )}
 
-            {tab === 'import' && <div className="stapel" style={{ marginTop: '1rem' }}>
-                <button className="knop knop-stil" onClick={seed} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
-                    {bezigSeed ? 'Bezig…' : 'YouTube-first muziek vernieuwen'}
-                </button>
-                <button className="knop knop-stil" onClick={playlistImport} disabled={bezigPlaylist || bezigSeed || bezigTmdb || bezigVragen}>
-                    {bezigPlaylist ? 'Playlists importeren…' : 'YouTube-playlists verversen'}
-                </button>
-                <button
-                    className="knop knop-stil"
-                    onClick={() => achtergrondTaak(api.adminTmdbImport, api.adminTmdbStatus, setBezigTmdb, 'TMDB-titels importeren…', 'TMDB-import klaar.')}
-                    disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}
-                >
-                    {bezigTmdb ? 'TMDB importeren…' : 'TMDB-titels importeren'}
-                </button>
-                <div className="zoekbalk">
-                    <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('film'), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe films ophalen…', 'Nieuwe films ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
-                        Nieuwe films ophalen
-                    </button>
-                    <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('serie'), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe series ophalen…', 'Nieuwe series ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
-                        Nieuwe series ophalen
-                    </button>
-                </div>
-                <button
-                    className="knop knop-stil"
-                    onClick={() => achtergrondTaak(() => api.adminVragenImport(false), api.adminVragenStatus, setBezigVragen, 'Bonusvragen genereren…', 'Bonusvragen genereren klaar.')}
-                    disabled={bezigVragen || bezigSeed || bezigPlaylist || bezigTmdb}
-                >
-                    {bezigVragen ? 'Vragen genereren…' : 'Bonusvragen genereren'}
-                </button>
-                <button className="knop" onClick={() => downloadVooraf()} disabled={bezigDownloads || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCollecties}>
-                    {bezigDownloads ? 'MP3’s controleren/downloaden…' : 'Alle MP3’s vooraf downloaden + URL controleren'}
-                </button>
-            </div>}
+            {tab === 'downloads' && (
+                <section className="admin-panel admin-acties" style={{ marginTop: '1rem' }}>
+                    <div className="kaart">
+                        <p className="kaart-label">MP3-downloadcentrum</p>
+                        <p className="dim">
+                            Controleert de URL en slaat de audio blijvend op in <code>/media/downloads</code>.
+                            YouTube wordt gebruikt waar beschikbaar; iTunes blijft alleen fallback.
+                        </p>
+                        <button className="knop" onClick={() => downloadVooraf()} disabled={bezigDownloads || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCollecties}>
+                            {bezigDownloads ? 'MP3’s controleren/downloaden…' : 'Alle MP3’s vooraf downloaden + URL controleren'}
+                        </button>
+                        {overzicht && <p className="dim" style={{ marginBottom: 0 }}>
+                            {overzicht.tracks} tracks · {overzicht.ontbrekende_tracks} titels zonder bruikbare track
+                        </p>}
+                    </div>
+                    <details className="kaart" style={{ marginTop: '1rem' }}>
+                        <summary className="kaart-label">Tracks nodig bekijken ({ontbrekend.length})</summary>
+                        <p className="dim">Deze titels worden pas speelbaar nadat je een gecontroleerde YouTube-match opslaat of eigen audio uploadt.</p>
+                        <ul className="spelerlijst">
+                            {ontbrekend.map((t) => (
+                                <li key={t.id} className="speler-kaart">
+                                    <span className="speler-naam">
+                                        {t.naam}
+                                        <span className="dim"> · {t.type} · {t.jaar || 'jaar onbekend'}</span>
+                                    </span>
+                                    <button
+                                        className="afspeelknop klein"
+                                        onClick={() => { setOpen(t.id); openTab('titels', { zoek: t.naam, filter: '' }); }}
+                                    >
+                                        Herstellen
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </details>
+                </section>
+            )}
 
             {tab === 'collecties' && (
                 <Collectiebeheer
@@ -390,7 +431,7 @@ function Beheer({ onUit }) {
                                     {!m.afgehandeld && <button
                                         className="afspeelknop klein"
                                         title="Opnieuw zoeken via zoekveld"
-                                        onClick={() => { setZoek(m.titel_naam || ''); laad(); }}
+                                        onClick={() => { setOpen(m.titel_id); openTab('titels', { zoek: m.titel_naam || '', filter: '' }); }}
                                     >
                                         🔍
                                     </button>}
@@ -420,10 +461,17 @@ function Beheer({ onUit }) {
                     onChange={(e) => setZoek(e.target.value)}
                     placeholder="Zoek titel…"
                 />
+                <select className="invoer" value={titelFilter} onChange={(e) => setTitelFilter(e.target.value)} aria-label="Titelfilter">
+                    <option value="">Alle titels</option>
+                    <option value="zonder-track">Zonder speelbare track</option>
+                    <option value="afgekeurd">Met afgekeurde track</option>
+                    <option value="speelbaar">Alleen speelbaar</option>
+                    <option value="zonder-vraag">Zonder bonusvraag</option>
+                </select>
                 <button className="knop" type="submit">Zoek</button>
             </form>
 
-            <NieuweTitel onKlaar={laad} />
+            <NieuweTitel onKlaar={laadTitels} />
 
             <p className="kaart-label" style={{ textAlign: 'left', marginTop: '1.5rem' }}>
                 Titels ({titels.length})
@@ -444,7 +492,7 @@ function Beheer({ onUit }) {
                             </span>
                         </div>
                         {open === t.id && (
-                            <TitelDetail titel={t} onWijzig={laad} />
+                            <TitelDetail titel={t} onWijzig={() => laadTitels()} />
                         )}
                     </li>
                 ))}
@@ -461,13 +509,26 @@ function Beheer({ onUit }) {
     );
 }
 
-function Tegel({ label, waarde }) {
-    return (
-        <div className="tegel">
+function tekstVoorTaak(klaarTekst, samenvatting) {
+    if (!samenvatting || typeof samenvatting !== 'object') return klaarTekst;
+    const delen = [];
+    if (Number.isFinite(samenvatting.gedownload)) delen.push(`${samenvatting.gedownload} opgeslagen`);
+    if (Number.isFinite(samenvatting.overgeslagen)) delen.push(`${samenvatting.overgeslagen} al lokaal`);
+    if (Number.isFinite(samenvatting.mislukt) && samenvatting.mislukt) delen.push(`${samenvatting.mislukt} mislukt`);
+    return delen.length ? `${klaarTekst} ${delen.join(' · ')}.` : klaarTekst;
+}
+
+function Tegel({ label, waarde, onClick }) {
+    const inhoud = (
+        <>
             <span className="tegel-waarde">{waarde ?? '—'}</span>
             <span className="tegel-label">{label}</span>
-        </div>
+        </>
     );
+    if (onClick) {
+        return <button type="button" className="tegel klikbaar" onClick={onClick} title={`${label} bekijken`}>{inhoud}</button>;
+    }
+    return <div className="tegel">{inhoud}</div>;
 }
 
 function Collectiebeheer({ collecties, bezig, onImport, onDownload, onWijzig, onMelding }) {
@@ -844,6 +905,14 @@ function NieuweTitel({ onKlaar }) {
     );
 }
 
+function trackBronLabel(track) {
+    if (track.bron !== 'lokaal') return track.bron;
+    const origineel = String(track.bron_url || '').toLowerCase();
+    if (origineel.includes('youtube')) return 'youtube → lokaal';
+    if (origineel.includes('apple') || origineel.includes('itunes')) return 'itunes → lokaal';
+    return 'lokaal';
+}
+
 function TitelDetail({ titel, onWijzig }) {
     const [f, setF] = useState(naarForm(titel));
     const [tracks, setTracks] = useState([]);
@@ -852,6 +921,7 @@ function TitelDetail({ titel, onWijzig }) {
     const [uploadFile, setUploadFile] = useState(null);
     const [uploadNaam, setUploadNaam] = useState('');
     const [uploadArtiest, setUploadArtiest] = useState('');
+    const [downloadBezig, setDownloadBezig] = useState(null);
 
     async function laadTracks() {
         setTracks(await api.adminTracks(titel.id));
@@ -891,13 +961,29 @@ function TitelDetail({ titel, onWijzig }) {
         onWijzig();
     }
     async function downloadTrack(id) {
+        setDownloadBezig(id);
+        setMelding('Download gestart. YouTube wordt gecontroleerd en daarna lokaal opgeslagen…');
         try {
-            await api.adminDownloadTrack(id);
-            setMelding('Track echt gedownload en opgeslagen in /media/downloads voor later gebruik.');
-            laadTracks();
-            onWijzig();
+            const gestart = await api.adminDownloadTrack(id);
+            if (!gestart?.gestart) {
+                setMelding(`Download niet gestart: ${gestart?.taak || 'een andere admin-taak draait al'}.`);
+                return;
+            }
+            for (let poging = 0; poging < 240; poging += 1) {
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                const status = await api.adminDownloadTrackStatus(id);
+                if (!status.klaar) continue;
+                if (status.fout) throw new Error(status.fout);
+                setMelding('Track gedownload en blijvend opgeslagen in /media/downloads.');
+                await laadTracks();
+                onWijzig();
+                return;
+            }
+            throw new Error('Download duurt langer dan verwacht. Controleer de Downloads-tab of de meldingen.');
         } catch (err) {
             setMelding(err.message);
+        } finally {
+            setDownloadBezig(null);
         }
     }
     async function uploadTrack(e) {
@@ -943,7 +1029,7 @@ function TitelDetail({ titel, onWijzig }) {
                                 {tr.tracknaam}
                             </span>
                             <span className="dim">
-                                {tr.artiest} · {tr.bron} · ★{tr.herkenbaarheid}
+                                {tr.artiest} · {trackBronLabel(tr)} · ★{tr.herkenbaarheid}
                                 {Number(tr.verificatie_score) > 0 && ` · controle ${Math.round(Number(tr.verificatie_score) * 100)}%`}
                                 {tr.verificatie_reden && ` · ${tr.verificatie_reden}`}
                                 {` · gespeeld: ${tr.keer_gespeeld || 0}×`}
@@ -982,9 +1068,10 @@ function TitelDetail({ titel, onWijzig }) {
                             <button
                                 className="afspeelknop klein"
                                 title="Sla deze track lokaal op"
+                                disabled={downloadBezig === tr.id}
                                 onClick={() => downloadTrack(tr.id)}
                             >
-                                ⇩
+                                {downloadBezig === tr.id ? '…' : '⇩'}
                             </button>
                         )}
                         <button className="afspeelknop klein" onClick={() => verwijderTrack(tr.id)} aria-label="Verwijderen">✕</button>

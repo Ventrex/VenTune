@@ -5,6 +5,10 @@ verwacht gedrag en werkelijk gedrag toe.
 
 | Prioriteit | Status | Datum | Onderwerp | Reproduceerstappen | Verwacht | Werkelijk |
 |---|---|---|---|---|---|---|
+| P1 | Opgelost | 2026-07-26 | Admin toonde eerst een lange lijst met ontbrekende titels | Open `/admin` en ga naar import | Importknoppen staan direct zichtbaar; herstelwachtrij is apart | 221 titels stonden vóór de knoppen in dezelfde sectie |
+| P1 | Opgelost | 2026-07-26 | Losse MP3-download leek niets te doen | Open een titel, klik op ⇩ en wacht op yt-dlp | Direct feedback, voortgang en eindfout/succes | De HTTP-knop wachtte stil op de volledige download |
+| P1 | Opgelost | 2026-07-26 | iTunes stond vóór YouTube in sommige trackkeuzes | Titel heeft een YouTube- en iTunes-track, eventueel lokaal gedownload | YouTube wint; lokale YouTube-audio blijft herkenbaar als YouTube | Bronrangschikking keek alleen naar `lokaal`, waardoor iTunes lokaal kon winnen |
+| P1 | Opgelost | 2026-07-26 | Admin-overzicht was niet actiegericht | Klik op een telling zoals Tracks nodig of Open meldingen | Direct naar de juiste herstel-/inzagelijst | Tegels waren alleen tekst |
 | P1 | Opgelost | 2026-07-26 | MP3 werd pas tijdens spelstart gedownload | Start een spel met een niet-lokale track | Admin kan vooraf controleren en downloaden | Er was alleen handmatige download of pregame-download |
 | P1 | Opgelost | 2026-07-26 | Verwijderde YouTube-URL werd pas tijdens spelen ontdekt | Download een verwijderde of geblokkeerde video | Admin ziet vooraf dat de URL niet bestaat | De fout kwam pas bij afspelen/downloaden naar voren |
 | P2 | Opgelost | 2026-07-26 | Eén titel kon niet in meerdere spelversies zitten | Kies Frozen voor Films en Disney | Dezelfde titel verschijnt in beide selecties | Er was alleen film/serie als enkelvoudig filtertype |

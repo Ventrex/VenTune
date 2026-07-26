@@ -537,6 +537,7 @@ const SLECHTE_WOORDEN = [
     'live performance', 'live concert', 'livestream', '1 hour', '10 hours',
     'uur lang',
 ];
+const LIVE_TITEL = /\blive\b|\blivestream\b|\blive\s+stream\b/i;
 
 function normaliseer(s) {
     return String(s || '')
@@ -573,6 +574,10 @@ function kiesBeste(resultaten, titel) {
         const t = normaliseer(r.titel);
         // Nooit resultaten met Arabisch/Cyrillisch/CJK e.d.
         if (!isLatijnsSchrift(r.titel)) return null;
+        // Een live-uitvoering is nooit de bedoelde intro/titelsong. Dit is
+        // expres een harde weigering; ook een zeer populaire livevideo mag
+        // niet winnen van een minder populaire studioversie.
+        if (LIVE_TITEL.test(t)) return null;
         if (SLECHTE_WOORDEN.some((w) => t.includes(w))) return null;
         // Een automatische zoekopdracht moet expliciet naar muziek voor de
         // titel wijzen. Een exact klinkende naam zonder theme/intro-signaal

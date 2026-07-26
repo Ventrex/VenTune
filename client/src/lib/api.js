@@ -186,8 +186,10 @@ export async function adminLogin(wachtwoord) {
 export async function adminLogout() {
     return adminFetch('/api/admin/logout', { method: 'POST' });
 }
-export async function adminTitels(zoek = '') {
-    return adminFetch(`/api/admin/titels?zoek=${encodeURIComponent(zoek)}`);
+export async function adminTitels(zoek = '', filter = '') {
+    const params = new URLSearchParams({ zoek });
+    if (filter) params.set('filter', filter);
+    return adminFetch(`/api/admin/titels?${params.toString()}`);
 }
 export async function adminMaakTitel(data) {
     return adminFetch('/api/admin/titels', { method: 'POST', ...jsonBody(data) });
@@ -217,6 +219,9 @@ export async function adminVerwijderTrack(id) {
 }
 export async function adminDownloadTrack(id) {
     return adminFetch(`/api/admin/tracks/${id}/download`, { method: 'POST' });
+}
+export async function adminDownloadTrackStatus(id) {
+    return adminFetch(`/api/admin/tracks/${id}/download/status`);
 }
 export async function adminDownloadStart(data = {}) {
     return adminFetch('/api/admin/downloads/start', { method: 'POST', ...jsonBody(data) });

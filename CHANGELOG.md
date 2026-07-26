@@ -1,5 +1,26 @@
 # VenTune changelog
 
+## [0.3.1] - 2026-07-26
+
+### Beheer
+
+- Imports en downloads zijn nu aparte admin-tabs. De lijst met ontbrekende
+  tracks staat ingeklapt onder Downloads, zodat de actieknoppen direct zichtbaar
+  zijn.
+- Een losse MP3-download start nu als achtergrondtaak en toont voortgang en
+  foutmeldingen; de browser lijkt niet meer stil te hangen tijdens `yt-dlp`.
+- Tegels in het admin-overzicht zijn klikbaar en openen direct de pagina om het
+  probleem te bekijken of te herstellen. Titels zijn filterbaar op ontbrekende,
+  speelbare, afgekeurde en ontbrekende-vraag-status.
+- YouTube blijft zichtbaar en krijgt voorrang boven iTunes, ook als een
+  YouTube-track al lokaal is opgeslagen. Herkomst wordt als `youtube → lokaal`
+  of `itunes → lokaal` getoond.
+
+### Betrouwbaarheid
+
+- Elke automatische YouTube-titel met het losse woord `live` wordt hard
+  geweigerd, ook wanneer de video verder een sterke intro-match lijkt.
+
 ## [0.3.0] - 2026-07-26
 
 ### Voor spelers

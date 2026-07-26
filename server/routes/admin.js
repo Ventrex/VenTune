@@ -214,12 +214,31 @@ router.patch('/api/admin/collecties/:id', vereisAdmin, async (req, res) => {
 // ---- Titels ----
 router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
     const zoek = String(req.query.zoek || '').trim();
+    const filter = String(req.query.filter || '').trim().toLowerCase();
     const params = [];
-    let where = '';
+    const voorwaarden = [];
     if (zoek) {
         params.push(`%${zoek}%`);
-        where = `WHERE t.naam ILIKE $1`;
+        voorwaarden.push(`t.naam ILIKE $${params.length}`);
     }
+    if (filter === 'zonder-track') {
+        voorwaarden.push(`NOT EXISTS (
+            SELECT 1 FROM tracks x
+             WHERE x.titel_id = t.id AND x.werkt = true
+               AND x.preview_url IS NOT NULL AND x.preview_url <> ''
+        )`);
+    } else if (filter === 'speelbaar') {
+        voorwaarden.push(`EXISTS (
+            SELECT 1 FROM tracks x
+             WHERE x.titel_id = t.id AND x.werkt = true
+               AND x.preview_url IS NOT NULL AND x.preview_url <> ''
+        )`);
+    } else if (filter === 'afgekeurd') {
+        voorwaarden.push(`EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id AND x.werkt = false)`);
+    } else if (filter === 'zonder-vraag') {
+        voorwaarden.push(`NOT EXISTS (SELECT 1 FROM vragen v WHERE v.titel_id = t.id)`);
+    }
+    const where = voorwaarden.length ? `WHERE ${voorwaarden.join(' AND ')}` : '';
     const { rows } = await pool.query(
         `SELECT t.*, COUNT(tr.id)::int AS aantal_tracks,
                 COALESCE(array_agg(DISTINCT c.sleutel) FILTER (WHERE c.sleutel IS NOT NULL), '{}') AS collecties
@@ -331,7 +350,16 @@ router.get('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
         `SELECT * FROM tracks
           WHERE titel_id = $1
-          ORDER BY werkt DESC, fout_aantal ASC, keer_gespeeld ASC,
+          ORDER BY werkt DESC,
+                   CASE
+                       WHEN bron = 'lokaal'
+                            AND lower(COALESCE(bron_url, '')) LIKE '%youtube%' THEN 5
+                       WHEN bron = 'youtube' THEN 4
+                       WHEN bron = 'lokaal' THEN 3
+                       WHEN bron = 'itunes' THEN 2
+                       ELSE 1
+                   END DESC,
+                   fout_aantal ASC, keer_gespeeld ASC,
                    laatst_gespeeld ASC NULLS FIRST, herkenbaarheid DESC, id DESC`,
         [req.params.id],
     );
@@ -416,7 +444,19 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                (SELECT count(*)::int FROM zoek_cache) AS cache_regels`,
         );
         const perBron = await pool.query(
-            `SELECT bron, count(*)::int AS n FROM tracks GROUP BY bron ORDER BY n DESC`,
+            `SELECT CASE
+                        WHEN bron = 'youtube'
+                             OR (bron = 'lokaal' AND lower(COALESCE(bron_url, '')) LIKE '%youtube%')
+                            THEN 'youtube'
+                        WHEN bron = 'itunes'
+                             OR (bron = 'lokaal' AND lower(COALESCE(bron_url, '')) LIKE '%apple%')
+                            THEN 'itunes'
+                        ELSE bron
+                    END AS bron,
+                    count(*)::int AS n
+               FROM tracks
+              GROUP BY 1
+              ORDER BY CASE WHEN bron = 'youtube' THEN 0 ELSE 1 END, n DESC`,
         );
         res.json({ ...d.rows[0], per_bron: perBron.rows });
     } catch (err) {
@@ -797,13 +837,17 @@ router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
     if (!['itunes', 'youtube'].includes(rows[0].bron)) {
         return res.status(400).json({ fout: 'Alleen YouTube- of iTunes-tracks kunnen vooraf worden gedownload.' });
     }
-    try {
+    const antwoord = startTrackDownload(rows[0].id, async () => {
         await controleerTrackUrl(rows[0]);
         await downloadTrack({ ...rows[0], naam: rows[0].tracknaam || rows[0].naam });
-        res.json({ ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' });
-    } catch (err) {
-        res.status(502).json({ fout: err.message });
-    }
+        return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+    });
+    res.status(antwoord.gestart ? 202 : 409).json(antwoord);
+});
+
+router.get('/api/admin/tracks/:id/download/status', vereisAdmin, (req, res) => {
+    const status = trackDownloadStatuses.get(String(req.params.id));
+    res.json(status || { bezig: false, klaar: false, samenvatting: null, fout: null });
 });
 
 // Upload een eigen/gelicentieerd audiobestand. Het bestand blijft in het
@@ -909,6 +953,7 @@ let tmdbImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: n
 let vragenImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let downloadStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let collectieImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+const trackDownloadStatuses = new Map();
 // Imports wijzigen dezelfde vragenbank. Eén gedeelde lock voorkomt dat twee
 // admins (of twee browservensters) tegelijk tracks/titels gaan vervangen.
 let actieveAdminTaak = null;
@@ -945,7 +990,42 @@ function startAdminScript(naam, status, setter, werk) {
     return { gestart: true, bezig: true, taak: naam };
 }
 
-async function downloadTracksVooruit({ collecties = [], force = false, controleer = true } = {}) {
+function startTrackDownload(trackId, werk) {
+    const sleutel = String(trackId);
+    const bestaand = trackDownloadStatuses.get(sleutel);
+    if (actieveAdminTaak || bestaand?.bezig) {
+        return {
+            gestart: false,
+            bezig: true,
+            taak: actieveAdminTaak || `track-download-${sleutel}`,
+        };
+    }
+    const nieuw = {
+        bezig: true,
+        klaar: false,
+        gestart_op: new Date().toISOString(),
+        samenvatting: null,
+        fout: null,
+    };
+    trackDownloadStatuses.set(sleutel, nieuw);
+    const taak = `track-download-${sleutel}`;
+    actieveAdminTaak = taak;
+    Promise.resolve()
+        .then(werk)
+        .then((samenvatting) => {
+            trackDownloadStatuses.set(sleutel, { ...nieuw, bezig: false, klaar: true, samenvatting });
+        })
+        .catch((err) => {
+            trackDownloadStatuses.set(sleutel, { ...nieuw, bezig: false, klaar: true, fout: err.message });
+            logger.fout(`Losse trackdownload mislukt: ${sleutel}.`, { melding: err.message });
+        })
+        .finally(() => {
+            if (actieveAdminTaak === taak) actieveAdminTaak = null;
+        });
+    return { gestart: true, bezig: true, klaar: false, taak, track_id: Number(trackId) };
+}
+
+async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, onProgress = null } = {}) {
     const sleutels = normaliseerCollecties(collecties);
     const params = [];
     let extra = '';
@@ -972,9 +1052,11 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     let overgeslagen = 0;
     let mislukt = 0;
     const fouten = [];
-    for (const track of rows) {
+    for (const [index, track] of rows.entries()) {
+        onProgress?.({ verwerkt: index, totaal: rows.length, huidige: track.naam });
         if (!force && track.download_status === 'available') {
             overgeslagen++;
+            onProgress?.({ verwerkt: index + 1, totaal: rows.length, huidige: track.naam, overgeslagen, gedownload, mislukt });
             continue;
         }
         try {
@@ -989,6 +1071,7 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
                 [track.id, String(err.message).slice(0, 500)],
             ).catch(() => {});
         }
+        onProgress?.({ verwerkt: index + 1, totaal: rows.length, huidige: track.naam, overgeslagen, gedownload, mislukt });
     }
     return {
         verwerkt: rows.length,
@@ -1012,6 +1095,7 @@ router.post('/api/admin/downloads/start', vereisAdmin, (req, res) => {
                 collecties,
                 force: req.body?.force === true,
                 controleer: req.body?.controleer !== false,
+                onProgress: (voortgang) => { downloadStatus = { ...downloadStatus, ...voortgang }; },
             });
         },
     );
