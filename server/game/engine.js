@@ -186,6 +186,85 @@ class SpelBeheer {
         return this.spellen.has(lobbyId);
     }
 
+    /**
+     * Stuur de actuele speltoestand nogmaals naar één socket.
+     *
+     * Socket.IO levert events niet af wanneer een telefoon/browser tijdelijk
+     * geen verbinding heeft. De game-state leeft op de server, dus een
+     * refresh of een handmatige herstelactie moet de speler weer op exact de
+     * huidige fase zetten in plaats van terug te vallen naar de wachtruimte.
+     */
+    async herstelSocket(socket) {
+        const state = this.spellen.get(socket.data?.lobbyId);
+        if (!state || !socket.data?.code || state.code !== socket.data.code) return false;
+
+        const h = state.huidige;
+        if (!h) return false;
+
+        const audio = {
+            rondeId: h.rondeId,
+            bron: h.track.bron,
+            url: h.track.preview_url,
+            startSeconde: h.track.start_seconde || 0,
+            durationMs: state.rondeDuurMs,
+            herstel: Date.now(),
+        };
+
+        if (state.fase === 'raden') {
+            const gepauzeerd = !!h.gepauzeerd;
+            socket.emit('ronde:start', {
+                rondeId: h.rondeId,
+                rondenummer: state.rondenummer,
+                totaal: state.totaalRondes,
+                durationMs: state.modus === 'kenner'
+                    ? null
+                    : gepauzeerd
+                      ? h.restMs
+                      : state.rondeDuurMs,
+                startTs: gepauzeerd ? Date.now() : h.startTijd,
+                modus: state.modus,
+                antwoordModus: state.antwoordModus,
+                opties: h.antwoordOpties?.opties || null,
+                herstel: true,
+            });
+            if (socket.data.isHost) {
+                socket.emit('ronde:audio', { ...audio, pauze: gepauzeerd });
+            }
+            if (gepauzeerd) socket.emit('ronde:pauze', { gepauzeerd: true });
+            return true;
+        }
+
+        if (['onthul', 'bonus', 'scorebord'].includes(state.fase)) {
+            socket.emit('ronde:onthul', { antwoord: this.antwoordInfo(h) });
+        }
+
+        if (state.fase === 'bonus' && h.bonus?.vraag) {
+            socket.emit('ronde:bonus', {
+                vraag: h.bonus.vraag,
+                opties: h.bonus.opties,
+                durationMs: BONUS_DUUR_MS,
+                herstel: true,
+            });
+            return true;
+        }
+
+        if (state.fase === 'scorebord') {
+            socket.emit('ronde:afgelopen', {
+                scorebord: await this.haalScorebord(state),
+            });
+            // Een overgang die tijdens de eerste poging faalde laat het
+            // scorebord zonder timer achter. Herstel plant dan opnieuw één
+            // serverovergang; meerdere clients kunnen geen dubbele timer
+            // veroorzaken.
+            if (!state.scorebordTimer && !state.volgendeBezig) {
+                this.planVolgendeRonde(state);
+            }
+            return true;
+        }
+
+        return true;
+    }
+
     rapporteerOvergangsfout(state, err, context) {
         logger.fout('Automatische spelovergang mislukt.', {
             code: state.code,
@@ -194,6 +273,9 @@ class SpelBeheer {
         });
         this.io.to(kamer(state.code)).emit('spel:fout', {
             melding: 'De ronde kon niet automatisch doorgaan. De host kan opnieuw proberen.',
+        });
+        this.io.to(kamer(state.code)).emit('spel:herstel-nodig', {
+            fase: state.fase,
         });
     }
 
@@ -469,6 +551,9 @@ class SpelBeheer {
             state.scorebordTimer = null;
         }
         state.overgangVersie += 1;
+        const vorigeRonde = state.rondenummer;
+        const vorigeHuidige = state.huidige;
+        const vorigeFase = state.fase;
 
         try {
             // Een titel zonder bruikbare track telt niet als ronde. Blijf in
@@ -510,7 +595,7 @@ class SpelBeheer {
                     [state.lobbyId, state.rondenummer, titel.id, track.id, state.rondeDuurMs],
                 );
 
-                state.huidige = {
+                const nieuweHuidige = {
                     rondeId: rondeRij.rows[0].id,
                     titel,
                     track,
@@ -525,12 +610,17 @@ class SpelBeheer {
                     verwijderdeOpties: new Map(), // spelerId -> indexen
                     timer: null,
                 };
-                state.fase = 'raden';
 
                 await pool.query(`UPDATE lobbies SET huidige_ronde = $1 WHERE id = $2`, [
                     state.rondenummer,
                     state.lobbyId,
                 ]);
+
+                // Zet de nieuwe state pas vast nadat de overgangsquery's zijn
+                // gelukt. Zo kan een retry vanaf het scorebord niet per
+                // ongeluk een rondenummer overslaan.
+                state.huidige = nieuweHuidige;
+                state.fase = 'raden';
 
                 // Spelers: geen titel, geen audio-URL. In kennersmodus telt
                 // er niets af — de host bepaalt wanneer de ronde voorbij is.
@@ -539,6 +629,7 @@ class SpelBeheer {
                     rondenummer: state.rondenummer,
                     totaal: state.totaalRondes,
                     durationMs: state.modus === 'kenner' ? null : state.rondeDuurMs,
+                    startTs: state.huidige.startTijd,
                     modus: state.modus,
                     antwoordModus: state.antwoordModus,
                     opties: state.huidige.antwoordOpties?.opties || null,
@@ -573,6 +664,15 @@ class SpelBeheer {
                 }
                 return;
             }
+        } catch (err) {
+            // Fouten vóór het vastzetten van de nieuwe ronde mogen geen
+            // sprong van bijvoorbeeld ronde 4 naar 6 veroorzaken. Fouten ná
+            // het publiceren van 'raden' laten de actuele ronde intact.
+            if (state.fase === vorigeFase) {
+                state.rondenummer = vorigeRonde;
+                state.huidige = vorigeHuidige;
+            }
+            throw err;
         } finally {
             state.volgendeBezig = false;
         }
@@ -803,6 +903,8 @@ class SpelBeheer {
 
         h.bonus = {
             correctIndex,
+            vraag: vraagTekst,
+            opties,
             pogingen: new Map(), // spelerId -> aantal pogingen
             klaar: new Set(), // spelers die klaar zijn (goed of op)
             type: soort,

@@ -32,6 +32,8 @@ export function useSpel() {
     const [gepauzeerd, setGepauzeerd] = useState(false);
     const [melded, setMelded] = useState(false);
     const [fout, setFout] = useState('');
+    const [herstelNodig, setHerstelNodig] = useState(false);
+    const [herstelBezig, setHerstelBezig] = useState(false);
     // Afspeel-opdracht voor de host: { bron, url, startSeconde }. Spelers
     // krijgen dit niet en horen dus niets.
     const [audio, setAudio] = useState(null);
@@ -42,12 +44,22 @@ export function useSpel() {
 
         const hallo = () => {
             setVerbonden(true);
+            setHerstelNodig(false);
             socket.emit('lobby:hallo', { token: sessie.token });
         };
         const bijSpelers = (lijst) => setSpelers(lijst);
-        const bijFout = ({ melding }) => setFout(melding);
+        const bijFout = ({ melding } = {}) => {
+            setFout(melding || 'Er ging iets mis.');
+            if (melding?.includes('opnieuw') || melding?.includes('herstel')) {
+                setHerstelNodig(true);
+            }
+        };
         const bijVoorbereiden = ({ melding }) => setFout(melding || 'Muziek voorbereiden...');
-        const bijVerbroken = () => setVerbonden(false);
+        const bijVerbroken = () => {
+            setVerbonden(false);
+            setHerstelNodig(true);
+            setHerstelBezig(false);
+        };
 
         const bijStart = (d) => {
             setFout('');
@@ -61,9 +73,11 @@ export function useSpel() {
             setMelded(false);
             setAntwoordOpties(d.opties || null);
             setVerwijderdeOpties([]);
-            setRonde({ ...d, startTs: Date.now() });
+            setRonde({ ...d, startTs: d.startTs || Date.now() });
             setAudio(null);
             setFase('raden');
+            setHerstelNodig(false);
+            setHerstelBezig(false);
         };
         const bijAudio = (d) => {
             // Alleen de host krijgt en speelt de audio af.
@@ -109,13 +123,17 @@ export function useSpel() {
         const bijAfgelopen = ({ scorebord: sb }) => {
             setScorebord(sb);
             setFase('scorebord');
+            setHerstelBezig(false);
         };
         const bijScores = (sb) => setScorebord(sb);
         const bijEinde = ({ scorebord: sb }) => {
             setAudio(null);
             setScorebord(sb);
             setFase('einde');
+            setHerstelNodig(false);
+            setHerstelBezig(false);
         };
+        const bijHerstelNodig = () => setHerstelNodig(true);
 
         socket.on('connect', hallo);
         socket.on('disconnect', bijVerbroken);
@@ -139,6 +157,7 @@ export function useSpel() {
         socket.on('ronde:afgelopen', bijAfgelopen);
         socket.on('spel:scores', bijScores);
         socket.on('spel:einde', bijEinde);
+        socket.on('spel:herstel-nodig', bijHerstelNodig);
 
         if (socket.connected) hallo();
 
@@ -165,9 +184,19 @@ export function useSpel() {
             socket.off('ronde:afgelopen', bijAfgelopen);
             socket.off('spel:scores', bijScores);
             socket.off('spel:einde', bijEinde);
+            socket.off('spel:herstel-nodig', bijHerstelNodig);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessie?.token, isHost]);
+
+    // Als het scorebord langer blijft staan dan de normale overgang, laat
+    // een herstelactie zien. De server kan daarna dezelfde overgang opnieuw
+    // plannen zonder de sessie of de spelers kwijt te raken.
+    useEffect(() => {
+        if (fase !== 'scorebord') return undefined;
+        const timer = setTimeout(() => setHerstelNodig(true), 12000);
+        return () => clearTimeout(timer);
+    }, [fase, ronde?.rondeId]);
 
     const startSpel = useCallback(() => haalSocket().emit('spel:start'), []);
     const gok = useCallback((tekst) => haalSocket().emit('ronde:gok', { gok: tekst }), []);
@@ -186,6 +215,27 @@ export function useSpel() {
         (keuze) => haalSocket().emit('ronde:bonus-antwoord', { keuze }),
         [],
     );
+    const herstelSpel = useCallback(() => {
+        const socket = haalSocket();
+        setHerstelBezig(true);
+        setFout('');
+
+        const naVerbinding = () => {
+            socket.emit('spel:herstel');
+            setHerstelBezig(false);
+        };
+
+        if (socket.connected) {
+            naVerbinding();
+            return;
+        }
+
+        socket.once('connect', naVerbinding);
+        socket.connect();
+        // Laat de knop niet eindeloos als bezig staan wanneer de verbinding
+        // zelf niet lukt; de bestaande sessie blijft wel bewaard.
+        setTimeout(() => setHerstelBezig(false), 5000);
+    }, []);
 
     return {
         sessie,
@@ -208,6 +258,8 @@ export function useSpel() {
         gepauzeerd,
         melded,
         fout,
+        herstelNodig,
+        herstelBezig,
         startSpel,
         volgende,
         herhaal,
@@ -218,5 +270,6 @@ export function useSpel() {
         vraagHint,
         verwijder3,
         bonusAntwoord,
+        herstelSpel,
     };
 }

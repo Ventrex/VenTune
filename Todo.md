@@ -85,6 +85,11 @@
 - [x] **P1** Adminactie toegevoegd om bestaande database-titels opnieuw op
       YouTube te controleren zonder een bestaande iTunes-fallback te wissen
       wanneer YouTube geen zekere match vindt.
+- [x] **P1** Spelherstel toegevoegd: actuele ronde/fase wordt na reconnect of
+      browser-refresh opnieuw naar de socket gestuurd; een vastgelopen
+      overgang kan zonder de lobby te verlaten opnieuw worden gepland.
+- [x] **P1** Host-audio krijgt een harde laad-/starttimeout en toont een
+      herstelknop in plaats van onbeperkt te blijven laden.
 
 ## Daarna
 

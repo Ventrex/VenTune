@@ -1,5 +1,19 @@
 # VenTune changelog
 
+## [0.3.2] - 2026-07-26
+
+### Betrouwbaarheid
+
+- De server kan de actuele ronde, bonusvraag of het scorebord opnieuw naar een
+  (opnieuw) verbonden browser sturen. Een refresh verliest daardoor niet meer
+  automatisch de spelpositie zolang de sessie-token nog bestaat.
+- Als een overgang naar de volgende ronde faalt, verschijnt er een actie om
+  de overgang opnieuw te plannen zonder de lobby te verlaten. De retry bewaakt
+  het rondenummer zodat ronde 4 niet stil naar ronde 6 springt.
+- Host-audio blijft niet onbeperkt wachten op metadata, `play()` of de
+  YouTube-player. Na een timeout verschijnt een duidelijke knop om opnieuw te
+  verbinden of de audio opnieuw te starten.
+
 ## [0.3.1] - 2026-07-26
 
 ### Beheer

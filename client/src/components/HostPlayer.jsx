@@ -14,6 +14,14 @@ function wacht(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function metTimeout(belofte, ms, melding) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(melding)), ms);
+    });
+    return Promise.race([belofte, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** Wacht totdat de browser metadata heeft en start daarna pas de audio. */
 async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
     element.pause();
@@ -23,9 +31,11 @@ async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
     if (element.readyState < 1) {
         await new Promise((resolve, reject) => {
             let klaar = false;
+            const timeout = setTimeout(() => fout(), 10000);
             const opruimen = () => {
                 element.removeEventListener('loadedmetadata', metadata);
                 element.removeEventListener('error', fout);
+                clearTimeout(timeout);
             };
             const metadata = () => {
                 if (klaar) return;
@@ -46,7 +56,11 @@ async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
     }
     if (!isActief()) return false;
     element.currentTime = Number(startSeconde) || 0;
-    await element.play();
+    await metTimeout(
+        element.play(),
+        10000,
+        'Audio starten duurt te lang.',
+    );
     return true;
 }
 
@@ -77,7 +91,11 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
         if (ytSpelerRef.current) return ytSpelerRef.current;
         if (!ytMountRef.current) throw new Error('YouTube-element ontbreekt.');
         if (!ytSpelerPromiseRef.current) {
-            ytSpelerPromiseRef.current = maakSpeler(ytMountRef.current)
+            ytSpelerPromiseRef.current = metTimeout(
+                maakSpeler(ytMountRef.current),
+                10000,
+                'YouTube-speler reageert niet.',
+            )
                 .then((speler) => {
                     ytSpelerRef.current = speler;
                     return speler;
@@ -144,7 +162,11 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
         if (audio.bron === 'youtube') {
             let speler;
             try {
-                speler = await haalYtSpeler();
+                speler = await metTimeout(
+                    haalYtSpeler(),
+                    10000,
+                    'YouTube laden duurt te lang.',
+                );
             } catch {
                 if (isActief()) setMoetTikken(true);
                 return;
@@ -168,7 +190,7 @@ const HostPlayer = forwardRef(function HostPlayer({ audio }, ref) {
             }
             // Controleer meerdere keren: loadVideoById is asynchroon en kan
             // tijdens de eerste poging nog -1 (unstarted) teruggeven.
-            for (let poging = 0; poging < 6; poging++) {
+            for (let poging = 0; poging < 10; poging++) {
                 await wacht(350);
                 if (!isActief()) return;
                 try {

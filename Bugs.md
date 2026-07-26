@@ -5,6 +5,7 @@ verwacht gedrag en werkelijk gedrag toe.
 
 | Prioriteit | Status | Datum | Onderwerp | Reproduceerstappen | Verwacht | Werkelijk |
 |---|---|---|---|---|---|---|
+| P1 | Opgelost | 2026-07-26 | Spel bleef vanaf ronde 5 laden en een refresh verloor de ronde | Speel meerdere rondes en laat een overgang of verbinding tijdelijk falen | De server herstelt de actuele fase; audio laden geeft na een timeout een herstelactie; sessie blijft behouden | De client bleef op het scorebord/laden staan zonder herstelknop en een refresh replayde de ronde niet |
 | P1 | Opgelost | 2026-07-26 | Admin toonde eerst een lange lijst met ontbrekende titels | Open `/admin` en ga naar import | Importknoppen staan direct zichtbaar; herstelwachtrij is apart | 221 titels stonden vóór de knoppen in dezelfde sectie |
 | P1 | Opgelost | 2026-07-26 | Losse MP3-download leek niets te doen | Open een titel, klik op ⇩ en wacht op yt-dlp | Direct feedback, voortgang en eindfout/succes | De HTTP-knop wachtte stil op de volledige download |
 | P1 | Opgelost | 2026-07-26 | iTunes stond vóór YouTube in sommige trackkeuzes | Titel heeft een YouTube- en iTunes-track, eventueel lokaal gedownload | YouTube wint; lokale YouTube-audio blijft herkenbaar als YouTube | Bronrangschikking keek alleen naar `lokaal`, waardoor iTunes lokaal kon winnen |

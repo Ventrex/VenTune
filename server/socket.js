@@ -68,9 +68,28 @@ function setupSockets(io) {
                 });
 
                 await stuurSpelers(io, speler.lobby_id, speler.code);
+                // Replay de actuele fase direct na (her)verbinden. Zonder
+                // deze replay kwam een refresh wel terug in de lobby, maar
+                // miste de client de ronde die al bezig was.
+                await spel.herstelSocket(socket);
             } catch (err) {
                 logger.fout('lobby:hallo mislukt.', { melding: err.message });
                 socket.emit('lobby:fout', { melding: 'Er ging iets mis.' });
+            }
+        });
+
+        // Handmatig herstel zonder de pagina te vernieuwen. Dit is vooral
+        // nuttig als een overgang naar de volgende ronde tijdelijk faalde.
+        socket.on('spel:herstel', async () => {
+            try {
+                await spel.herstelSocket(socket);
+            } catch (err) {
+                logger.waarschuwing('Spelherstel mislukt.', {
+                    melding: err.message,
+                });
+                socket.emit('spel:fout', {
+                    melding: 'Herstellen lukte niet. Probeer het nog een keer.',
+                });
             }
         });
 

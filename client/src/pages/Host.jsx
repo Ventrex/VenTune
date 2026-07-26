@@ -26,6 +26,9 @@ export default function Host() {
         scorebord,
         spelers,
         audio,
+        verbonden,
+        herstelNodig,
+        herstelBezig,
     } = spel;
     const spelerRef = useRef(null);
     const [gok, setGok] = useState('');
@@ -77,6 +80,21 @@ export default function Host() {
         <main className="scherm host-scherm">
             <Brand compact />
             {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
+            {((!verbonden && fase !== 'wachten') || herstelNodig) && (
+                <div className="herstelkaart" role="status">
+                    <strong>
+                        {verbonden ? 'Deze ronde reageert niet.' : 'Verbinding verbroken.'}
+                    </strong>
+                    <p>Blijf in het spel; vernieuw de pagina niet.</p>
+                    <button
+                        className="knop"
+                        onClick={spel.herstelSpel}
+                        disabled={herstelBezig}
+                    >
+                        {herstelBezig ? 'Herstellen…' : 'Opnieuw verbinden / ronde herstellen'}
+                    </button>
+                </div>
+            )}
 
             {/* Wachtruimte — in landscape: spelers links, QR rechts */}
             {fase === 'wachten' && (

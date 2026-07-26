@@ -95,7 +95,49 @@ async function testDubbeleScorebordOvergang() {
 }
 
 testDubbeleScorebordOvergang()
-    .then(() => console.log('round-flow: overgangen zijn enkelvoudig en stabiel'))
+    .then(async () => {
+        const events = [];
+        const spel = new SpelBeheer({ to: () => ({ emit: () => {} }) });
+        const state = {
+            lobbyId: 'lobby-herstel',
+            code: 'TEST',
+            fase: 'raden',
+            rondenummer: 5,
+            totaalRondes: 10,
+            rondeDuurMs: 30000,
+            modus: 'snelste',
+            antwoordModus: 'typen',
+            scorebordTimer: null,
+            volgendeBezig: false,
+            huidige: {
+                rondeId: 123,
+                startTijd: Date.now() - 1000,
+                titel: { id: 1, naam: 'The Office', jaar: 2005, type: 'serie' },
+                track: {
+                    id: 456,
+                    bron: 'youtube',
+                    preview_url: 'abc123',
+                    start_seconde: 0,
+                    tracknaam: 'Theme',
+                    artiest: 'Artiest',
+                },
+                antwoordOpties: null,
+            },
+        };
+        spel.spellen.set(state.lobbyId, state);
+        const socket = {
+            data: { lobbyId: state.lobbyId, code: state.code, isHost: true },
+            emit: (event, payload) => events.push({ event, payload }),
+        };
+
+        await spel.herstelSocket(socket);
+        assert.equal(events[0].event, 'ronde:start');
+        assert.equal(events[0].payload.rondenummer, 5);
+        assert.equal(events[0].payload.startTs, state.huidige.startTijd);
+        assert.equal(events[1].event, 'ronde:audio');
+        assert.equal(events[1].payload.url, 'abc123');
+        console.log('round-flow: overgangen en reconnect-herstel zijn stabiel');
+    })
     .catch((err) => {
         console.error(err);
         process.exitCode = 1;

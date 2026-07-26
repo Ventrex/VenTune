@@ -24,6 +24,9 @@ export default function Play() {
         bonusResultaat,
         scorebord,
         spelers,
+        verbonden,
+        herstelNodig,
+        herstelBezig,
     } = spel;
     const [gok, setGok] = useState('');
     const [bonusKeuze, setBonusKeuze] = useState(null);
@@ -75,6 +78,21 @@ export default function Play() {
     return (
         <main className="scherm">
             {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
+            {((!verbonden && fase !== 'wachten') || herstelNodig) && (
+                <div className="herstelkaart" role="status">
+                    <strong>
+                        {verbonden ? 'Deze ronde reageert niet.' : 'Verbinding verbroken.'}
+                    </strong>
+                    <p>Blijf in het spel; vernieuw de pagina niet.</p>
+                    <button
+                        className="knop"
+                        onClick={spel.herstelSpel}
+                        disabled={herstelBezig}
+                    >
+                        {herstelBezig ? 'Herstellen…' : 'Opnieuw verbinden / ronde herstellen'}
+                    </button>
+                </div>
+            )}
 
             {/* Wachtruimte */}
             {fase === 'wachten' && (
