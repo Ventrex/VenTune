@@ -34,7 +34,10 @@ export default function Host() {
     } = spel;
     const spelerRef = useRef(null);
     const [gok, setGok] = useState('');
+    const [gokIngediend, setGokIngediend] = useState(false);
     const [bonusKeuze, setBonusKeuze] = useState(null);
+    const [bonusWachtTot, setBonusWachtTot] = useState(0);
+    const [, setBonusTik] = useState(0);
     const [nieuwTeam, setNieuwTeam] = useState('');
     const [lobbyWijziging, setLobbyWijziging] = useState(null);
 
@@ -45,8 +48,20 @@ export default function Host() {
         spel.startSpel();
     }
 
-    useEffect(() => setGok(''), [ronde?.rondeId]);
-    useEffect(() => setBonusKeuze(null), [bonus?.vraag]);
+    useEffect(() => { setGok(''); setGokIngediend(false); }, [ronde?.rondeId]);
+    useEffect(() => { setBonusKeuze(null); setBonusWachtTot(0); }, [bonus?.vraag]);
+    useEffect(() => {
+        if (!bonusWachtTot) return undefined;
+        const timer = setInterval(() => {
+            setBonusTik(Date.now());
+            if (Date.now() >= bonusWachtTot) setBonusWachtTot(0);
+        }, 250);
+        return () => clearInterval(timer);
+    }, [bonusWachtTot]);
+    useEffect(() => {
+        const ms = Number(bonusResultaat?.cooldownMs || bonusResultaat?.resterendMs || 0);
+        if (ms > 0) setBonusWachtTot(Date.now() + ms);
+    }, [bonusResultaat]);
 
     useEffect(() => {
         if (!sessie) navigate('/');
@@ -55,7 +70,10 @@ export default function Host() {
 
     const joinUrl = `${window.location.origin}/join/${sessie.code}`;
     const goedGeraden = resultaat?.status === 'goed';
-    const bonusVergrendeld = bonusResultaat?.status === 'goed' || bonusResultaat?.status === 'fout';
+    const titelVergrendeld = gokIngediend || goedGeraden;
+    const bonusVergrendeld = bonusResultaat?.status === 'goed' || bonusResultaat?.status === 'opgegeven';
+    const bonusWacht = bonusWachtTot > Date.now();
+    const bonusUitgesloten = bonusResultaat?.uitgeslotenIndexen || bonus?.uitgeslotenIndexen || [];
 
     useEffect(() => {
         if (fase === 'wachten') setLobbyWijziging({ ...lobbyInstellingen });
@@ -63,18 +81,20 @@ export default function Host() {
 
     function verstuurGok(e) {
         e.preventDefault();
-        if (!gok.trim() || goedGeraden) return;
+        if (!gok.trim() || titelVergrendeld) return;
+        setGokIngediend(true);
         spel.gok(gok.trim());
     }
 
     function kiesAntwoord(optie) {
-        if (!optie || goedGeraden) return;
+        if (!optie || titelVergrendeld) return;
         setGok(optie);
+        setGokIngediend(true);
         spel.gok(optie);
     }
 
     function kiesBonus(i) {
-        if (bonusVergrendeld) return;
+        if (bonusVergrendeld || bonusWacht || bonusUitgesloten.includes(i)) return;
         setBonusKeuze(i);
         spel.bonusAntwoord(i);
     }
@@ -242,9 +262,10 @@ export default function Host() {
                                     return (
                                         <button
                                             key={`${optie}-${i}`}
-                                            className={'keuze' + (gok === optie ? ' gekozen' : '')}
+                                            className={'keuze' + (gok === optie ? ' gekozen' : '') +
+                                                (gok === optie && resultaat?.status !== 'goed' ? ' fout' : '')}
                                             onClick={() => kiesAntwoord(optie)}
-                                            disabled={weg}
+                                            disabled={weg || titelVergrendeld}
                                         >
                                             {weg ? '—' : optie}
                                         </button>
@@ -261,12 +282,12 @@ export default function Host() {
                                     aria-label="Jouw antwoord"
                                     autoComplete="off"
                                 />
-                                <button className="knop" type="submit">Raad</button>
+                                    <button className="knop" type="submit" disabled={titelVergrendeld}>{gokIngediend ? 'Ingestuurd' : 'Antwoord insturen'}</button>
                             </form>
                         )}
                         {resultaat && !goedGeraden && (
                             <p className={'feedback ' + (resultaat.status === 'bijna' ? 'bijna' : resultaat.status === 'fout' ? 'mis' : 'neutraal')}>
-                                {resultaat.status === 'bijna' && 'Bijna!'}
+                                {resultaat.status === 'bijna' && 'Bijna — je antwoord is ingestuurd.'}
                                 {resultaat.status === 'fout' && 'Helaas, mis.'}
                                 {resultaat.status === 'tempo' && resultaat.melding}
                                 {resultaat.status === 'hint-fout' && resultaat.melding}
@@ -360,13 +381,14 @@ export default function Host() {
                     <div className="keuzes host-bonus-keuzes">
                         {bonus.opties.map((opt, i) => {
                             let extra = bonusKeuze === i ? ' gekozen' : '';
-                            if (bonusResultaat?.status === 'fout' && bonusResultaat.correctIndex === i) extra = ' juist';
+                            if (bonusResultaat?.status === 'goed' && bonusResultaat.correctIndex === i) extra += ' juist';
+                            if (bonusUitgesloten.includes(i)) extra += ' fout';
                             return (
                                 <button
                                     key={i}
                                     className={'keuze' + extra}
                                     onClick={() => kiesBonus(i)}
-                                    disabled={bonusVergrendeld}
+                                    disabled={bonusVergrendeld || bonusWacht || bonusUitgesloten.includes(i)}
                                 >
                                     {opt}
                                 </button>
@@ -374,14 +396,18 @@ export default function Host() {
                         })}
                     </div>
                     {bonusResultaat && (
-                        <p className={'feedback ' + (bonusResultaat.status === 'goed' ? 'bijna' : 'mis')}>
+                        <p className={'feedback ' + (bonusResultaat.status === 'goed' ? 'bijna' : bonusResultaat.status === 'optie-weg' ? 'neutraal' : 'mis')}>
                             {bonusResultaat.status === 'goed' && `Goed! +${bonusResultaat.punten}`}
-                            {bonusResultaat.status === 'nogmaals' && 'Nog één poging.'}
-                            {bonusResultaat.status === 'fout' && 'Fout.'}
+                            {bonusResultaat.status === 'nogmaals' && 'Kies over vijf seconden een andere optie.'}
+                            {bonusResultaat.status === 'optie-weg' && 'Deze foute optie is voor iedereen verwijderd.'}
+                            {bonusResultaat.status === 'fout' && `Fout. ${Math.ceil(Math.max(0, bonusWachtTot - Date.now()) / 1000)}s denktijd.`}
+                            {bonusResultaat.status === 'wachten' && `Even wachten: ${Math.ceil(Math.max(0, bonusWachtTot - Date.now()) / 1000)}s.`}
+                            {bonusResultaat.status === 'opgegeven' && 'Opgegeven.'}
                         </p>
                     )}
                     <div className="host-knoppen">
-                        <button className="knop knop-stil" onClick={spel.volgende}>Bonus overslaan →</button>
+                        {!bonusVergrendeld && <button className="knop knop-stil" onClick={spel.bonusOpgeven}>Ik geef op</button>}
+                        <button className="knop knop-stil" onClick={spel.volgende}>Volgende bonusvraag →</button>
                     </div>
                 </>
             )}

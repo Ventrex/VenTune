@@ -2,6 +2,22 @@
 
 ## Eerstvolgend
 
+- [x] **P1** Zoekgeschiedenis opslaan voor iedere YouTube-, iTunes- en
+      playlistactie; lege en foutresultaten tellen ook mee.
+- [x] **P1** Werkende gecontroleerde tracks minimaal zeven dagen overslaan;
+      een expliciete titelactie mag gericht opnieuw zoeken.
+- [x] **P1** Lokale beschikbare audio als bron van waarheid gebruiken en de
+      oorspronkelijke URL niet meer controleren zolang het bestand gezond is.
+- [x] **P1** Geplande tracks vóór de eerste ronde lokaal voorbereiden met een
+      YouTube-fragment van maximaal vijf minuten.
+- [x] **P1** Bonusopties globaal verwijderen na een fout, speler-cooldown van
+      vijf seconden, geen bonus-timeout en sneller antwoord beloont meer.
+- [x] **P1** Titelantwoord per speler één keer accepteren en fout/groen-rood
+      feedback in de antwoordvlakken tonen.
+- [x] **P2** Admin-overzicht vullen met nulwaarden/foutdiagnose, zoeklog-tegel
+      en zoeklog in de JSON-export.
+- [x] **P2** Opgeloste meldingen definitief verwijderbaar maken.
+
 - [x] **P1** Categorie **Films & Series** expliciet tonen en muziek uit de
       standaardkeuze houden; meerdere inhoudstypen blijven via één keuze
       mogelijk.

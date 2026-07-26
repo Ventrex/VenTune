@@ -159,6 +159,14 @@ CREATE INDEX IF NOT EXISTS idx_tracks_keuze
     ON tracks (titel_id, werkt, fout_aantal, herkenbaarheid DESC);
 CREATE INDEX IF NOT EXISTS idx_tracks_verificatie
     ON tracks (titel_id, werkt, verificatie_score DESC, fout_aantal);
+
+-- Een betrouwbare match wordt minimaal een week niet opnieuw opgezocht.
+-- Bestaande gecontroleerde tracks krijgen bij de eerste migratie een
+-- controle-datum op basis van hun aanmaakdatum; nieuwe imports schrijven
+-- deze kolom altijd expliciet bij.
+UPDATE tracks
+   SET laatst_gecontroleerd_op = COALESCE(laatst_gecontroleerd_op, aangemaakt_op)
+ WHERE gecontroleerd = true AND laatst_gecontroleerd_op IS NULL;
 DO $$
 BEGIN
     ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_bron_check;
@@ -523,6 +531,24 @@ CREATE TABLE IF NOT EXISTS zoek_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_zoekcache ON zoek_cache (bron, term);
+
+-- Elke zoekpoging blijft als auditregel bestaan, ook als het antwoord uit de
+-- cache kwam of leeg was. De unieke zoek_cache is de laatste bruikbare
+-- momentopname; zoek_log is de volledige geschiedenis.
+CREATE TABLE IF NOT EXISTS zoek_log (
+    id               BIGSERIAL PRIMARY KEY,
+    bron             TEXT NOT NULL,
+    term             TEXT NOT NULL,
+    limiet           INTEGER,
+    uit_cache        BOOLEAN NOT NULL DEFAULT false,
+    resultaat_aantal INTEGER NOT NULL DEFAULT 0,
+    status           TEXT NOT NULL DEFAULT 'ok',
+    melding          TEXT,
+    opgezocht_op     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_zoeklog_term
+    ON zoek_log (bron, term, opgezocht_op DESC);
 
 -- ---------------------------------------------------------------------
 -- Playlist-status: welke playlists al ingelezen zijn en hoeveel items.

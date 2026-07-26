@@ -362,6 +362,9 @@ export async function adminMeldingen(alle = true) {
 export async function adminMeldingAf(id) {
     return adminFetch(`/api/admin/meldingen/${id}/afgehandeld`, { method: 'POST' });
 }
+export async function adminVerwijderMelding(id) {
+    return adminFetch(`/api/admin/meldingen/${id}`, { method: 'DELETE' });
+}
 export async function adminMeldingZoek(id) {
     return adminFetch(`/api/admin/meldingen/${id}/zoek`, { method: 'POST' });
 }

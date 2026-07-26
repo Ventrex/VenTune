@@ -611,8 +611,17 @@ h1 {
 
 /* Juiste bonusoptie na een fout antwoord. */
 .keuze.juist {
-    border-color: var(--red-hot);
-    background: rgba(196, 18, 48, 0.18);
+    border-color: #2e9f62;
+    background: #185b38;
+    color: #f4fff8;
+}
+
+/* Foute antwoorden zijn duidelijk zichtbaar, maar blijven leesbaar zodat
+   spelers weten welke optie ze al hebben geprobeerd. */
+.keuze.fout {
+    border-color: #a52c36;
+    background: #5c171f;
+    color: #fff4f4;
 }
 
 .keuze:disabled {

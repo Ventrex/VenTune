@@ -10,8 +10,10 @@
 const { pool } = require('../db/pool');
 const logger = require('./logger');
 
-// Hoe lang een cache-regel bruikbaar blijft (dagen).
-const GELDIG_DAGEN = 60;
+// Een geslaagde controle mag minstens een week worden overgeslagen. Dit is
+// bewust korter dan de bewaartermijn van de database: oude zoekresultaten
+// blijven als historie beschikbaar, maar worden na een week opnieuw getoetst.
+const GELDIG_DAGEN = 7;
 
 /**
  * Haal een eerder resultaat op.
@@ -33,7 +35,7 @@ async function lees(bron, term) {
     }
 }
 
-/** Bewaar een resultaat (overschrijft een bestaande regel). */
+/** Bewaar een resultaat (ook een lege lijst, zodat missers niet blijven loopen). */
 async function schrijf(bron, term, resultaat) {
     try {
         await pool.query(
@@ -43,10 +45,34 @@ async function schrijf(bron, term, resultaat) {
                 resultaat    = EXCLUDED.resultaat,
                 aantal       = EXCLUDED.aantal,
                 opgehaald_op = now()`,
-            [bron, term, JSON.stringify(resultaat), (resultaat || []).length],
+            [bron, term, JSON.stringify(Array.isArray(resultaat) ? resultaat : []), (resultaat || []).length],
         );
     } catch (err) {
         logger.waarschuwing('Cache schrijven mislukt.', { melding: err.message });
+    }
+}
+
+/** Leg iedere externe of gecachete zoekactie vast voor diagnose en beheer. */
+async function noteerZoekopdracht(bron, term, opties = {}) {
+    try {
+        await pool.query(
+            `INSERT INTO zoek_log
+                (bron, term, limiet, uit_cache, resultaat_aantal, status, melding)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+                bron,
+                String(term || '').slice(0, 500),
+                Number.isFinite(Number(opties.limiet)) ? Number(opties.limiet) : null,
+                opties.uitCache === true,
+                Array.isArray(opties.resultaat) ? opties.resultaat.length : 0,
+                opties.status || 'ok',
+                opties.melding ? String(opties.melding).slice(0, 500) : null,
+            ],
+        );
+    } catch (err) {
+        // Zoekfunctionaliteit mag niet stukgaan omdat een auditregel niet
+        // kan worden opgeslagen tijdens een oude database-migratie.
+        logger.waarschuwing('Zoekopdracht loggen mislukt.', { melding: err.message });
     }
 }
 
@@ -56,10 +82,14 @@ async function schrijf(bron, term, resultaat) {
  */
 async function viaCache(bron, term, ophalen) {
     const bestaand = await lees(bron, term);
-    if (bestaand) return { resultaat: bestaand, uitCache: true };
+    if (bestaand !== null) {
+        await noteerZoekopdracht(bron, term, { uitCache: true, resultaat: bestaand });
+        return { resultaat: bestaand, uitCache: true };
+    }
     const nieuw = await ophalen();
-    if (nieuw && nieuw.length > 0) await schrijf(bron, term, nieuw);
-    return { resultaat: nieuw, uitCache: false };
+    await schrijf(bron, term, nieuw || []);
+    await noteerZoekopdracht(bron, term, { resultaat: nieuw || [] });
+    return { resultaat: nieuw || [], uitCache: false };
 }
 
 /** Hoeveel regels staan er in de cache? (voor diagnose) */
@@ -75,4 +105,4 @@ async function statistiek() {
     }
 }
 
-module.exports = { lees, schrijf, viaCache, statistiek };
+module.exports = { lees, schrijf, viaCache, noteerZoekopdracht, statistiek, GELDIG_DAGEN };

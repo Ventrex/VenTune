@@ -108,8 +108,26 @@ function Beheer({ onUit }) {
     }
     async function laadOverzicht() {
         try {
-            setOverzicht(await api.adminOverzicht());
-        } catch { /* niet fataal */ }
+            const data = await api.adminOverzicht();
+            setOverzicht(data);
+            if (data.fout) setMelding(data.fout);
+        } catch (err) {
+            setOverzicht({
+                titels: 0,
+                bekende_titels: 0,
+                speelbaar: 0,
+                ontbrekende_tracks: 0,
+                tracks: 0,
+                afgekeurd: 0,
+                vragen: 0,
+                open_meldingen: 0,
+                cache_regels: 0,
+                zoek_log_regels: 0,
+                per_bron: [],
+                fout: err.message,
+            });
+            setMelding(`Overzicht kon niet worden geladen: ${err.message}`);
+        }
     }
     async function laadKwaliteit() {
         try { setKwaliteit(await api.adminKwaliteit()); } catch { /* niet fataal */ }
@@ -151,9 +169,20 @@ function Beheer({ onUit }) {
     }, []);
 
     async function meldingAf(id) {
-        await api.adminMeldingAf(id);
-        laadMeldingen();
-        laadOverzicht();
+        try {
+            await api.adminMeldingAf(id);
+            await laadMeldingen();
+            laadOverzicht();
+        } catch (err) { setMelding(err.message); }
+    }
+
+    async function verwijderMelding(id) {
+        if (!window.confirm('Deze afgehandelde melding definitief verwijderen?')) return;
+        try {
+            await api.adminVerwijderMelding(id);
+            await laadMeldingen();
+            laadOverzicht();
+        } catch (err) { setMelding(err.message); }
     }
 
     async function zoekMelding(meldingItem) {
@@ -399,8 +428,10 @@ function Beheer({ onUit }) {
                     <Tegel label="Vragen" waarde={overzicht.vragen} onClick={() => openTab('titels')} />
                     <Tegel label="Open meldingen" waarde={overzicht.open_meldingen} onClick={() => openTab('meldingen')} />
                     <Tegel label="Cache" waarde={overzicht.cache_regels} onClick={() => openTab('database')} />
+                    <Tegel label="Zoeklog" waarde={overzicht.zoek_log_regels} onClick={() => openTab('database')} />
                 </div>
             )}
+            {tab === 'overzicht' && overzicht?.fout && <p className="waarschuwing">{overzicht.fout}</p>}
             {tab === 'overzicht' && overzicht?.per_bron?.length > 0 && (
                 <p className="dim admin-bronnen">
                     Audiobronnen:{' '}
@@ -611,6 +642,13 @@ function Beheer({ onUit }) {
                                         onClick={() => meldingAf(m.id)}
                                     >
                                         ✓
+                                    </button>}
+                                    {m.afgehandeld && <button
+                                        className="afspeelknop klein"
+                                        title="Afgehandelde melding verwijderen"
+                                        onClick={() => verwijderMelding(m.id)}
+                                    >
+                                        🗑
                                     </button>}
                                 </span>
                                 {meldingKandidaten[m.id] && (

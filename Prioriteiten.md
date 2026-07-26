@@ -35,6 +35,29 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
    zijn gebouwd.
 4. Open P3/P4 — verdere spelvarianten en rechten-/onderzoekskeuzes.
 
+## Status na lokale-audio- en bonusronde — 2026-07-26
+
+- **P0:** geen open blokkade vastgesteld; servertests en client-build slagen.
+- **P1 open:** resterende automatische YouTube-kandidaten handmatig beoordelen
+  in Admin. Een automatische match wordt nooit als “altijd juist” verkocht.
+- **P1 opgelost:** herhaalde zoekacties gebruiken nu een 7-dagenregel voor
+  werkende gecontroleerde tracks; expliciet zoeken op één titel blijft mogelijk.
+- **P1 opgelost:** elke zoekactie (extern, leeg, fout of uit cache) wordt in
+  `zoek_log` opgeslagen. De laatste resultaten blijven in `zoek_cache`.
+- **P1 opgelost:** een beschikbare lokale kopie is de bron van waarheid; de
+  oorspronkelijke YouTube-/iTunes-URL wordt dan niet opnieuw gecontroleerd.
+- **P1 opgelost:** een spel bereidt de geplande tracks vóór de eerste ronde voor
+  en downloadt YouTube-audio lokaal als `yt-dlp` en `ffmpeg` beschikbaar zijn.
+- **P1 opgelost:** een verkeerde bonusoptie verdwijnt bij iedereen; de speler
+  die fout koos krijgt vijf seconden cooldown en kan daarna opnieuw proberen.
+- **P1 opgelost:** titelantwoorden kunnen per speler nog maar één keer worden
+  ingestuurd; bonusvragen hebben geen automatische eindtimer.
+- **P2 open:** iTunes levert alleen previews; voor een volledig nummer tot
+  maximaal vijf minuten is een geldige YouTube-download of eigen upload nodig.
+- **P2 opgelost:** admin-overzicht geeft vaste nulwaarden en een zichtbare
+  foutmelding in plaats van alleen streepjes; zoeklog staat ook in export.
+- **P2 opgelost:** afgehandelde meldingen kunnen na bevestiging definitief weg.
+
 ## Afgerond in deze werkronde — 2026-07-26
 
 - P1: categorie heet **Films & Series** en de standaardfilter kan nooit

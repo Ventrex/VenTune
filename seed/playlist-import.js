@@ -59,12 +59,16 @@ async function zetTrack(titelId, video, playlistNaam, executor = pool, tmdbContr
           LIMIT 1`,
         [titelId, video.videoId, bronUrl],
     );
-    if (bestaande.rows[0]) return bestaande.rows[0];
+    if (bestaande.rows[0]) {
+        await executor.query(`UPDATE tracks SET laatst_gecontroleerd_op = now() WHERE id = $1`, [bestaande.rows[0].id]);
+        return bestaande.rows[0];
+    }
     const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
                              tracknaam, artiest, herkenbaarheid, gecontroleerd,
-                             verificatie_score, verificatie_reden, bron_url)
-         VALUES ($1, 'youtube', $2, 0, $3, $4, 5, true, 1.0, $5, $6)
+                             verificatie_score, verificatie_reden,
+                             laatst_gecontroleerd_op, bron_url)
+         VALUES ($1, 'youtube', $2, 0, $3, $4, 5, true, 1.0, $5, now(), $6)
          RETURNING id`,
         [
             titelId,

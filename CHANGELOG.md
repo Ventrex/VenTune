@@ -1,5 +1,34 @@
 # VenTune changelog
 
+## [0.3.7] - 2026-07-26
+
+### Lokale muziek en imports
+
+- Iedere YouTube-, iTunes- en playlistzoekactie wordt gelogd in `zoek_log`,
+  inclusief cache-hit, lege uitkomst en foutreden.
+- Werkende gecontroleerde tracks worden zeven dagen niet opnieuw opgezocht.
+- Een gezonde lokale download is voortaan de bron van waarheid; de externe URL
+  wordt dan niet meer gecontroleerd.
+- Geplande tracks worden vóór de eerste ronde lokaal voorbereid. YouTube wordt
+  gedownload als MP3 met een maximum van vijf minuten en Docker bewaart dit in
+  de persistente map `./media/downloads`.
+- Het admin-overzicht toont nu ook het aantal zoeklogregels en geeft een
+  concrete foutmelding als een telling niet kan worden gelezen. De zoeklog zit
+  in de database-export.
+
+### Bonusvragen en antwoorden
+
+- Een verkeerde bonusoptie wordt voor alle spelers verwijderd en rood getoond.
+  Alleen de speler die fout zat krijgt vijf seconden cooldown.
+- Bonusvragen hebben geen automatische eindtijd meer: goed antwoord, opgeven of
+  de host bepaalt het einde. Sneller goed antwoorden levert meer punten op.
+- Een titelgok kan per speler nog maar één keer worden ingestuurd. Antwoordtiles
+  kleuren fout donkerrood en goed groen.
+
+### Beheer
+
+- Afgehandelde meldingen kunnen na bevestiging definitief worden verwijderd.
+
 ## [0.3.6] - 2026-07-26
 
 ### Kritiek opgelost

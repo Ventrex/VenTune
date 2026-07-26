@@ -27,7 +27,9 @@ function rondeDuurUit(instellingen) {
     const s = Number(instellingen && instellingen.speeltijd);
     if (s === 0) return HEEL_NUMMER_MS; // heel nummer
     if (Number.isFinite(s) && s >= 10 && s <= 300) return s * 1000;
-    return RONDE_DUUR_MS;
+    // Oude lobbies zonder speeltijdinstelling vallen terug op het volledige
+    // lokale fragment (maximaal vijf minuten), niet op een onverwachte 30s.
+    return HEEL_NUMMER_MS;
 }
 
 /**
@@ -40,7 +42,7 @@ function rondeDuurUit(instellingen) {
 function modusUit(instellingen) {
     return instellingen && instellingen.modus === 'kenner' ? 'kenner' : 'snelste';
 }
-const BONUS_DUUR_MS = 15000; // 15 seconden voor de bonusvraag
+const BONUS_COOLDOWN_MS = 5000; // na een fout krijgt iedereen denktijd
 const SCOREBORD_PAUZE_MS = 7000; // pauze tussen rondes
 const GOK_INTERVAL_MS = 1000; // max 1 gok per seconde per speler
 const AANTAL_MEERKEUZE_OPTIES = 6;
@@ -250,7 +252,9 @@ class SpelBeheer {
             socket.emit('ronde:bonus', {
                 vraag: h.bonus.vraag,
                 opties: h.bonus.opties,
-                durationMs: BONUS_DUUR_MS,
+                uitgeslotenIndexen: [...(h.bonus.uitgeslotenVoorIedereen || new Set())],
+                durationMs: null,
+                startTs: h.bonus.startTijd,
                 herstel: true,
             });
             return true;
@@ -415,12 +419,21 @@ class SpelBeheer {
             const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen);
             if (!track) continue;
             state.voorbereideTracks.set(titel.id, track);
-            if (!['youtube', 'itunes'].includes(track.bron) || track.download_status === 'available') continue;
+            const lokaleKopie = track.bron === 'lokaal'
+                && track.download_status === 'available'
+                && await lokaalBestandBeschikbaar(track);
+            if (lokaleKopie) continue;
+            // Een lokale track waarvan het bestand verdwenen is, probeert via
+            // de bewaarde bron_url te herstellen. Zo speelt een stale DB-pad
+            // nooit stilzwijgend een ronde zonder muziek.
+            if (!['youtube', 'itunes'].includes(track.bron)
+                && !(track.bron === 'lokaal' && track.bron_url)) continue;
             try {
                 await downloadTrack(track, false);
                 const { rows } = await pool.query(
                     `SELECT id, bron, preview_url, start_seconde, tracknaam, artiest,
-                            album, verificatie_score, verificatie_reden, download_status
+                            album, verificatie_score, verificatie_reden, download_status,
+                            bron_url
                        FROM tracks WHERE id = $1`,
                     [track.id],
                 );
@@ -439,7 +452,8 @@ class SpelBeheer {
         const { rows } = await pool.query(
             `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
                     tr.tracknaam, tr.artiest, tr.album,
-                    tr.verificatie_score, tr.verificatie_reden, tr.download_status
+                    tr.verificatie_score, tr.verificatie_reden, tr.download_status,
+                    tr.bron_url
                FROM tracks tr
               WHERE tr.titel_id = $1
                 AND tr.werkt = true
@@ -628,6 +642,7 @@ class SpelBeheer {
                     klaar: new Set(), // spelers die goed hebben
                     hints: new Map(), // spelerId -> aantal hints deze ronde
                     antwoorden: new Map(), // spelerId -> {punten, verstreken}
+                    ingediend: new Set(), // titelgok is per speler maximaal één keer
                     laatsteGok: new Map(), // spelerId -> timestamp (rate limit)
                     antwoordOpties: state.antwoordModus === 'meerkeuze'
                         ? bouwMeerkeuzeOpties(titel, state.pool)
@@ -711,7 +726,7 @@ class SpelBeheer {
         if (!spelerId) return;
 
         const h = state.huidige;
-        if (h.klaar.has(spelerId)) return; // al goed
+        if (h.klaar.has(spelerId) || h.ingediend.has(spelerId)) return;
 
         // Rate limit: max 1 gok per seconde.
         const nu = Date.now();
@@ -724,6 +739,10 @@ class SpelBeheer {
             return;
         }
         h.laatsteGok.set(spelerId, nu);
+        // Eén ingestuurde titelgok per ronde. Meerkeuze is een enkele tik;
+        // typen gebruikt dezelfde serverregel zodra de speler op insturen
+        // drukt. Zo kunnen dubbele taps nooit meerdere pogingen opleveren.
+        h.ingediend.add(spelerId);
 
         const uitslag = vergelijk(gok, h.titel);
 
@@ -747,6 +766,8 @@ class SpelBeheer {
             this.io.to(spelerKamer(spelerId)).emit('ronde:resultaat', {
                 status: 'goed',
                 punten,
+                keuze: gok,
+                ingediend: true,
             });
             await this.stuurScores(state);
 
@@ -769,10 +790,12 @@ class SpelBeheer {
             this.io.to(spelerKamer(spelerId)).emit('ronde:resultaat', {
                 status: 'bijna',
                 melding: 'Bijna! Probeer nog eens.',
+                ingediend: true,
             });
         } else {
             this.io.to(spelerKamer(spelerId)).emit('ronde:resultaat', {
                 status: 'fout',
+                ingediend: true,
             });
         }
     }
@@ -933,8 +956,14 @@ class SpelBeheer {
             vraag: vraagTekst,
             opties,
             pogingen: new Map(), // spelerId -> aantal pogingen
+            uitgeslotenOpties: new Map(), // spelerId -> Set met foute indexen
+            uitgeslotenVoorIedereen: new Set(), // één foute keuze verdwijnt voor alle spelers
+            opnieuwVanaf: new Map(), // spelerId -> timestamp na een fout
             klaar: new Set(), // spelers die klaar zijn (goed of op)
+            afgesloten: false,
+            eindeTimer: null,
             type: soort,
+            startTijd: Date.now(),
         };
         state.fase = 'bonus';
 
@@ -947,14 +976,10 @@ class SpelBeheer {
         this.io.to(kamer(state.code)).emit('ronde:bonus', {
             vraag: vraagTekst,
             opties,
-            durationMs: BONUS_DUUR_MS,
+            uitgeslotenIndexen: [],
+            durationMs: null,
+            startTs: h.bonus.startTijd,
         });
-
-        h.bonusTimer = setTimeout(() => {
-            this.eindBonus(state).catch((err) =>
-                this.rapporteerOvergangsfout(state, err, 'bonus timer'),
-            );
-        }, BONUS_DUUR_MS);
     }
 
     // ---- Bonusantwoord verwerken ----
@@ -963,14 +988,39 @@ class SpelBeheer {
         if (!state || state.fase !== 'bonus' || !state.huidige?.bonus) return;
         const spelerId = socket.data.spelerId;
         const b = state.huidige.bonus;
-        if (b.klaar.has(spelerId)) return;
+        if (b.afgesloten || b.klaar.has(spelerId)) return;
+
+        const nu = Date.now();
+        const opnieuwVanaf = b.opnieuwVanaf.get(spelerId) || 0;
+        if (nu < opnieuwVanaf) {
+            this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
+                status: 'wachten',
+                resterendMs: opnieuwVanaf - nu,
+            });
+            return;
+        }
+
+        const index = Number(keuze);
+        if (!Number.isInteger(index) || index < 0 || index >= b.opties.length) return;
+        const globaleUitsluitingen = b.uitgeslotenVoorIedereen || new Set();
+        if (globaleUitsluitingen.has(index)) {
+            this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
+                status: 'optie-weg',
+                uitgeslotenIndex: index,
+                uitgeslotenIndexen: [...globaleUitsluitingen],
+            });
+            return;
+        }
+        const uitgesloten = b.uitgeslotenOpties.get(spelerId) || new Set();
+        if (uitgesloten.has(index)) return;
 
         const poging = (b.pogingen.get(spelerId) || 0) + 1;
         b.pogingen.set(spelerId, poging);
 
-        const goed = Number(keuze) === b.correctIndex;
+        const goed = index === b.correctIndex;
         if (goed) {
-            const basisPunten = bonusPunten(poging);
+            const verstreken = nu - b.startTijd;
+            const basisPunten = bonusPunten(poging, verstreken);
             const factor = leeftijdsFactor(state.leeftijden.get(spelerId), state.instellingen);
             const punten = Math.round(basisPunten * factor);
             b.klaar.add(spelerId);
@@ -980,27 +1030,48 @@ class SpelBeheer {
                 bonus_pogingen: poging,
                 bonus_punten: punten,
             });
+            b.afgesloten = true;
+            // Iedereen ziet welk vlak juist was; de winnaar krijgt in het
+            // persoonlijke bericht ook de punten. Het korte uitstel maakt
+            // de groene feedback zichtbaar vóór het scorebord verschijnt.
+            this.io.to(kamer(state.code)).emit('ronde:bonus-resultaat', {
+                status: 'goed',
+                keuze: index,
+                correctIndex: b.correctIndex,
+                spelerId,
+            });
             this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
                 status: 'goed',
                 punten,
+                keuze: index,
+                correctIndex: b.correctIndex,
             });
             await this.stuurScores(state);
-        } else if (poging >= 2) {
-            // Tweede fout: klaar, geen punten.
-            b.klaar.add(spelerId);
-            await this.werkBonusAntwoordBij(state, spelerId, {
-                bonus_goed: false,
-                bonus_pogingen: poging,
-                bonus_punten: 0,
+            b.eindeTimer = setTimeout(() => {
+                this.eindBonus(state).catch((err) =>
+                    this.rapporteerOvergangsfout(state, err, 'bonus goed antwoord'),
+                );
+            }, 1200);
+            return;
+        } else {
+            // Een foute optie verdwijnt bij iedereen. Alleen de speler die
+            // hem koos krijgt vijf seconden cooldown en mag daarna opnieuw.
+            uitgesloten.add(index);
+            b.uitgeslotenOpties.set(spelerId, uitgesloten);
+            globaleUitsluitingen.add(index);
+            b.uitgeslotenVoorIedereen = globaleUitsluitingen;
+            b.opnieuwVanaf.set(spelerId, nu + BONUS_COOLDOWN_MS);
+            this.io.to(kamer(state.code)).emit('ronde:bonus-resultaat', {
+                status: 'optie-weg',
+                uitgeslotenIndex: index,
+                uitgeslotenIndexen: [...globaleUitsluitingen],
+                spelerId,
             });
             this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
                 status: 'fout',
-                correctIndex: b.correctIndex,
-            });
-        } else {
-            // Eerste fout: nog één poging (halve punten).
-            this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
-                status: 'nogmaals',
+                keuze: index,
+                uitgeslotenIndexen: [...globaleUitsluitingen],
+                cooldownMs: BONUS_COOLDOWN_MS,
             });
         }
 
@@ -1013,10 +1084,34 @@ class SpelBeheer {
 
     async eindBonus(state) {
         if (!state || state.fase !== 'bonus') return;
-        const h = state.huidige;
-        if (h?.bonusTimer) clearTimeout(h.bonusTimer);
-        if (h) h.bonusTimer = null;
+        const b = state.huidige?.bonus;
+        if (b?.eindeTimer) {
+            clearTimeout(b.eindeTimer);
+            b.eindeTimer = null;
+        }
         return this.naarScorebord(state);
+    }
+
+    /** Een speler mag individueel opgeven; de bonus stopt zodra iedereen klaar is. */
+    async geefBonusOp(socket) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || state.fase !== 'bonus' || !state.huidige?.bonus) return;
+        const spelerId = socket.data.spelerId;
+        const b = state.huidige.bonus;
+        if (b.klaar.has(spelerId)) return;
+        b.klaar.add(spelerId);
+        const poging = b.pogingen.get(spelerId) || 0;
+        await this.werkBonusAntwoordBij(state, spelerId, {
+            bonus_goed: false,
+            bonus_pogingen: poging,
+            bonus_punten: 0,
+        });
+        this.io.to(spelerKamer(spelerId)).emit('ronde:bonus-resultaat', {
+            status: 'opgegeven',
+        });
+        if (await this.iedereenBonusKlaar(state)) {
+            await this.eindBonus(state);
+        }
     }
 
     // ---- Scorebord tonen en door naar de volgende ronde ----

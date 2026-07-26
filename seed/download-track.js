@@ -184,6 +184,13 @@ async function controleerYoutubeUrl(track) {
 }
 
 async function controleerTrackUrl(track) {
+    // Een lokale, beschikbare kopie is de bron van waarheid. Controleer dan
+    // nooit meer de oorspronkelijke YouTube/iTunes-URL; die kan later worden
+    // verwijderd zonder dat het spel daardoor breekt.
+    if (track?.bron === 'lokaal' && track.download_status === 'available'
+        && await lokaalBestandBeschikbaar(track)) {
+        return { bestaat: true, lokaal: true, url: track.preview_url };
+    }
     if (track.bron === 'youtube' || (track.bron === 'lokaal' && youtubeUrl(track))) {
         return controleerYoutubeUrl(track);
     }
@@ -333,6 +340,10 @@ async function downloadYoutubeTrack(track, droog = false) {
 }
 
 async function downloadTrack(track, droog = false) {
+    if (track?.bron === 'lokaal' && track.download_status === 'available'
+        && await lokaalBestandBeschikbaar(track)) {
+        return { ok: true, lokaal: true, preview_url: track.preview_url };
+    }
     if (track.bron === 'youtube' || (track.bron === 'lokaal' && youtubeUrl(track))) {
         return downloadYoutubeTrack({ ...track, bron: 'youtube' }, droog);
     }

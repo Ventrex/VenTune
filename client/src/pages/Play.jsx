@@ -30,7 +30,10 @@ export default function Play() {
         herstelBezig,
     } = spel;
     const [gok, setGok] = useState('');
+    const [gokIngediend, setGokIngediend] = useState(false);
     const [bonusKeuze, setBonusKeuze] = useState(null);
+    const [bonusWachtTot, setBonusWachtTot] = useState(0);
+    const [, setBonusTik] = useState(0);
 
     useEffect(() => {
         if (!sessie) navigate('/');
@@ -39,18 +42,36 @@ export default function Play() {
     // Bij een nieuwe ronde het invoerveld leegmaken.
     useEffect(() => {
         setGok('');
+        setGokIngediend(false);
     }, [ronde?.rondeId]);
 
     // Nieuwe bonusvraag → keuze resetten.
     useEffect(() => {
         setBonusKeuze(null);
+        setBonusWachtTot(0);
     }, [bonus?.vraag]);
 
+    useEffect(() => {
+        if (!bonusWachtTot) return undefined;
+        const timer = setInterval(() => {
+            setBonusTik(Date.now());
+            if (Date.now() >= bonusWachtTot) setBonusWachtTot(0);
+        }, 250);
+        return () => clearInterval(timer);
+    }, [bonusWachtTot]);
+
+    useEffect(() => {
+        const ms = Number(bonusResultaat?.cooldownMs || bonusResultaat?.resterendMs || 0);
+        if (ms > 0) setBonusWachtTot(Date.now() + ms);
+    }, [bonusResultaat]);
+
     const bonusVergrendeld =
-        bonusResultaat?.status === 'goed' || bonusResultaat?.status === 'fout';
+        bonusResultaat?.status === 'goed' || bonusResultaat?.status === 'opgegeven';
+    const bonusWacht = bonusWachtTot > Date.now();
+    const bonusUitgesloten = bonusResultaat?.uitgeslotenIndexen || bonus?.uitgeslotenIndexen || [];
 
     function kiesBonus(i) {
-        if (bonusVergrendeld) return;
+        if (bonusVergrendeld || bonusWacht || bonusUitgesloten.includes(i)) return;
         setBonusKeuze(i);
         spel.bonusAntwoord(i);
     }
@@ -58,16 +79,19 @@ export default function Play() {
     if (!sessie) return null;
 
     const goedGeraden = resultaat?.status === 'goed';
+    const titelVergrendeld = gokIngediend || goedGeraden;
 
     function versturen(e) {
         e.preventDefault();
-        if (!gok.trim() || goedGeraden) return;
+        if (!gok.trim() || titelVergrendeld) return;
+        setGokIngediend(true);
         spel.gok(gok.trim());
     }
 
     function kiesAntwoord(optie) {
-        if (!optie || goedGeraden) return;
+        if (!optie || titelVergrendeld) return;
         setGok(optie);
+        setGokIngediend(true);
         spel.gok(optie);
     }
 
@@ -178,9 +202,10 @@ export default function Play() {
                                         return (
                                             <button
                                                 key={`${optie}-${i}`}
-                                                className={'keuze' + (gok === optie ? ' gekozen' : '')}
-                                                onClick={() => kiesAntwoord(optie)}
-                                                disabled={weg}
+                                            className={'keuze' + (gok === optie ? ' gekozen' : '') +
+                                                (gok === optie && resultaat?.status !== 'goed' ? ' fout' : '')}
+                                            onClick={() => kiesAntwoord(optie)}
+                                            disabled={weg || titelVergrendeld}
                                             >
                                                 {weg ? '—' : optie}
                                             </button>
@@ -201,8 +226,8 @@ export default function Play() {
                                         aria-label="Jouw titel"
                                         autoFocus
                                     />
-                                    <button className="knop" type="submit">
-                                        Raad
+                                    <button className="knop" type="submit" disabled={titelVergrendeld}>
+                                        {gokIngediend ? 'Ingestuurd' : 'Antwoord insturen'}
                                     </button>
                                 </form>
                             )}
@@ -249,7 +274,7 @@ export default function Play() {
                                     }
                                 >
                                     {resultaat.status === 'bijna' &&
-                                        'Bijna! Probeer nog eens.'}
+                                        'Bijna — je antwoord is ingestuurd.'}
                                     {resultaat.status === 'fout' && 'Helaas, mis.'}
                                     {resultaat.status === 'tempo' && resultaat.melding}
                                     {resultaat.status === 'hint-fout' &&
@@ -293,19 +318,15 @@ export default function Play() {
                     <h1 className="bonus-vraag">{bonus.vraag}</h1>
                     <div className="keuzes">
                         {bonus.opties.map((opt, i) => {
-                            let extra = '';
-                            if (bonusKeuze === i) extra = ' gekozen';
-                            if (
-                                bonusResultaat?.status === 'fout' &&
-                                bonusResultaat.correctIndex === i
-                            )
-                                extra = ' juist';
+                            let extra = bonusKeuze === i ? ' gekozen' : '';
+                            if (bonusResultaat?.status === 'goed' && bonusResultaat.correctIndex === i) extra += ' juist';
+                            if (bonusUitgesloten.includes(i)) extra += ' fout';
                             return (
                                 <button
                                     key={i}
                                     className={'keuze' + extra}
                                     onClick={() => kiesBonus(i)}
-                                    disabled={bonusVergrendeld}
+                                    disabled={bonusVergrendeld || bonusWacht || bonusUitgesloten.includes(i)}
                                 >
                                     {opt}
                                 </button>
@@ -320,16 +341,30 @@ export default function Play() {
                                     ? 'bijna'
                                     : bonusResultaat.status === 'nogmaals'
                                       ? 'neutraal'
-                                      : 'mis')
+                                      : bonusResultaat.status === 'optie-weg'
+                                        ? 'neutraal'
+                                        : 'mis')
                             }
                         >
                             {bonusResultaat.status === 'goed' &&
                                 `Goed! +${bonusResultaat.punten}`}
                             {bonusResultaat.status === 'nogmaals' &&
-                                'Helaas — nog één poging (halve punten).'}
-                            {bonusResultaat.status === 'fout' && 'Fout.'}
+                                'Helaas — kies over vijf seconden een andere optie.'}
+                            {bonusResultaat.status === 'optie-weg' &&
+                                'Deze foute optie is voor iedereen verwijderd.'}
+                            {bonusResultaat.status === 'fout' &&
+                                `Fout. ${Math.ceil(Math.max(0, bonusWachtTot - Date.now()) / 1000)}s denktijd.`}
+                            {bonusResultaat.status === 'wachten' &&
+                                `Even wachten: ${Math.ceil((bonusWachtTot - Date.now()) / 1000)}s.`}
+                            {bonusResultaat.status === 'opgegeven' && 'Opgegeven.'}
                         </p>
                     )}
+                    {!bonusVergrendeld && (
+                        <button className="knop knop-stil" style={{ marginTop: '1rem', width: '100%' }} onClick={spel.bonusOpgeven}>
+                            Ik geef op
+                        </button>
+                    )}
+                    <p className="dim" style={{ marginTop: '0.75rem' }}>Hoe sneller je goed antwoordt, hoe meer bonuspunten.</p>
                 </>
             )}
 

@@ -6,7 +6,7 @@ const {
     bouwMeerkeuzeOpties,
     lifelineAantal,
 } = require('../game/engine');
-const { leeftijdsFactor } = require('../game/scoring');
+const { bonusPunten, leeftijdsFactor } = require('../game/scoring');
 
 // Een onbruikbare titel op positie 3 mag niet maken dat de volgende titel
 // als ronde 4 wordt gepubliceerd. De titel wordt verwijderd, het rondenummer
@@ -76,6 +76,8 @@ assert.equal(leeftijdsFactor(5, { leeftijdspunten_aan: true }), 2);
 assert.equal(leeftijdsFactor(8, { leeftijdspunten_aan: true }), 1.75);
 assert.equal(leeftijdsFactor(12, { leeftijdspunten_aan: true }), 1.5);
 assert.equal(leeftijdsFactor(8, { leeftijdspunten_aan: false }), 1);
+assert(bonusPunten(1, 0) > bonusPunten(1, 60000));
+assert(bonusPunten(1, 0) > bonusPunten(2, 0));
 
 async function testDubbeleScorebordOvergang() {
     const emits = [];

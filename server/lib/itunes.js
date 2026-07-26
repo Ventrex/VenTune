@@ -38,7 +38,14 @@ async function zoek(term, opties = {}) {
     // Eerder opgehaald? Dan die gebruiken.
     if (opties.cache !== false) {
         const bestaand = await cache.lees('itunes', term.trim());
-        if (bestaand) return bestaand.slice(0, opties.limiet || 10);
+        if (bestaand !== null) {
+            await cache.noteerZoekopdracht('itunes', term.trim(), {
+                limiet: opties.limiet || 10,
+                uitCache: true,
+                resultaat: bestaand,
+            });
+            return bestaand.slice(0, opties.limiet || 10);
+        }
     }
 
     let resp;
@@ -48,10 +55,20 @@ async function zoek(term, opties = {}) {
         });
     } catch (err) {
         logger.waarschuwing('iTunes onbereikbaar.', { melding: err.message });
+        await cache.noteerZoekopdracht('itunes', term.trim(), {
+            limiet: opties.limiet || 10,
+            status: 'fout',
+            melding: err.message,
+        });
         throw new Error('iTunes is nu niet bereikbaar.');
     }
 
     if (!resp.ok) {
+        await cache.noteerZoekopdracht('itunes', term.trim(), {
+            limiet: opties.limiet || 10,
+            status: 'fout',
+            melding: `iTunes gaf status ${resp.status}.`,
+        });
         throw new Error(`iTunes gaf status ${resp.status}.`);
     }
 
@@ -71,9 +88,11 @@ async function zoek(term, opties = {}) {
             jaar: r.releaseDate ? Number(r.releaseDate.slice(0, 4)) : null,
         }));
 
-    if (uit.length > 0 && opties.cache !== false) {
-        await cache.schrijf('itunes', term.trim(), uit);
-    }
+    if (opties.cache !== false) await cache.schrijf('itunes', term.trim(), uit);
+    await cache.noteerZoekopdracht('itunes', term.trim(), {
+        limiet: opties.limiet || 10,
+        resultaat: uit,
+    });
     return uit;
 }
 

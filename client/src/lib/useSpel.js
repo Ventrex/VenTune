@@ -27,7 +27,7 @@ export function useSpel() {
     const [resultaat, setResultaat] = useState(null); // laatste gok-uitslag
     const [hints, setHints] = useState([]); // ontvangen hints deze ronde
     const [antwoord, setAntwoord] = useState(null); // onthuld na de ronde
-    const [bonus, setBonus] = useState(null); // {vraag, opties, durationMs}
+    const [bonus, setBonus] = useState(null); // {vraag, opties, durationMs:null}
     const [bonusResultaat, setBonusResultaat] = useState(null);
     const [scorebord, setScorebord] = useState([]);
     const [winnaarId, setWinnaarId] = useState(null);
@@ -129,7 +129,9 @@ export function useSpel() {
             setBonus(d);
             setFase('bonus');
         };
-        const bijBonusResultaat = (r) => setBonusResultaat(r);
+        // Resultaten zijn incrementeel: een cooldown-bericht mag de eerder
+        // uitgesloten opties niet weggooien.
+        const bijBonusResultaat = (r) => setBonusResultaat((oud) => ({ ...(oud || {}), ...r }));
         const bijAfgelopen = ({ scorebord: sb }) => {
             setScorebord(sb);
             setFase('scorebord');
@@ -233,6 +235,7 @@ export function useSpel() {
         (keuze) => haalSocket().emit('ronde:bonus-antwoord', { keuze }),
         [],
     );
+    const bonusOpgeven = useCallback(() => haalSocket().emit('ronde:bonus-opgeven'), []);
     const herstelSpel = useCallback(() => {
         const socket = haalSocket();
         setHerstelBezig(true);
@@ -292,6 +295,7 @@ export function useSpel() {
         vraagHint,
         verwijder3,
         bonusAntwoord,
+        bonusOpgeven,
         herstelSpel,
     };
 }

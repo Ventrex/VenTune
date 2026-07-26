@@ -214,12 +214,35 @@ function tTypeVoorCollectie(sleutel) {
     return 'beide';
 }
 
-async function heeftTrack(titelId) {
+async function heeftRecenteWerkendeTrack(titelId) {
     const { rows } = await pool.query(
-        `SELECT 1 FROM tracks WHERE titel_id = $1 LIMIT 1`,
+        `SELECT 1 FROM tracks
+          WHERE titel_id = $1 AND werkt = true
+            AND preview_url IS NOT NULL AND preview_url <> ''
+            AND (download_status = 'available'
+                 OR laatst_gecontroleerd_op >= now() - interval '7 days')
+          LIMIT 1`,
         [titelId],
     );
     return rows.length > 0;
+}
+
+async function meldOntbrekendeTrack(titelId) {
+    await pool.query(
+        `INSERT INTO meldingen (titel_id, soort, toelichting)
+         SELECT $1, 'geen_track',
+                'Geen betrouwbare match gevonden; voeg audio of een gecontroleerde YouTube-link toe via het adminportaal.'
+          WHERE NOT EXISTS (
+              SELECT 1 FROM tracks
+               WHERE titel_id = $1 AND werkt = true
+                 AND preview_url IS NOT NULL AND preview_url <> ''
+          )
+            AND NOT EXISTS (
+              SELECT 1 FROM meldingen
+               WHERE titel_id = $1 AND soort = 'geen_track' AND afgehandeld = false
+          )`,
+        [titelId],
+    );
 }
 
 async function voegItunesTrackToe(titelId, resultaat, executor = pool) {
@@ -229,13 +252,16 @@ async function voegItunesTrackToe(titelId, resultaat, executor = pool) {
           LIMIT 1`,
         [titelId, resultaat.preview_url],
     );
-    if (bestaande.rows[0]) return bestaande.rows[0];
+    if (bestaande.rows[0]) {
+        await executor.query(`UPDATE tracks SET laatst_gecontroleerd_op = now() WHERE id = $1`, [bestaande.rows[0].id]);
+        return bestaande.rows[0];
+    }
     const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
                              tracknaam, artiest, album, herkenbaarheid,
                              gecontroleerd, verificatie_score, verificatie_reden,
-                             bron_url)
-         VALUES ($1, 'itunes', $2, $3, $4, $5, $6, 3, true, $7, $8, $3)
+                             laatst_gecontroleerd_op, bron_url)
+         VALUES ($1, 'itunes', $2, $3, $4, $5, $6, 3, true, $7, $8, now(), $3)
          RETURNING id`,
         [
             titelId,
@@ -276,12 +302,16 @@ async function voegYoutubeTrackToe(titelId, video, executor = pool) {
           LIMIT 1`,
         [titelId, video.videoId, bronUrl],
     );
-    if (bestaande.rows[0]) return bestaande.rows[0];
+    if (bestaande.rows[0]) {
+        await executor.query(`UPDATE tracks SET laatst_gecontroleerd_op = now() WHERE id = $1`, [bestaande.rows[0].id]);
+        return bestaande.rows[0];
+    }
     const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
                              tracknaam, artiest, herkenbaarheid, gecontroleerd,
-                             verificatie_score, verificatie_reden, bron_url)
-         VALUES ($1, 'youtube', $2, $3, $4, $5, 3, true, $6, $7, $8)
+                             verificatie_score, verificatie_reden,
+                             laatst_gecontroleerd_op, bron_url)
+         VALUES ($1, 'youtube', $2, $3, $4, $5, 3, true, $6, $7, now(), $8)
          RETURNING id`,
         [
             titelId,
@@ -370,7 +400,10 @@ async function importeer({
         // Titels uit de database hebben al een id; die uit titels.json niet.
         const titelId = t._id || (await upsertTitel(t));
 
-        if (!force && (await heeftTrack(titelId))) {
+        // Niet opnieuw naar dezelfde bron zoeken zolang er een werkende
+        // match is die minder dan zeven dagen geleden gecontroleerd is.
+        // Een gerichte --titel-opdracht blijft de bewuste uitzondering.
+        if (!titelFilter && (await heeftRecenteWerkendeTrack(titelId))) {
             metTrack++;
             continue;
         }
@@ -458,6 +491,9 @@ async function importeer({
 
         if (!gelukt) {
             zonder.push(t.naam);
+            await meldOntbrekendeTrack(titelId).catch((err) =>
+                log({ titel: t.naam, bron: 'database', fout: err.message }),
+            );
             log({ titel: t.naam, gevonden: null });
         }
 

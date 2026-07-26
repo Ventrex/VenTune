@@ -429,6 +429,20 @@ router.delete('/api/admin/vragen/:id', vereisAdmin, async (req, res) => {
 
 // Overzicht: hoe staat de vragenbank ervoor?
 router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
+    const leeg = {
+        titels: 0,
+        bekende_titels: 0,
+        tracks: 0,
+        afgekeurd: 0,
+        gecontroleerd: 0,
+        speelbaar: 0,
+        vragen: 0,
+        open_meldingen: 0,
+        ontbrekende_tracks: 0,
+        cache_regels: 0,
+        zoek_log_regels: 0,
+        per_bron: [],
+    };
     try {
         const d = await pool.query(
             `SELECT
@@ -448,7 +462,8 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                                     WHERE x.titel_id = t.id AND x.werkt
                                       AND x.preview_url IS NOT NULL AND x.preview_url <> ''))
                  AS ontbrekende_tracks,
-               (SELECT count(*)::int FROM zoek_cache) AS cache_regels`,
+               (SELECT count(*)::int FROM zoek_cache) AS cache_regels,
+               (SELECT count(*)::int FROM zoek_log) AS zoek_log_regels`,
         );
         const perBron = await pool.query(
             `SELECT CASE
@@ -468,7 +483,9 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
         res.json({ ...d.rows[0], per_bron: perBron.rows });
     } catch (err) {
         logger.waarschuwing('Overzicht mislukt.', { melding: err.message });
-        res.json({});
+        // Het overzicht blijft bruikbaar op een oudere database tijdens een
+        // migratie. De frontend mag nooit alleen maar streepjes tonen.
+        res.json({ ...leeg, fout: 'Een deel van het overzicht kon niet worden gelezen.' });
     }
 });
 
@@ -580,6 +597,7 @@ router.get('/api/admin/database/export', vereisAdmin, async (_req, res) => {
         collecties: 'SELECT * FROM collecties ORDER BY id',
         titel_collecties: 'SELECT * FROM titel_collecties ORDER BY titel_id, collectie_id',
         meldingen: 'SELECT * FROM meldingen ORDER BY id',
+        zoek_log: 'SELECT * FROM zoek_log ORDER BY id',
         presets: 'SELECT * FROM presets ORDER BY id',
         gebruikers: `SELECT id, gebruikersnaam, display_naam, actief, aangemaakt_op, laatst_ingelogd
                        FROM gebruikers ORDER BY gebruikersnaam_norm`,
@@ -890,7 +908,7 @@ router.get('/api/admin/tracks/afgekeurd/export', vereisAdmin, async (_req, res) 
 router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
         `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
-                tr.start_seconde,
+                tr.start_seconde, tr.download_status,
                 t.naam
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
@@ -1045,6 +1063,21 @@ router.post('/api/admin/meldingen/:id/afgehandeld', vereisAdmin, async (req, res
         req.params.id,
     ]);
     res.json({ ok: true });
+});
+
+// Opgeloste meldingen mogen expliciet worden verwijderd. Open meldingen
+// blijven beschermd tegen een vergissing; eerst afhandelen, daarna wissen.
+router.delete('/api/admin/meldingen/:id', vereisAdmin, async (req, res) => {
+    const { rows } = await pool.query(
+        `DELETE FROM meldingen
+          WHERE id = $1 AND afgehandeld = true
+          RETURNING id`,
+        [req.params.id],
+    );
+    if (!rows[0]) {
+        return res.status(409).json({ fout: 'Melding eerst als afgehandeld markeren.' });
+    }
+    res.json({ ok: true, id: rows[0].id });
 });
 
 // ---- Seed importeren (YouTube → iTunes fallback) ----
@@ -1224,7 +1257,9 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     const fouten = [];
     for (const [index, track] of rows.entries()) {
         onProgress?.({ verwerkt: index, totaal: rows.length, huidige: track.naam });
-        if (!force && track.download_status === 'available') {
+        // Een download is permanent lokaal bezit. Ook bij force=true mag de
+        // oorspronkelijke URL dan niet opnieuw worden gecontroleerd.
+        if (track.download_status === 'available') {
             overgeslagen++;
             onProgress?.({ verwerkt: index + 1, totaal: rows.length, huidige: track.naam, overgeslagen, gedownload, mislukt });
             continue;

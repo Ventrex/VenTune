@@ -194,13 +194,28 @@ async function haalPlaylistHtml(playlistId) {
 async function haalPlaylist(playlistId, opties = {}) {
     if (opties.cache !== false) {
         const bestaand = await cache.lees('playlist', playlistId);
-        if (bestaand) return bestaand;
+        if (bestaand !== null) {
+            await cache.noteerZoekopdracht('playlist', playlistId, {
+                limiet: opties.limiet,
+                uitCache: true,
+                resultaat: bestaand,
+            });
+            return bestaand;
+        }
     }
-    const html = await haalPlaylistHtml(playlistId);
-    const items = leesPlaylistItems(html);
-    if (items.length > 0 && opties.cache !== false) {
-        await cache.schrijf('playlist', playlistId, items);
+    let items = [];
+    try {
+        const html = await haalPlaylistHtml(playlistId);
+        items = leesPlaylistItems(html);
+    } catch (err) {
+        await cache.noteerZoekopdracht('playlist', playlistId, {
+            status: 'fout',
+            melding: err.message,
+        });
+        throw err;
     }
+    if (opties.cache !== false) await cache.schrijf('playlist', playlistId, items);
+    await cache.noteerZoekopdracht('playlist', playlistId, { resultaat: items });
     return items;
 }
 
@@ -400,17 +415,28 @@ async function zoekViaApi(term, limiet) {
 async function zoek(term, opties = {}) {
     const limiet = opties.limiet || 10;
     if (!term || !term.trim()) return [];
+    const zoekTerm = term.trim();
 
     // Eerder opgehaald? Dan die gebruiken — voorkomt herhaald netwerkverkeer
     // en de 429/403-limieten van YouTube.
     if (opties.cache !== false) {
-        const bestaand = await cache.lees('youtube', term.trim());
-        if (bestaand) return bestaand.slice(0, limiet);
+        const bestaand = await cache.lees('youtube', zoekTerm);
+        if (bestaand !== null) {
+            await cache.noteerZoekopdracht('youtube', zoekTerm, {
+                limiet,
+                uitCache: true,
+                resultaat: bestaand,
+            });
+            return bestaand.slice(0, limiet);
+        }
     }
 
     if (process.env.YOUTUBE_API_KEY) {
         try {
-            return await zoekViaApi(term.trim(), limiet);
+            const resultaten = await zoekViaApi(zoekTerm, limiet);
+            if (opties.cache !== false) await cache.schrijf('youtube', zoekTerm, resultaten);
+            await cache.noteerZoekopdracht('youtube', zoekTerm, { limiet, resultaat: resultaten });
+            return resultaten;
         } catch (err) {
             logger.waarschuwing('YouTube API mislukt, val terug op zoekpagina.', {
                 melding: err.message,
@@ -418,7 +444,7 @@ async function zoek(term, opties = {}) {
         }
     }
 
-    const params = new URLSearchParams({ search_query: term.trim() });
+    const params = new URLSearchParams({ search_query: zoekTerm });
     const url = `${ZOEK_URL}?${params.toString()}`;
     const headers = {
         // Een normale browser-UA en taal, plus de consent-cookie zodat
@@ -440,9 +466,8 @@ async function zoek(term, opties = {}) {
             resetRateLimit();
             const html = await resp.text();
             const items = leesResultaten(html);
-            if (items.length > 0 && opties.cache !== false) {
-                await cache.schrijf('youtube', term.trim(), items);
-            }
+            if (opties.cache !== false) await cache.schrijf('youtube', zoekTerm, items);
+            await cache.noteerZoekopdracht('youtube', zoekTerm, { limiet, resultaat: items });
             return items.slice(0, limiet);
         }
         laatsteStatus = resp.status;
@@ -455,7 +480,13 @@ async function zoek(term, opties = {}) {
         });
         await new Promise((r) => setTimeout(r, wacht + Math.floor(Math.random() * 1000)));
     }
-    throw new Error(`YouTube zoekpagina status ${laatsteStatus}`);
+    const fout = new Error(`YouTube zoekpagina status ${laatsteStatus}`);
+    await cache.noteerZoekopdracht('youtube', zoekTerm, {
+        limiet,
+        status: 'fout',
+        melding: fout.message,
+    });
+    throw fout;
 }
 
 /**

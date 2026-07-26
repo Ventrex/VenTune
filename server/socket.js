@@ -229,6 +229,15 @@ function setupSockets(io) {
             }
         });
 
+        // Speler geeft de bonusvraag op; er is bewust geen timer.
+        socket.on('ronde:bonus-opgeven', async () => {
+            try {
+                await spel.geefBonusOp(socket);
+            } catch (err) {
+                logger.waarschuwing('Bonus opgeven mislukt.', { melding: err.message });
+            }
+        });
+
         socket.on('disconnect', async () => {
             const { token, lobbyId, code } = socket.data || {};
             if (!token) return;
