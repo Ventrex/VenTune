@@ -12,6 +12,7 @@ export default function Join() {
 
     const [status, setStatus] = useState('controleren'); // controleren | ok | weg
     const [naam, setNaam] = useState('');
+    const [leeftijd, setLeeftijd] = useState('');
     const [bezig, setBezig] = useState(false);
     const [fout, setFout] = useState('');
 
@@ -42,7 +43,7 @@ export default function Join() {
         setBezig(true);
         setFout('');
         try {
-            const res = await joinLobby(bovenCode, naam.trim());
+            const res = await joinLobby(bovenCode, naam.trim(), leeftijd || null);
             bewaarSessie({
                 token: res.token,
                 code: res.code,
@@ -77,6 +78,20 @@ export default function Join() {
                         maxLength={24}
                         aria-label="Je naam"
                         autoFocus
+                    />
+                    <label className="kaart-label" style={{ textAlign: 'left' }} htmlFor="leeftijd">
+                        Leeftijd <span className="dim">(optioneel, voor kindvriendelijke rondes)</span>
+                    </label>
+                    <input
+                        id="leeftijd"
+                        className="invoer"
+                        type="number"
+                        min="4"
+                        max="120"
+                        value={leeftijd}
+                        onChange={(e) => setLeeftijd(e.target.value)}
+                        placeholder="Bijv. 10"
+                        aria-label="Leeftijd"
                     />
                     <button className="knop" type="submit" disabled={bezig}>
                         {bezig ? 'Meedoen…' : 'Meedoen'}

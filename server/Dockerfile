@@ -20,6 +20,10 @@ RUN npm install --omit=dev
 RUN apk add --no-cache python3 py3-pip ffmpeg \
     && python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
 
+# Vaste mappen voor audio die tussen container-restarts blijft bestaan via
+# de bind mount uit docker-compose.yml.
+RUN mkdir -p /media/downloads /media/uploads
+
 # Servercode en seed kopiëren.
 COPY server/ ./
 COPY seed/ /app/seed/

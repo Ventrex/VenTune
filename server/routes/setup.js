@@ -20,6 +20,40 @@ const router = express.Router();
 // Minimaal aantal speelbare titels om te mogen starten.
 const MIN_TITELS = 15;
 
+// Publieke collectieknoppen voor de host. Alleen actieve collecties worden
+// getoond; de admin kan later nieuwe edities toevoegen zonder frontend-build.
+router.get('/api/collecties', async (_req, res) => {
+    try {
+        const { rows } = await pool.query(
+            `SELECT c.sleutel, c.naam, c.beschrijving, c.standaard_type,
+                    COUNT(tc.titel_id)::int AS aantal
+               FROM collecties c
+               LEFT JOIN titel_collecties tc ON tc.collectie_id = c.id
+              WHERE c.actief = true
+              GROUP BY c.id
+              ORDER BY c.naam ASC`,
+        );
+        res.json(rows);
+    } catch (err) {
+        logger.waarschuwing('Collecties ophalen mislukt.', { melding: err.message });
+        res.json([]);
+    }
+});
+
+// Publieke, niet-gevoelige huisstijl-instellingen. Het admin-wachtwoord en
+// andere operationele waarden zitten nooit in deze response.
+router.get('/api/instellingen', async (_req, res) => {
+    try {
+        const { rows } = await pool.query(
+            `SELECT waarde FROM app_instellingen WHERE sleutel = 'thema' LIMIT 1`,
+        );
+        res.json(rows[0]?.waarde || {});
+    } catch (err) {
+        logger.waarschuwing('Publieke instellingen ophalen mislukt.', { melding: err.message });
+        res.json({});
+    }
+});
+
 // Live telling van titels/tracks die aan de filters voldoen.
 router.get('/api/tracks/telling', async (req, res) => {
     const filter = {
@@ -31,6 +65,11 @@ router.get('/api/tracks/telling', async (req, res) => {
         zonder_genres: req.query.zonder
             ? String(req.query.zonder).split(',').filter(Boolean)
             : [],
+        collecties: req.query.collectie && String(req.query.collectie) !== 'alles'
+            ? String(req.query.collectie).split(',').filter(Boolean)
+            : [],
+        leeftijd_max: Number(req.query.leeftijd_max),
+        alleen_nl_tv: req.query.alleen_nl_tv !== 'false',
     };
     const { where, params } = bouwFilter(filter);
 
@@ -64,6 +103,8 @@ router.get('/api/presets', async (_req, res) => {
     const { rows } = await pool.query(
         `SELECT id, naam, categorie, taal, periode_start, periode_eind,
                 rondes, speeltijd, modus, min_bekendheid, zonder_genres,
+                leeftijd_max, alleen_nl_tv, collecties,
+                antwoord_modus,
                 aangemaakt_op
            FROM presets
           ORDER BY aangemaakt_op DESC`,
@@ -81,11 +122,12 @@ router.post('/api/presets', async (req, res) => {
         const { rows } = await pool.query(
             `INSERT INTO presets
                (naam, categorie, taal, periode_start, periode_eind, rondes,
-                speeltijd, modus, min_bekendheid, zonder_genres)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                speeltijd, modus, min_bekendheid, zonder_genres, leeftijd_max,
+                alleen_nl_tv, antwoord_modus, collecties)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
              RETURNING id, naam, categorie, taal, periode_start, periode_eind,
                        rondes, speeltijd, modus, min_bekendheid, zonder_genres,
-                       aangemaakt_op`,
+                       leeftijd_max, alleen_nl_tv, antwoord_modus, collecties, aangemaakt_op`,
             [
                 naam,
                 b.categorie || 'beide',
@@ -93,10 +135,14 @@ router.post('/api/presets', async (req, res) => {
                 Number.isFinite(b.periode_start) ? b.periode_start : 1950,
                 Number.isFinite(b.periode_eind) ? b.periode_eind : 2100,
                 Number.isFinite(b.rondes) ? b.rondes : 10,
-                Number.isFinite(b.speeltijd) ? b.speeltijd : 60,
+                Number.isFinite(b.speeltijd) ? b.speeltijd : 0,
                 b.modus === 'kenner' ? 'kenner' : 'snelste',
                 Number.isFinite(b.min_bekendheid) ? b.min_bekendheid : 200,
                 Array.isArray(b.zonder_genres) ? b.zonder_genres : [],
+                Number.isFinite(b.leeftijd_max) ? b.leeftijd_max : 0,
+                b.alleen_nl_tv !== false,
+                b.antwoord_modus === 'meerkeuze' ? 'meerkeuze' : 'typen',
+                Array.isArray(b.collecties) ? b.collecties : [],
             ],
         );
         res.json(rows[0]);

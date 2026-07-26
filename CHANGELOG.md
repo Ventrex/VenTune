@@ -1,5 +1,81 @@
 # VenTune changelog
 
+## [0.3.0] - 2026-07-26
+
+### Voor spelers
+
+- Spelsoort en spelcollectie zijn nu aparte filters. Een titel kan tegelijk
+  film, Disney en Marvel zijn zonder dat de film/serie-identiteit verloren gaat.
+- Nieuwe collecties zijn voorbereid voor **Disney**, **Pixar**, **Marvel**,
+  **Streaming**, **Smartlappen** en **Rock**.
+- Ook `muziek` is als apart inhoudstype toegevoegd; het standaardspel blijft
+  bewust alleen films en series tonen.
+- Frozen staat in Films + Disney; een titel kan meerdere collecties tegelijk
+  hebben. De collectieselectie werkt met één of meerdere edities.
+
+### Beheer
+
+- Admin heeft aparte knoppen voor nieuwe films ophalen, nieuwe series ophalen,
+  collectiecatalogi vullen en MP3's vooraf downloaden.
+- Elke bulkdownload controleert eerst of de opgeslagen YouTube-/iTunes-URL nog
+  bestaat. Daarna wordt de track als echte MP3 in `/media/downloads` gezet.
+- Disney/Pixar vullen + downloaden kan vanuit één adminactie. Mislukte URLs
+  blijven met reden zichtbaar en worden niet als speelbaar gemarkeerd.
+- De tab **Spelcollecties** beheert bestaande edities en kan nieuwe collecties
+  toevoegen zonder codewijziging. Titels kunnen vanuit het titelbeheer aan
+  meerdere collecties worden gekoppeld.
+- TMDB kan gericht nieuwe films of series ophalen in plaats van altijd beide.
+
+## [0.2.6] - 2026-07-25
+
+### Voor spelers
+
+- Setup heeft nu een leeftijdsfilter, waaronder **Gezinsvriendelijk t/m 10**.
+  Een opgegeven leeftijd van een speler kan de selectie automatisch verder
+  begrenzen op de jongste deelnemer.
+- De standaardcatalogus gebruikt alleen goedgekeurde titels die als bekend van
+  Nederlandse tv zijn gemarkeerd. TMDB-imports blijven eerst op **te beoordelen**.
+- De basislijst is uitgebreid met herkenbare Nederlandse kinderklassiekers en
+  veel meer Amerikaanse films en series.
+
+### Beheer
+
+- `/admin` heeft tabs voor overzicht, titels/muziek, imports/downloads,
+  meldingen, users, database en uiterlijk.
+- Elke titel bewaart nu een toevoegreden, curatiestatus, Nederlandse-tv-status
+  en leeftijdsgrens.
+- Downloads zijn echte lokale mp3-bestanden in `./media/downloads`, met Docker-
+  volume en nginx-toegang; uploads staan in `./media/uploads`.
+- Uiterlijk, kleuren, teksten, lettertype en logo zijn vanuit de admin-tabs
+  aanpasbaar. Het admin-wachtwoord blijft uitsluitend in `.env`.
+- De databasetab kan exporteren en beperkte categorieën veilig opschonen.
+
+## [0.2.5] - 2026-07-25
+
+### Voor spelers
+
+- Jaren 90 bevat nu veel meer seedtitels: van 52 naar 132 titels in
+  `seed/titels.json`.
+- "Heel nummer" is de standaard speeltijd. VenTune blijft maximaal 5 minuten
+  per ronde gebruiken.
+- Nieuwe antwoordmodus: **6 opties**. De host kan per spel kiezen tussen typen
+  of zes meerkeuze-antwoorden.
+- Nieuwe hulplijn bij meerkeuze: **verwijder 3 foute antwoorden**. Bij 10
+  rondes krijgt elke speler 1 van deze hulplijn, bij 20 rondes 2, bij eindeloos
+  3.
+- Bonusvragen gebruiken voortaan ook zes opties; oude 4-optievragen worden bij
+  opnieuw genereren opgewaardeerd.
+
+### Betrouwbaarheid
+
+- Bij spelstart probeert de server de geplande YouTube-tracks vooraf lokaal te
+  cachen met `yt-dlp`/`ffmpeg`. Als dat lukt speelt de ronde vanaf `/media`
+  in plaats van live via YouTube.
+- YouTube-downloads worden begrensd op maximaal 5 minuten vanaf de ingestelde
+  startpositie.
+- Officiele genummerde titels zoals **Terminator 2** blijven toegestaan, terwijl
+  extra deelcijfers zoals **Baantjer 2** geweigerd blijven.
+
 ## [0.2.4] - 2026-07-25
 
 ### Voor spelers

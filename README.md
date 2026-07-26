@@ -31,7 +31,7 @@ met iTunes-previews en eigen clips als fallback.
 
 ## Hoe het werkt
 
-1. **Host maakt een spel** en doorloopt het filtermenu (categorie, taal, periode,
+1. **Host maakt een spel** en doorloopt het filtermenu (inhoudstype, collectie, taal, periode,
    aantal rondes). Er verschijnt een 4-letterige code en een QR-code. De host
    speelt standaard ook zelf mee vanaf het hostscherm.
 2. **Spelers joinen** door de QR te scannen (`/join/ABCD`) of de code te typen,
@@ -148,7 +148,15 @@ docker compose exec server node /app/seed/import.js --db
 ```
 
 Dit kan ook met één klik in `/admin` via **TMDB-titels importeren** en daarna
-**YouTube-first muziek vernieuwen**. Bonusvragen kun je daar ook genereren.
+**YouTube-first muziek vernieuwen**. Met **Nieuwe films ophalen** en **Nieuwe
+series ophalen** kun je TMDB gericht gebruiken. Bonusvragen kun je daar ook
+genereren.
+
+In de tab **Spelcollecties** kun je Disney, Pixar, Marvel, Streaming,
+Smartlappen en Rock vullen. Een titel kan meerdere collecties hebben: Frozen
+blijft een film en staat daarnaast in Disney. De knop **Vullen + MP3** zoekt de
+tracks, controleert de URLs en downloadt ze vóór het spel naar de vaste
+`/media/downloads`-map.
 
 Stap 2 kan lang duren (YouTube knijpt af bij te veel verzoeken). Het script is
 hervatbaar: draai het gerust nogmaals, het pakt alleen de titels op die nog geen
@@ -216,20 +224,22 @@ Dat betekent bewust: bij twijfel liever geen ronde dan muziek van een andere
 film of serie onder de verkeerde naam. Zoekresultaten van YouTube en iTunes
 kunnen immers veranderen.
 
-### Lokale audio en YouTube-cache
+### Lokale audio en YouTube-downloads
 
 De compose-stack bevat een persistent `./media`-volume. Vanuit `/admin` kun je
-een bestaande, gecontroleerde YouTube- of iTunes-track expliciet lokaal cachen,
+een bestaande, gecontroleerde YouTube- of iTunes-track expliciet vooraf downloaden,
 of een eigen/gelicentieerd audiobestand uploaden:
 
     docker compose exec server node /app/seed/download-track.js --track 42 --droog
     docker compose exec server node /app/seed/download-track.js --track 42
     docker compose exec server node /app/seed/download-track.js --all
 
-YouTube wordt met `yt-dlp` en `ffmpeg` als m4a-audio opgeslagen. Lokale audio
-krijgt voorrang bij het spelen, zodat een later verwijderde YouTube-video geen
-probleem meer is. De game downloadt nooit vanzelf en de cache is niet
-automatisch rechtenvrij: gebruik alleen bronnen/bestanden die je mag gebruiken.
+YouTube wordt met `yt-dlp` en `ffmpeg` als mp3-audio opgeslagen in
+`./media/downloads`. Lokale audio krijgt voorrang bij het spelen, zodat een
+later verwijderde YouTube-video geen probleem meer is. Bij spelstart worden
+alleen al bekende/gecontroleerde tracks vooraf gedownload; de game zoekt of
+downloadt geen willekeurige video's. De admin controleert vóór een download of
+de URL nog bestaat. Gebruik alleen bronnen/bestanden die je mag gebruiken.
 
 ---
 

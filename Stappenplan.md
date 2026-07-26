@@ -47,3 +47,15 @@
 - [ ] **P2** Periodieke kwaliteitsrapportage bouwen.
 - [ ] **P2** YouTube-playlist-refresh met rate-limit en retry-dashboard toevoegen.
 - [ ] **P2** Lokale bestanden controleren op hash en aanwezigheid.
+
+## Fase 5 — Editions en bulkbeheer
+
+- [x] **P2** Film/serie/muziek loskoppelen van herbruikbare spelcollecties.
+- [x] **P2** Disney, Pixar, Marvel, Streaming, Smartlappen en Rock als
+      beheerbare collecties toevoegen.
+- [x] **P1** Adminknoppen voor nieuwe films/series en vooraf downloaden.
+- [x] **P1** URL-check vóór directe en bulkdownloads.
+- [ ] **P2** Curatiedashboard per collectie met score, URL-status en laatste
+      controle.
+- [ ] **P2** Retrybeleid met wachtrij en instelbare gelijktijdigheid voor grote
+      collectiedownloads.

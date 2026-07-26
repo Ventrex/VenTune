@@ -1,7 +1,7 @@
 // =====================================================================
 // Bonusvragen op basis van TMDB.
 //
-// Na de gokfase krijgt de speler een meerkeuzevraag (4 opties) over
+// Na de gokfase krijgt de speler een meerkeuzevraag (6 opties) over
 // dezelfde titel: regisseur, hoofdrolspeler, jaar of genre. Afleiders
 // komen uit dezelfde genre-pool zodat ze plausibel zijn.
 //
@@ -29,8 +29,8 @@ function hussel(arr) {
     return a;
 }
 
-// Kies tot 3 unieke afleiders die niet gelijk zijn aan het juiste antwoord.
-function kiesAfleiders(kandidaten, juist, aantal = 3) {
+// Kies tot 5 unieke afleiders die niet gelijk zijn aan het juiste antwoord.
+function kiesAfleiders(kandidaten, juist, aantal = 5) {
     const uniek = [];
     const gezien = new Set([String(juist).toLowerCase()]);
     for (const k of hussel(kandidaten)) {
@@ -53,10 +53,10 @@ function bouwVraag(details, pool = {}) {
     const mogelijk = [];
 
     // Regisseur
-    if (details.regisseur && (pool.regisseurs || []).length >= 3) {
+    if (details.regisseur && (pool.regisseurs || []).length >= 5) {
         mogelijk.push(() => {
             const afl = kiesAfleiders(pool.regisseurs, details.regisseur);
-            if (afl.length < 3) return null;
+            if (afl.length < 5) return null;
             return {
                 type: 'regisseur',
                 vraag: `Wie regisseerde ${details.naam}?`,
@@ -67,14 +67,14 @@ function bouwVraag(details, pool = {}) {
     }
 
     // Hoofdrolspeler
-    if ((details.cast || []).length && (pool.acteurs || []).length >= 3) {
+    if ((details.cast || []).length && (pool.acteurs || []).length >= 5) {
         mogelijk.push(() => {
             const juist = details.cast[0];
             const afl = kiesAfleiders(
                 (pool.acteurs || []).filter((a) => !details.cast.includes(a)),
                 juist,
             );
-            if (afl.length < 3) return null;
+            if (afl.length < 5) return null;
             return {
                 type: 'acteur',
                 vraag: `Wie speelt een hoofdrol in ${details.naam}?`,
@@ -87,7 +87,7 @@ function bouwVraag(details, pool = {}) {
     // Jaar
     if (Number.isFinite(details.jaar)) {
         mogelijk.push(() => {
-            const offsets = hussel([-4, -3, -2, -1, 1, 2, 3, 4]).slice(0, 3);
+            const offsets = hussel([-6, -4, -3, -2, -1, 1, 2, 3, 4, 6]).slice(0, 5);
             const afl = offsets.map((o) => String(details.jaar + o));
             return {
                 type: 'jaar',
@@ -106,7 +106,7 @@ function bouwVraag(details, pool = {}) {
                 (g) => !details.genres.includes(g),
             );
             const afl = kiesAfleiders(kandidaten, juist);
-            if (afl.length < 3) return null;
+            if (afl.length < 5) return null;
             return {
                 type: 'genre',
                 vraag: `Tot welk genre behoort ${details.naam}?`,

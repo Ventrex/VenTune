@@ -49,11 +49,15 @@ services:
       TMDB_API_KEY: ${TMDB_API_KEY:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       MEDIA_DIR: ${MEDIA_DIR:-/media}
+      DOWNLOAD_DIR: ${DOWNLOAD_DIR:-/media/downloads}
+      UPLOAD_DIR: ${UPLOAD_DIR:-/media/uploads}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     # De seed-map als volume, zodat import.js altijd beschikbaar is (ook
     # zonder rebuild) en aanpassingen aan titels.json direct meekomen.
     volumes:
       - ./seed:/app/seed:ro
+      # Permanente audio-opslag. De server schrijft echte bestanden in
+      # ./media/downloads en ./media/uploads; opnieuw bouwen wist ze niet.
       - ./media:/media
     ports:
       - "8090:3000"

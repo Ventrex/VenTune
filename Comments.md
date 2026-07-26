@@ -31,10 +31,11 @@
   wordt uit de resterende pool verwijderd zonder een rondenummer over te
   slaan.
 - Een database-transactie beschermt de vorige goede track tijdens een import.
-- Downloaden staat niet standaard aan. Alleen een bestaande, gecontroleerde
-  track die de admin expliciet kiest wordt lokaal gecachet. YouTube wordt met
-  `yt-dlp` naar browser-vriendelijke m4a-audio omgezet; de game downloadt nooit
-  vanzelf.
+- Bij spelstart probeert VenTune bestaande, gecontroleerde YouTube-tracks uit
+  de geplande rondes vooraf echt te downloaden. Er wordt geen nieuwe video
+  gezocht tijdens downloaden: alleen al opgeslagen tracks mogen naar `/media`.
+  YouTube wordt met `yt-dlp`/`ffmpeg` naar mp3-audio omgezet in
+  `/media/downloads` en is begrensd op maximaal 5 minuten.
 - Lokale audio staat in het persistente `./media`-volume en wint bij selectie
   van YouTube en iTunes. Eigen uploads horen alleen eigen of gelicentieerde
   bestanden te zijn.
@@ -51,5 +52,14 @@
 - Hints zijn bewust oplopend: cast, speelplek, genre/land, beginletters, jaar
   en type. TMDB vult hoofdrollen alleen aan als die nog ontbreken; zonder TMDB
   blijft handmatig ingevulde metadata werken.
+- Bij meerkeuze stuurt de server zes titelopties zonder correct antwoord naar
+  clients. De hulplijn "verwijder 3" is persoonlijk per speler en kan het
+  juiste antwoord niet verwijderen.
 - `CHANGELOG.md` is spelerzichtbaar. Zet daar geen wachtwoorden, interne IP's,
   tokens of operationele details in.
+- Film/serie/muziek is het inhoudstype; collecties zijn many-to-many-labels.
+  Daardoor kan Frozen tegelijk onder Films en Disney vallen, terwijl Rock en
+  Smartlappen geen kunstmatige filmrecords hoeven te worden.
+- De admin-downloadknop doet eerst een URL-check en daarna een echte MP3-
+  download. De bulktaak draait op de server, bewaart fouten per track en
+  gebruikt de persistente `/media/downloads`-map.

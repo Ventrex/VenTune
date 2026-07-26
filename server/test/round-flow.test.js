@@ -1,6 +1,11 @@
 const assert = require('assert/strict');
 const { pool } = require('../db/pool');
-const { SpelBeheer, verwijderOnspeelbareTitel } = require('../game/engine');
+const {
+    SpelBeheer,
+    verwijderOnspeelbareTitel,
+    bouwMeerkeuzeOpties,
+    lifelineAantal,
+} = require('../game/engine');
 
 // Een onbruikbare titel op positie 3 mag niet maken dat de volgende titel
 // als ronde 4 wordt gepubliceerd. De titel wordt verwijderd, het rondenummer
@@ -30,6 +35,25 @@ const laatste = {
 assert.equal(verwijderOnspeelbareTitel(laatste), false);
 assert.equal(laatste.pool.length, 1);
 assert.equal(laatste.rondenummer, 1);
+
+assert.equal(lifelineAantal({ rondes: 10 }), 1);
+assert.equal(lifelineAantal({ rondes: 20 }), 2);
+assert.equal(lifelineAantal({ rondes: 0 }), 3);
+
+const meerkeuze = bouwMeerkeuzeOpties(
+    { id: 1, naam: 'Terminator 2', jaar: 1991 },
+    [
+        { id: 1, naam: 'Terminator 2', jaar: 1991 },
+        { id: 2, naam: 'Jurassic Park', jaar: 1993 },
+        { id: 3, naam: 'Titanic', jaar: 1997 },
+        { id: 4, naam: 'The Matrix', jaar: 1999 },
+        { id: 5, naam: 'Friends', jaar: 1994 },
+        { id: 6, naam: 'Pulp Fiction', jaar: 1994 },
+        { id: 7, naam: 'Se7en', jaar: 1995 },
+    ],
+);
+assert.equal(meerkeuze.opties.length, 6);
+assert.equal(meerkeuze.opties[meerkeuze.correctIndex], 'Terminator 2');
 
 async function testDubbeleScorebordOvergang() {
     const emits = [];

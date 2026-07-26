@@ -141,6 +141,10 @@ function naarTitel(r, type) {
         populariteit: r.popularity || 0,
         poster_pad: r.poster_path || null,
         omschrijving: r.overview || null,
+        nl_tv_bekend: false,
+        curatie_status: 'te_beoordelen',
+        leeftijdsgrens: 16,
+        toevoeg_reden: 'Automatisch toegevoegd via TMDB-populariteitsimport; Nederlandse tv-bekendheid moet nog door de admin worden gecontroleerd.',
     };
 }
 
@@ -176,11 +180,14 @@ async function bewaarTitel(t) {
     await pool.query(
         `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres,
                              tmdb_id, populariteit, stemmen, poster_pad,
-                             omschrijving)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                             omschrijving, nl_tv_bekend, curatie_status,
+                             leeftijdsgrens, toevoeg_reden)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                 $13, $14, $15, $16)`,
         [
             t.naam, t.aliassen, t.type, t.taal, t.jaar, t.land, t.genres,
             t.tmdb_id, t.populariteit, t.stemmen, t.poster_pad, t.omschrijving,
+            t.nl_tv_bekend, t.curatie_status, t.leeftijdsgrens, t.toevoeg_reden,
         ],
     );
     return true;
@@ -222,7 +229,8 @@ async function verzamel(soort, type, extraParams, paginas, label, teller, minSte
     console.log(`  ${label}: klaar (nieuw tot nu toe: ${teller.nieuw})`);
 }
 
-async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN } = {}) {
+async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type = 'beide' } = {}) {
+    const soort = ['film', 'serie'].includes(type) ? type : 'beide';
     if (!KEY) {
         throw new Error('TMDB_API_KEY ontbreekt. Zet deze in .env en start de server opnieuw.');
     }
@@ -236,51 +244,59 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN } = {
     console.log('Sleutel werkt.\n');
 
     const teller = { nieuw: 0, bestond: 0, fouten: 0 };
-    console.log(`TMDB-import gestart (${paginas} pagina's per categorie)…\n`);
+    console.log(`TMDB-import gestart (${soort}; ${paginas} pagina's per categorie)…\n`);
 
     // 1) Nederlandstalig — ruim ophalen, want dat is de dunste categorie.
     console.log('Nederlandstalige films en series:');
-    await verzamel('movie', 'film', { with_original_language: 'nl' },
-        paginas * 2, 'NL films', teller, minStemmen);
-    await verzamel('tv', 'serie', { with_original_language: 'nl' },
-        paginas * 2, 'NL series', teller, minStemmen);
-    // Ook Belgisch-Nederlandstalig materiaal.
-    await verzamel('movie', 'film', { with_origin_country: 'BE' },
-        Math.ceil(paginas / 2), 'BE films', teller, minStemmen);
-    await verzamel('tv', 'serie', { with_origin_country: 'NL' },
-        paginas, 'NL-productie series', teller, minStemmen);
+    if (soort !== 'serie') {
+        await verzamel('movie', 'film', { with_original_language: 'nl' },
+            paginas * 2, 'NL films', teller, minStemmen);
+        // Ook Belgisch-Nederlandstalig materiaal.
+        await verzamel('movie', 'film', { with_origin_country: 'BE' },
+            Math.ceil(paginas / 2), 'BE films', teller, minStemmen);
+    }
+    if (soort !== 'film') {
+        await verzamel('tv', 'serie', { with_original_language: 'nl' },
+            paginas * 2, 'NL series', teller, minStemmen);
+        await verzamel('tv', 'serie', { with_origin_country: 'NL' },
+            paginas, 'NL-productie series', teller, minStemmen);
+    }
 
     // 2) Internationaal populair.
     console.log('\nInternationale films en series:');
-    await verzamel('movie', 'film', {}, paginas, 'populaire films', teller, minStemmen);
-    await verzamel('tv', 'serie', {}, paginas, 'populaire series', teller, minStemmen);
+    if (soort !== 'serie') await verzamel('movie', 'film', {}, paginas, 'populaire films', teller, minStemmen);
+    if (soort !== 'film') await verzamel('tv', 'serie', {}, paginas, 'populaire series', teller, minStemmen);
 
     // 3) Per decennium, zodat oudere klassiekers ook meekomen.
     console.log('\nPer decennium:');
     for (let start = 1950; start < new Date().getFullYear(); start += 10) {
         const eind = start + 9;
-        await verzamel(
-            'movie', 'film',
-            {
-                'primary_release_date.gte': `${start}-01-01`,
-                'primary_release_date.lte': `${eind}-12-31`,
-            },
-            Math.ceil(paginas / 2),
-            `films ${start}-${eind}`,
-            teller,
-            minStemmen,
-        );
-        await verzamel(
-            'tv', 'serie',
-            {
-                'first_air_date.gte': `${start}-01-01`,
-                'first_air_date.lte': `${eind}-12-31`,
-            },
-            Math.ceil(paginas / 4),
-            `series ${start}-${eind}`,
-            teller,
-            minStemmen,
-        );
+        if (soort !== 'serie') {
+            await verzamel(
+                'movie', 'film',
+                {
+                    'primary_release_date.gte': `${start}-01-01`,
+                    'primary_release_date.lte': `${eind}-12-31`,
+                },
+                Math.ceil(paginas / 2),
+                `films ${start}-${eind}`,
+                teller,
+                minStemmen,
+            );
+        }
+        if (soort !== 'film') {
+            await verzamel(
+                'tv', 'serie',
+                {
+                    'first_air_date.gte': `${start}-01-01`,
+                    'first_air_date.lte': `${eind}-12-31`,
+                },
+                Math.ceil(paginas / 4),
+                `series ${start}-${eind}`,
+                teller,
+                minStemmen,
+            );
+        }
     }
 
     const totaal = await pool.query(
