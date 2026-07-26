@@ -239,8 +239,11 @@ export async function adminUploadTrack(titelId, bestand, gegevens = {}) {
         body: form,
     });
 }
-export async function adminSeed(force = false) {
-    return adminFetch('/api/admin/seed', { method: 'POST', ...jsonBody({ force }) });
+export async function adminSeed(force = false, alleenDb = false, youtubeAlleen = false) {
+    return adminFetch('/api/admin/seed', {
+        method: 'POST',
+        ...jsonBody({ force, alleenDb, youtubeAlleen }),
+    });
 }
 export async function adminSeedStatus() {
     return adminFetch('/api/admin/seed/status');

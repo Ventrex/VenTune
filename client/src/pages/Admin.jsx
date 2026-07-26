@@ -128,13 +128,15 @@ function Beheer({ onUit }) {
         laadMeldingen();
     }
 
-    async function seed() {
+    async function seed(alleenDb = false, youtubeAlleen = false) {
         setBezigSeed(true);
-        setMelding('Seed importeren… dit draait in de achtergrond (1–3 min).');
+        setMelding(alleenDb
+            ? 'YouTube-matches voor alle database-titels opnieuw zoeken… dit draait in de achtergrond.'
+            : 'Seed importeren… dit draait in de achtergrond (1–3 min).');
         try {
             // Force is veilig: importeer vervangt pas nadat een nieuwe,
             // gecontroleerde YouTube-track is gevonden.
-            const gestart = await api.adminSeed(true);
+            const gestart = await api.adminSeed(true, alleenDb, youtubeAlleen);
             if (gestart?.gestart === false) {
                 setBezigSeed(false);
                 setMelding(`Admin-taak "${gestart.taak || 'import'}" is al bezig.`);
@@ -331,6 +333,9 @@ function Beheer({ onUit }) {
                         <div className="stapel">
                             <button className="knop knop-stil" onClick={seed} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
                                 {bezigSeed ? 'Bezig…' : 'YouTube-first muziek vernieuwen'}
+                            </button>
+                            <button className="knop knop-stil" onClick={() => seed(true, true)} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
+                                {bezigSeed ? 'Bezig…' : 'YouTube voor hele database opnieuw zoeken'}
                             </button>
                             <button className="knop knop-stil" onClick={playlistImport} disabled={bezigPlaylist || bezigSeed || bezigTmdb || bezigVragen}>
                                 {bezigPlaylist ? 'Playlists importeren…' : 'YouTube-playlists verversen'}

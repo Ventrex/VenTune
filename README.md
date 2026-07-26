@@ -165,6 +165,10 @@ de achtergrond. In het **Overzicht** zijn de tellingen klikbaar; zo open je
 meteen de lijst of actie waarmee je een probleem kunt bekijken of herstellen.
 YouTube blijft de voorkeursbron, ook nadat een YouTube-track lokaal is
 opgeslagen; iTunes is alleen fallback.
+Staat er nog een oudere iTunes-koppeling in de database, gebruik dan in
+**Imports** de actie **YouTube voor hele database opnieuw zoeken**. Die zoekt
+alle bestaande titels opnieuw, vervangt alleen met een betrouwbare YouTube-
+match en laat een bestaande iTunes-fallback staan als YouTube niets vindt.
 
 Stap 2 kan lang duren (YouTube knijpt af bij te veel verzoeken). Het script is
 hervatbaar: draai het gerust nogmaals, het pakt alleen de titels op die nog geen

@@ -82,6 +82,9 @@
 - [x] **P1** Admin-overzichtstegels klikbaar maken met herstelgerichte filters.
 - [x] **P1** YouTube als bronprioriteit behouden na lokale download; iTunes
       blijft een herkenbare fallback.
+- [x] **P1** Adminactie toegevoegd om bestaande database-titels opnieuw op
+      YouTube te controleren zonder een bestaande iTunes-fallback te wissen
+      wanneer YouTube geen zekere match vindt.
 
 ## Daarna
 

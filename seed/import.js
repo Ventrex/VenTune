@@ -308,7 +308,7 @@ async function vervangTracks(titelId, voegToe) {
 
 /**
  * Voer de import uit. Herbruikbaar vanuit de CLI én de admin-portal.
- * @param {object} opties { force, limiet, onLog }
+ * @param {object} opties { force, limiet, onLog, alleenDb, youtubeAlleen }
  * @returns {Promise<{verwerkt, metTrack, zonder:string[]}>}
  */
 async function importeer({
@@ -316,6 +316,7 @@ async function importeer({
     limiet = Infinity,
     onLog,
     alleenDb = false,
+    youtubeAlleen = false,
     titelFilter = null,
     collectie = null,
 } = {}) {
@@ -410,7 +411,7 @@ async function importeer({
         }
 
         // 2) Lukt YouTube niet, dan pas iTunes als fallback proberen.
-        if (!gelukt) {
+        if (!gelukt && !youtubeAlleen) {
             try {
                 const term = t.zoekterm || `${t.naam} soundtrack`;
                 const resultaten = await itunes.zoek(term, { limiet: 8 });

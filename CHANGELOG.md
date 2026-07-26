@@ -15,6 +15,9 @@
 - YouTube blijft zichtbaar en krijgt voorrang boven iTunes, ook als een
   YouTube-track al lokaal is opgeslagen. Herkomst wordt als `youtube → lokaal`
   of `itunes → lokaal` getoond.
+- De import-tab heeft een aparte actie **YouTube voor hele database opnieuw
+  zoeken**. Die vervangt alleen wanneer een gecontroleerde YouTube-match wordt
+  gevonden en laat bestaande iTunes-fallbacks anders ongemoeid.
 
 ### Betrouwbaarheid
 

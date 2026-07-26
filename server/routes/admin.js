@@ -1139,7 +1139,11 @@ router.post('/api/admin/seed', vereisAdmin, (req, res) => {
         (v) => { seedStatus = v; },
         async () => {
             logger.info('Seed-import gestart via admin (YouTube eerst, iTunes fallback).');
-            const samenvatting = await importeer({ force });
+            const samenvatting = await importeer({
+                force,
+                alleenDb: !!(req.body && req.body.alleenDb),
+                youtubeAlleen: !!(req.body && req.body.youtubeAlleen),
+            });
             logger.info('Seed-import klaar.', samenvatting);
             return samenvatting;
         },
