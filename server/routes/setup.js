@@ -132,7 +132,7 @@ router.post('/api/presets', async (req, res) => {
                 naam,
                 b.categorie || 'beide',
                 b.taal || 'beide',
-                Number.isFinite(b.periode_start) ? b.periode_start : 1950,
+                Number.isFinite(b.periode_start) ? b.periode_start : 1930,
                 Number.isFinite(b.periode_eind) ? b.periode_eind : 2100,
                 Number.isFinite(b.rondes) ? b.rondes : 10,
                 Number.isFinite(b.speeltijd) ? b.speeltijd : 0,

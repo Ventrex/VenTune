@@ -203,7 +203,7 @@ CREATE TABLE IF NOT EXISTS presets (
     -- Filterwaarden
     categorie      TEXT        NOT NULL DEFAULT 'beide',  -- films | series | beide
     taal           TEXT        NOT NULL DEFAULT 'beide',  -- nl | en | beide
-    periode_start  INTEGER     NOT NULL DEFAULT 1950,
+    periode_start  INTEGER     NOT NULL DEFAULT 1930,
     periode_eind   INTEGER     NOT NULL DEFAULT 2100,
     rondes         INTEGER     NOT NULL DEFAULT 10,        -- 10 | 20 | 30 | 0 (eindeloos)
     -- Speeltijd per ronde in seconden; 0 = heel nummer, max 5 minuten.
@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS presets (
 -- Migratie voor bestaande databases.
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS speeltijd INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE presets ALTER COLUMN speeltijd SET DEFAULT 0;
+ALTER TABLE presets ALTER COLUMN periode_start SET DEFAULT 1930;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS modus TEXT NOT NULL DEFAULT 'snelste';
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS min_bekendheid INTEGER NOT NULL DEFAULT 200;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS zonder_genres TEXT[] NOT NULL DEFAULT '{}';

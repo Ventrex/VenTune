@@ -61,7 +61,7 @@ function bouwFilter(f = {}) {
 
     // Periode: jaar binnen [start, eind]. Titels zonder jaar vallen buiten
     // een beperkte periode maar tellen mee bij de volledige reeks.
-    const start = Number.isFinite(f.periode_start) ? f.periode_start : 1950;
+    const start = Number.isFinite(f.periode_start) ? f.periode_start : 1930;
     const eind = Number.isFinite(f.periode_eind) ? f.periode_eind : 2100;
     params.push(start);
     const iStart = params.length;

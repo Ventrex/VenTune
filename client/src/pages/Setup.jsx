@@ -68,7 +68,7 @@ const SPEELTIJDEN = [
     { waarde: 90, label: '1½ min' },
 ];
 const PERIODE_SNEL = [
-    { label: 'Alles', van: 1950, tot: NU },
+    { label: 'Alles', van: 1930, tot: NU },
     { label: 'Jaren 80', van: 1980, tot: 1989 },
     { label: 'Jaren 90', van: 1990, tot: 1999 },
     { label: '2000–2010', van: 2000, tot: 2010 },
@@ -84,7 +84,7 @@ export default function Setup() {
         categorie: 'beide',
         collecties: [],
         taal: 'beide',
-        periode_start: 1950,
+        periode_start: 1930,
         periode_eind: NU,
         rondes: 10,
         speeltijd: 0,
@@ -351,7 +351,7 @@ export default function Setup() {
                     <input
                         className="schuif"
                         type="range"
-                        min={1950}
+                        min={1930}
                         max={NU}
                         value={filters.periode_start}
                         onChange={(e) => zetVan(Number(e.target.value))}
@@ -363,7 +363,7 @@ export default function Setup() {
                     <input
                         className="schuif"
                         type="range"
-                        min={1950}
+                        min={1930}
                         max={NU}
                         value={filters.periode_eind}
                         onChange={(e) => zetTot(Number(e.target.value))}
