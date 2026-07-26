@@ -462,30 +462,59 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                                     WHERE x.titel_id = t.id AND x.werkt
                                       AND x.preview_url IS NOT NULL AND x.preview_url <> ''))
                  AS ontbrekende_tracks,
-               (SELECT count(*)::int FROM zoek_cache) AS cache_regels,
-               (SELECT count(*)::int FROM zoek_log) AS zoek_log_regels`,
+               (SELECT count(*)::int FROM zoek_cache) AS cache_regels`,
         );
-        const perBron = await pool.query(
-            `SELECT CASE
-                        WHEN bron = 'youtube'
-                             OR (bron = 'lokaal' AND lower(COALESCE(bron_url, '')) LIKE '%youtube%')
-                            THEN 'youtube'
-                        WHEN bron = 'itunes'
-                             OR (bron = 'lokaal' AND lower(COALESCE(bron_url, '')) LIKE '%apple%')
-                            THEN 'itunes'
-                        ELSE bron
-                    END AS bron,
-                    count(*)::int AS n
-               FROM tracks
-              GROUP BY 1
-              ORDER BY CASE WHEN bron = 'youtube' THEN 0 ELSE 1 END, n DESC`,
-        );
-        res.json({ ...d.rows[0], per_bron: perBron.rows });
+        const fouten = [];
+        let perBron = [];
+        try {
+            const resultaat = await pool.query(
+                `SELECT CASE
+                            WHEN bron = 'youtube'
+                                 OR (bron = 'lokaal' AND lower(COALESCE(bron_url, '')) LIKE '%youtube%')
+                                THEN 'youtube'
+                            WHEN bron = 'itunes'
+                                 OR (bron = 'lokaal' AND lower(COALESCE(bron_url, '')) LIKE '%apple%')
+                                THEN 'itunes'
+                            ELSE bron
+                        END AS bron,
+                        count(*)::int AS n
+                   FROM tracks
+                  GROUP BY 1
+                  ORDER BY CASE WHEN bron = 'youtube' THEN 0 ELSE 1 END, n DESC`,
+            );
+            perBron = resultaat.rows;
+        } catch (err) {
+            fouten.push(`Audiobronnen: ${err.message}`);
+            logger.waarschuwing('Audiobronnen in overzicht mislukt.', { melding: err.message });
+        }
+
+        // Zoeklog is een latere migratie. Als een bestaande database nog niet
+        // is gemigreerd, mogen de gewone tellingen niet allemaal in de
+        // fallback op nul vallen.
+        let zoekLogRegels = 0;
+        try {
+            const resultaat = await pool.query('SELECT count(*)::int AS n FROM zoek_log');
+            zoekLogRegels = resultaat.rows[0]?.n || 0;
+        } catch (err) {
+            fouten.push(`Zoeklog: ${err.message}`);
+            logger.waarschuwing('Zoeklog in overzicht ontbreekt of is onleesbaar.', { melding: err.message });
+        }
+
+        res.json({
+            ...d.rows[0],
+            per_bron: perBron,
+            zoek_log_regels: zoekLogRegels,
+            ...(fouten.length ? { fout: fouten.join(' | ') } : {}),
+        });
     } catch (err) {
         logger.waarschuwing('Overzicht mislukt.', { melding: err.message });
         // Het overzicht blijft bruikbaar op een oudere database tijdens een
-        // migratie. De frontend mag nooit alleen maar streepjes tonen.
-        res.json({ ...leeg, fout: 'Een deel van het overzicht kon niet worden gelezen.' });
+        // migratie. Geef de admin wel de echte oorzaak, anders zijn nullen en
+        // streepjes niet van een lege database te onderscheiden.
+        res.json({
+            ...leeg,
+            fout: `Overzicht-query mislukt: ${err.message}`,
+        });
     }
 });
 
