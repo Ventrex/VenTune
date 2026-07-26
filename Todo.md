@@ -80,7 +80,7 @@
 - [x] **P2** Jaren-90 seed uitbreiden van 52 naar 132 titels.
 - [x] **P1** Admin kan hostaccounts aanmaken, bewerken, uitschakelen en
       wachtwoorden resetten; het admin-wachtwoord blijft in `.env`.
-- [ ] **P2** Playlist-import periodiek uitvoeren vanuit admin met voortgang.
+- [x] **P2** Playlist-import periodiek uitvoeren vanuit admin met voortgang.
 - [x] **P2** Lokale audio ook kunnen toevoegen via admin zonder handmatige
       databaseactie.
 - [x] **P2** Downloadstatus en mislukte downloads zichtbaar maken in `/admin`.
@@ -111,20 +111,36 @@
       overgang kan zonder de lobby te verlaten opnieuw worden gepland.
 - [x] **P1** Host-audio krijgt een harde laad-/starttimeout en toont een
       herstelknop in plaats van onbeperkt te blijven laden.
+- [x] **P1** Admin-seed starten via een expliciete callback; browser-events
+      mogen nooit in de JSON-payload terechtkomen.
+- [x] **P2** Actieve admin-taken zichtbaar maken met naam, status en voortgang.
 
 ## Daarna
 
-- [ ] **P2** Profielpagina voor hostnaam, accountstatus en eigen presets.
-- [ ] **P2** Userdatabase uitbreiden met optionele spelersprofielen en
+- [x] **P2** Profielpagina voor hostnaam, accountstatus en eigen presets.
+- [x] **P2** Userdatabase uitbreiden met optionele spelersprofielen en
       scorehistorie; gastspelers blijven ondersteund.
-- [ ] **P2** Foutmeldingen groeperen per titel en track.
-- [ ] **P2** Track opnieuw zoeken vanuit de melding in `/admin`.
-- [ ] **P2** Bewaarde lokale audio controleren op hash en ontbrekende bestanden.
-- [ ] **P2** Optionele automatische playlist-refresh met veilige rate-limit.
-- [ ] **P2** Lokale bestanden controleren op hash en aanwezigheid.
+- [x] **P2** Foutmeldingen groeperen per titel en track.
+- [x] **P2** Track opnieuw zoeken vanuit de melding in `/admin`.
+- [x] **P2** Bewaarde lokale audio controleren op hash en ontbrekende bestanden.
+- [x] **P2** Optionele automatische playlist-refresh met veilige rate-limit.
+- [x] **P2** Periodieke imports dedupliceren op de oorspronkelijke bron-URL;
+      dezelfde YouTube-video wordt niet telkens opnieuw als track opgeslagen.
+- [x] **P2** Lokale bestanden controleren op hash en aanwezigheid.
+- [x] **P2** Verwijderde lokale kopieën via de bewaarde oorspronkelijke
+      YouTube/iTunes-URL opnieuw kunnen downloaden.
 - [x] **P2** Bulk-cacheactie met voortgang en foutreden bouwen voor beheer buiten
       de automatische pregame-download.
-- [ ] **P3** Afgekeurde tracks exporteren voor handmatige controle.
+- [x] **P2** Kwaliteitsdashboard en modus “alleen gecontroleerde nummers” toevoegen.
+- [x] **P2** Automatische leeftijdsclassificatie uit TMDB-genres toevoegen; admin
+      kan de veilige voorselectie altijd corrigeren.
+- [x] **P3** Afgekeurde tracks exporteren voor handmatige controle.
+- [x] **P3** Importpreview tonen vóór lokale seedwijzigingen.
+- [x] **P3** Changelogsecties voorzien van spelers-, host- en admin-doelgroep.
+- [x] **P3** Meerdere betrouwbare tracks per titel bewaren en afwisselen;
+      imports verwijderen oudere fallbacks niet meer.
+- [x] **P2** Dagelijkse beheerupdates instelbaar maken voor playlists, TMDB,
+      ontbrekende YouTube-tracks, downloads en lokale bestandscontrole.
 
 ## Bewust niet automatisch
 

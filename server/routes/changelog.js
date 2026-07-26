@@ -32,7 +32,14 @@ function leesChangelog() {
         }
         const kop = regel.match(/^###\s+(.+)$/);
         if (kop && huidig) {
-            sectie = { titel: kop[1].trim(), punten: [] };
+            const titel = kop[1].trim();
+            const klein = titel.toLowerCase();
+            const doelgroep = /admin|beheer/.test(klein)
+                ? 'admin'
+                : /betrouwbaarheid|veiligheid/.test(klein)
+                  ? 'host'
+                  : 'spelers';
+            sectie = { titel, doelgroep, punten: [] };
             huidig.secties.push(sectie);
             continue;
         }
@@ -42,9 +49,18 @@ function leesChangelog() {
     return entries;
 }
 
-router.get('/api/changelog', (_req, res) => {
+router.get('/api/changelog', (req, res) => {
     try {
-        res.json({ entries: leesChangelog() });
+        const doelgroep = String(req.query.doelgroep || 'publiek');
+        const entries = leesChangelog().map((entry) => ({
+            ...entry,
+            secties: entry.secties.filter((sectie) => doelgroep === 'alles'
+                ? true
+                : doelgroep === 'admin'
+                  ? sectie.doelgroep === 'admin'
+                  : sectie.doelgroep !== 'admin'),
+        })).filter((entry) => entry.secties.length > 0);
+        res.json({ entries });
     } catch {
         res.status(500).json({ fout: 'Changelog kon niet worden geladen.' });
     }

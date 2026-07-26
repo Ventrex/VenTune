@@ -1,5 +1,50 @@
 # VenTune changelog
 
+## [0.3.5] - 2026-07-26
+
+### Voor spelers
+
+- YouTube-first muziek vernieuwen start weer correct vanuit het admin-portaal.
+
+### Beheer
+
+- Lopende admin-taken tonen naam, status, huidige titel en voortgang.
+- Dagelijkse updates zijn per onderdeel instelbaar: playlists, TMDB,
+  ontbrekende YouTube-tracks, gecontroleerde downloads en lokale media.
+- Herstarten van een verwijderde lokale kopie gebruikt de bewaarde originele
+  YouTube- of iTunes-bron.
+
+## [0.3.4] - 2026-07-26
+
+### Voor spelers
+
+- Nieuwe spelmodus **Alleen gecontroleerde nummers** voor quizavonden waarop
+  alleen betrouwbare tracks mogen worden gebruikt.
+- Hosts hebben een profielpagina met eigen presets, accountstatus en recente
+  spel-/scorehistorie; de host blijft aangemeld tijdens het spelen.
+- De changelog maakt nu onderscheid tussen spelers-, host- en adminnieuws.
+
+### Betrouwbaarheid
+
+- YouTube 403/429-fouten gebruiken een gedeelde backoff met oplopende wachttijd
+  en willekeurige spreiding, zodat grote imports minder snel vastlopen.
+- Lokale audio wordt met bestandsgrootte en SHA-256 gecontroleerd. Ontbrekende
+  of gewijzigde bestanden worden als fout gemarkeerd en niet stil afgespeeld.
+- Mislukte MP3-downloads kunnen vanuit Admin opnieuw worden geprobeerd.
+
+### Beheer
+
+- Nieuw kwaliteitsdashboard met verificatie-, download- en meldingscijfers.
+- Meldingen kunnen per titel worden gegroepeerd; vanuit een melding kan de
+  admin opnieuw een YouTube-kandidaat zoeken zonder automatisch op te slaan.
+- Importpreview toont vooraf nieuwe, bijgewerkte en behouden seedtitels.
+- Automatische playlist-refresh is vanuit Admin instelbaar met veilige limiet;
+  een dagelijkse lokale-bestandscontrole kan worden aan- of uitgezet.
+- Gecontroleerde YouTube-tracks kunnen in één bulkactie vooraf worden gedownload.
+- Afgekeurde tracks kunnen als JSON-controlelijst worden geëxporteerd.
+- TMDB-import geeft nieuwe titels een voorzichtige automatische leeftijdsgrens;
+  de admin kan deze altijd handmatig corrigeren.
+
 ## [0.3.3] - 2026-07-26
 
 ### Filters en catalogus

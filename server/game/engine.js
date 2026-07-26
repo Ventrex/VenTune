@@ -412,7 +412,7 @@ class SpelBeheer {
     async bereidTracksVoor(state) {
         const gepland = state.pool.slice(0, state.totaalRondes);
         for (const titel of gepland) {
-            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds);
+            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen);
             if (!track) continue;
             state.voorbereideTracks.set(titel.id, track);
             if (!['youtube', 'itunes'].includes(track.bron) || track.download_status === 'available') continue;
@@ -435,7 +435,7 @@ class SpelBeheer {
         }
     }
 
-    async kiesTrackVoorTitel(titel, uitgesloten = new Set()) {
+    async kiesTrackVoorTitel(titel, uitgesloten = new Set(), instellingen = {}) {
         const { rows } = await pool.query(
             `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
                     tr.tracknaam, tr.artiest, tr.album,
@@ -445,6 +445,8 @@ class SpelBeheer {
                 AND tr.werkt = true
                 AND tr.preview_url IS NOT NULL
                 AND tr.preview_url <> ''
+                AND ($2::boolean = false
+                     OR (tr.gecontroleerd = true AND tr.verificatie_score >= 0.85))
               ORDER BY CASE
                            -- YouTube blijft de hoofdbron, ook nadat de clip
                            -- lokaal is opgeslagen. bron_url bewaart de
@@ -464,7 +466,7 @@ class SpelBeheer {
                        random(),
                        tr.id DESC
               LIMIT 20`,
-            [titel.id],
+            [titel.id, instellingen?.alleen_gecontroleerd === true],
         );
 
         let eersteGeldige = null;
@@ -595,7 +597,7 @@ class SpelBeheer {
                 const titel = state.pool[state.rondenummer - 1];
                 let track = state.voorbereideTracks.get(titel.id);
                 if (track && state.gebruikteTrackIds.has(track.id)) track = null;
-                track = track || await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds);
+                track = track || await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen);
 
                 if (!track) {
                     logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {

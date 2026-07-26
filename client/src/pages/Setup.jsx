@@ -100,6 +100,7 @@ export default function Setup() {
         leeftijd_deelnemer_min: 4,
         leeftijd_deelnemer_max: 99,
         alleen_nl_tv: true,
+        alleen_gecontroleerd: false,
         leeftijdspunten_aan: false,
         leeftijdsfactoren: { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
     });
@@ -211,6 +212,7 @@ export default function Setup() {
             leeftijd_deelnemer_min: p.leeftijd_deelnemer_min ?? 4,
             leeftijd_deelnemer_max: p.leeftijd_deelnemer_max ?? 99,
             alleen_nl_tv: p.alleen_nl_tv !== false,
+            alleen_gecontroleerd: p.alleen_gecontroleerd === true,
             leeftijdspunten_aan: p.leeftijdspunten_aan === true,
             leeftijdsfactoren: p.leeftijdsfactoren || { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
         });
@@ -250,6 +252,13 @@ export default function Setup() {
             {host && (
                 <div className="account-balk">
                     Host: <strong>{host.display_naam}</strong>
+                    <button
+                        className="terug als-link"
+                        type="button"
+                        onClick={() => navigate('/host/profile')}
+                    >
+                        Profiel
+                    </button>
                     <button
                         className="terug als-link"
                         type="button"
@@ -523,6 +532,18 @@ export default function Setup() {
                     <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
                         <input
                             type="checkbox"
+                            checked={filters.alleen_gecontroleerd === true}
+                            onChange={(e) => zet('alleen_gecontroleerd', e.target.checked)}
+                        />
+                        <span>
+                            <strong>Alleen gecontroleerde nummers</strong>
+                            <span className="keuze-uitleg">Gebruik alleen tracks met een betrouwbare controle of admin-goedkeuring</span>
+                        </span>
+                    </label>
+
+                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
+                        <input
+                            type="checkbox"
                             checked={filters.leeftijdspunten_aan === true}
                             onChange={(e) => zet('leeftijdspunten_aan', e.target.checked)}
                         />
@@ -718,12 +739,13 @@ function labelVoor(p) {
                 : p.categorie === 'alles'
                   ? 'Alles'
               : 'Beide';
-    const taal = p.taal === 'nl' ? 'NL' : p.taal === 'en' ? 'Int' : 'NL+Int';
+    const taal = p.taal === 'nl' ? 'NL' : p.taal === 'us' ? 'Amerikaans' : p.taal === 'en' ? 'Int' : 'NL+Int';
     const rondes = p.rondes === 0 ? 'eindeloos' : `${p.rondes} rondes`;
     const tijd = p.speeltijd === 0 ? 'heel nummer' : `${p.speeltijd}s`;
     const antwoord = p.antwoord_modus === 'meerkeuze' ? '6 opties' : 'typen';
     const leeftijd = p.leeftijd_max ? `t/m ${p.leeftijd_max}` : 'alle leeftijden';
     const tv = p.alleen_nl_tv === false ? 'alle catalogus' : 'NL-tv';
+    const controle = p.alleen_gecontroleerd === true ? ' · alleen gecontroleerd' : '';
     const collecties = (p.collecties || []).length ? ` · ${p.collecties.join(', ')}` : '';
-    return `${cat}${collecties} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd} · ${antwoord} · ${leeftijd} · ${tv}`;
+    return `${cat}${collecties} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd} · ${antwoord} · ${leeftijd} · ${tv}${controle}`;
 }

@@ -223,6 +223,13 @@ async function heeftTrack(titelId) {
 }
 
 async function voegItunesTrackToe(titelId, resultaat, executor = pool) {
+    const bestaande = await executor.query(
+        `SELECT id FROM tracks
+          WHERE titel_id = $1 AND (preview_url = $2 OR bron_url = $2)
+          LIMIT 1`,
+        [titelId, resultaat.preview_url],
+    );
+    if (bestaande.rows[0]) return bestaande.rows[0];
     const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
                              tracknaam, artiest, album, herkenbaarheid,
@@ -262,6 +269,14 @@ async function controleerMetLagen(titel, track, lokaleControle) {
 }
 
 async function voegYoutubeTrackToe(titelId, video, executor = pool) {
+    const bronUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+    const bestaande = await executor.query(
+        `SELECT id FROM tracks
+          WHERE titel_id = $1 AND (preview_url = $2 OR bron_url = $3)
+          LIMIT 1`,
+        [titelId, video.videoId, bronUrl],
+    );
+    if (bestaande.rows[0]) return bestaande.rows[0];
     const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
                              tracknaam, artiest, herkenbaarheid, gecontroleerd,
@@ -276,16 +291,15 @@ async function voegYoutubeTrackToe(titelId, video, executor = pool) {
             video.kanaal || 'YouTube',
             verificatieScore(video),
             video.verificatie?.reden || 'YouTube-titelcontrole',
-            `https://www.youtube.com/watch?v=${video.videoId}`,
+            bronUrl,
         ],
     );
     return rows[0];
 }
 
 /**
- * Vervang de bestaande tracks van een titel door één nieuwe. Alleen
- * aanroepen als de nieuwe track er echt is — zo raak je nooit een
- * werkende track kwijt.
+ * Voeg een nieuwe betrouwbare track atomair toe. Bestaande tracks blijven
+ * bewaard als fallback en voor rotatie; een mislukte insert wijzigt niets.
  */
 async function vervangTracks(titelId, voegToe) {
     const client = await pool.connect();
@@ -293,10 +307,6 @@ async function vervangTracks(titelId, voegToe) {
         await client.query('BEGIN');
         const nieuw = await voegToe(client);
         if (!nieuw?.id) throw new Error('Nieuwe track kon niet worden opgeslagen.');
-        await client.query(
-            `DELETE FROM tracks WHERE titel_id = $1 AND id <> $2`,
-            [titelId, nieuw.id],
-        );
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK');
@@ -364,9 +374,8 @@ async function importeer({
             metTrack++;
             continue;
         }
-        // Let op: bij --force verwijderen we NIETS vooraf. Een oude track is
-        // altijd beter dan geen track. Pas als er een nieuwe gevonden is,
-        // vervangen we de oude (zie hieronder).
+        // Let op: bij --force verwijderen we NIETS. Een oude track is altijd
+        // beter dan geen track en meerdere betrouwbare tracks geven rotatie.
 
         // 1) YouTube is de primaire bron: daar staat vrijwel elke intro en
         //    titelsong, ook de Nederlandse. Dit voorkomt handmatig nalopen.
@@ -391,7 +400,9 @@ async function importeer({
                 }
             }
             if (keuze) {
-                // Nu er echt een treffer is, mogen oude tracks wijken.
+                // Nu er echt een betrouwbare treffer is, voegen we die toe
+                // naast bestaande fallbacks. De engine roteert daarna de
+                // minst gespeelde kandidaat.
                 if (force) {
                     await vervangTracks(titelId, (client) =>
                         voegYoutubeTrackToe(titelId, keuze, client),

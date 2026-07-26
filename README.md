@@ -253,6 +253,11 @@ alleen al bekende/gecontroleerde tracks vooraf gedownload; de game zoekt of
 downloadt geen willekeurige video's. De admin controleert vóór een download of
 de URL nog bestaat. Gebruik alleen bronnen/bestanden die je mag gebruiken.
 
+In de tab **Kwaliteit** kun je daarnaast lokaal opgeslagen bestanden met
+SHA-256 controleren. Een dagelijkse controle kan automatisch draaien zonder
+nieuwe downloads te starten. Voor een belangrijke quizavond kan de host in
+Setup **Alleen gecontroleerde nummers** inschakelen.
+
 ---
 
 ## Beheerportaal (/admin)
@@ -271,6 +276,13 @@ Inloggen met `ADMIN_PASSWORD` uit je `.env`. Je kunt er:
 - eigen/gelicentieerde audio uploaden en direct koppelen;
 - hostaccounts aanmaken, bewerken, uitschakelen en voorzien van een nieuw wachtwoord;
 - importstatus, open meldingen en aantallen per audiobron bekijken.
+- kwaliteitscijfers, lokale-bestandscontrole en mislukte downloads opnieuw
+  proberen;
+- meldingen per titel groeperen en een nieuwe YouTube-kandidaat zoeken zonder
+  die automatisch op te slaan;
+- een importpreview bekijken, periodieke playlist-refresh instellen en
+  afgekeurde tracks exporteren;
+- een hostprofiel gebruiken met eigen presets en spelhistorie.
 
 **YouTube als hoofdbron.** De host speelt een YouTube-video af met de visualizer
 eroverheen, zodat de

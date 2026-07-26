@@ -22,6 +22,27 @@ const API_URL = 'https://www.googleapis.com/youtube/v3/search';
 const MIN_SECONDEN = 20;
 // Boven dit is het vaak een volledige aflevering of urenlange compilatie.
 const MAX_SECONDEN = 45 * 60;
+let youtubeBlokkadeTot = 0;
+let youtubeBlokkadePogingen = 0;
+
+async function wachtOpRateLimit() {
+    const resterend = youtubeBlokkadeTot - Date.now();
+    if (resterend > 0) {
+        await new Promise((resolve) => setTimeout(resolve, resterend));
+    }
+}
+
+function markeerRateLimit(status) {
+    if (status !== 429 && status !== 403) return;
+    youtubeBlokkadePogingen = Math.min(6, youtubeBlokkadePogingen + 1);
+    const wacht = Math.min(5 * 60 * 1000, 4000 * (2 ** (youtubeBlokkadePogingen - 1)));
+    youtubeBlokkadeTot = Date.now() + wacht + Math.floor(Math.random() * 1500);
+}
+
+function resetRateLimit() {
+    youtubeBlokkadePogingen = 0;
+    youtubeBlokkadeTot = 0;
+}
 
 /**
  * Zet een weergaveteller om naar een getal. Vangt zowel Nederlandse als
@@ -156,11 +177,16 @@ async function haalPlaylistHtml(playlistId) {
 
     let laatsteStatus = 0;
     for (let poging = 0; poging < 4; poging++) {
+        await wachtOpRateLimit();
         const resp = await fetch(url, { headers });
-        if (resp.ok) return resp.text();
+        if (resp.ok) {
+            resetRateLimit();
+            return resp.text();
+        }
         laatsteStatus = resp.status;
         if (resp.status !== 429 && resp.status !== 403) break;
-        await new Promise((r) => setTimeout(r, 4000 * Math.pow(2, poging)));
+        markeerRateLimit(resp.status);
+        await new Promise((r) => setTimeout(r, Math.max(4000 * Math.pow(2, poging), youtubeBlokkadeTot - Date.now())));
     }
     throw new Error(`YouTube playlist status ${laatsteStatus}`);
 }
@@ -350,8 +376,13 @@ async function zoekViaApi(term, limiet) {
         maxResults: String(limiet),
         videoEmbeddable: 'true',
     });
+    await wachtOpRateLimit();
     const resp = await fetch(`${API_URL}?${params.toString()}`);
-    if (!resp.ok) throw new Error(`YouTube API status ${resp.status}`);
+    if (!resp.ok) {
+        markeerRateLimit(resp.status);
+        throw new Error(`YouTube API status ${resp.status}`);
+    }
+    resetRateLimit();
     const data = await resp.json();
     return (data.items || []).map((i) => ({
         videoId: i.id.videoId,
@@ -403,8 +434,10 @@ async function zoek(term, opties = {}) {
     // proberen met oplopende wachttijd in plaats van de titel opgeven.
     let laatsteStatus = 0;
     for (let poging = 0; poging < 4; poging++) {
+        await wachtOpRateLimit();
         const resp = await fetch(url, { headers });
         if (resp.ok) {
+            resetRateLimit();
             const html = await resp.text();
             const items = leesResultaten(html);
             if (items.length > 0 && opties.cache !== false) {
@@ -414,12 +447,13 @@ async function zoek(term, opties = {}) {
         }
         laatsteStatus = resp.status;
         if (resp.status !== 429 && resp.status !== 403) break;
-        const wacht = 4000 * Math.pow(2, poging); // 4s, 8s, 16s, 32s
+        markeerRateLimit(resp.status);
+        const wacht = Math.max(4000 * Math.pow(2, poging), youtubeBlokkadeTot - Date.now());
         logger.waarschuwing('YouTube knijpt af, even wachten.', {
             status: resp.status,
             wacht_ms: wacht,
         });
-        await new Promise((r) => setTimeout(r, wacht));
+        await new Promise((r) => setTimeout(r, wacht + Math.floor(Math.random() * 1000)));
     }
     throw new Error(`YouTube zoekpagina status ${laatsteStatus}`);
 }

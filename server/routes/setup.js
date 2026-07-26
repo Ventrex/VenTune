@@ -73,6 +73,7 @@ router.get('/api/tracks/telling', async (req, res) => {
             : [],
         leeftijd_max: Number(req.query.leeftijd_max),
         alleen_nl_tv: req.query.alleen_nl_tv !== 'false',
+        alleen_gecontroleerd: req.query.alleen_gecontroleerd === 'true',
     };
     const { where, params } = bouwFilter(filter);
 
@@ -86,8 +87,10 @@ router.get('/api/tracks/telling', async (req, res) => {
                                   AND tr.werkt = true
                                   AND tr.preview_url IS NOT NULL
                                   AND tr.preview_url <> ''
+                                  AND ($${params.length + 1}::boolean = false
+                                       OR (tr.gecontroleerd = true AND tr.verificatie_score >= 0.85))
                ${where}`,
-            params,
+            [...params, filter.alleen_gecontroleerd === true],
         );
         const titels = rows[0].titels;
         res.json({
@@ -111,7 +114,7 @@ router.get('/api/presets', async (_req, res) => {
                 rondes, speeltijd, modus, min_bekendheid, zonder_genres,
                 leeftijd_max, alleen_nl_tv, collecties,
                 antwoord_modus, leeftijd_deelnemer_min, leeftijd_deelnemer_max,
-                leeftijdspunten_aan, leeftijdsfactoren,
+               leeftijdspunten_aan, leeftijdsfactoren, alleen_gecontroleerd,
                 aangemaakt_op
            FROM presets
           ORDER BY aangemaakt_op DESC`,
@@ -131,13 +134,15 @@ router.post('/api/presets', async (req, res) => {
                (naam, categorie, categorieen, taal, periode_start, periode_eind, rondes,
                 speeltijd, modus, min_bekendheid, zonder_genres, leeftijd_max,
                 alleen_nl_tv, antwoord_modus, collecties, leeftijd_deelnemer_min,
-                leeftijd_deelnemer_max, leeftijdspunten_aan, leeftijdsfactoren)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+                leeftijd_deelnemer_max, leeftijdspunten_aan, leeftijdsfactoren,
+                gebruiker_id, alleen_gecontroleerd)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
              RETURNING id, naam, categorie, categorieen, taal, periode_start, periode_eind,
                        rondes, speeltijd, modus, min_bekendheid, zonder_genres,
                        leeftijd_max, alleen_nl_tv, antwoord_modus, collecties,
                        leeftijd_deelnemer_min, leeftijd_deelnemer_max,
-                       leeftijdspunten_aan, leeftijdsfactoren, aangemaakt_op`,
+                       leeftijdspunten_aan, leeftijdsfactoren, gebruiker_id,
+                       alleen_gecontroleerd, aangemaakt_op`,
             [
                 naam,
                 b.categorie || 'beide',
@@ -158,6 +163,8 @@ router.post('/api/presets', async (req, res) => {
                 Number.isInteger(b.leeftijd_deelnemer_max) ? b.leeftijd_deelnemer_max : 99,
                 b.leeftijdspunten_aan === true,
                 b.leeftijdsfactoren || { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
+                (await require('../lib/auth').gebruikerUitRequest(req))?.id || null,
+                b.alleen_gecontroleerd === true,
             ],
         );
         res.json(rows[0]);

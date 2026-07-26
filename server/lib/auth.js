@@ -153,6 +153,72 @@ router.get('/api/auth/session', async (req, res) => {
     }
 });
 
+// Profielgegevens voor hosts. Het admin-account blijft bewust los van deze
+// gebruikersdatabase; spelers kunnen nog steeds zonder account meedoen.
+router.get('/api/auth/profile', vereisHost, async (req, res) => {
+    try {
+        const { rows } = await pool.query(
+            `SELECT g.id, g.gebruikersnaam, g.display_naam, g.actief,
+                    g.aangemaakt_op, g.laatst_ingelogd, g.voorkeuren,
+                    COUNT(DISTINCT l.id)::int AS spellen,
+                    COALESCE(SUM(s.score), 0)::int AS punten,
+                    COALESCE(MAX(s.score), 0)::int AS beste_score
+               FROM gebruikers g
+               LEFT JOIN lobbies l ON l.host_gebruiker_id = g.id AND l.status = 'afgelopen'
+               LEFT JOIN spelers s ON s.gebruiker_id = g.id AND s.lobby_id = l.id
+              WHERE g.id = $1
+              GROUP BY g.id`,
+            [req.gebruiker.id],
+        );
+        if (!rows[0]) return res.status(404).json({ fout: 'Profiel niet gevonden.' });
+        const presets = await pool.query(
+            `SELECT id, naam, categorie, categorieen, taal, periode_start, periode_eind,
+                    rondes, speeltijd, antwoord_modus, collecties, alleen_gecontroleerd,
+                    aangemaakt_op
+               FROM presets
+              WHERE gebruiker_id = $1
+              ORDER BY aangemaakt_op DESC`,
+            [req.gebruiker.id],
+        );
+        const spellen = await pool.query(
+            `SELECT l.code, l.bijgewerkt_op,
+                    COUNT(s.id)::int AS spelers,
+                    COALESCE(MAX(s.score), 0)::int AS hoogste_score
+               FROM lobbies l
+               LEFT JOIN spelers s ON s.lobby_id = l.id
+              WHERE l.host_gebruiker_id = $1 AND l.status = 'afgelopen'
+              GROUP BY l.id
+              ORDER BY l.bijgewerkt_op DESC
+              LIMIT 20`,
+            [req.gebruiker.id],
+        );
+        res.json({ profiel: rows[0], presets: presets.rows, spellen: spellen.rows });
+    } catch (err) {
+        res.status(500).json({ fout: `Profiel kon niet worden geladen: ${err.message}` });
+    }
+});
+
+router.patch('/api/auth/profile', vereisHost, async (req, res) => {
+    try {
+        const displayNaam = valideerDisplayNaam(req.body?.display_naam, req.gebruiker.display_naam);
+        const voorkeuren = req.body?.voorkeuren && typeof req.body.voorkeuren === 'object'
+            ? req.body.voorkeuren
+            : {};
+        const veiligeVoorkeuren = {
+            fontSchaal: Math.min(1.4, Math.max(0.85, Number(voorkeuren.fontSchaal) || 1)),
+        };
+        const { rows } = await pool.query(
+            `UPDATE gebruikers SET display_naam = $2, voorkeuren = $3::jsonb
+              WHERE id = $1
+              RETURNING id, gebruikersnaam, display_naam, actief, voorkeuren`,
+            [req.gebruiker.id, displayNaam, JSON.stringify(veiligeVoorkeuren)],
+        );
+        res.json(rows[0]);
+    } catch (err) {
+        res.status(400).json({ fout: err.message || 'Profiel opslaan mislukt.' });
+    }
+});
+
 router.post('/api/auth/register', async (req, res) => {
     try {
         const gebruikersnaam = valideerGebruikersnaam(req.body?.gebruikersnaam);

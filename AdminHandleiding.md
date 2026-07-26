@@ -6,10 +6,17 @@ dit wachtwoord nooit in de gebruikersdatabase.
 
 ## Tabs
 
-Gebruik de tabs bovenaan: **Overzicht**, **Titels & muziek**, **Import &
+Gebruik de tabs bovenaan: **Overzicht**, **Kwaliteit**, **Titels & muziek**, **Import &
 downloads**, **Spelcollecties**, **Meldingen**, **Users**, **Database** en **Uiterlijk**. Zo staan
 lopende imports, meldingen en gevaarlijke opschoonacties niet meer tussen de
 dagelijkse titelbewerking.
+
+De tab **Kwaliteit** toont hoeveel tracks gecontroleerd, onzeker, lokaal
+beschikbaar of mislukt zijn. Gebruik **Lokale bestanden controleren** om de
+Docker-volume met de database te vergelijken. De controle berekent SHA-256,
+maar downloadt niets vanzelf. Ontbrekende audio kun je daarna opnieuw
+downloaden wanneer de oorspronkelijke bron nog als YouTube-track bestaat, of
+via een eigen/licentie-upload herstellen.
 
 ## Ontbrekende tracks
 
@@ -47,6 +54,25 @@ De status is zichtbaar per track:
 - `pending`: cacheactie loopt;
 - `available`: lokaal bestand is echt aanwezig;
 - `failed`: cacheactie mislukte; lees de foutmelding en probeer opnieuw.
+
+Boven de admin-tabs staat **Admin-taken** zodra een import, download of
+bestandscontrole draait. Daar zie je welke taak actief is, de huidige titel,
+voortgang en eventuele fout. De status wordt automatisch elke paar seconden
+ververst.
+
+Met **Mislukte downloads opnieuw proberen** worden alleen tracks met een
+mislukte download opnieuw gecontroleerd. Met **Alleen gecontroleerde YouTube-
+tracks downloaden** cache je uitsluitend matches boven de veilige
+verificatiescore.
+
+In **Imports** staat een importpreview. Deze wijzigt niets en toont vooraf
+welke seedtitels nieuw, bijgewerkt of behouden blijven. Daar kan ook een
+periodieke playlist-refresh worden ingesteld. De refresh blijft standaard uit;
+de dagelijkse lokale-bestandscontrole staat standaard aan en kan daar worden
+uitgezet. Onder **Dagelijkse gegevensupdates** kun je TMDB, ontbrekende
+YouTube-tracks en gecontroleerde downloads afzonderlijk plannen. Nieuwe TMDB-
+titels blijven eerst `te_beoordelen` en onzekere YouTube-matches worden niet
+automatisch opgeslagen.
 
 Een URL-check met `yt-dlp` gebeurt vóór een YouTube-download. Een ontbrekende
 of verwijderde video wordt dus als fout geregistreerd en nooit stil als geldig
@@ -92,6 +118,16 @@ aan wanneer ze nog ontbreken. De hintvolgorde is:
 
 Niet beschikbare metadata wordt overgeslagen. Het jaartal is dus niet meer
 altijd de eerste hint.
+
+In **Meldingen** worden problemen per titel gegroepeerd. De knop met het
+vergrootglas zoekt een nieuwe YouTube-kandidaat, maar slaat die nooit zonder
+admincontrole op. Zo blijft een verkeerde match zichtbaar in plaats van dat
+een nieuwe fout automatisch wordt ingevoerd.
+
+De tab **Kwaliteit** is bedoeld voor diagnose. Een matchscore is geen bewijs
+van licentie of auteursrecht; gebruik alleen audio waarvoor je de bron mag
+gebruiken. De export **Afgekeurde tracks** is een JSON-controlelijst voor
+handmatige opvolging.
 
 ## Hostaccounts
 

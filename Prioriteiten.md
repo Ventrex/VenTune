@@ -29,10 +29,11 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
    beoordelen van de resterende meldingen. De code weigert onzekere matches,
    maar “altijd het juiste nummer” blijft alleen haalbaar met deze laatste
    admincontrole per titel.
-3. Open P2 — automatische leeftijdsclassificatie, YouTube-rate-limit-herstel,
-   curatie-dashboard, periodieke controle van ontbrekende lokale bestanden en
-   het vullen van de volledige 1600+-catalogus met gevalideerde tracks.
-4. Open P3/P4 — profielen, verdere spelvarianten en rechten-/onderzoekskeuzes.
+3. Open P2 — het vullen van de volledige 1600+-catalogus met handmatig
+   bevestigde tracks en de technische beperking dat iTunes slechts korte
+   previews levert. Automatische healthcheck, retry, curatie en verified-modus
+   zijn gebouwd.
+4. Open P3/P4 — verdere spelvarianten en rechten-/onderzoekskeuzes.
 
 ## Afgerond in deze werkronde — 2026-07-26
 
@@ -52,11 +53,20 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
   compacte adminweergave en instelbare spelerslettergrootte.
 - P2: admin heeft genrekeuze voor TMDB-film/serie-import, voortgangsbalk en
   een veilige actie **YouTube zoeken voor titels zonder track**.
+- P2: kwaliteitsdashboard, alleen-gecontroleerde spelmodus, dagelijkse
+  lokale-bestandscontrole en gecontroleerde YouTube-bulkdownload.
+- P2: periodieke playlist-refresh met gedeelde rate-limit-backoff.
+- P2: gegroepeerde meldingen met opnieuw zoeken, importpreview en downloadretry.
+- P2: hostprofiel met accountstatus, presets en score-/spelgeschiedenis.
+- P3: export van afgekeurde tracks en doelgroepweergave in de changelog.
+- P1/P2: admin-taakmonitor en herstel van de seedknop na circulaire JSON-data.
+- P2: afzonderlijke dagelijkse planning voor playlist, TMDB, YouTube-aanvulling,
+  goedgekeurde downloads en lokale bestandscontrole.
 
 ## Door te geven aan Codex
 
 Gebruik bijvoorbeeld: **“Pak alle open P1-punten op.”**
 
-De volgende opdracht is dan P2: lokale bestanden periodiek controleren,
-downloadfouten opnieuw proberen, het curatie-dashboard uitbreiden en
-TMDB/importbeheer verder opschalen.
+De volgende inhoudelijke opdracht is P1: de resterende YouTube-kandidaten per
+titel handmatig controleren. Daarna blijft vooral het opschalen van de
+1600+-catalogus over; daarvoor is adminbeoordeling of gelicentieerde audio nodig.

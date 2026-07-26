@@ -10,7 +10,7 @@
  *
  * @param {object} f  { categorie, categorieen, taal, collectie, collecties, periode_start, periode_eind,
  *                      min_bekendheid, zonder_genres, leeftijd_max,
- *                      alleen_nl_tv }
+ *                      alleen_nl_tv, alleen_gecontroleerd }
  * @returns {{ where: string, params: any[] }}
  */
 function bouwFilter(f = {}) {
@@ -109,6 +109,18 @@ function bouwFilter(f = {}) {
     if (Number.isFinite(leeftijd) && leeftijd > 0) {
         params.push(leeftijd);
         condities.push(`t.leeftijdsgrens <= $${params.length}`);
+    }
+
+    // Quizavond zonder verrassingen: alleen tracks die door de automatische
+    // controle zijn gekomen of bewust door de admin zijn goedgekeurd.
+    if (f.alleen_gecontroleerd === true) {
+        condities.push(`EXISTS (SELECT 1 FROM tracks vc
+                                 WHERE vc.titel_id = t.id
+                                   AND vc.werkt = true
+                                   AND vc.gecontroleerd = true
+                                   AND vc.verificatie_score >= 0.85
+                                   AND vc.preview_url IS NOT NULL
+                                   AND vc.preview_url <> '')`);
     }
 
     const where = condities.length ? `WHERE ${condities.join(' AND ')}` : '';

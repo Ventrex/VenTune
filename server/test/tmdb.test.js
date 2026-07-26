@@ -1,5 +1,6 @@
 const assert = require('assert/strict');
 const { beoordeelTrackMetDetails } = require('../lib/tmdb');
+const { leeftijdsgrensVoorGenres } = require('../../seed/tmdb-import');
 
 const gooische = {
     naam: 'Gooische Vrouwen',
@@ -15,6 +16,10 @@ assert.equal(
     ).past,
     true,
 );
+
+assert.equal(leeftijdsgrensVoorGenres(['Familie']), 6);
+assert.equal(leeftijdsgrensVoorGenres(['Fantasy']), 9);
+assert.equal(leeftijdsgrensVoorGenres(['Horror']), 16);
 
 // Een bekende lokale afkorting blijft geldig als TMDB de officiële titel
 // bevestigt (bijvoorbeeld GTST versus Goede Tijden Slechte Tijden).

@@ -18,6 +18,7 @@ const { execFile } = require('child_process');
 const fs = require('fs/promises');
 const path = require('path');
 const { pool } = require('../server/db/pool');
+const { bestandGezondheid } = require('../server/lib/media-health');
 
 const args = process.argv.slice(2);
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
@@ -183,23 +184,26 @@ async function controleerYoutubeUrl(track) {
 }
 
 async function controleerTrackUrl(track) {
-    if (track.bron === 'youtube') return controleerYoutubeUrl(track);
-    if (track.bron !== 'itunes' || !isToegestanePreview(track.preview_url)) {
+    if (track.bron === 'youtube' || (track.bron === 'lokaal' && youtubeUrl(track))) {
+        return controleerYoutubeUrl(track);
+    }
+    const appleUrl = track.bron === 'lokaal' ? track.bron_url : track.preview_url;
+    if (!['itunes', 'lokaal'].includes(track.bron) || !isToegestanePreview(appleUrl)) {
         throw new Error('Geen toegestane downloadbron.');
     }
-    let response = await fetch(track.preview_url, {
+    let response = await fetch(appleUrl, {
         method: 'HEAD',
         headers: { 'User-Agent': 'VenTune/1.0 source-check' },
     });
     // Sommige Apple/CDN-varianten weigeren HEAD maar leveren wel audio op een
     // kleine ranged GET. Dat is nog steeds alleen een URL-check, geen mp3-save.
     if (response.status === 405 || response.status === 403) {
-        response = await fetch(track.preview_url, {
+        response = await fetch(appleUrl, {
             headers: { 'User-Agent': 'VenTune/1.0 source-check', Range: 'bytes=0-0' },
         });
     }
     if (!response.ok) throw new Error(`Bron gaf HTTP ${response.status}.`);
-    return { bestaat: true, url: track.preview_url };
+    return { bestaat: true, url: appleUrl };
 }
 
 /** Controleer of een eerder opgeslagen lokale kopie nog echt op disk staat. */
@@ -216,6 +220,46 @@ async function lokaalBestandBeschikbaar(track) {
     } catch {
         return false;
     }
+}
+
+/** Controleer alle lokale tracks en synchroniseer status/hash met de disk. */
+async function controleerLokaleBestanden({ onProgress = null } = {}) {
+    const { rows } = await pool.query(
+        `SELECT tr.id, tr.bron, tr.preview_url, tr.bestand_pad, tr.audio_sha256,
+                tr.download_status, t.naam
+           FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+          WHERE tr.bron = 'lokaal' OR tr.download_status = 'available'
+          ORDER BY tr.id`,
+    );
+    let goed = 0;
+    let ontbreekt = 0;
+    let gewijzigd = 0;
+    const fouten = [];
+    for (const [index, track] of rows.entries()) {
+        const gezondheid = await bestandGezondheid(track);
+        if (gezondheid.aanwezig && gezondheid.hashGelijk) {
+            goed++;
+            await pool.query(
+                `UPDATE tracks SET media_controle_op = now(), media_melding = NULL,
+                        download_status = 'available', audio_sha256 = COALESCE($2, audio_sha256)
+                  WHERE id = $1`,
+                [track.id, gezondheid.sha256],
+            );
+        } else {
+            if (gezondheid.aanwezig && !gezondheid.hashGelijk) gewijzigd++;
+            else ontbreekt++;
+            const fout = gezondheid.fout || 'Lokaal bestand niet bruikbaar.';
+            fouten.push({ id: track.id, naam: track.naam, fout });
+            await pool.query(
+                `UPDATE tracks SET media_controle_op = now(), media_melding = $2,
+                        download_status = 'failed'
+                  WHERE id = $1`,
+                [track.id, fout.slice(0, 500)],
+            );
+        }
+        onProgress?.({ verwerkt: index + 1, totaal: rows.length, huidige: track.naam, goed, ontbreekt, gewijzigd });
+    }
+    return { verwerkt: rows.length, goed, ontbreekt, gewijzigd, fouten: fouten.slice(0, 200) };
 }
 
 /**
@@ -289,9 +333,17 @@ async function downloadYoutubeTrack(track, droog = false) {
 }
 
 async function downloadTrack(track, droog = false) {
-    if (track.bron === 'youtube') return downloadYoutubeTrack(track, droog);
-    if (track.bron === 'itunes') return downloadAppleTrack(track, droog);
-    throw new Error('Deze track is al lokaal of heeft geen ondersteunde downloadbron.');
+    if (track.bron === 'youtube' || (track.bron === 'lokaal' && youtubeUrl(track))) {
+        return downloadYoutubeTrack({ ...track, bron: 'youtube' }, droog);
+    }
+    if (track.bron === 'itunes' || (track.bron === 'lokaal' && isToegestanePreview(track.bron_url))) {
+        return downloadAppleTrack({
+            ...track,
+            bron: 'itunes',
+            preview_url: track.bron_url || track.preview_url,
+        }, droog);
+    }
+    throw new Error('Deze track heeft geen herstelbare downloadbron.');
 }
 
 async function main() {
@@ -347,4 +399,5 @@ module.exports = {
     controleerYoutubeUrl,
     controleerTrackUrl,
     lokaalBestandBeschikbaar,
+    controleerLokaleBestanden,
 };

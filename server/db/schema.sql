@@ -145,6 +145,8 @@ ALTER TABLE tracks ADD COLUMN IF NOT EXISTS download_status TEXT NOT NULL DEFAUL
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS download_melding TEXT;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS audio_sha256 TEXT;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS gedownload_op TIMESTAMPTZ;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS media_controle_op TIMESTAMPTZ;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS media_melding TEXT;
 
 DO $$
 BEGIN
@@ -176,6 +178,7 @@ CREATE TABLE IF NOT EXISTS gebruikers (
     display_naam        TEXT        NOT NULL,
     wachtwoord_hash     TEXT        NOT NULL,
     actief              BOOLEAN     NOT NULL DEFAULT true,
+    voorkeuren          JSONB       NOT NULL DEFAULT '{}'::jsonb,
     aangemaakt_op       TIMESTAMPTZ NOT NULL DEFAULT now(),
     laatst_ingelogd     TIMESTAMPTZ
 );
@@ -227,12 +230,28 @@ ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijd_deelnemer_min INTEGER NOT 
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijd_deelnemer_max INTEGER NOT NULL DEFAULT 99;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijdspunten_aan BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijdsfactoren JSONB NOT NULL DEFAULT '{"6": 2, "9": 1.75, "12": 1.5, "16": 1.25, "18": 1}'::jsonb;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS gebruiker_id UUID;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS alleen_gecontroleerd BOOLEAN NOT NULL DEFAULT false;
 DO $$
 BEGIN
     ALTER TABLE presets DROP CONSTRAINT IF EXISTS presets_antwoord_modus_check;
     ALTER TABLE presets ADD CONSTRAINT presets_antwoord_modus_check
         CHECK (antwoord_modus IN ('typen', 'meerkeuze'));
 END$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_presets_gebruiker'
+    ) THEN
+        ALTER TABLE presets
+            ADD CONSTRAINT fk_presets_gebruiker
+            FOREIGN KEY (gebruiker_id) REFERENCES gebruikers (id)
+            ON DELETE SET NULL;
+    END IF;
+END$$;
+
+CREATE INDEX IF NOT EXISTS idx_presets_gebruiker ON presets (gebruiker_id, aangemaakt_op DESC);
 
 -- ---------------------------------------------------------------------
 -- Spelcollecties: een titel kan in meerdere edities tegelijk zitten.
@@ -456,6 +475,34 @@ VALUES (
       "tekst": "#f5f5f5",
       "tekstDim": "#8a8a8a",
       "lettertype": "system-ui"
+    }'::jsonb
+)
+ON CONFLICT (sleutel) DO NOTHING;
+
+INSERT INTO app_instellingen (sleutel, waarde)
+VALUES (
+    'beheer',
+    '{
+      "playlistAutomatisch": false,
+      "playlistIntervalUren": 24,
+      "playlistLaatsteRun": null,
+      "playlistVolgendeRun": null,
+      "mediaHealthAutomatisch": true,
+      "mediaHealthIntervalUren": 24,
+      "mediaHealthLaatsteRun": null,
+      "mediaHealthVolgendeRun": null,
+      "tmdbAutomatisch": false,
+      "tmdbIntervalUren": 24,
+      "tmdbLaatsteRun": null,
+      "tmdbVolgendeRun": null,
+      "youtubeAutomatisch": false,
+      "youtubeIntervalUren": 24,
+      "youtubeLaatsteRun": null,
+      "youtubeVolgendeRun": null,
+      "downloadsAutomatisch": false,
+      "downloadsIntervalUren": 24,
+      "downloadsLaatsteRun": null,
+      "downloadsVolgendeRun": null
     }'::jsonb
 )
 ON CONFLICT (sleutel) DO NOTHING;

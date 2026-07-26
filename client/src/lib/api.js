@@ -64,6 +64,25 @@ export async function authUitloggen() {
     return data;
 }
 
+export async function authProfiel() {
+    const resp = await fetch('/api/auth/profile', { credentials: 'include' });
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Profiel kon niet worden geladen.');
+    return data;
+}
+
+export async function authBewaarProfiel(data) {
+    const resp = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    const resultaat = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(resultaat?.fout || 'Profiel opslaan mislukt.');
+    return resultaat;
+}
+
 /** Zoek muziek op iTunes via de server. Geeft { term, aantal, resultaten }. */
 export async function zoekMuziek(term, land) {
     const params = new URLSearchParams({ term });
@@ -106,6 +125,7 @@ export async function haalTelling(filters) {
         collectie: (filters.collecties || []).join(',') || filters.collectie || 'alles',
         leeftijd_max: String(filters.leeftijd_max ?? 0),
         alleen_nl_tv: String(filters.alleen_nl_tv !== false),
+        alleen_gecontroleerd: String(filters.alleen_gecontroleerd === true),
     });
     const resp = await fetch(`/api/tracks/telling?${params.toString()}`);
     const data = await jsonOfNull(resp);
@@ -143,8 +163,8 @@ export async function haalRanking() {
 }
 
 /** Publieke wijzigingen die spelers mogen zien. */
-export async function haalChangelog() {
-    const resp = await fetch('/api/changelog');
+export async function haalChangelog(doelgroep = 'publiek') {
+    const resp = await fetch(`/api/changelog?doelgroep=${encodeURIComponent(doelgroep)}`);
     const data = await jsonOfNull(resp);
     if (!resp.ok) throw new Error(data?.fout || 'Changelog kon niet worden geladen.');
     return data?.entries || [];
@@ -230,6 +250,18 @@ export async function adminDownloadStart(data = {}) {
 export async function adminDownloadStatus() {
     return adminFetch('/api/admin/downloads/status');
 }
+export async function adminRetryMislukteDownloads() {
+    return adminFetch('/api/admin/downloads/retry-mislukt', { method: 'POST' });
+}
+export async function adminMediaHealthStart() {
+    return adminFetch('/api/admin/media-health/start', { method: 'POST' });
+}
+export async function adminMediaHealthStatus() {
+    return adminFetch('/api/admin/media-health/status');
+}
+export async function adminTaken() {
+    return adminFetch('/api/admin/taken');
+}
 export async function adminUploadTrack(titelId, bestand, gegevens = {}) {
     const form = new FormData();
     form.append('bestand', bestand);
@@ -276,6 +308,18 @@ export async function adminVragenStatus() {
 export async function adminOverzicht() {
     return adminFetch('/api/admin/overzicht');
 }
+export async function adminKwaliteit() {
+    return adminFetch('/api/admin/kwaliteit');
+}
+export async function adminPlanning() {
+    return adminFetch('/api/admin/planning');
+}
+export async function adminBewaarPlanning(data) {
+    return adminFetch('/api/admin/planning', { method: 'PATCH', ...jsonBody(data) });
+}
+export async function adminImportPreview() {
+    return adminFetch('/api/admin/import/preview');
+}
 export async function adminOntbrekendeTracks() {
     return adminFetch('/api/admin/ontbrekende-tracks');
 }
@@ -317,6 +361,15 @@ export async function adminMeldingen(alle = true) {
 }
 export async function adminMeldingAf(id) {
     return adminFetch(`/api/admin/meldingen/${id}/afgehandeld`, { method: 'POST' });
+}
+export async function adminMeldingZoek(id) {
+    return adminFetch(`/api/admin/meldingen/${id}/zoek`, { method: 'POST' });
+}
+export async function adminMeldingGroepen() {
+    return adminFetch('/api/admin/meldingen/groepen');
+}
+export function adminAfgekeurdeTracksExport() {
+    window.location.href = '/api/admin/tracks/afgekeurd/export';
 }
 export async function adminDatabase() {
     return adminFetch('/api/admin/database');

@@ -59,6 +59,17 @@ const LANDEN = {
     RU: 'Rusland', TR: 'Turkije', IL: 'Israël', AR: 'Argentinië', ZA: 'Zuid-Afrika',
 };
 
+// Voorselectie, geen wettelijke kijkwijzer. De admin kan altijd corrigeren;
+// de veilige kant is belangrijker dan een te lage automatische classificatie.
+function leeftijdsgrensVoorGenres(genres = []) {
+    const set = new Set(genres.map((g) => String(g).toLowerCase()));
+    if (['horror', 'thriller', 'misdaad', 'oorlog'].some((g) => set.has(g))) return 16;
+    if (set.has('familie') || set.has('animatie')) return 6;
+    if (set.has('fantasy')) return 9;
+    if (['actie', 'avontuur', 'sciencefiction', 'musical', 'komedie'].some((g) => set.has(g))) return 12;
+    return 16;
+}
+
 // TMDB kent twee soorten sleutels:
 //  - API Key (v3): korte reeks, gaat mee als ?api_key=...
 //  - API Read Access Token (v4): lange reeks die met 'eyJ' begint en als
@@ -143,7 +154,7 @@ function naarTitel(r, type) {
         omschrijving: r.overview || null,
         nl_tv_bekend: false,
         curatie_status: 'te_beoordelen',
-        leeftijdsgrens: 16,
+        leeftijdsgrens: leeftijdsgrensVoorGenres(genres),
         toevoeg_reden: 'Automatisch toegevoegd via TMDB-populariteitsimport; Nederlandse tv-bekendheid moet nog door de admin worden gecontroleerd.',
     };
 }
@@ -324,7 +335,7 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
     return { ...teller, totaal: d.n, nl: d.nl, series: d.series, genre: genreTekst || null };
 }
 
-module.exports = { importeerTmdb };
+module.exports = { importeerTmdb, leeftijdsgrensVoorGenres };
 
 if (require.main === module) {
     importeerTmdb()

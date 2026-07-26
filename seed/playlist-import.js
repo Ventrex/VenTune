@@ -2,8 +2,8 @@
 // Playlist-import: leest YouTube-playlists met intro's en titelsongs en
 // koppelt elke video uitsluitend aan een overtuigend passende titel.
 //
-// Onzeker = overslaan. Een bestaande track wordt alleen vervangen binnen
-// één database-transactie, zodat een fout nooit een goede oude track wist.
+// Onzeker = overslaan. Een nieuwe betrouwbare track wordt naast bestaande
+// tracks bewaard, zodat fallbacks en rotatie behouden blijven.
 // =====================================================================
 
 const fs = require('fs');
@@ -52,6 +52,14 @@ async function maakTitel(naam, type, taal) {
 
 /** Voeg een playlisttrack toe via de meegegeven executor/transaction. */
 async function zetTrack(titelId, video, playlistNaam, executor = pool, tmdbControle = null) {
+    const bronUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+    const bestaande = await executor.query(
+        `SELECT id FROM tracks
+          WHERE titel_id = $1 AND (preview_url = $2 OR bron_url = $3)
+          LIMIT 1`,
+        [titelId, video.videoId, bronUrl],
+    );
+    if (bestaande.rows[0]) return bestaande.rows[0];
     const { rows } = await executor.query(
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
                              tracknaam, artiest, herkenbaarheid, gecontroleerd,
@@ -64,22 +72,18 @@ async function zetTrack(titelId, video, playlistNaam, executor = pool, tmdbContr
             video.titel.slice(0, 200),
             video.kanaal || 'YouTube',
             `playlist-match: ${playlistNaam}${tmdbControle?.beschikbaar ? `; ${tmdbControle.reden}` : ''}`.slice(0, 200),
-            `https://www.youtube.com/watch?v=${video.videoId}`,
+            bronUrl,
         ],
     );
     return rows[0];
 }
 
-/** Vervang tracks atomair; bij een fout blijven de oude tracks bestaan. */
+/** Voeg een playlisttrack atomair toe; bij een fout blijven oude tracks staan. */
 async function vervangTracks(titelId, video, playlistNaam, tmdbControle = null) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         const nieuw = await zetTrack(titelId, video, playlistNaam, client, tmdbControle);
-        await client.query(
-            `DELETE FROM tracks WHERE titel_id = $1 AND id <> $2`,
-            [titelId, nieuw.id],
-        );
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
