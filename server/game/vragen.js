@@ -81,16 +81,16 @@ function bouwBasisVragen(titel) {
         );
         if (v) vragen.push(v);
 
-        // 2. Decennium (andere invalshoek dan het exacte jaar)
-        const decennium = Math.floor(titel.jaar / 10) * 10;
-        const decAfleiders = hussel([-30, -20, -10, 10, 20, 30])
+        // 2. Nogmaals een echt jaar. Een decennium maakt de bonusvraag te
+        // eenvoudig (en geeft vooral bij jaren 90 weinig informatie).
+        const jaarAfleiders2 = hussel([-12, -9, -6, -3, 3, 6, 9, 12])
             .slice(0, 5)
-            .map((o) => `jaren ${String(decennium + o).slice(-2)}`);
+            .map((o) => String(titel.jaar + o));
         const v2 = maakVraag(
-            'decennium',
-            `Uit welk decennium komt ${naam}?`,
-            `jaren ${String(decennium).slice(-2)}`,
-            decAfleiders,
+            'releasejaar',
+            `Welk jaar hoort bij de eerste release van ${naam}?`,
+            String(titel.jaar),
+            jaarAfleiders2,
         );
         if (v2) vragen.push(v2);
     }

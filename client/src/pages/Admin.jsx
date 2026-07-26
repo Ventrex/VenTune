@@ -73,6 +73,8 @@ function Beheer({ onUit }) {
     const [ontbrekend, setOntbrekend] = useState([]);
     const [collecties, setCollecties] = useState([]);
     const [tab, setTab] = useState('overzicht');
+    const [importGenre, setImportGenre] = useState('');
+    const [voortgang, setVoortgang] = useState(null);
 
     async function laadTitels(zoekOverride = zoek, filterOverride = titelFilter) {
         try {
@@ -128,7 +130,7 @@ function Beheer({ onUit }) {
         laadMeldingen();
     }
 
-    async function seed(alleenDb = false, youtubeAlleen = false) {
+    async function seed(alleenDb = false, youtubeAlleen = false, force = true) {
         setBezigSeed(true);
         setMelding(alleenDb
             ? 'YouTube-matches voor alle database-titels opnieuw zoeken… dit draait in de achtergrond.'
@@ -136,7 +138,7 @@ function Beheer({ onUit }) {
         try {
             // Force is veilig: importeer vervangt pas nadat een nieuwe,
             // gecontroleerde YouTube-track is gevonden.
-            const gestart = await api.adminSeed(true, alleenDb, youtubeAlleen);
+            const gestart = await api.adminSeed(force, alleenDb, youtubeAlleen);
             if (gestart?.gestart === false) {
                 setBezigSeed(false);
                 setMelding(`Admin-taak "${gestart.taak || 'import'}" is al bezig.`);
@@ -149,6 +151,7 @@ function Beheer({ onUit }) {
                     if (st.klaar) {
                         clearInterval(poll);
                         setBezigSeed(false);
+                        setVoortgang(null);
                         if (st.fout) {
                             setMelding('Seed mislukt: ' + st.fout);
                         } else if (st.samenvatting) {
@@ -162,6 +165,7 @@ function Beheer({ onUit }) {
                         }
                         laad();
                     } else if (st.bezig) {
+                        setVoortgang(st);
                         setMelding('Seed importeren… bezig, even geduld (1–3 min).');
                     }
                 } catch {
@@ -232,6 +236,7 @@ function Beheer({ onUit }) {
 
     async function achtergrondTaak(start, status, setBezig, bezigTekst, klaarTekst) {
         setBezig(true);
+        setVoortgang(null);
         setMelding(bezigTekst);
         try {
             const gestart = await start();
@@ -246,11 +251,15 @@ function Beheer({ onUit }) {
                     if (st.klaar) {
                         clearInterval(poll);
                         setBezig(false);
+                        setVoortgang(null);
                         setMelding(st.fout ? `${klaarTekst} mislukt: ${st.fout}` : tekstVoorTaak(klaarTekst, st.samenvatting));
                         laad();
                         laadOverzicht();
                     } else if (st.bezig && st.totaal) {
-                        setMelding(`MP3 downloaden… ${st.verwerkt || 0}/${st.totaal}${st.huidige ? ` · ${st.huidige}` : ''}`);
+                        setVoortgang(st);
+                        setMelding(`${bezigTekst} ${st.verwerkt || 0}/${st.totaal}${st.huidige ? ` · ${st.huidige}` : ''}`);
+                    } else if (st.bezig) {
+                        setVoortgang({ ...st, indeterminate: true });
                     }
                 } catch {
                     /* blijf pollen */
@@ -272,7 +281,7 @@ function Beheer({ onUit }) {
     }
 
     return (
-        <main className="scherm host-scherm">
+        <main className="scherm host-scherm admin-portaal">
             <Brand compact />
             <div className="raden-kop">
                 <h1 style={{ margin: 0 }}>Beheer</h1>
@@ -303,10 +312,16 @@ function Beheer({ onUit }) {
             </nav>
 
             {melding && <p className="waarschuwing">{melding}</p>}
+            {voortgang && (voortgang.totaal || voortgang.indeterminate) && (
+                <div className={'admin-progress' + (voortgang.indeterminate ? ' onbepaald' : '')} role="progressbar" aria-valuenow={voortgang.verwerkt || 0} aria-valuemax={voortgang.totaal || 0}>
+                    {!voortgang.indeterminate && <span style={{ width: `${Math.min(100, Math.round(((voortgang.verwerkt || 0) / voortgang.totaal) * 100))}%` }} />}
+                </div>
+            )}
 
             {tab === 'overzicht' && overzicht && (
                 <div className="overzicht">
                     <Tegel label="Titels" waarde={overzicht.titels} onClick={() => openTab('titels', { filter: '' })} />
+                    <Tegel label="Bekend/gecureerd" waarde={overzicht.bekende_titels} onClick={() => openTab('titels', { filter: 'gecurateerd' })} />
                     <Tegel label="Speelbaar" waarde={overzicht.speelbaar} onClick={() => openTab('titels', { filter: 'speelbaar' })} />
                     <Tegel label="Tracks nodig" waarde={overzicht.ontbrekende_tracks} onClick={() => openTab('downloads')} />
                     <Tegel label="Tracks" waarde={overzicht.tracks} onClick={() => openTab('downloads')} />
@@ -334,8 +349,8 @@ function Beheer({ onUit }) {
                             <button className="knop knop-stil" onClick={seed} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
                                 {bezigSeed ? 'Bezig…' : 'YouTube-first muziek vernieuwen'}
                             </button>
-                            <button className="knop knop-stil" onClick={() => seed(true, true)} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
-                                {bezigSeed ? 'Bezig…' : 'YouTube voor hele database opnieuw zoeken'}
+                            <button className="knop knop-stil" onClick={() => seed(true, true, false)} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
+                                {bezigSeed ? 'Bezig…' : 'YouTube zoeken voor titels zonder track'}
                             </button>
                             <button className="knop knop-stil" onClick={playlistImport} disabled={bezigPlaylist || bezigSeed || bezigTmdb || bezigVragen}>
                                 {bezigPlaylist ? 'Playlists importeren…' : 'YouTube-playlists verversen'}
@@ -348,11 +363,15 @@ function Beheer({ onUit }) {
                                 {bezigTmdb ? 'TMDB importeren…' : 'TMDB-titels importeren'}
                             </button>
                             <div className="zoekbalk">
-                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('film'), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe films ophalen…', 'Nieuwe films ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
-                                    Nieuwe films ophalen
+                                <select className="invoer" value={importGenre} onChange={(e) => setImportGenre(e.target.value)} aria-label="Genre voor TMDB-import">
+                                    <option value="">Alle genres</option>
+                                    {['Actie', 'Avontuur', 'Animatie', 'Komedie', 'Drama', 'Familie', 'Fantasy', 'Horror', 'Musical', 'Romantiek', 'Sciencefiction', 'Thriller', 'Superhelden'].map((g) => <option key={g} value={g}>{g}</option>)}
+                                </select>
+                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('film', importGenre), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe films ophalen…', 'Nieuwe films ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
+                                    Nieuwe films ophalen{importGenre ? ` · ${importGenre}` : ''}
                                 </button>
-                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('serie'), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe series ophalen…', 'Nieuwe series ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
-                                    Nieuwe series ophalen
+                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('serie', importGenre), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe series ophalen…', 'Nieuwe series ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
+                                    Nieuwe series ophalen{importGenre ? ` · ${importGenre}` : ''}
                                 </button>
                             </div>
                             <button
@@ -471,6 +490,7 @@ function Beheer({ onUit }) {
                     <option value="zonder-track">Zonder speelbare track</option>
                     <option value="afgekeurd">Met afgekeurde track</option>
                     <option value="speelbaar">Alleen speelbaar</option>
+                    <option value="gecurateerd">Bekend/gecurateerd</option>
                     <option value="zonder-vraag">Zonder bonusvraag</option>
                 </select>
                 <button className="knop" type="submit">Zoek</button>
@@ -674,6 +694,7 @@ function Uiterlijk({ onMelding }) {
         tekst: '#f5f5f5',
         tekstDim: '#8a8a8a',
         lettertype: 'system-ui',
+        fontSchaal: 1,
     };
     const [thema, setThema] = useState(standaard);
     const [logo, setLogo] = useState(null);
@@ -720,6 +741,12 @@ function Uiterlijk({ onMelding }) {
                     <input className="invoer" value={thema.ondertitel} onChange={(e) => zet('ondertitel', e.target.value)} placeholder="Ondertitel" />
                     <select className="invoer" value={thema.lettertype} onChange={(e) => zet('lettertype', e.target.value)}>
                         {['system-ui', 'Inter', 'Arial', 'Verdana', 'Trebuchet MS', 'Georgia', 'monospace'].map((font) => <option key={font} value={font}>{font}</option>)}
+                    </select>
+                    <select className="invoer" value={thema.fontSchaal} onChange={(e) => zet('fontSchaal', Number(e.target.value))}>
+                        <option value="0.9">Kleinere tekst</option>
+                        <option value="1">Normale tekst</option>
+                        <option value="1.15">Grotere tekst</option>
+                        <option value="1.3">Extra grote tekst</option>
                     </select>
                     {kleuren.map(([sleutel, label]) => (
                         <label key={sleutel} className="kleur-veld">

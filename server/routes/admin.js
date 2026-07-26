@@ -237,6 +237,8 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
         voorwaarden.push(`EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id AND x.werkt = false)`);
     } else if (filter === 'zonder-vraag') {
         voorwaarden.push(`NOT EXISTS (SELECT 1 FROM vragen v WHERE v.titel_id = t.id)`);
+    } else if (filter === 'gecurateerd') {
+        voorwaarden.push(`t.nl_tv_bekend = true AND t.curatie_status = 'goedgekeurd'`);
     }
     const where = voorwaarden.length ? `WHERE ${voorwaarden.join(' AND ')}` : '';
     const { rows } = await pool.query(
@@ -427,6 +429,7 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
         const d = await pool.query(
             `SELECT
                (SELECT count(*)::int FROM titels) AS titels,
+               (SELECT count(*)::int FROM titels WHERE nl_tv_bekend = true AND curatie_status = 'goedgekeurd') AS bekende_titels,
                (SELECT count(*)::int FROM tracks) AS tracks,
                (SELECT count(*)::int FROM tracks WHERE werkt = false) AS afgekeurd,
                (SELECT count(*)::int FROM tracks WHERE gecontroleerd) AS gecontroleerd,
@@ -468,7 +471,7 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
 // ---- Applicatie-instellingen / uiterlijk ----
 const THEMA_SLEUTELS = [
     'appNaam', 'ondertitel', 'logoPad', 'achtergrond', 'oppervlak', 'rand',
-    'accent', 'accentDonker', 'tekst', 'tekstDim', 'lettertype',
+    'accent', 'accentDonker', 'tekst', 'tekstDim', 'lettertype', 'fontSchaal',
 ];
 const VEILIGE_LETTERTYPEN = new Set([
     'system-ui', 'Inter', 'Arial', 'Verdana', 'Trebuchet MS', 'Georgia', 'monospace',
@@ -483,6 +486,9 @@ function schoonThema(input = {}, oud = {}) {
             uitkomst[sleutel] = waarde;
         } else if (sleutel === 'lettertype') {
             if (VEILIGE_LETTERTYPEN.has(waarde)) uitkomst[sleutel] = waarde;
+        } else if (sleutel === 'fontSchaal') {
+            const schaal = Number(input[sleutel]);
+            if (Number.isFinite(schaal) && schaal >= 0.85 && schaal <= 1.4) uitkomst[sleutel] = schaal;
         } else if (/^#[0-9a-f]{6}$/i.test(waarde)) {
             uitkomst[sleutel] = waarde;
         }
@@ -1143,6 +1149,7 @@ router.post('/api/admin/seed', vereisAdmin, (req, res) => {
                 force,
                 alleenDb: !!(req.body && req.body.alleenDb),
                 youtubeAlleen: !!(req.body && req.body.youtubeAlleen),
+                onProgress: (voortgang) => { seedStatus = { ...seedStatus, ...voortgang }; },
             });
             logger.info('Seed-import klaar.', samenvatting);
             return samenvatting;
@@ -1176,11 +1183,12 @@ router.get('/api/admin/playlists/status', vereisAdmin, (_req, res) => {
 
 router.post('/api/admin/tmdb/import', vereisAdmin, (req, res) => {
     const type = ['film', 'serie', 'beide'].includes(req.body?.type) ? req.body.type : 'beide';
+    const genre = String(req.body?.genre || '').trim().slice(0, 40);
     const antwoord = startAdminScript(
         'tmdb',
         tmdbImportStatus,
         (v) => { tmdbImportStatus = v; },
-        () => importeerTmdb({ type }),
+        () => importeerTmdb({ type, genre }),
     );
     res.json(antwoord);
 });

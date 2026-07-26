@@ -229,7 +229,7 @@ async function verzamel(soort, type, extraParams, paginas, label, teller, minSte
     console.log(`  ${label}: klaar (nieuw tot nu toe: ${teller.nieuw})`);
 }
 
-async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type = 'beide' } = {}) {
+async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type = 'beide', genre = '' } = {}) {
     const soort = ['film', 'serie'].includes(type) ? type : 'beide';
     if (!KEY) {
         throw new Error('TMDB_API_KEY ontbreekt. Zet deze in .env en start de server opnieuw.');
@@ -244,28 +244,33 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
     console.log('Sleutel werkt.\n');
 
     const teller = { nieuw: 0, bestond: 0, fouten: 0 };
+    const genreTekst = String(genre || '').trim();
+    const genreId = /^\d+$/.test(genreTekst)
+        ? Number(genreTekst)
+        : Object.entries(GENRES).find(([, naam]) => naam.toLowerCase() === genreTekst.toLowerCase())?.[0];
+    const genreParams = genreId ? { with_genres: String(genreId) } : {};
     console.log(`TMDB-import gestart (${soort}; ${paginas} pagina's per categorie)…\n`);
 
     // 1) Nederlandstalig — ruim ophalen, want dat is de dunste categorie.
     console.log('Nederlandstalige films en series:');
     if (soort !== 'serie') {
-        await verzamel('movie', 'film', { with_original_language: 'nl' },
+        await verzamel('movie', 'film', { with_original_language: 'nl', ...genreParams },
             paginas * 2, 'NL films', teller, minStemmen);
         // Ook Belgisch-Nederlandstalig materiaal.
-        await verzamel('movie', 'film', { with_origin_country: 'BE' },
+        await verzamel('movie', 'film', { with_origin_country: 'BE', ...genreParams },
             Math.ceil(paginas / 2), 'BE films', teller, minStemmen);
     }
     if (soort !== 'film') {
-        await verzamel('tv', 'serie', { with_original_language: 'nl' },
+        await verzamel('tv', 'serie', { with_original_language: 'nl', ...genreParams },
             paginas * 2, 'NL series', teller, minStemmen);
-        await verzamel('tv', 'serie', { with_origin_country: 'NL' },
+        await verzamel('tv', 'serie', { with_origin_country: 'NL', ...genreParams },
             paginas, 'NL-productie series', teller, minStemmen);
     }
 
     // 2) Internationaal populair.
     console.log('\nInternationale films en series:');
-    if (soort !== 'serie') await verzamel('movie', 'film', {}, paginas, 'populaire films', teller, minStemmen);
-    if (soort !== 'film') await verzamel('tv', 'serie', {}, paginas, 'populaire series', teller, minStemmen);
+    if (soort !== 'serie') await verzamel('movie', 'film', { ...genreParams }, paginas, 'populaire films', teller, minStemmen);
+    if (soort !== 'film') await verzamel('tv', 'serie', { ...genreParams }, paginas, 'populaire series', teller, minStemmen);
 
     // 3) Per decennium, zodat oudere klassiekers ook meekomen.
     console.log('\nPer decennium:');
@@ -277,6 +282,7 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
                 {
                     'primary_release_date.gte': `${start}-01-01`,
                     'primary_release_date.lte': `${eind}-12-31`,
+                    ...genreParams,
                 },
                 Math.ceil(paginas / 2),
                 `films ${start}-${eind}`,
@@ -290,6 +296,7 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
                 {
                     'first_air_date.gte': `${start}-01-01`,
                     'first_air_date.lte': `${eind}-12-31`,
+                    ...genreParams,
                 },
                 Math.ceil(paginas / 4),
                 `series ${start}-${eind}`,
@@ -314,7 +321,7 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
     console.log(`\nTotaal in database: ${d.n} titels (${d.nl} Nederlandstalig, ${d.series} series)`);
     console.log('\nVolgende stap — YouTube-muziek erbij zoeken:');
     console.log('  node /app/seed/import.js --db');
-    return { ...teller, totaal: d.n, nl: d.nl, series: d.series };
+    return { ...teller, totaal: d.n, nl: d.nl, series: d.series, genre: genreTekst || null };
 }
 
 module.exports = { importeerTmdb };

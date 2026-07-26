@@ -25,6 +25,8 @@ export default function Host() {
         bonusResultaat,
         scorebord,
         spelers,
+        teams,
+        lobbyInstellingen,
         audio,
         verbonden,
         herstelNodig,
@@ -33,6 +35,8 @@ export default function Host() {
     const spelerRef = useRef(null);
     const [gok, setGok] = useState('');
     const [bonusKeuze, setBonusKeuze] = useState(null);
+    const [nieuwTeam, setNieuwTeam] = useState('');
+    const [lobbyWijziging, setLobbyWijziging] = useState(null);
 
     // Ontgrendel de speler tijdens de tik op 'Start spel', zodat ook latere
     // rondes vanzelf geluid geven (iOS staat afspelen alleen toe na een tik).
@@ -52,6 +56,10 @@ export default function Host() {
     const joinUrl = `${window.location.origin}/join/${sessie.code}`;
     const goedGeraden = resultaat?.status === 'goed';
     const bonusVergrendeld = bonusResultaat?.status === 'goed' || bonusResultaat?.status === 'fout';
+
+    useEffect(() => {
+        if (fase === 'wachten') setLobbyWijziging({ ...lobbyInstellingen });
+    }, [fase, lobbyInstellingen]);
 
     function verstuurGok(e) {
         e.preventDefault();
@@ -100,6 +108,7 @@ export default function Host() {
             {fase === 'wachten' && (
                 <>
                     <h1>Lobby</h1>
+                    <p className="dim">Leeftijd deelnemers: {lobbyInstellingen?.leeftijd_deelnemer_min || 4}–{lobbyInstellingen?.leeftijd_deelnemer_max || 99}</p>
                     <div className="host-wacht">
                         <div className="host-wacht-links">
                             <p className="kaart-label" style={{ textAlign: 'left' }}>
@@ -118,6 +127,19 @@ export default function Host() {
                                             {s.is_host && (
                                                 <span className="host-tag">host</span>
                                             )}
+                                            {s.team_naam && <span className="dim"> · {s.team_naam}</span>}
+                                            {s.leeftijd && <span className="dim"> · {s.leeftijd} jaar</span>}
+                                            {s.id === sessie.spelerId && (teams || []).length > 0 && (
+                                                <select
+                                                    className="invoer team-kiezer"
+                                                    value={s.team_naam || ''}
+                                                    onChange={(e) => spel.wijzigTeam(e.target.value || null)}
+                                                    aria-label="Jouw team"
+                                                >
+                                                    <option value="">Geen team</option>
+                                                    {teams.map((team) => <option key={team} value={team}>{team}</option>)}
+                                                </select>
+                                            )}
                                         </span>
                                     </li>
                                 ))}
@@ -125,6 +147,40 @@ export default function Host() {
                                     <li className="dim">Nog niemand — scan de QR →</li>
                                 )}
                             </ul>
+                            <div className="kaart lobby-instellingen">
+                                <p className="kaart-label">Lobby aanpassen</p>
+                                <div className="velden">
+                                    <select
+                                        className="invoer"
+                                        value={lobbyWijziging?.antwoord_modus || 'typen'}
+                                        onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, antwoord_modus: e.target.value })}
+                                    >
+                                        <option value="typen">Typen</option>
+                                        <option value="meerkeuze">6 opties</option>
+                                    </select>
+                                    <select
+                                        className="invoer"
+                                        value={String(lobbyWijziging?.speeltijd ?? 0)}
+                                        onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, speeltijd: Number(e.target.value) })}
+                                    >
+                                        <option value="0">Heel nummer</option><option value="30">30 seconden</option><option value="60">1 minuut</option>
+                                    </select>
+                                </div>
+                                <div className="zoekbalk" style={{ marginTop: '0.5rem' }}>
+                                    <input className="invoer" value={nieuwTeam} placeholder="Nieuw team" maxLength={24} onChange={(e) => setNieuwTeam(e.target.value)} />
+                                    <button className="knop knop-stil" type="button" onClick={() => {
+                                        const naam = nieuwTeam.trim();
+                                        if (!naam) return;
+                                        const volgende = [...new Set([...(lobbyWijziging?.teams || teams || []), naam])];
+                                        setLobbyWijziging({ ...lobbyWijziging, teams: volgende });
+                                        setNieuwTeam('');
+                                    }}>Team toevoegen</button>
+                                </div>
+                                {(lobbyWijziging?.teams || teams || []).length > 0 && <div className="chips">
+                                    {(lobbyWijziging?.teams || teams || []).map((team) => <span className="chip gekozen" key={team}>{team}</span>)}
+                                </div>}
+                                <button className="knop knop-stil" type="button" onClick={() => spel.bewaarLobbyInstellingen(lobbyWijziging || {})}>Instellingen opslaan</button>
+                            </div>
                             <div className="stapel" style={{ marginTop: '1.5rem' }}>
                                 <button
                                     className="knop"
@@ -342,7 +398,7 @@ export default function Host() {
                     )}
                     <Scorebord lijst={scorebord} mijnId={sessie.spelerId} />
                     <p className="dim" style={{ marginTop: '1rem' }}>
-                        De volgende ronde start automatisch…
+                        Afspelen… volgende ronde start automatisch
                     </p>
                 </>
             )}
@@ -385,6 +441,9 @@ export function AntwoordInfo({ antwoord }) {
             {antwoord.omschrijving && (
                 <p className="omschrijving">{antwoord.omschrijving}</p>
             )}
+            {antwoord.tmdbUrl && (
+                <p><a className="terug" href={antwoord.tmdbUrl} target="_blank" rel="noreferrer">Bekijk film/serie ↗</a></p>
+            )}
             <p className="dim">
                 {antwoord.tracknaam}
                 {antwoord.artiest ? ` — ${antwoord.artiest}` : ''}
@@ -404,6 +463,7 @@ function Scorebord({ lijst, compact, eind, mijnId }) {
                 >
                     <span className="score-plek">{i + 1}</span>
                     <span className="score-naam">{s.naam}</span>
+                    {s.team_naam && <span className="dim score-team">{s.team_naam} · team {s.team_score ?? 0}</span>}
                     <span className="score-punten">{s.score}</span>
                 </li>
             ))}

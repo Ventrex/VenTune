@@ -24,6 +24,7 @@ export default function Play() {
         bonusResultaat,
         scorebord,
         spelers,
+        teams,
         verbonden,
         herstelNodig,
         herstelBezig,
@@ -115,10 +116,25 @@ export default function Play() {
                                 <span className="speler-naam">
                                     {s.naam}
                                     {s.is_host && <span className="host-tag">host</span>}
+                                    {s.team_naam && <span className="dim"> · {s.team_naam}</span>}
                                 </span>
                             </li>
                         ))}
                     </ul>
+                    {teams.length > 0 && (
+                        <label className="kaart-label" style={{ display: 'block', textAlign: 'left', marginTop: '1rem' }}>
+                            Jouw team
+                            <select
+                                className="invoer"
+                                style={{ marginTop: '0.35rem' }}
+                                value={spelers.find((s) => s.id === sessie.spelerId)?.team_naam || ''}
+                                onChange={(e) => spel.wijzigTeam(e.target.value || null)}
+                            >
+                                <option value="">Geen team</option>
+                                {teams.map((team) => <option key={team} value={team}>{team}</option>)}
+                            </select>
+                        </label>
+                    )}
                     <p style={{ marginTop: '2rem' }}>
                         <button className="terug als-link" onClick={verlaten}>
                             Lobby verlaten
@@ -151,7 +167,7 @@ export default function Play() {
                     {goedGeraden ? (
                         <div className="kaart" style={{ marginTop: '1.5rem' }}>
                             <p className="goed-tekst">Goed! +{resultaat.punten}</p>
-                            <p className="dim">Wachten op de anderen…</p>
+                            <p className="dim">Afspelen… wachten op de anderen</p>
                         </div>
                     ) : (
                         <>
@@ -362,6 +378,7 @@ function MiniScore({ lijst, mijnId, eind }) {
                 >
                     <span className="score-plek">{i + 1}</span>
                     <span className="score-naam">{s.naam}</span>
+                    {s.team_naam && <span className="dim score-team">{s.team_naam} · team {s.team_score ?? 0}</span>}
                     <span className="score-punten">{s.score}</span>
                 </li>
             ))}

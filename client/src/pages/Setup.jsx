@@ -18,20 +18,22 @@ const NU = new Date().getFullYear();
 const CATEGORIEEN = [
     { waarde: 'films', label: 'Films' },
     { waarde: 'series', label: 'Series' },
+    { waarde: 'beide', label: 'Films & Series' },
     { waarde: 'muziek', label: 'Muziek' },
-    { waarde: 'beide', label: 'Beide' },
-    { waarde: 'alles', label: 'Alles' },
 ];
 const TALEN = [
     { waarde: 'nl', label: 'Nederlands' },
+    { waarde: 'us', label: 'Amerikaans (geen NL)' },
     { waarde: 'en', label: 'Internationaal' },
-    { waarde: 'beide', label: 'Beide' },
+    { waarde: 'beide', label: 'Alle talen' },
 ];
 const LEEFTIJDEN = [
     { waarde: 0, label: 'Alle leeftijden', uitleg: 'Volledige gecureerde catalogus' },
-    { waarde: 10, label: 'Gezinsvriendelijk t/m 10', uitleg: 'Geschikt als een kind van 10 meedoet' },
-    { waarde: 12, label: 'T/m 12 jaar', uitleg: 'Geen 16+ of 18+-titels' },
-    { waarde: 16, label: 'T/m 16 jaar', uitleg: 'Geen 18+-titels' },
+    { waarde: 6, label: '6+', uitleg: 'Geschikt vanaf 6 jaar' },
+    { waarde: 9, label: '9+', uitleg: 'Geschikt vanaf 9 jaar' },
+    { waarde: 12, label: '12+', uitleg: 'Geschikt vanaf 12 jaar' },
+    { waarde: 16, label: '16+', uitleg: 'Geschikt vanaf 16 jaar' },
+    { waarde: 18, label: '18+', uitleg: 'Volledige leeftijdsgrens' },
 ];
 const RONDES = [
     { waarde: 10, label: '10' },
@@ -41,7 +43,8 @@ const RONDES = [
 ];
 // Bekendheid: hoeveel TMDB-stemmen een titel minimaal moet hebben.
 const BEKENDHEID = [
-    { waarde: 0, label: 'Alles' },
+    { waarde: 0, label: 'Bekend / gecureerd' },
+    { waarde: 25, label: 'Bekend' },
     { waarde: 200, label: 'Bekend' },
     { waarde: 1000, label: 'Heel bekend' },
     { waarde: 4000, label: 'Iconisch' },
@@ -82,6 +85,7 @@ export default function Setup() {
     const [stap, setStap] = useState(1);
     const [filters, setFilters] = useState({
         categorie: 'beide',
+        categorieen: ['film', 'serie'],
         collecties: [],
         taal: 'beide',
         periode_start: 1930,
@@ -90,10 +94,14 @@ export default function Setup() {
         speeltijd: 0,
         modus: 'snelste',
         antwoord_modus: 'typen',
-        min_bekendheid: 200,
+        min_bekendheid: 0,
         zonder_genres: [],
         leeftijd_max: 0,
+        leeftijd_deelnemer_min: 4,
+        leeftijd_deelnemer_max: 99,
         alleen_nl_tv: true,
+        leeftijdspunten_aan: false,
+        leeftijdsfactoren: { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
     });
     const [telling, setTelling] = useState(null);
     const [presets, setPresets] = useState([]);
@@ -166,10 +174,9 @@ export default function Setup() {
                 ? huidig.filter((x) => x !== collectie.sleutel)
                 : [...huidig, collectie.sleutel];
             const volgende = { ...f, collecties: gekozen };
-            if (collectie.standaard_type === 'muziek' && gekozen.length === 1) volgende.categorie = 'muziek';
-            if (collectie.standaard_type === 'film' && gekozen.length === 1) volgende.categorie = 'films';
-            if (collectie.standaard_type === 'serie' && gekozen.length === 1) volgende.categorie = 'series';
-            if (collectie.standaard_type === 'alles' && gekozen.length === 1) volgende.categorie = 'alles';
+            // Een editie is een extra label, geen typewissel. Zo blijft een
+            // Disney-film ook gewoon een film en voeg je niet per ongeluk
+            // muziek toe aan een Films & Series-spel.
             if (collectie.sleutel === 'streaming' && gekozen.includes('streaming')) volgende.alleen_nl_tv = false;
             return volgende;
         });
@@ -188,7 +195,8 @@ export default function Setup() {
 
     function pasPresetToe(p) {
         setFilters({
-            categorie: p.categorie,
+            categorie: p.categorie || 'beide',
+            categorieen: p.categorieen || (p.categorie === 'films' ? ['film'] : p.categorie === 'series' ? ['serie'] : ['film', 'serie']),
             collecties: p.collecties || [],
             taal: p.taal,
             periode_start: p.periode_start,
@@ -197,10 +205,14 @@ export default function Setup() {
             speeltijd: p.speeltijd ?? 0,
             modus: p.modus || 'snelste',
             antwoord_modus: p.antwoord_modus || 'typen',
-            min_bekendheid: p.min_bekendheid ?? 200,
+            min_bekendheid: p.min_bekendheid ?? 0,
             zonder_genres: p.zonder_genres || [],
             leeftijd_max: p.leeftijd_max ?? 0,
+            leeftijd_deelnemer_min: p.leeftijd_deelnemer_min ?? 4,
+            leeftijd_deelnemer_max: p.leeftijd_deelnemer_max ?? 99,
             alleen_nl_tv: p.alleen_nl_tv !== false,
+            leeftijdspunten_aan: p.leeftijdspunten_aan === true,
+            leeftijdsfactoren: p.leeftijdsfactoren || { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
         });
         setStap(4);
     }
@@ -279,6 +291,13 @@ export default function Setup() {
                                 }
                                 onClick={() => {
                                     zet('categorie', c.waarde);
+                                    zet('categorieen', c.waarde === 'films'
+                                        ? ['film']
+                                        : c.waarde === 'series'
+                                          ? ['serie']
+                                          : c.waarde === 'muziek'
+                                            ? ['muziek']
+                                            : ['film', 'serie']);
                                     verder();
                                 }}
                             >
@@ -333,6 +352,13 @@ export default function Setup() {
                                 {t.label}
                             </button>
                         ))}
+                    </div>
+                    <p className="kaart-label" style={{ textAlign: 'left', marginTop: '0.75rem' }}>
+                        Leeftijd deelnemers (standaard 4–99; individuele leeftijden in de lobby bepalen automatisch de jongste)
+                    </p>
+                    <div className="velden leeftijdsbereik">
+                        <label>Jongste<input className="invoer" type="number" min="4" max="120" value={filters.leeftijd_deelnemer_min} onChange={(e) => zet('leeftijd_deelnemer_min', Math.max(4, Number(e.target.value) || 4))} /></label>
+                        <label>Oudste<input className="invoer" type="number" min="4" max="120" value={filters.leeftijd_deelnemer_max} onChange={(e) => zet('leeftijd_deelnemer_max', Math.max(filters.leeftijd_deelnemer_min, Number(e.target.value) || 99))} /></label>
                     </div>
                 </section>
             )}
@@ -494,6 +520,36 @@ export default function Setup() {
                         </span>
                     </label>
 
+                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
+                        <input
+                            type="checkbox"
+                            checked={filters.leeftijdspunten_aan === true}
+                            onChange={(e) => zet('leeftijdspunten_aan', e.target.checked)}
+                        />
+                        <span>
+                            <strong>Leeftijdsbonus aan</strong>
+                            <span className="keuze-uitleg">Kinderen krijgen meer punten: t/m 6 ×2, t/m 9 ×1,75, t/m 12 ×1,5</span>
+                        </span>
+                    </label>
+                    {filters.leeftijdspunten_aan === true && (
+                        <label className="velden compact-veld" style={{ marginTop: '0.5rem' }}>
+                            <span className="kaart-label" style={{ textAlign: 'left' }}>Schema leeftijdsbonus</span>
+                            <select
+                                className="invoer"
+                                value={String(filters.leeftijdsfactoren?.[6] || 2)}
+                                onChange={(e) => {
+                                    const royaal = Number(e.target.value) >= 2;
+                                    zet('leeftijdsfactoren', royaal
+                                        ? { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 }
+                                        : { 6: 1.5, 9: 1.35, 12: 1.2, 16: 1.1, 18: 1 });
+                                }}
+                            >
+                                <option value="2">Royaal: ×2 / ×1,75 / ×1,5</option>
+                                <option value="1.5">Mild: ×1,5 / ×1,35 / ×1,2</option>
+                            </select>
+                        </label>
+                    )}
+
                     {/* Spelsoort */}
                     <p
                         className="kaart-label"
@@ -566,13 +622,15 @@ export default function Setup() {
                         {telling ? (
                             telling.genoeg ? (
                                 <p className="dim">
-                                    {telling.titels} titels beschikbaar met deze filters.
+                                    {telling.titels} speelbare titels beschikbaar met deze filters.
+                                    {telling.catalogus > telling.titels && ` (${telling.catalogus} titels in de catalogus; tracks ontbreken nog bij ${telling.catalogus - telling.titels})`}
                                 </p>
                             ) : (
                                 <p className="waarschuwing">
-                                    Slechts {telling.titels} titels — je hebt er minstens{' '}
+                                    Slechts {telling.titels} speelbare titels — je hebt er minstens{' '}
                                     {telling.drempel} nodig. Verruim de filters of voeg
                                     meer nummers toe.
+                                    {telling.catalogus > telling.titels && ` De filter bevat ${telling.catalogus} titels, maar ${telling.catalogus - telling.titels} daarvan heeft nog geen werkende track.`}
                                 </p>
                             )
                         ) : (

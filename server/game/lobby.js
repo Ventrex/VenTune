@@ -126,7 +126,7 @@ async function doeMee({ code, naam, leeftijd = null }) {
 /** Lijst met spelers in een lobby (voor de spelerslijst). */
 async function haalSpelers(lobbyId) {
     const { rows } = await pool.query(
-        `SELECT id, naam, is_host, verbonden, score
+        `SELECT id, naam, is_host, verbonden, score, leeftijd, team_naam
            FROM spelers
           WHERE lobby_id = $1
           ORDER BY is_host DESC, aangemaakt_op ASC`,
@@ -154,8 +154,8 @@ async function zetVerbonden(token, verbonden) {
 async function haalSpelerViaToken(token) {
     if (!token) return null;
     const { rows } = await pool.query(
-        `SELECT s.id, s.lobby_id, s.naam, s.is_host, s.score,
-                l.code, l.status
+        `SELECT s.id, s.lobby_id, s.naam, s.is_host, s.score, s.team_naam,
+                l.code, l.status, l.instellingen
            FROM spelers s
            JOIN lobbies l ON l.id = s.lobby_id
           WHERE s.sessie_token = $1
@@ -166,6 +166,32 @@ async function haalSpelerViaToken(token) {
     return rows[0] || null;
 }
 
+async function bewaarInstellingen(lobbyId, instellingen) {
+    const lobby = await haalLobbyViaId(lobbyId);
+    if (!lobby || lobby.status !== 'wachten') throw new Error('De lobby kan niet meer worden aangepast.');
+    const veilig = { ...(lobby.instellingen || {}), ...(instellingen || {}) };
+    if (Array.isArray(veilig.teams)) {
+        veilig.teams = [...new Set(veilig.teams.map((t) => String(t).trim().slice(0, 24)).filter(Boolean))].slice(0, 12);
+    }
+    await pool.query(`UPDATE lobbies SET instellingen = $2::jsonb, bijgewerkt_op = now() WHERE id = $1`, [lobbyId, JSON.stringify(veilig)]);
+    return veilig;
+}
+
+async function haalLobbyViaId(lobbyId) {
+    const { rows } = await pool.query(`SELECT id, status, instellingen FROM lobbies WHERE id = $1 LIMIT 1`, [lobbyId]);
+    return rows[0] || null;
+}
+
+async function zetTeam({ lobbyId, spelerId, teamNaam }) {
+    const lobby = await haalLobbyViaId(lobbyId);
+    if (!lobby || lobby.status !== 'wachten') throw new Error('Teams kunnen alleen in de lobby worden aangepast.');
+    const naam = teamNaam ? String(teamNaam).trim().slice(0, 24) : null;
+    const teams = Array.isArray(lobby.instellingen?.teams) ? lobby.instellingen.teams : [];
+    if (naam && !teams.includes(naam)) throw new Error('Kies eerst een bestaand team.');
+    await pool.query(`UPDATE spelers SET team_naam = $3 WHERE id = $1 AND lobby_id = $2`, [spelerId, lobbyId, naam]);
+    return naam;
+}
+
 module.exports = {
     maakLobby,
     haalLobby,
@@ -173,5 +199,7 @@ module.exports = {
     haalSpelers,
     zetVerbonden,
     haalSpelerViaToken,
+    bewaarInstellingen,
+    zetTeam,
     genereerCode,
 };

@@ -6,6 +6,7 @@ const {
     bouwMeerkeuzeOpties,
     lifelineAantal,
 } = require('../game/engine');
+const { leeftijdsFactor } = require('../game/scoring');
 
 // Een onbruikbare titel op positie 3 mag niet maken dat de volgende titel
 // als ronde 4 wordt gepubliceerd. De titel wordt verwijderd, het rondenummer
@@ -54,6 +55,27 @@ const meerkeuze = bouwMeerkeuzeOpties(
 );
 assert.equal(meerkeuze.opties.length, 6);
 assert.equal(meerkeuze.opties[meerkeuze.correctIndex], 'Terminator 2');
+
+const genreMeerkeuze = bouwMeerkeuzeOpties(
+    { id: 10, naam: 'Star Trek', type: 'serie', jaar: 1966, genres: ['Sciencefiction'] },
+    [
+        { id: 10, naam: 'Star Trek', type: 'serie', jaar: 1966, genres: ['Sciencefiction'] },
+        { id: 11, naam: 'Star Trek: Voyager', type: 'serie', jaar: 1995, genres: ['Sciencefiction'] },
+        { id: 12, naam: 'The Expanse', type: 'serie', jaar: 2015, genres: ['Sciencefiction'] },
+        { id: 13, naam: 'Star Wars', type: 'film', jaar: 1977, genres: ['Sciencefiction'] },
+        { id: 14, naam: 'Alien', type: 'film', jaar: 1979, genres: ['Sciencefiction'] },
+        { id: 15, naam: 'The Matrix', type: 'film', jaar: 1999, genres: ['Sciencefiction'] },
+        { id: 16, naam: 'Dune', type: 'film', jaar: 2021, genres: ['Sciencefiction'] },
+    ],
+);
+assert.equal(genreMeerkeuze.opties.length, 6);
+assert(genreMeerkeuze.opties.every((naam) => [
+    'Star Trek', 'Star Trek: Voyager', 'The Expanse', 'Star Wars', 'Alien', 'The Matrix', 'Dune',
+].includes(naam)));
+assert.equal(leeftijdsFactor(5, { leeftijdspunten_aan: true }), 2);
+assert.equal(leeftijdsFactor(8, { leeftijdspunten_aan: true }), 1.75);
+assert.equal(leeftijdsFactor(12, { leeftijdspunten_aan: true }), 1.5);
+assert.equal(leeftijdsFactor(8, { leeftijdspunten_aan: false }), 1);
 
 async function testDubbeleScorebordOvergang() {
     const emits = [];

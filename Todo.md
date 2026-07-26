@@ -2,6 +2,27 @@
 
 ## Eerstvolgend
 
+- [x] **P1** Categorie **Films & Series** expliciet tonen en muziek uit de
+      standaardkeuze houden; meerdere inhoudstypen blijven via één keuze
+      mogelijk.
+- [x] **P1** Taalkeuze uitbreiden met **Amerikaans (geen NL)** en de
+      leeftijdskeuzes Alle leeftijden, 6+, 9+, 12+, 16+ en 18+.
+- [x] **P1** Meerkeuze-afleiders beperken tot dezelfde genre-familie en bij
+      voorkeur hetzelfde inhoudstype.
+- [x] **P1** Dezelfde track binnen één spel voorkomen wanneer een alternatief
+      bestaat; de gebruiksteller blijft als extra spreidingslaag actief.
+- [x] **P1** Teams maken in de lobby, spelers zelf laten kiezen en de host
+      lobby-instellingen laten opslaan.
+- [x] **P1** Optionele leeftijdsweging voor punten instelbaar maken.
+- [x] **P1** Decennium-bonusvragen vervangen door echte jaartallen.
+- [x] **P2** TMDB-link tonen op het onthulde antwoord, meerkeuze mobiel compacter
+      maken en spelerslettergrootte vanuit Uiterlijk instelbaar maken.
+- [x] **P2** Admin-imports per genre en een zichtbare voortgangsbalk toevoegen.
+- [x] **P1** Adminactie toevoegen die alleen titels zonder bruikbare track op
+      YouTube zoekt; bestaande tracks worden daarbij niet overschreven.
+- [ ] **P1** De ontbrekende-tracklijst na de bulkactie handmatig nalopen en
+      twijfelgevallen goedkeuren of een eigen/licentie-audio uploaden.
+
 - [x] **P1** Echte lokale downloads onderbrengen in persistente Docker-mappen
       `/media/downloads` en `/media/uploads`; een cache-entry zonder bestand
       mag niet als lokale track worden afgespeeld.

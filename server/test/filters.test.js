@@ -26,4 +26,7 @@ assert(muziek.where.includes('c.sleutel = ANY($2::text[])'), 'enkele collectie o
 const standaard = bouwFilter({ categorie: 'beide', periode_start: 1950, periode_eind: 2026 });
 assert(standaard.where.includes("t.type IN ('film', 'serie')"), 'standaardspel mag geen muziek bevatten');
 
+const meerdere = bouwFilter({ categorieen: ['film', 'serie'], periode_start: 1950, periode_eind: 2026 });
+assert(meerdere.where.includes('t.type = ANY'), 'meerdere inhoudstypen moeten expliciet filterbaar zijn');
+
 console.log('filters: film/serie/muziek en spelcollecties geslaagd');

@@ -13,6 +13,7 @@
     --text: #f5f5f5;
     --text-dim: #8a8a8a;
     --app-font: system-ui;
+    --font-scale: 1;
 }
 
 *,
@@ -35,6 +36,7 @@ body {
     /* iOS-notch-proof onderaan. */
     padding-bottom: env(safe-area-inset-bottom);
     -webkit-font-smoothing: antialiased;
+    font-size: calc(1rem * var(--font-scale));
 }
 
 /* --- VenTune-logo --- */
@@ -873,6 +875,46 @@ h1 {
 
 .meerkeuze-antwoorden {
     margin-top: 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.meerkeuze-antwoorden .keuze {
+    min-width: 0;
+    min-height: 3.1rem;
+    padding: 0.65rem 0.55rem;
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+}
+
+.admin-progress {
+    height: 0.45rem;
+    margin: 0.5rem 0 1rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+.admin-progress span {
+    display: block;
+    height: 100%;
+    background: var(--red-hot);
+    transition: width 0.3s ease;
+}
+.admin-progress.onbepaald span { width: 35%; animation: admin-progress 1.2s ease-in-out infinite alternate; }
+@keyframes admin-progress { from { transform: translateX(-100%); } to { transform: translateX(280%); } }
+
+.admin-portaal { font-size: 0.9rem; }
+.admin-portaal h1 { font-size: 1.8rem; }
+.admin-portaal .kaart { padding: 0.85rem; }
+.admin-portaal .knop { min-height: 2.6rem; padding: 0.55rem 0.8rem; }
+.score-team { grid-column: 2; font-size: 0.75rem; }
+.team-kiezer { width: auto; min-height: 2rem; margin-left: 0.35rem; padding: 0.25rem 0.4rem; font-size: 0.8rem; }
+
+@media (max-width: 520px) {
+    .meerkeuze-antwoorden { gap: 0.35rem; }
+    .meerkeuze-antwoorden .keuze { min-height: 2.65rem; padding: 0.45rem 0.35rem; font-size: 0.88rem; }
 }
 
 .meerkeuze-antwoorden .keuze:disabled {

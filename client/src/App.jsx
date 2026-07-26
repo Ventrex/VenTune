@@ -28,6 +28,7 @@ export default function App() {
             Object.entries(mapping).forEach(([bron, css]) => {
                 if (nieuw?.[bron]) root.style.setProperty(css, nieuw[bron]);
             });
+            if (nieuw?.fontSchaal) root.style.setProperty('--font-scale', String(nieuw.fontSchaal));
             if (nieuw?.appNaam) document.title = nieuw.appNaam;
         }).catch(() => {});
     }, []);

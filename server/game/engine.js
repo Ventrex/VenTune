@@ -9,7 +9,7 @@
 const { pool } = require('../db/pool');
 const { bouwFilter } = require('./filters');
 const { vergelijk } = require('../lib/match');
-const { titelPunten, bonusPunten } = require('./scoring');
+const { titelPunten, bonusPunten, leeftijdsFactor } = require('./scoring');
 const { genereerBonus } = require('./bonus');
 const vragenbank = require('./vragen');
 const { pastBijTitel } = require('../lib/trackcheck');
@@ -75,12 +75,20 @@ function antwoordModusUit(instellingen) {
 }
 
 function bouwMeerkeuzeOpties(titel, pool_) {
-    const kandidaten = husselArray(
-        pool_
-            .filter((t) => t.id !== titel.id)
-            .filter((t) => !titel.jaar || !t.jaar || Math.abs(Number(t.jaar) - Number(titel.jaar)) <= 12)
-            .map((t) => t.naam),
-    );
+    const genres = new Set((titel.genres || []).map((g) => String(g).toLowerCase()));
+    const zelfdeType = pool_.filter((t) => t.id !== titel.id && (!titel.type || t.type === titel.type));
+    const zelfdeGenre = pool_.filter((t) => t.id !== titel.id
+        && (t.genres || []).some((g) => genres.has(String(g).toLowerCase())));
+    const genreKandidaten = genres.size ? zelfdeGenre : zelfdeType;
+    const opJaar = (lijst) => lijst.filter((t) =>
+        !titel.jaar || !t.jaar || Math.abs(Number(t.jaar) - Number(titel.jaar)) <= 12);
+    // Nooit willekeurige genres combineren. Alleen bij oude handmatige
+    // titels zonder genre-metadata gebruiken we dezelfde type/jaar-fallback.
+    const kandidatenTitels = husselArray(opJaar(genreKandidaten)).sort((a, b) =>
+        Number(b.type === titel.type) - Number(a.type === titel.type));
+    const kandidaten = (kandidatenTitels.length >= AANTAL_MEERKEUZE_OPTIES - 1
+        ? kandidatenTitels
+        : husselArray(genreKandidaten)).map((t) => t.naam);
     const opties = [titel.naam];
     const gezien = new Set([String(titel.naam).toLowerCase()]);
     for (const naam of kandidaten) {
@@ -311,7 +319,10 @@ class SpelBeheer {
             .map((s) => Number(s.leeftijd))
             .filter((leeftijd) => Number.isInteger(leeftijd) && leeftijd > 0);
         const gekozenLeeftijd = Number(instellingen?.leeftijd_max) || 0;
-        const jongste = leeftijden.length ? Math.min(...leeftijden) : 0;
+        const opgegevenJongste = Number(instellingen?.leeftijd_deelnemer_min);
+        const jongste = leeftijden.length
+            ? Math.min(...leeftijden)
+            : (Number.isInteger(opgegevenJongste) && opgegevenJongste > 4 ? opgegevenJongste : 0);
         const leeftijdMax = gekozenLeeftijd > 0 && jongste > 0
             ? Math.min(gekozenLeeftijd, jongste)
             : gekozenLeeftijd || jongste;
@@ -370,6 +381,8 @@ class SpelBeheer {
             voorraad,
             verwijder3Voorraad,
             voorbereideTracks: new Map(),
+            gebruikteTrackIds: new Set(),
+            leeftijden: new Map(spelers.map((s) => [s.id, Number(s.leeftijd)])),
             // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
             // titel niet twee keer dezelfde bonusvraag geeft.
             gebruikteVragen: new Set(),
@@ -399,7 +412,7 @@ class SpelBeheer {
     async bereidTracksVoor(state) {
         const gepland = state.pool.slice(0, state.totaalRondes);
         for (const titel of gepland) {
-            const track = await this.kiesTrackVoorTitel(titel);
+            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds);
             if (!track) continue;
             state.voorbereideTracks.set(titel.id, track);
             if (!['youtube', 'itunes'].includes(track.bron) || track.download_status === 'available') continue;
@@ -422,7 +435,7 @@ class SpelBeheer {
         }
     }
 
-    async kiesTrackVoorTitel(titel) {
+    async kiesTrackVoorTitel(titel, uitgesloten = new Set()) {
         const { rows } = await pool.query(
             `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
                     tr.tracknaam, tr.artiest, tr.album,
@@ -450,10 +463,11 @@ class SpelBeheer {
                        tr.herkenbaarheid DESC,
                        random(),
                        tr.id DESC
-              LIMIT 5`,
+              LIMIT 20`,
             [titel.id],
         );
 
+        let eersteGeldige = null;
         for (const kandidaat of rows) {
             if (kandidaat.bron === 'lokaal' && !(await lokaalBestandBeschikbaar(kandidaat))) {
                 await pool.query(
@@ -464,7 +478,11 @@ class SpelBeheer {
                 ).catch(() => {});
                 continue;
             }
-            if (pastBijTitel(titel, kandidaat).past) return kandidaat;
+            if (pastBijTitel(titel, kandidaat).past) {
+                if (!eersteGeldige) eersteGeldige = kandidaat;
+                if (!uitgesloten.has(kandidaat.id)) return kandidaat;
+                continue;
+            }
             logger.waarschuwing('Track past niet bij de titel, afgekeurd.', {
                 titel: titel.naam,
                 tracknaam: kandidaat.tracknaam,
@@ -480,7 +498,9 @@ class SpelBeheer {
                 )
                 .catch(() => {});
         }
-        return null;
+        // Als één titel werkelijk maar één goedgekeurde track heeft, is
+        // herhalen beter dan de ronde zonder muziek starten.
+        return eersteGeldige;
     }
 
     async registreerOntbrekendeTitels(where, params) {
@@ -573,8 +593,9 @@ class SpelBeheer {
                 }
 
                 const titel = state.pool[state.rondenummer - 1];
-                const track = state.voorbereideTracks.get(titel.id)
-                    || await this.kiesTrackVoorTitel(titel);
+                let track = state.voorbereideTracks.get(titel.id);
+                if (track && state.gebruikteTrackIds.has(track.id)) track = null;
+                track = track || await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds);
 
                 if (!track) {
                     logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
@@ -586,6 +607,8 @@ class SpelBeheer {
                     }
                     continue;
                 }
+
+                state.gebruikteTrackIds.add(track.id);
 
                 const rondeRij = await pool.query(
                     `INSERT INTO rondes
@@ -705,7 +728,9 @@ class SpelBeheer {
         if (uitslag.status === 'goed') {
             const verstreken = nu - h.startTijd;
             const hintsGebruikt = h.hints.get(spelerId) || 0;
-            const punten = titelPunten(verstreken, hintsGebruikt);
+            const basisPunten = titelPunten(verstreken, hintsGebruikt);
+            const factor = leeftijdsFactor(state.leeftijden.get(spelerId), state.instellingen);
+            const punten = Math.round(basisPunten * factor);
             h.klaar.add(spelerId);
             h.antwoorden.set(spelerId, { punten, verstreken, hintsGebruikt });
 
@@ -943,7 +968,9 @@ class SpelBeheer {
 
         const goed = Number(keuze) === b.correctIndex;
         if (goed) {
-            const punten = bonusPunten(poging);
+            const basisPunten = bonusPunten(poging);
+            const factor = leeftijdsFactor(state.leeftijden.get(spelerId), state.instellingen);
+            const punten = Math.round(basisPunten * factor);
             b.klaar.add(spelerId);
             await this.telScoreOp(spelerId, punten);
             await this.werkBonusAntwoordBij(state, spelerId, {
@@ -1168,6 +1195,9 @@ class SpelBeheer {
             artiest: h.track.artiest,
             trackId: h.track.id,
             titelId: h.titel.id,
+            tmdbUrl: h.titel.tmdb_id
+                ? `https://www.themoviedb.org/${h.titel.type === 'serie' ? 'tv' : 'movie'}/${h.titel.tmdb_id}`
+                : null,
         };
     }
 
@@ -1244,11 +1274,19 @@ class SpelBeheer {
 
     async haalScorebord(state) {
         const { rows } = await pool.query(
-            `SELECT id, naam, score, is_host FROM spelers
+            `SELECT id, naam, score, is_host, team_naam FROM spelers
               WHERE lobby_id = $1 ORDER BY score DESC, naam ASC`,
             [state.lobbyId],
         );
-        return rows;
+        const teams = new Map();
+        for (const speler of rows) {
+            if (!speler.team_naam) continue;
+            teams.set(speler.team_naam, (teams.get(speler.team_naam) || 0) + Number(speler.score || 0));
+        }
+        return rows.map((speler) => ({
+            ...speler,
+            team_score: speler.team_naam ? teams.get(speler.team_naam) : null,
+        }));
     }
 
     async stuurScores(state) {

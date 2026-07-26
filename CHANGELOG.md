@@ -1,5 +1,44 @@
 # VenTune changelog
 
+## [0.3.3] - 2026-07-26
+
+### Filters en catalogus
+
+- De categorie heet nu **Films & Series**; muziek wordt niet meer onbedoeld
+  meegenomen. Films, series en muziek blijven als aparte inhoudstypen filterbaar.
+- Taal uitgebreid met **Amerikaans (geen NL)**.
+- Leeftijdskeuze uitgebreid naar Alle leeftijden, 6+, 9+, 12+, 16+ en 18+.
+- Setup toont voortaan afzonderlijk hoeveel titels in de catalogus staan en
+  hoeveel daarvan een speelbare, gecontroleerde track hebben. De standaard-
+  bekendheidsdrempel blokkeert de gecureerde catalogus niet meer onnodig.
+- Odd Squad en Henry Danger toegevoegd aan de gecureerde jeugdseries; bestaande
+  klassiekers zoals A-Team, Bassie en Adriaan, Swiebertje, Heidi en Vrouwtje
+  Theelepel blijven apart met hun toevoegreden geregistreerd.
+
+### Spel
+
+- Zes antwoordopties zijn genregericht en geven geen willekeurige afleiders.
+- Een track wordt binnen één spel niet opnieuw gekozen als een andere geldige
+  track beschikbaar is.
+- Teams kunnen in de lobby worden aangemaakt; spelers en de host kiezen daar
+  zelf hun team.
+- De host kan lobby-instellingen nog aanpassen voordat het spel start.
+- Optionele leeftijdsbonus voor punten toegevoegd.
+- Decenniumvragen zijn vervangen door echte jaartallen.
+- Het onthulde antwoord bevat een directe TMDB-link naar de film of serie.
+- De meerkeuze-layout is op mobiel compacter; de status “Wachten…” heet nu
+  **Afspelen… wachten op de anderen**.
+
+### Admin
+
+- TMDB-imports kunnen per genre voor films of series worden gestart.
+- Imports tonen voortgang of een zichtbare onbepaalde voortgang zolang TMDB geen
+  betrouwbare totaaltelling geeft.
+- Nieuwe actie: **YouTube zoeken voor titels zonder track**. Deze vult de grote
+  catalogus aan zonder bestaande, gecontroleerde tracks blind te vervangen.
+- Admin is compacter gemaakt en spelers kunnen via Uiterlijk een kleinere of
+  grotere tekstschaal instellen.
+
 ## [0.3.2] - 2026-07-26
 
 ### Betrouwbaarheid

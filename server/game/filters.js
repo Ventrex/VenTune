@@ -8,7 +8,7 @@
 /**
  * Bouw WHERE-condities voor een query op titels (alias 't').
  *
- * @param {object} f  { categorie, taal, collectie, collecties, periode_start, periode_eind,
+ * @param {object} f  { categorie, categorieen, taal, collectie, collecties, periode_start, periode_eind,
  *                      min_bekendheid, zonder_genres, leeftijd_max,
  *                      alleen_nl_tv }
  * @returns {{ where: string, params: any[] }}
@@ -20,7 +20,13 @@ function bouwFilter(f = {}) {
     // Inhoudstype: films | series | muziek | beide. Collecties zijn aparte
     // labels; Frozen kan dus film + Disney zijn zonder dat het filmtype
     // verloren gaat.
-    if (f.categorie === 'films') {
+    const categorieen = Array.isArray(f.categorieen)
+        ? f.categorieen.filter((type) => ['film', 'serie', 'muziek'].includes(type))
+        : [];
+    if (categorieen.length) {
+        params.push([...new Set(categorieen)]);
+        condities.push(`t.type = ANY($${params.length}::text[])`);
+    } else if (f.categorie === 'films') {
         params.push('film');
         condities.push(`t.type = $${params.length}`);
     } else if (f.categorie === 'series') {
@@ -50,10 +56,14 @@ function bouwFilter(f = {}) {
         );
     }
 
-    // Taal: nl | en | beide
+    // Taal: nl | en | us | beide. `us` gebruikt land, omdat Amerikaans
+    // geen aparte gesproken-taalwaarde is in de catalogus.
     if (f.taal === 'nl') {
         params.push('nl');
         condities.push(`t.taal = $${params.length}`);
+    } else if (f.taal === 'us') {
+        params.push('VS');
+        condities.push(`t.land = $${params.length}`);
     } else if (f.taal === 'en') {
         params.push('en');
         condities.push(`t.taal = $${params.length}`);

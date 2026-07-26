@@ -64,7 +64,10 @@ function setupSockets(io) {
                         naam: speler.naam,
                         is_host: speler.is_host,
                         score: speler.score,
+                        team_naam: speler.team_naam,
                     },
+                    instellingen: speler.instellingen || {},
+                    teams: speler.instellingen?.teams || [],
                 });
 
                 await stuurSpelers(io, speler.lobby_id, speler.code);
@@ -75,6 +78,34 @@ function setupSockets(io) {
             } catch (err) {
                 logger.fout('lobby:hallo mislukt.', { melding: err.message });
                 socket.emit('lobby:fout', { melding: 'Er ging iets mis.' });
+            }
+        });
+
+        socket.on('lobby:instellingen', async ({ instellingen } = {}) => {
+            try {
+                if (!socket.data.isHost) return;
+                const nieuw = await lobby.bewaarInstellingen(socket.data.lobbyId, instellingen);
+                io.to(kamerNaam(socket.data.code)).emit('lobby:instellingen', {
+                    instellingen: nieuw,
+                    teams: nieuw.teams || [],
+                });
+                await stuurSpelers(io, socket.data.lobbyId, socket.data.code);
+            } catch (err) {
+                socket.emit('lobby:fout', { melding: err.message });
+            }
+        });
+
+        socket.on('lobby:team', async ({ teamNaam } = {}) => {
+            try {
+                const team = await lobby.zetTeam({
+                    lobbyId: socket.data.lobbyId,
+                    spelerId: socket.data.spelerId,
+                    teamNaam,
+                });
+                socket.emit('lobby:team-ok', { team_naam: team });
+                await stuurSpelers(io, socket.data.lobbyId, socket.data.code);
+            } catch (err) {
+                socket.emit('lobby:fout', { melding: err.message });
             }
         });
 

@@ -58,6 +58,9 @@ router.get('/api/instellingen', async (_req, res) => {
 router.get('/api/tracks/telling', async (req, res) => {
     const filter = {
         categorie: req.query.categorie,
+        categorieen: req.query.categorieen
+            ? String(req.query.categorieen).split(',').filter(Boolean)
+            : [],
         taal: req.query.taal,
         periode_start: Number(req.query.start),
         periode_eind: Number(req.query.eind),
@@ -75,19 +78,22 @@ router.get('/api/tracks/telling', async (req, res) => {
 
     try {
         const { rows } = await pool.query(
-            `SELECT COUNT(DISTINCT t.id)::int AS titels,
-                    COUNT(tr.id)::int        AS tracks
+            `SELECT COUNT(DISTINCT t.id)::int AS catalogus,
+                    COUNT(DISTINCT t.id) FILTER (WHERE tr.id IS NOT NULL)::int AS titels,
+                    COUNT(tr.id)::int AS tracks
                FROM titels t
-               JOIN tracks tr ON tr.titel_id = t.id
-                              AND tr.werkt = true
-                              AND tr.preview_url IS NOT NULL
-                              AND tr.preview_url <> ''
+               LEFT JOIN tracks tr ON tr.titel_id = t.id
+                                  AND tr.werkt = true
+                                  AND tr.preview_url IS NOT NULL
+                                  AND tr.preview_url <> ''
                ${where}`,
             params,
         );
         const titels = rows[0].titels;
         res.json({
             titels,
+            speelbare_titels: titels,
+            catalogus: rows[0].catalogus,
             tracks: rows[0].tracks,
             drempel: MIN_TITELS,
             genoeg: titels >= MIN_TITELS,
@@ -101,10 +107,11 @@ router.get('/api/tracks/telling', async (req, res) => {
 // Presets ophalen (nieuwste eerst).
 router.get('/api/presets', async (_req, res) => {
     const { rows } = await pool.query(
-        `SELECT id, naam, categorie, taal, periode_start, periode_eind,
+        `SELECT id, naam, categorie, categorieen, taal, periode_start, periode_eind,
                 rondes, speeltijd, modus, min_bekendheid, zonder_genres,
                 leeftijd_max, alleen_nl_tv, collecties,
-                antwoord_modus,
+                antwoord_modus, leeftijd_deelnemer_min, leeftijd_deelnemer_max,
+                leeftijdspunten_aan, leeftijdsfactoren,
                 aangemaakt_op
            FROM presets
           ORDER BY aangemaakt_op DESC`,
@@ -121,28 +128,36 @@ router.post('/api/presets', async (req, res) => {
     try {
         const { rows } = await pool.query(
             `INSERT INTO presets
-               (naam, categorie, taal, periode_start, periode_eind, rondes,
+               (naam, categorie, categorieen, taal, periode_start, periode_eind, rondes,
                 speeltijd, modus, min_bekendheid, zonder_genres, leeftijd_max,
-                alleen_nl_tv, antwoord_modus, collecties)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-             RETURNING id, naam, categorie, taal, periode_start, periode_eind,
+                alleen_nl_tv, antwoord_modus, collecties, leeftijd_deelnemer_min,
+                leeftijd_deelnemer_max, leeftijdspunten_aan, leeftijdsfactoren)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+             RETURNING id, naam, categorie, categorieen, taal, periode_start, periode_eind,
                        rondes, speeltijd, modus, min_bekendheid, zonder_genres,
-                       leeftijd_max, alleen_nl_tv, antwoord_modus, collecties, aangemaakt_op`,
+                       leeftijd_max, alleen_nl_tv, antwoord_modus, collecties,
+                       leeftijd_deelnemer_min, leeftijd_deelnemer_max,
+                       leeftijdspunten_aan, leeftijdsfactoren, aangemaakt_op`,
             [
                 naam,
                 b.categorie || 'beide',
+                Array.isArray(b.categorieen) ? b.categorieen : [],
                 b.taal || 'beide',
                 Number.isFinite(b.periode_start) ? b.periode_start : 1930,
                 Number.isFinite(b.periode_eind) ? b.periode_eind : 2100,
                 Number.isFinite(b.rondes) ? b.rondes : 10,
                 Number.isFinite(b.speeltijd) ? b.speeltijd : 0,
                 b.modus === 'kenner' ? 'kenner' : 'snelste',
-                Number.isFinite(b.min_bekendheid) ? b.min_bekendheid : 200,
+                Number.isFinite(b.min_bekendheid) ? b.min_bekendheid : 0,
                 Array.isArray(b.zonder_genres) ? b.zonder_genres : [],
                 Number.isFinite(b.leeftijd_max) ? b.leeftijd_max : 0,
                 b.alleen_nl_tv !== false,
                 b.antwoord_modus === 'meerkeuze' ? 'meerkeuze' : 'typen',
                 Array.isArray(b.collecties) ? b.collecties : [],
+                Number.isInteger(b.leeftijd_deelnemer_min) ? b.leeftijd_deelnemer_min : 4,
+                Number.isInteger(b.leeftijd_deelnemer_max) ? b.leeftijd_deelnemer_max : 99,
+                b.leeftijdspunten_aan === true,
+                b.leeftijdsfactoren || { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
             ],
         );
         res.json(rows[0]);

@@ -319,6 +319,7 @@ async function importeer({
     youtubeAlleen = false,
     titelFilter = null,
     collectie = null,
+    onProgress,
 } = {}) {
     const log = onLog || (() => {});
 
@@ -354,6 +355,7 @@ async function importeer({
     for (const t of titels) {
         if (verwerkt >= limiet) break;
         verwerkt++;
+        onProgress?.({ verwerkt, totaal: Math.min(titels.length, limiet), huidige: t.naam });
 
         // Titels uit de database hebben al een id; die uit titels.json niet.
         const titelId = t._id || (await upsertTitel(t));

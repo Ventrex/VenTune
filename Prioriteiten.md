@@ -25,12 +25,33 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 ## Huidige volgorde
 
 1. Open P0 — momenteel geen.
-2. Open P1 — momenteel geen; verkeerde muziek, live/nummer-varianten,
-   ronde-overgangen, lokale downloads, hostmeespelen en accounttoegang zijn
-   afgedekt.
+2. Open P1 — de bulkcontrole van alle nieuwe YouTube-matches en het handmatig
+   beoordelen van de resterende meldingen. De code weigert onzekere matches,
+   maar “altijd het juiste nummer” blijft alleen haalbaar met deze laatste
+   admincontrole per titel.
 3. Open P2 — automatische leeftijdsclassificatie, YouTube-rate-limit-herstel,
-   curatie-dashboard en periodieke controle van ontbrekende lokale bestanden.
+   curatie-dashboard, periodieke controle van ontbrekende lokale bestanden en
+   het vullen van de volledige 1600+-catalogus met gevalideerde tracks.
 4. Open P3/P4 — profielen, verdere spelvarianten en rechten-/onderzoekskeuzes.
+
+## Afgerond in deze werkronde — 2026-07-26
+
+- P1: categorie heet **Films & Series** en de standaardfilter kan nooit
+  muziek bevatten; muziek blijft alleen een expliciete aparte keuze.
+- P1: taalkeuze uitgebreid met **Amerikaans (geen NL)**; leeftijdskeuze heeft
+  Alle leeftijden, 6+, 9+, 12+, 16+ en 18+.
+- P1: zes meerkeuze-antwoorden gebruiken dezelfde genre-familie en geven
+  geen willekeurige Moulin Rouge/Baantjer-afleiders bij Sciencefiction.
+- P1: tracks worden binnen één spel niet opnieuw gekozen zolang er een andere
+  geldige track bestaat; `keer_gespeeld` blijft de tweede afwisselingslaag.
+- P1: teams, teamkeuze in de lobby en lobby-instellingen voor de host.
+- P1: optionele leeftijdsbonus voor score: t/m 6 ×2, t/m 9 ×1,75,
+  t/m 12 ×1,5, t/m 16 ×1,25 en t/m 18 ×1.
+- P1: decenniumvragen vervangen door echte jaartalopties.
+- P2: antwoord toont een directe film-/serielink, mobiele zes-keuze-layout,
+  compacte adminweergave en instelbare spelerslettergrootte.
+- P2: admin heeft genrekeuze voor TMDB-film/serie-import, voortgangsbalk en
+  een veilige actie **YouTube zoeken voor titels zonder track**.
 
 ## Door te geven aan Codex
 

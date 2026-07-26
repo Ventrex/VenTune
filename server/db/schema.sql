@@ -222,6 +222,11 @@ ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijd_max INTEGER NOT NULL DEFAU
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS alleen_nl_tv BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS antwoord_modus TEXT NOT NULL DEFAULT 'typen';
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS collecties TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS categorieen TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijd_deelnemer_min INTEGER NOT NULL DEFAULT 4;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijd_deelnemer_max INTEGER NOT NULL DEFAULT 99;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijdspunten_aan BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijdsfactoren JSONB NOT NULL DEFAULT '{"6": 2, "9": 1.75, "12": 1.5, "16": 1.25, "18": 1}'::jsonb;
 DO $$
 BEGIN
     ALTER TABLE presets DROP CONSTRAINT IF EXISTS presets_antwoord_modus_check;
@@ -320,6 +325,7 @@ CREATE TABLE IF NOT EXISTS spelers (
     score          INTEGER     NOT NULL DEFAULT 0,
     -- Voorraad hints (start 3, +1 per 10 gespeelde vragen)
     hints_over     INTEGER     NOT NULL DEFAULT 3,
+    team_naam      TEXT,
     aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -327,6 +333,7 @@ CREATE INDEX IF NOT EXISTS idx_spelers_lobby_id ON spelers (lobby_id);
 CREATE INDEX IF NOT EXISTS idx_spelers_token    ON spelers (sessie_token);
 ALTER TABLE spelers ADD COLUMN IF NOT EXISTS gebruiker_id UUID;
 ALTER TABLE spelers ADD COLUMN IF NOT EXISTS leeftijd SMALLINT;
+ALTER TABLE spelers ADD COLUMN IF NOT EXISTS team_naam TEXT;
 DO $$
 BEGIN
     ALTER TABLE spelers DROP CONSTRAINT IF EXISTS spelers_leeftijd_check;

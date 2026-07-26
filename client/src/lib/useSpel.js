@@ -17,6 +17,8 @@ export function useSpel() {
 
     const [verbonden, setVerbonden] = useState(false);
     const [spelers, setSpelers] = useState([]);
+    const [lobbyInstellingen, setLobbyInstellingen] = useState({});
+    const [teams, setTeams] = useState([]);
     const [fase, setFase] = useState('wachten'); // wachten|raden|onthul|bonus|scorebord|einde
     const [ronde, setRonde] = useState(null); // {rondenummer, totaal, durationMs, startTs}
     const [antwoordOpties, setAntwoordOpties] = useState(null);
@@ -48,6 +50,14 @@ export function useSpel() {
             socket.emit('lobby:hallo', { token: sessie.token });
         };
         const bijSpelers = (lijst) => setSpelers(lijst);
+        const bijWelkom = (d) => {
+            setLobbyInstellingen(d.instellingen || {});
+            setTeams(d.teams || d.instellingen?.teams || []);
+        };
+        const bijInstellingen = (d) => {
+            setLobbyInstellingen(d.instellingen || {});
+            setTeams(d.teams || d.instellingen?.teams || []);
+        };
         const bijFout = ({ melding } = {}) => {
             setFout(melding || 'Er ging iets mis.');
             if (melding?.includes('opnieuw') || melding?.includes('herstel')) {
@@ -138,6 +148,8 @@ export function useSpel() {
         socket.on('connect', hallo);
         socket.on('disconnect', bijVerbroken);
         socket.on('lobby:spelers', bijSpelers);
+        socket.on('lobby:welkom', bijWelkom);
+        socket.on('lobby:instellingen', bijInstellingen);
         socket.on('lobby:fout', bijFout);
         socket.on('spel:fout', bijFout);
         socket.on('spel:voorbereiden', bijVoorbereiden);
@@ -165,6 +177,8 @@ export function useSpel() {
             socket.off('connect', hallo);
             socket.off('disconnect', bijVerbroken);
             socket.off('lobby:spelers', bijSpelers);
+            socket.off('lobby:welkom', bijWelkom);
+            socket.off('lobby:instellingen', bijInstellingen);
             socket.off('lobby:fout', bijFout);
             socket.off('spel:fout', bijFout);
             socket.off('spel:voorbereiden', bijVoorbereiden);
@@ -199,6 +213,10 @@ export function useSpel() {
     }, [fase, ronde?.rondeId]);
 
     const startSpel = useCallback(() => haalSocket().emit('spel:start'), []);
+    const wijzigTeam = useCallback((teamNaam) => haalSocket().emit('lobby:team', { teamNaam }), []);
+    const bewaarLobbyInstellingen = useCallback((instellingen) => {
+        haalSocket().emit('lobby:instellingen', { instellingen });
+    }, []);
     const gok = useCallback((tekst) => haalSocket().emit('ronde:gok', { gok: tekst }), []);
     const vraagHint = useCallback(() => haalSocket().emit('ronde:hint'), []);
     const verwijder3 = useCallback(() => haalSocket().emit('ronde:verwijder3'), []);
@@ -242,6 +260,8 @@ export function useSpel() {
         isHost,
         verbonden,
         spelers,
+        lobbyInstellingen,
+        teams,
         fase,
         ronde,
         antwoordOpties,
@@ -261,6 +281,8 @@ export function useSpel() {
         herstelNodig,
         herstelBezig,
         startSpel,
+        wijzigTeam,
+        bewaarLobbyInstellingen,
         volgende,
         herhaal,
         pauzeer,

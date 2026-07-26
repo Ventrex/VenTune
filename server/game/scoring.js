@@ -28,4 +28,23 @@ function bonusPunten(poging) {
     return 0;
 }
 
-module.exports = { titelPunten, bonusPunten };
+/**
+ * Leeftijdsbonus voor een host die kinderen extra wil laten meetellen.
+ * De eerste passende grens geldt: tot en met 6, tot en met 9, enzovoort.
+ */
+function leeftijdsFactor(leeftijd, instellingen = {}) {
+    if (instellingen.leeftijdspunten_aan !== true) return 1;
+    const leeftijdGetal = Number(leeftijd);
+    if (!Number.isFinite(leeftijdGetal)) return 1;
+    const standaard = { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 };
+    const factoren = { ...standaard, ...(instellingen.leeftijdsfactoren || {}) };
+    for (const grens of [6, 9, 12, 16, 18]) {
+        if (leeftijdGetal <= grens) {
+            const factor = Number(factoren[grens]);
+            return Number.isFinite(factor) && factor > 0 ? factor : 1;
+        }
+    }
+    return 1;
+}
+
+module.exports = { titelPunten, bonusPunten, leeftijdsFactor };

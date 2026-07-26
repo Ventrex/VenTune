@@ -97,6 +97,7 @@ export async function maakLobby(instellingen = {}, naam = 'Host') {
 export async function haalTelling(filters) {
     const params = new URLSearchParams({
         categorie: filters.categorie,
+        categorieen: (filters.categorieen || []).join(','),
         taal: filters.taal,
         start: String(filters.periode_start),
         eind: String(filters.periode_eind),
@@ -257,8 +258,8 @@ export async function adminPlaylistImport(titel = '') {
 export async function adminPlaylistStatus() {
     return adminFetch('/api/admin/playlists/status');
 }
-export async function adminTmdbImport(type = 'beide') {
-    return adminFetch('/api/admin/tmdb/import', { method: 'POST', ...jsonBody({ type }) });
+export async function adminTmdbImport(type = 'beide', genre = '') {
+    return adminFetch('/api/admin/tmdb/import', { method: 'POST', ...jsonBody({ type, genre }) });
 }
 export async function adminTmdbStatus() {
     return adminFetch('/api/admin/tmdb/status');
