@@ -376,6 +376,18 @@ export async function adminVerwijderMelding(id) {
 export async function adminMeldingZoek(id) {
     return adminFetch(`/api/admin/meldingen/${id}/zoek`, { method: 'POST' });
 }
+export async function adminMeldingKoppel(id, kandidaat) {
+    return adminFetch(`/api/admin/meldingen/${id}/koppel`, {
+        method: 'POST',
+        ...jsonBody({ kandidaat }),
+    });
+}
+export async function adminMeldingGoedkeuren(id, trackId = null) {
+    return adminFetch(`/api/admin/meldingen/${id}/goedkeuren`, {
+        method: 'POST',
+        ...jsonBody(trackId ? { track_id: trackId } : {}),
+    });
+}
 export async function adminMeldingGroepen() {
     return adminFetch('/api/admin/meldingen/groepen');
 }
