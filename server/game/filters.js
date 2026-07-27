@@ -10,7 +10,7 @@
  *
  * @param {object} f  { categorie, categorieen, taal, collectie, collecties, periode_start, periode_eind,
  *                      min_bekendheid, zonder_genres, leeftijd_max,
- *                      alleen_nl_tv, alleen_gecontroleerd }
+ *                      alleen_nl_tv, alleen_gecontroleerd, alleen_lokaal }
  * @returns {{ where: string, params: any[] }}
  */
 function bouwFilter(f = {}) {
@@ -146,6 +146,19 @@ function bouwFilter(f = {}) {
                                    AND vc.verificatie_score >= 0.85
                                    AND vc.preview_url IS NOT NULL
                                    AND vc.preview_url <> '')`);
+    }
+
+    // Een spel mag pas starten met audio die werkelijk op de server staat.
+    // Externe YouTube/iTunes-verwijzingen zijn alleen materiaal voor het
+    // admin-downloadproces en nooit een speelbare bron.
+    if (f.alleen_lokaal === true) {
+        condities.push(`EXISTS (SELECT 1 FROM tracks vl
+                                 WHERE vl.titel_id = t.id
+                                   AND vl.werkt = true
+                                   AND vl.bron = 'lokaal'
+                                   AND vl.download_status = 'available'
+                                   AND vl.preview_url IS NOT NULL
+                                   AND vl.preview_url <> '')`);
     }
 
     const where = condities.length ? `WHERE ${condities.join(' AND ')}` : '';
