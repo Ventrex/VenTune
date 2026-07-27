@@ -12,7 +12,6 @@ const { Server } = require('socket.io');
 
 const logger = require('./lib/logger');
 const discord = require('./lib/discord');
-const muziekRoutes = require('./routes/muziek');
 const audioRoutes = require('./routes/audio');
 const lobbyRoutes = require('./routes/lobby');
 const setupRoutes = require('./routes/setup');
@@ -36,8 +35,6 @@ async function start() {
     // kan alleen na registratie/inloggen.
     app.use(authRoutes);
 
-    // Muziek-routes: YouTube is primair; iTunes blijft fallback.
-    app.use(muziekRoutes);
     // Audio-proxy (clips same-origin/https streamen voor iOS).
     app.use(audioRoutes);
     // Lobby-routes (aanmaken, joinen).
