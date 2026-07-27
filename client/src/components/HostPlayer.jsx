@@ -73,7 +73,7 @@ async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
 // Daarom wordt de speler bij de "Start spel"-tik eenmalig ontgrendeld
 // (ontgrendel()); daarna mag hij ook in latere rondes vanzelf spelen.
 // Lukt het toch niet, dan verschijnt een grote "Tik om te starten"-knop.
-const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, ref) {
+const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false, onStatus }, ref) {
     const audioRef = useRef(null);
     const ytMountRef = useRef(null);
     const ytSpelerRef = useRef(null);
@@ -81,6 +81,7 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
     const ontgrendeldRef = useRef(false);
     const speelTokenRef = useRef(0);
     const [moetTikken, setMoetTikken] = useState(false);
+    const [foutmelding, setFoutmelding] = useState('');
 
     const isYoutube = !!audio && audio.bron === 'youtube';
 
@@ -132,24 +133,19 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
                 /* niet fataal */
             }
         }
-        // YouTube-speler ontgrendelen.
-        const speler = await haalYtSpeler().catch(() => null);
-        if (speler && speler.playVideo) {
+        // YouTube alvast klaarzetten, maar nooit op deze klik laten wachten.
+        // Een lokale MP3 moet direct kunnen starten; een trage iframe mag de
+        // start van ronde 1 niet blokkeren.
+        haalYtSpeler().then((speler) => {
+            if (!speler?.playVideo) return;
             try {
                 speler.mute();
                 speler.playVideo();
                 setTimeout(() => {
-                    try {
-                        speler.pauseVideo();
-                        speler.unMute();
-                    } catch {
-                        /* negeren */
-                    }
+                    try { speler.pauseVideo(); speler.unMute(); } catch { /* negeren */ }
                 }, 60);
-            } catch {
-                /* niet fataal */
-            }
-        }
+            } catch { /* niet fataal */ }
+        }).catch(() => { /* lokale audio heeft geen iframe nodig */ });
     }, [haalYtSpeler]);
 
     useImperativeHandle(ref, () => ({ ontgrendel }), [ontgrendel]);
@@ -158,6 +154,14 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
     const start = useCallback(async (token = ++speelTokenRef.current) => {
         if (!audio) return;
         const isActief = () => speelTokenRef.current === token;
+        const fout = (melding) => {
+            if (!isActief()) return;
+            setFoutmelding(melding);
+            setMoetTikken(true);
+            onStatus?.({ status: 'fout', fout: melding, bron: audio.bron });
+        };
+        setFoutmelding('');
+        onStatus?.({ status: 'laden', bron: audio.bron });
 
         if (audio.bron === 'youtube') {
             let speler;
@@ -168,12 +172,12 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
                     'YouTube laden duurt te lang.',
                 );
             } catch {
-                if (isActief()) setMoetTikken(true);
+                fout('YouTube reageert niet. Controleer de track in Beheer of tik opnieuw.');
                 return;
             }
             if (!isActief()) return;
             if (!speler || !speler.loadVideoById) {
-                setMoetTikken(true);
+                fout('YouTube-speler ontbreekt op dit scherm.');
                 return;
             }
             try {
@@ -185,7 +189,7 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
                 if (speler.setVolume) speler.setVolume(100);
                 speler.playVideo();
             } catch {
-                if (isActief()) setMoetTikken(true);
+                fout('YouTube-nummer kon niet worden gestart.');
                 return;
             }
             // Controleer meerdere keren: loadVideoById is asynchroon en kan
@@ -197,6 +201,8 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
                     const staat = speler.getPlayerState && speler.getPlayerState();
                     if (staat === 1 || staat === 3) {
                         setMoetTikken(false);
+                        setFoutmelding('');
+                        onStatus?.({ status: 'speelt', bron: audio.bron });
                         return;
                     }
                     speler.playVideo();
@@ -204,7 +210,7 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
                     /* volgende poging probeert opnieuw */
                 }
             }
-            if (isActief()) setMoetTikken(true);
+            fout('YouTube-nummer speelt niet. Tik om opnieuw te proberen.');
             return;
         }
 
@@ -212,12 +218,19 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
         // afhankelijk te zijn van YouTube; probeer een korte race opnieuw
         // wanneer de browser de eerste lokale play-call te vroeg afwijst.
         const el = audioRef.current;
-        if (!el) return;
+        if (!el) {
+            fout('Audio-element ontbreekt op het hostscherm.');
+            return;
+        }
         let laatsteFout = null;
         for (let poging = 0; poging < 3; poging++) {
             try {
                 await laadEnSpeelAudio(el, audio.url, audio.startSeconde, isActief);
-                if (isActief()) setMoetTikken(false);
+                if (isActief()) {
+                    setMoetTikken(false);
+                    setFoutmelding('');
+                    onStatus?.({ status: 'speelt', bron: audio.bron });
+                }
                 return;
             } catch (err) {
                 laatsteFout = err;
@@ -228,15 +241,18 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
         if (isActief()) {
             // Alleen autoplay blokkade of een echte disk/netwerkfout mag de
             // handmatige startknop tonen; de korte retries zijn dan op.
-            setMoetTikken(true);
+            const melding = laatsteFout?.message || 'Lokaal audiobestand kon niet worden geladen.';
             console.warn('Lokale audio kon niet starten.', laatsteFout);
+            fout(`Audio kon niet starten: ${melding}`);
         }
-    }, [audio, haalYtSpeler]);
+    }, [audio, haalYtSpeler, onStatus]);
 
     useEffect(() => {
         const token = ++speelTokenRef.current;
         if (!audio) {
             setMoetTikken(false);
+            setFoutmelding('');
+            onStatus?.({ status: 'geen-audio' });
             if (audioRef.current) audioRef.current.pause();
             const speler = ytSpelerRef.current;
             if (speler && speler.pauseVideo) {
@@ -284,9 +300,10 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
         }
 
         setMoetTikken(false);
+        setFoutmelding('');
         start(token);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [audio, start]);
+    }, [audio, start, onStatus]);
 
     return (
         <div className={'host-speler' + (verborgen ? ' host-speler-verborgen' : '')}>
@@ -300,16 +317,20 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false }, 
             </div>
 
             {moetTikken && (
-                <button
-                    className="tik-start"
-                    onClick={() => {
+                <div className="host-audio-fout">
+                    <p>{foutmelding || 'De muziek wacht op een tik.'}</p>
+                    <button
+                        className="tik-start"
+                        onClick={() => {
                         setMoetTikken(false);
+                        setFoutmelding('');
                         ontgrendeldRef.current = true;
                         start();
-                    }}
-                >
-                    ▶ Tik om de muziek te starten
-                </button>
+                        }}
+                    >
+                        ▶ Opnieuw afspelen
+                    </button>
+                </div>
             )}
 
             <audio ref={audioRef} preload="auto" playsInline />
