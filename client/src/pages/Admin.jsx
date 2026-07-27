@@ -190,7 +190,30 @@ function Beheer({ onUit }) {
         try {
             const kandidaat = await api.adminMeldingZoek(meldingItem.id);
             setMeldingKandidaten((oud) => ({ ...oud, [meldingItem.id]: kandidaat }));
-            setMelding(`Kandidaat gevonden voor ${meldingItem.titel_naam || 'de titel'}; controleer hem voordat je opslaat.`);
+            setMelding(`Kandidaat gevonden voor ${meldingItem.titel_naam || 'de titel'}; luister hem eerst via YouTube.`);
+        } catch (err) { setMelding(err.message); }
+    }
+
+    async function koppelMelding(meldingItem) {
+        const kandidaat = meldingKandidaten[meldingItem.id];
+        if (!kandidaat) return;
+        if (!window.confirm(`YouTube-track koppelen aan "${meldingItem.titel_naam}" en goedkeuren?`)) return;
+        try {
+            await api.adminMeldingKoppel(meldingItem.id, kandidaat);
+            setMelding(`Track gekoppeld. ${meldingItem.titel_naam} doet weer mee en kan nu worden gedownload.`);
+            setMeldingKandidaten((oud) => { const nieuw = { ...oud }; delete nieuw[meldingItem.id]; return nieuw; });
+            await laadMeldingen();
+            await Promise.all([laadOverzicht(), laadTitels()]);
+        } catch (err) { setMelding(err.message); }
+    }
+
+    async function keurMeldingGoed(meldingItem) {
+        if (!window.confirm(`Bestaande track voor "${meldingItem.titel_naam}" goedkeuren?`)) return;
+        try {
+            await api.adminMeldingGoedkeuren(meldingItem.id, meldingItem.track_id);
+            setMelding(`Track goedgekeurd. ${meldingItem.titel_naam} doet weer mee.`);
+            await laadMeldingen();
+            await Promise.all([laadOverzicht(), laadTitels()]);
         } catch (err) { setMelding(err.message); }
     }
 
@@ -421,6 +444,8 @@ function Beheer({ onUit }) {
             {tab === 'overzicht' && overzicht && (
                 <div className="overzicht">
                     <Tegel label="Titels" waarde={overzicht.titels} onClick={() => openTab('titels', { filter: '' })} />
+                    <Tegel label="Films" waarde={overzicht.films} onClick={() => openTab('titels', { filter: 'film' })} />
+                    <Tegel label="Series" waarde={overzicht.series} onClick={() => openTab('titels', { filter: 'serie' })} />
                     <Tegel label="Bekend/gecureerd" waarde={overzicht.bekende_titels} onClick={() => openTab('titels', { filter: 'gecurateerd' })} />
                     <Tegel label="Speelbaar" waarde={overzicht.speelbaar} onClick={() => openTab('titels', { filter: 'speelbaar' })} />
                     <Tegel label="Tracks nodig" waarde={overzicht.ontbrekende_tracks} onClick={() => openTab('downloads')} />
@@ -629,46 +654,42 @@ function Beheer({ onUit }) {
                     <ul className="spelerlijst">
                         {meldingen.map((m) => (
                             <li key={m.id} className="speler-kaart">
-                                <span className="speler-naam" style={{ fontSize: '1rem' }}>
-                                    {m.titel_naam || '(titel weg)'}
-                                    <span className="dim"> · {m.soort.replace('_', ' ')}</span>
-                                    {m.tracknaam && (
-                                        <span className="dim"> · {m.tracknaam}</span>
-                                    )}
-                                    {m.afgehandeld && <span className="dim"> · afgehandeld</span>}
-                                </span>
-                                <span style={{ display: 'flex', gap: '0.4rem' }}>
-                                    {!m.afgehandeld && <button
-                                        className="afspeelknop klein"
-                                        title="Opnieuw zoeken via YouTube"
-                                        onClick={() => zoekMelding(m)}
-                                    >
-                                        🔍
-                                    </button>}
-                                    {!m.afgehandeld && <button
-                                        className="afspeelknop klein"
-                                        title="Afgehandeld"
-                                        onClick={() => meldingAf(m.id)}
-                                    >
-                                        ✓
-                                    </button>}
-                                    {m.afgehandeld && <button
-                                        className="afspeelknop klein"
-                                        title="Afgehandelde melding verwijderen"
-                                        onClick={() => verwijderMelding(m.id)}
-                                    >
-                                        🗑
-                                    </button>}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <span className="speler-naam" style={{ fontSize: '1rem' }}>
+                                        {m.titel_naam || '(titel weg)'}
+                                        <span className="dim"> · {m.titel_type || 'onbekend'}{m.titel_jaar ? ` · ${m.titel_jaar}` : ''}</span>
+                                    </span>
+                                    <span className="dim" style={{ display: 'block' }}>
+                                        {m.soort.replace('_', ' ')}
+                                        {m.tracknaam ? ` · ${m.tracknaam}` : ' · nog geen track gekoppeld'}
+                                        {m.track_id && (m.track_werkt ? ' · track actief' : ' · track afgekeurd')}
+                                        {m.download_status ? ` · ${m.download_status}` : ''}
+                                        {m.toelichting ? ` · ${m.toelichting}` : ''}
+                                        {m.afgehandeld ? ' · goedgekeurd' : ' · open'}
+                                    </span>
+                                </div>
+                                <span className="admin-account-acties">
+                                    {!m.afgehandeld && <button className="afspeelknop klein" onClick={() => zoekMelding(m)}>YouTube zoeken</button>}
+                                    {!m.afgehandeld && m.track_id && <button className="afspeelknop klein" onClick={() => keurMeldingGoed(m)}>Track goedkeuren</button>}
+                                    {!m.afgehandeld && meldingKandidaten[m.id] && <button className="afspeelknop klein" onClick={() => koppelMelding(m)}>Koppelen + goedkeuren</button>}
+                                    {!m.afgehandeld && !m.track_id && !meldingKandidaten[m.id] && <button className="afspeelknop klein" onClick={() => meldingAf(m.id)}>Sluiten zonder track</button>}
+                                    {m.afgehandeld && <button className="afspeelknop klein" onClick={() => verwijderMelding(m.id)}>Verwijderen</button>}
                                 </span>
                                 {meldingKandidaten[m.id] && (
-                                    <span className="dim" style={{ display: 'block', marginTop: '0.4rem' }}>
-                                        Kandidaat: {meldingKandidaten[m.id].tracknaam} · <a href={meldingKandidaten[m.id].youtube_url} target="_blank" rel="noreferrer">YouTube bekijken</a>
+                                    <span className="dim" style={{ display: 'block', marginTop: '0.5rem' }}>
+                                        <strong>Kandidaat:</strong> {meldingKandidaten[m.id].tracknaam} · {meldingKandidaten[m.id].artiest} · <a href={meldingKandidaten[m.id].youtube_url} target="_blank" rel="noreferrer">YouTube beluisteren</a>
                                     </span>
                                 )}
                             </li>
                         ))}
                     </ul>
                 </div>
+            )}
+            {tab === 'meldingen' && meldingen.length === 0 && (
+                <section className="kaart admin-empty" style={{ marginTop: '1.5rem' }}>
+                    <p className="kaart-label">Geen meldingen</p>
+                    <p className="dim">Er zijn geen open of afgehandelde meldingen gevonden. Een speler kan tijdens een ronde een verkeerd nummer of geen geluid melden; die melding verschijnt hier als herstelkaart.</p>
+                </section>
             )}
 
             {tab === 'titels' && <>
@@ -688,7 +709,15 @@ function Beheer({ onUit }) {
                     <option value="zonder-track">Zonder speelbare track</option>
                     <option value="afgekeurd">Met afgekeurde track</option>
                     <option value="speelbaar">Alleen speelbaar</option>
+                    <option value="film">Alleen films</option>
+                    <option value="serie">Alleen series</option>
+                    <option value="lokaal">Heeft lokale MP3</option>
+                    <option value="zonder-lokaal">Nog niet lokaal</option>
+                    <option value="youtube">YouTube-bron</option>
+                    <option value="itunes">iTunes-bron</option>
+                    <option value="met-melding">Met open melding</option>
                     <option value="gecurateerd">Bekend/gecurateerd</option>
+                    <option value="te-beoordelen">Te beoordelen</option>
                     <option value="zonder-vraag">Zonder bonusvraag</option>
                 </select>
                 <button className="knop" type="submit">Zoek</button>
@@ -699,6 +728,7 @@ function Beheer({ onUit }) {
             <p className="kaart-label" style={{ textAlign: 'left', marginTop: '1.5rem' }}>
                 Titels ({titels.length})
             </p>
+            <p className="dim admin-legenda">Per titel: <span className="bron-pill lokaal">MP3</span> volledig lokaal beschikbaar · <span className="bron-pill youtube">YT</span> wordt nog via YouTube afgespeeld · <span className="bron-pill itunes">iT</span> iTunes-fallback · ⚠ open melding. Klik een titel voor tracks, vragen en herstelacties.</p>
             <ul className="spelerlijst">
                 {titels.map((t) => (
                     <li key={t.id} className="titel-blok">
@@ -710,8 +740,11 @@ function Beheer({ onUit }) {
                                 {t.naam}
                                 <span className="dim"> · {t.type} · {t.taal} · {t.jaar || '—'} · {t.curatie_status || '—'} · {t.leeftijdsgrens ?? 16}+{t.collecties?.length ? ` · ${t.collecties.join(', ')}` : ''}</span>
                             </span>
-                            <span className={'track-badge' + (t.aantal_tracks ? '' : ' leeg')}>
-                                {t.aantal_tracks} ♪
+                            <span className="admin-titel-status" aria-label="Audiobronnen">
+                                <span className={'bron-pill lokaal' + (!t.lokale_tracks ? ' leeg' : '')}>MP3 {t.lokale_tracks || 0}</span>
+                                <span className={'bron-pill youtube' + (!t.youtube_tracks ? ' leeg' : '')}>YT {t.youtube_tracks || 0}</span>
+                                <span className={'bron-pill itunes' + (!t.itunes_tracks ? ' leeg' : '')}>iT {t.itunes_tracks || 0}</span>
+                                {!!t.open_meldingen && <span className="bron-pill melding">⚠ {t.open_meldingen}</span>}
                             </span>
                         </div>
                         {open === t.id && (
