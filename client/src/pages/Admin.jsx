@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
 import { audioBron } from '../lib/api.js';
@@ -63,6 +63,7 @@ function Beheer({ onUit }) {
     const [bezigPlaylist, setBezigPlaylist] = useState(false);
     const [bezigTmdb, setBezigTmdb] = useState(false);
     const [bezigCatalogus, setBezigCatalogus] = useState(false);
+    const [bezigStudio, setBezigStudio] = useState(false);
     const [bezigVragen, setBezigVragen] = useState(false);
     const [bezigDownloads, setBezigDownloads] = useState(false);
     const [bezigHealth, setBezigHealth] = useState(false);
@@ -83,6 +84,8 @@ function Beheer({ onUit }) {
     const [meldingGroepen, setMeldingGroepen] = useState([]);
     const [meldingKandidaten, setMeldingKandidaten] = useState({});
     const [taken, setTaken] = useState(null);
+    const [vraagSuggesties, setVraagSuggesties] = useState([]);
+    const [bezigSuggesties, setBezigSuggesties] = useState(false);
 
     async function laadTitels(zoekOverride = zoek, filterOverride = titelFilter) {
         try {
@@ -148,6 +151,9 @@ function Beheer({ onUit }) {
     async function laadCollecties() {
         try { setCollecties(await api.adminCollecties()); } catch { /* niet fataal */ }
     }
+    async function laadVraagSuggesties() {
+        try { setVraagSuggesties(await api.adminVraagSuggesties('open')); } catch { /* niet fataal */ }
+    }
     useEffect(() => {
         laadOntbrekend();
         laadMeldingen();
@@ -157,6 +163,7 @@ function Beheer({ onUit }) {
         laadTaken();
         laadGebruikers();
         laadCollecties();
+        laadVraagSuggesties();
         /* eslint-disable-next-line */
     }, []);
     useEffect(() => {
@@ -215,6 +222,27 @@ function Beheer({ onUit }) {
             await laadMeldingen();
             await Promise.all([laadOverzicht(), laadTitels()]);
         } catch (err) { setMelding(err.message); }
+    }
+
+    async function keurVraagGoed(suggestie) {
+        setBezigSuggesties(true);
+        try {
+            await api.adminVraagSuggestieGoedkeuren(suggestie.id);
+            setMelding(`Bonusvraag voor ${suggestie.titel_naam} goedgekeurd.`);
+            await laadVraagSuggesties();
+        } catch (err) { setMelding(err.message); }
+        finally { setBezigSuggesties(false); }
+    }
+
+    async function wijsVraagAf(suggestie) {
+        const toelichting = window.prompt('Waarom afwijzen? (optioneel)', '') ?? '';
+        setBezigSuggesties(true);
+        try {
+            await api.adminVraagSuggestieAfwijzen(suggestie.id, toelichting);
+            setMelding(`Bonusvraag voor ${suggestie.titel_naam} afgewezen.`);
+            await laadVraagSuggesties();
+        } catch (err) { setMelding(err.message); }
+        finally { setBezigSuggesties(false); }
     }
 
     async function seed(alleenDb = false, youtubeAlleen = false, force = true) {
@@ -278,6 +306,17 @@ function Beheer({ onUit }) {
             collectieSlugs.length ? 'Collectietracks controleren en vooraf downloaden…' : 'Alle beschikbare MP3-tracks controleren en vooraf downloaden…',
             'Vooraf downloaden klaar.',
         );
+    }
+
+    async function zoekEnDownloadOntbrekendeLokale() {
+        await achtergrondTaak(
+            () => api.adminOntbrekendeLokaleStart(),
+            api.adminOntbrekendeLokaleStatus,
+            setBezigDownloads,
+            'Titels zonder lokale MP3 zoeken op YouTube en downloaden…',
+            'Ontbrekende lokale MP3’s verwerken klaar.',
+        );
+        await Promise.all([laadOverzicht(), laadTitels(), laadOntbrekend()]);
     }
 
     async function retryDownloads() {
@@ -417,6 +456,7 @@ function Beheer({ onUit }) {
                     ['import', 'Imports'],
                     ['downloads', 'Downloads'],
                     ['collecties', 'Spelcollecties'],
+                    ['vragen', `Bonusvragen${vraagSuggesties.length ? ` (${vraagSuggesties.length})` : ''}`],
                     ['meldingen', `Meldingen${meldingen.length ? ` (${meldingen.length})` : ''}`],
                     ['users', `Users (${gebruikers.length})`],
                     ['database', 'Database'],
@@ -467,6 +507,15 @@ function Beheer({ onUit }) {
 
             {tab === 'kwaliteit' && <Kwaliteitsdashboard data={kwaliteit} onRefresh={laadKwaliteit} />}
 
+            {tab === 'vragen' && (
+                <VraagSuggesties
+                    suggesties={vraagSuggesties}
+                    bezig={bezigSuggesties}
+                    onGoedkeuren={keurVraagGoed}
+                    onAfwijzen={wijsVraagAf}
+                />
+            )}
+
             {tab === 'users' && <Hostaccounts gebruikers={gebruikers} spelers={spelers} onWijzig={laadGebruikers} />}
 
             {tab === 'import' && (
@@ -497,6 +546,13 @@ function Beheer({ onUit }) {
                                 disabled={bezigCatalogus || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}
                             >
                                 {bezigCatalogus ? 'Populaire catalogus opbouwen…' : 'Populaire films & series per jaar'}
+                            </button>
+                            <button
+                                className="knop knop-stil"
+                                onClick={() => achtergrondTaak(api.adminStudioImport, api.adminStudioStatus, setBezigStudio, 'Ontbrekende studio’s via TMDB aanvullen…', 'Studio’s aanvullen klaar.')}
+                                disabled={bezigStudio || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCatalogus}
+                            >
+                                {bezigStudio ? 'Studio’s aanvullen…' : 'Ontbrekende studio’s aanvullen'}
                             </button>
                             <p className="dim">Alleen films en series: 1980–nu populaire bioscoopfilms (max. 50) en series (max. 25, minimaal 10 als die beschikbaar zijn) per jaar in de Nederlandse regio. Daarnaast 1950–nu de populairste 10 films en series per jaar in Nederland, plus Cult Classics. De aantallen mogen per jaar lager zijn; er worden geen obscure opvultitels toegevoegd. Er wordt hier geen muziek-toplijst gevuld; YouTube zoeken en MP3-downloads blijven aparte tabs.</p>
                             <div className="zoekbalk">
@@ -579,8 +635,8 @@ function Beheer({ onUit }) {
                     <div className="kaart">
                         <p className="kaart-label">MP3-downloadcentrum</p>
                         <p className="dim">
-                            Controleert de URL en slaat de audio blijvend op in <code>/media/downloads</code>.
-                            YouTube wordt gebruikt waar beschikbaar; iTunes blijft alleen fallback.
+                            Controleert de YouTube-URL en slaat de volledige audio blijvend op in <code>/media/downloads</code>.
+                            Lokale MP3’s worden overgeslagen; iTunes wordt niet meer gebruikt.
                         </p>
                         <button className="knop" onClick={() => downloadVooraf()} disabled={bezigDownloads || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCollecties}>
                             {bezigDownloads ? 'MP3’s controleren/downloaden…' : 'Alle MP3’s vooraf downloaden + URL controleren'}
@@ -591,6 +647,9 @@ function Beheer({ onUit }) {
                         </div>
                         <button className="knop knop-stil" style={{ marginTop: '0.75rem' }} onClick={() => achtergrondTaak(() => api.adminDownloadStart({ controleer: true, alleenGecontroleerd: true, alleenYoutube: true }), api.adminDownloadStatus, setBezigDownloads, 'Gecontroleerde YouTube-tracks vooraf downloaden…', 'Gecontroleerde YouTube-tracks klaar.') } disabled={bezigDownloads}>
                             Alleen gecontroleerde YouTube-tracks downloaden
+                        </button>
+                        <button className="knop knop-stil" style={{ marginTop: '0.75rem' }} onClick={zoekEnDownloadOntbrekendeLokale} disabled={bezigDownloads}>
+                            YouTube zoeken + downloaden voor titels zonder lokale MP3
                         </button>
                         <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
                             <button className="knop knop-stil" onClick={() => api.adminAfgekeurdeTracksExport()}>Afgekeurde tracks exporteren</button>
@@ -712,9 +771,15 @@ function Beheer({ onUit }) {
                     <option value="film">Alleen films</option>
                     <option value="serie">Alleen series</option>
                     <option value="lokaal">Heeft lokale MP3</option>
-                    <option value="zonder-lokaal">Nog niet lokaal</option>
+                    <option value="zonder-lokaal">Zonder lokale MP3</option>
+                    <option value="studio-ontbreekt">Studio ontbreekt</option>
+                    <option value="leeftijd-0">Alle leeftijden</option>
+                    <option value="leeftijd-6">Leeftijd 6+</option>
+                    <option value="leeftijd-9">Leeftijd 9+</option>
+                    <option value="leeftijd-12">Leeftijd 12+</option>
+                    <option value="leeftijd-16">Leeftijd 16+</option>
+                    <option value="leeftijd-18">Leeftijd 18+</option>
                     <option value="youtube">YouTube-bron</option>
-                    <option value="itunes">iTunes-bron</option>
                     <option value="met-melding">Met open melding</option>
                     <option value="gecurateerd">Bekend/gecurateerd</option>
                     <option value="te-beoordelen">Te beoordelen</option>
@@ -723,12 +788,18 @@ function Beheer({ onUit }) {
                 <button className="knop" type="submit">Zoek</button>
             </form>
 
+            {titelFilter === 'zonder-lokaal' && (
+                <button className="knop knop-stil" style={{ marginTop: '0.75rem', width: '100%' }} onClick={zoekEnDownloadOntbrekendeLokale} disabled={bezigDownloads}>
+                    YouTube zoeken en MP3 downloaden voor deze ontbrekende titels
+                </button>
+            )}
+
             <NieuweTitel onKlaar={laadTitels} />
 
             <p className="kaart-label" style={{ textAlign: 'left', marginTop: '1.5rem' }}>
                 Titels ({titels.length})
             </p>
-            <p className="dim admin-legenda">Per titel: <span className="bron-pill lokaal">MP3</span> volledig lokaal beschikbaar · <span className="bron-pill youtube">YT</span> wordt nog via YouTube afgespeeld · <span className="bron-pill itunes">iT</span> iTunes-fallback · ⚠ open melding. Klik een titel voor tracks, vragen en herstelacties.</p>
+            <p className="dim admin-legenda">Per titel: <span className="bron-pill lokaal">MP3</span> volledig lokaal beschikbaar · <span className="bron-pill youtube">YT</span> wacht nog op download · ⚠ open melding. YouTube is uitsluitend downloadbron; klik een titel voor herstelacties.</p>
             <ul className="spelerlijst">
                 {titels.map((t) => (
                     <li key={t.id} className="titel-blok">
@@ -738,12 +809,11 @@ function Beheer({ onUit }) {
                         >
                             <span className="speler-naam">
                                 {t.naam}
-                                <span className="dim"> · {t.type} · {t.taal} · {t.jaar || '—'} · {t.curatie_status || '—'} · {t.leeftijdsgrens ?? 16}+{t.collecties?.length ? ` · ${t.collecties.join(', ')}` : ''}</span>
+                                <span className="dim"> · {t.type} · {t.taal} · {t.jaar || '—'} · {t.curatie_status || '—'} · {t.leeftijdsgrens ?? 16}+{t.studio ? ` · ${t.studio}` : ' · studio ontbreekt'}{t.collecties?.length ? ` · ${t.collecties.join(', ')}` : ''}</span>
                             </span>
                             <span className="admin-titel-status" aria-label="Audiobronnen">
                                 <span className={'bron-pill lokaal' + (!t.lokale_tracks ? ' leeg' : '')}>MP3 {t.lokale_tracks || 0}</span>
                                 <span className={'bron-pill youtube' + (!t.youtube_tracks ? ' leeg' : '')}>YT {t.youtube_tracks || 0}</span>
-                                <span className={'bron-pill itunes' + (!t.itunes_tracks ? ' leeg' : '')}>iT {t.itunes_tracks || 0}</span>
                                 {!!t.open_meldingen && <span className="bron-pill melding">⚠ {t.open_meldingen}</span>}
                             </span>
                         </div>
@@ -762,6 +832,41 @@ function Beheer({ onUit }) {
                 <Link className="terug" to="/">← Terug naar start</Link>
             </p>
         </main>
+    );
+}
+
+function VraagSuggesties({ suggesties, bezig, onGoedkeuren, onAfwijzen }) {
+    return (
+        <section className="admin-panel" style={{ marginTop: '1rem' }}>
+            <div className="kaart">
+                <p className="kaart-label">Bonusvragen van spelers ({suggesties.length})</p>
+                <p className="dim">Een vraag wordt pas gebruikt nadat je hem goedkeurt. Controleer vooral spelling, juist antwoord en leeftijdsgeschiktheid.</p>
+                {suggesties.length === 0 ? (
+                    <p className="dim">Geen openstaande suggesties.</p>
+                ) : (
+                    <ul className="spelerlijst">
+                        {suggesties.map((s) => (
+                            <li key={s.id} className="speler-kaart" style={{ display: 'block' }}>
+                                <strong>{s.titel_naam}</strong>
+                                <span className="dim"> · {s.titel_type} · ingestuurd door {s.speler_naam || 'gast'}</span>
+                                <p style={{ margin: '0.5rem 0' }}>{s.vraag}</p>
+                                <ol style={{ margin: '0 0 0.75rem 1.25rem' }}>
+                                    {(s.opties || []).map((optie, i) => (
+                                        <li key={i} style={{ color: i === s.correct_index ? 'var(--accent)' : undefined }}>
+                                            {optie}{i === s.correct_index ? ' ✓' : ''}
+                                        </li>
+                                    ))}
+                                </ol>
+                                <span className="admin-account-acties">
+                                    <button className="afspeelknop klein" disabled={bezig} onClick={() => onGoedkeuren(s)}>Goedkeuren</button>
+                                    <button className="afspeelknop klein" disabled={bezig} onClick={() => onAfwijzen(s)}>Afwijzen</button>
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </section>
     );
 }
 
@@ -1189,7 +1294,7 @@ function NieuweHost({ onKlaar }) {
 
 const LEEG = {
     naam: '', type: 'film', taal: 'nl', jaar: '', land: '', aliassen: '', genres: '',
-    hoofdrollen: '', speelplek: '', tmdb_id: '', toevoeg_reden: '',
+    hoofdrollen: '', speelplek: '', studio: '', tmdb_id: '', toevoeg_reden: '',
     collecties: '', nl_tv_bekend: true, curatie_status: 'goedgekeurd', leeftijdsgrens: 16,
 };
 
@@ -1388,7 +1493,7 @@ function TitelDetail({ titel, onWijzig }) {
                         >
                             ★
                         </button>
-                        {(tr.bron === 'itunes' || tr.bron === 'youtube') && (
+                        {tr.bron === 'youtube' && (
                             <button
                                 className="afspeelknop klein"
                                 title="Sla deze track lokaal op"
@@ -1449,7 +1554,6 @@ function TitelDetail({ titel, onWijzig }) {
 
             <YoutubeZoeker titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
             <YoutubeToevoegen titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
-            <TrackZoeker titelId={titel.id} onToegevoegd={() => { laadTracks(); onWijzig(); }} />
         </div>
     );
 }
@@ -1560,62 +1664,6 @@ function YoutubeToevoegen({ titelId, onToegevoegd }) {
     );
 }
 
-// iTunes is alleen fallback als YouTube niets betrouwbaars oplevert.
-function TrackZoeker({ titelId, onToegevoegd }) {
-    const [term, setTerm] = useState('');
-    const [res, setRes] = useState([]);
-    const [bezig, setBezig] = useState(false);
-    const audioRef = useRef(null);
-
-    async function zoek(e) {
-        e.preventDefault();
-        setBezig(true);
-        try {
-            const d = await api.zoekMuziek(term);
-            setRes(d.resultaten);
-        } catch { setRes([]); } finally { setBezig(false); }
-    }
-    async function voegToe(r) {
-        await api.adminVoegTrack(titelId, {
-            bron: 'itunes',
-            itunes_track_id: r.itunes_track_id,
-            preview_url: r.preview_url,
-            tracknaam: r.tracknaam,
-            artiest: r.artiest,
-            album: r.album,
-        });
-        setRes([]);
-        setTerm('');
-        onToegevoegd();
-    }
-
-    return (
-        <div style={{ marginTop: '0.75rem' }}>
-            <form className="zoekbalk" onSubmit={zoek}>
-                <input className="invoer" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Fallback: zoek clip op iTunes…" />
-                <button className="knop knop-stil" type="submit" disabled={bezig}>{bezig ? '…' : 'Zoek'}</button>
-            </form>
-            {res.length > 0 && (
-                <ul className="tracklijst" style={{ marginTop: '0.5rem' }}>
-                    {res.map((r) => (
-                        <li key={r.itunes_track_id} className="track">
-                            <div className="track-info">
-                                <span className="track-naam">{r.tracknaam}</span>
-                                <span className="dim">{r.artiest}{r.album ? ` · ${r.album}` : ''}</span>
-                            </div>
-                            <button className="afspeelknop klein" onClick={() => {
-                                if (audioRef.current) { audioRef.current.src = audioBron(r.preview_url); audioRef.current.play(); }
-                            }} aria-label="Beluister">▶</button>
-                            <button className="knop knop-stil" onClick={() => voegToe(r)}>+</button>
-                        </li>
-                    ))}
-                </ul>
-            )}
-            <audio ref={audioRef} preload="none" />
-        </div>
-    );
-}
-
 function TitelVelden({ f, setF }) {
     const zet = (k) => (e) => setF({ ...f, [k]: e.target.value });
     return (
@@ -1635,6 +1683,7 @@ function TitelVelden({ f, setF }) {
             </div>
             <input className="invoer" value={f.land} onChange={zet('land')} placeholder="Land" />
             <input className="invoer" value={f.speelplek} onChange={zet('speelplek')} placeholder="Waar speelt het zich af? (optioneel)" />
+            <input className="invoer" value={f.studio} onChange={zet('studio')} placeholder="Studio / producent (bijv. Disney, Pixar, Marvel)" />
             <input className="invoer" value={f.aliassen} onChange={zet('aliassen')} placeholder="Aliassen (komma-gescheiden)" />
             <input className="invoer" value={f.genres} onChange={zet('genres')} placeholder="Genres (komma-gescheiden)" />
             <input className="invoer" value={f.hoofdrollen} onChange={zet('hoofdrollen')} placeholder="Hoofdrollen (komma-gescheiden, optioneel)" />
@@ -1648,7 +1697,7 @@ function TitelVelden({ f, setF }) {
                     <option value="uitgesloten">Uitgesloten</option>
                 </select>
                 <select className="invoer" value={f.leeftijdsgrens} onChange={zet('leeftijdsgrens')}>
-                    {[0, 6, 10, 12, 16, 18].map((leeftijd) => <option key={leeftijd} value={leeftijd}>{leeftijd === 0 ? 'Alle leeftijden' : `${leeftijd}+`}</option>)}
+                    {[0, 6, 9, 10, 12, 16, 18].map((leeftijd) => <option key={leeftijd} value={leeftijd}>{leeftijd === 0 ? 'Alle leeftijden' : `${leeftijd}+`}</option>)}
                 </select>
             </div>
             <label className="keuze klein keuze-schakelaar">
@@ -1668,6 +1717,7 @@ function naarForm(t) {
         jaar: t.jaar || '',
         land: t.land || '',
         speelplek: t.speelplek || '',
+        studio: t.studio || '',
         aliassen: (t.aliassen || []).join(', '),
         genres: (t.genres || []).join(', '),
         hoofdrollen: (t.hoofdrollen || []).join(', '),
@@ -1688,6 +1738,7 @@ function naarPayload(f) {
         jaar: f.jaar ? Number(f.jaar) : null,
         land: f.land.trim() || null,
         speelplek: f.speelplek.trim() || null,
+        studio: f.studio.trim() || null,
         aliassen: lijst(f.aliassen),
         genres: lijst(f.genres),
         hoofdrollen: lijst(f.hoofdrollen),
