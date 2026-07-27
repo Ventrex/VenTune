@@ -7,10 +7,21 @@
 - [x] **P1** Filtertelling niet langer op minimaal 15 titels blokkeren; één
       lokale titel is geldig en het spel meldt wanneer er minder rondes dan
       gevraagd beschikbaar zijn.
-- [x] **P1/P2** Herhaalbare film- en seriecatalogus toevoegen: top 100 films én
-      top 100 series per jaar vanaf 1980, plus Nederlandstalige top 10 films en
-      series per jaar vanaf 1950. Muziek valt buiten deze taak. Metadata, rang,
+- [x] **P1/P2** Herhaalbare populaire film- en seriecatalogus toevoegen:
+      maximaal 50 bioscoopfilms en 25 series per jaar vanaf 1980, met minimaal
+      10 bruikbare series in een dun jaar, plus top 10 films en series in
+      Nederland vanaf 1950. Muziek valt buiten deze taak. Metadata, rang,
       collectie en toevoegreden worden opgeslagen.
+- [x] **P1** Nederlandse regiocontext gebruiken; productieland is geen
+      automatische uitsluitingsregel.
+- [x] **P1** Oude automatische cataloguskoppelingen veilig losmaken bij een
+      nieuwe run; titels, tracks en downloads blijven herstelbaar.
+- [x] **P1** Cyrillisch, Arabisch, CJK, controle-tekens en vergelijkbare
+      vervuilde titel-/audiometadata weigeren.
+- [x] **P2** Aparte collectie **Cult Classics** met uitlegbare startselectie,
+      waaronder *Idiocracy*.
+- [x] **P1** Iconische vangnettels buiten de momentopname van TMDB-populariteit
+      vastleggen, te beginnen met *Sliders* (1995).
 - [x] **P2** Jaartalcatalogus als zichtbare admin-taak met voortgang aanbieden;
       YouTube zoeken en lokale MP3-downloads bewust als aparte vervolgstappen
       laten draaien.
