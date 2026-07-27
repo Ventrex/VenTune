@@ -36,7 +36,9 @@
 
 ### Catalogus en beheer
 
-- Nieuwe admin-taak **Top 100 per jaar + NL top 10 opbouwen**.
+- Nieuwe admin-taak **Films top 100 + series top 100 per jaar**. De aparte
+  Nederlandstalige top 10 bevat eveneens alleen films en series; muziek wordt
+  niet door deze catalogustaak gevuld.
 - 1980–nu: maximaal 100 films en 100 series per jaartal. 1950–nu: maximaal
   10 oorspronkelijk Nederlandstalige films en 10 series per jaartal.
 - Elke geïmporteerde titel bewaart TMDB-metadata, jaar, rang, collectie en
