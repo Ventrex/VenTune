@@ -43,9 +43,14 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
   foutmelding; een vastgelopen in-memory spelstate blijft niet stil.
 - **P1 opgelost:** een kleine filterselectie met minimaal één volledig lokaal
   nummer kan starten; minder rondes dan gevraagd worden expliciet gemeld.
-- **P1/P2 toegevoegd:** grote TMDB-jaartalcatalogus met top 100 films/series
-  vanaf 1980 en Nederlandstalige top 10 vanaf 1950. De import komt eerst als
+- **P1/P2 toegevoegd:** populaire TMDB-jaartalcatalogus met maximaal 50 films
+  en 25 series vanaf 1980, minimaal 10 series in een dun jaar, en top 10
+  films/series in Nederland vanaf 1950. De import komt eerst als
   `te_beoordelen` binnen en doet geen YouTube-zoekactie of download.
+- **P1 opgelost:** catalogus gebruikt Nederlandse regio-context, maakt oude
+  automatische koppelingen los en sluit onveilige scripts/metadata uit. Duits
+  productieland alleen is geen reden tot uitsluiting.
+- **P2 opgelost:** aparte collectie Cult Classics met reden en startselectie.
 - **Open P1:** resterende titels zonder gevalideerde YouTube-match handmatig
   beoordelen via de meldingen- en downloadtab.
 - **P1 opgelost:** ronde 1 laat de audiostatus zien, start lokale audio zonder
