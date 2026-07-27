@@ -2,6 +2,21 @@
 
 ## [0.4.0] - 2026-07-27
 
+### Nederlandse catalogus en Cult Classics
+
+- Jaartalcatalogus gebruikt nu de Nederlandse regio-context en populariteit:
+  maximaal 50 bioscoopfilms en 25 series per jaar vanaf 1980, met minimaal 10
+  bruikbare series in dunne jaren; top 10 films en series per jaar vanaf 1950.
+- Duits productieland is geen blinde uitsluitingsregel: een titel mag blijven
+  als hij in de Nederlandse selectie thuishoort. Oude automatische
+  cataloguskoppelingen worden bij een nieuwe run veilig losgemaakt.
+- Niet-Latijnse scripts, controle-tekens en verdachte muziekmetadata worden
+  geweigerd. Admin heeft een herstelbare actie **Onveilige tekens uitsluiten**.
+- Nieuwe collectie **Cult Classics**, met onder meer *Idiocracy*, voor films
+  die pas later een cultstatus kregen.
+- Populaire selectie heeft nu een expliciet vangnet voor iconische series;
+  *Sliders* wordt aan 1995 gekoppeld als TMDB hem niet hoog genoeg rangschikt.
+
 ### Audio starten
 
 - De host wacht bij **Start spel** niet meer op een trage YouTube-iframe als de
@@ -36,11 +51,12 @@
 
 ### Catalogus en beheer
 
-- Nieuwe admin-taak **Films top 100 + series top 100 per jaar**. De aparte
-  Nederlandstalige top 10 bevat eveneens alleen films en series; muziek wordt
-  niet door deze catalogustaak gevuld.
-- 1980–nu: maximaal 100 films en 100 series per jaartal. 1950–nu: maximaal
-  10 oorspronkelijk Nederlandstalige films en 10 series per jaartal.
+- Nieuwe admin-taak **Populaire films & series per jaar**. De aparte
+  Nederlandse top 10 bevat eveneens alleen films en series; muziek wordt niet
+  door deze catalogustaak gevuld.
+- 1980–nu: maximaal 50 films en 25 series per jaartal; de werkelijke lijst mag
+  kleiner zijn. 1950–nu: maximaal 10 films en 10 series per jaartal in de
+  Nederlandse regio-context.
 - Elke geïmporteerde titel bewaart TMDB-metadata, jaar, rang, collectie en
   toevoegreden. De titels komen eerst op `te_beoordelen`; YouTube zoeken en
   MP3-downloads zijn aparte, zichtbare admin-taken.
