@@ -1,5 +1,21 @@
 # VenTune changelog
 
+## [0.5.1] - 2026-07-27
+
+### Spelstart gebruikt alleen echte lokale MP3’s
+
+- Start spel downloadt niets meer en probeert geen externe fallback meer.
+- De rondepool wordt opgebouwd uit titels waarvan het lokale MP3-bestand echt
+  op disk bestaat; titels met een stale databasepad worden overgeslagen.
+- Als een titel zoals *The White Lotus* wel als `lokaal/available` in de
+  database staat maar het bestand ontbreekt, wordt de track op `failed` gezet
+  en komt de titel in Admin als herstelmelding.
+- De voorbereidingstekst heet nu **Lokale MP3’s controleren…** zodat duidelijk
+  is dat er niet tijdens de spelstart wordt gedownload.
+- Alleen als er voor de gekozen filters niet genoeg echte lokale MP3’s zijn,
+  stopt de start met een duidelijke melding hoeveel lokale nummers beschikbaar
+  zijn.
+
 ## [0.5.0] - 2026-07-27
 
 ### Lokaal-eerst audio
