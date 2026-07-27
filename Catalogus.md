@@ -10,10 +10,11 @@ De jaren worden inclusief geteld:
 
 | Reeks | Per jaar | Aantal jaartallen t/m 2026 | Theoretisch maximum |
 |---|---:|---:|---:|
-| Films 1980–nu | top 100 | 47 | 4.700 |
-| Series 1980–nu | top 100 | 47 | 4.700 |
-| Nederlandstalige films 1950–nu | top 10 | 77 | 770 |
-| Nederlandstalige series 1950–nu | top 10 | 77 | 770 |
+| Populaire bioscoopfilms 1980–nu | max 50 | 47 | 2.350 |
+| Populaire series 1980–nu | max 25, min 10 | 47 | 1.175 max |
+| Populaire films 1950–nu in Nederland | top 10 | 77 | 770 |
+| Populaire series 1950–nu in Nederland | top 10 | 77 | 770 |
+| Cult Classics | gecureerde collectie | — | 24 starttitels |
 
 Het werkelijke aantal kan lager zijn: een lopend jaar is nog niet compleet en
 TMDB heeft niet voor elk oud jaartal 100 films of series met voldoende data.
@@ -23,7 +24,7 @@ meerdere collecties gekoppeld.
 ## Admin-volgorde
 
 1. Open **Admin → Imports**.
-2. Klik **Films top 100 + series top 100 per jaar**.
+2. Klik **Populaire films & series per jaar**.
 3. Volg de taak in de taakmonitor. De import slaat alleen metadata op; nieuwe
    titels krijgen `curatie_status = te_beoordelen` en worden niet automatisch
    in het standaardspel gezet.
@@ -42,12 +43,34 @@ trackimport behandeld.
 
 - `jaar`, `type`, `taal`, `land`, `genres`, `tmdb_id`: filter- en bonusdata;
 - `toevoeg_reden`: waarom de titel is opgenomen, inclusief jaar en rang;
-- `collecties`: `top100-per-jaar`, `top100-films`, `top100-series` en/of
-  `nederlandstalig-top10`;
+- `collecties`: `top100-per-jaar`, `top100-films`, `top100-series`,
+  `top10-per-jaar-nl` en/of `cult-classics`;
 - `curatie_status`: eerst `te_beoordelen`, daarna door de admin goedkeuren;
 - `nl_tv_bekend`: bepaalt of de titel in de standaard gecureerde selectie zit.
 
 De ranglijst gebruikt TMDB-score met populariteit als tweede ordening en valt
-bij dunne jaartallen gecontroleerd terug naar een lagere stemdrempel. Dit is
-een reproduceerbare catalogusselectie, geen belofte dat elke automatische
-YouTube-match juist is.
+bij dunne jaartallen gecontroleerd terug naar een lagere stemdrempel. Films
+gebruiken de Nederlandse release-regio en releasevormen; series krijgen de
+Nederlandse regio-context mee zonder op productieland te filteren. Daardoor
+kan een Duitse serie die in Nederland hoog eindigt blijven staan, terwijl
+Duitse populariteitsresultaten zonder NL-context niet opnieuw worden gekoppeld.
+Niet-Latijnse scripts, controle-tekens en verdachte metadata worden geweigerd.
+Dit is een reproduceerbare catalogusselectie, geen belofte dat elke
+automatische YouTube-match juist is.
+
+## Veilige herbouw
+
+Een nieuwe jaartalcatalogus verwijdert geen titels, tracks of MP3-bestanden.
+Wel worden oude automatische cataloguskoppelingen losgemaakt en ongekeurde
+oude entries tijdelijk uitgesloten. Titels die in de nieuwe Nederlandse
+ranglijst terugkomen worden opnieuw gekoppeld en gaan terug naar
+`te_beoordelen`.
+
+**Cult Classics** is bewust een aparte collectie: films zoals *Idiocracy*,
+*The Big Lebowski* en *Donnie Darko* hoeven niet in hun oorspronkelijke jaar
+bij de populaire jaartalselectie te hebben gestaan om later alsnog herkenbare klassiekers te
+worden.
+
+Bekende vangnettels worden apart vastgehouden. **Sliders** wordt bijvoorbeeld
+expliciet aan 1995 gekoppeld als de wisselende TMDB-populariteit hem niet in de
+eerste discover-pagina zet.
