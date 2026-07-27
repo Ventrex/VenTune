@@ -5,6 +5,9 @@ verwacht gedrag en werkelijk gedrag toe.
 
 | Prioriteit | Status | Datum | Onderwerp | Reproduceerstappen | Verwacht | Werkelijk |
 |---|---|---|---|---|---|---|
+| P1 | Opgelost | 2026-07-27 | Ronde 1 gaf soms direct geen hoorbare audio | Start een nieuw spel op de host met lokale voorbereiding | Ronde 1 meldt laden/spelen of toont direct een herstelknop | De host blokkeerde het starten op YouTube-initialisatie en fouten bleven stil in de speler |
+| P2 | Opgelost | 2026-07-27 | Admin maakte bron en herstelstatus niet snel zichtbaar | Open Titels & muziek met films, series en downloads | Per titel zie je MP3, YT, iTunes en meldingen; klik opent detail | Alleen een totaalaantal tracks stond in de titelrij |
+| P1 | Opgelost | 2026-07-27 | Melding kon niet vanuit dezelfde kaart worden gekoppeld en goedgekeurd | Zoek een kandidaat vanuit een foutmelding | Kandidaat koppelen, oude track uitschakelen en titel weer speelbaar maken | Zoeken gaf alleen een link; de track moest elders handmatig worden ingevoerd |
 | P0 | Opgelost | 2026-07-27 | Klik op Start spel gaf geen zichtbare reactie | Start vanuit Host terwijl lokale voorbereiding of een oude spelstate bestaat | Directe voorbereidingstekst, voortgang of concrete fout; lobby blijft herstelbaar | Een al bestaande serverstate gaf stil `return`, en vroege DB/downloadfouten waren alleen generiek zichtbaar |
 | P1 | Opgelost | 2026-07-27 | Kleine filteraanpassing maakte spelen onmogelijk | Kies een geldige selectie met minder dan 15 speelbare titels | Start met de beschikbare pool en meld het werkelijke aantal rondes | Setup blokkeerde hard onder een vaste drempel van 15 |
 | P1 | Open | 2026-07-27 | Grote TMDB-catalogus heeft nog geen audio | Bouw de jaartalcatalogus en controleer daarna ontbrekende tracks | Alle betrouwbare YouTube-matches zichtbaar en lokaal downloadbaar | TMDB kan geen betrouwbare intro garanderen; resterende titels vragen admincontrole of eigen audio |
