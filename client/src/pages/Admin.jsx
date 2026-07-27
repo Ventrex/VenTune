@@ -493,12 +493,12 @@ function Beheer({ onUit }) {
                             </button>
                             <button
                                 className="knop"
-                                onClick={() => achtergrondTaak(api.adminTmdbCatalogus, api.adminTmdbCatalogusStatus, setBezigCatalogus, 'Top 100 per jaartal en Nederlandstalige top 10 opbouwen…', 'Jaartalcatalogus klaar.')}
+                                onClick={() => achtergrondTaak(api.adminTmdbCatalogus, api.adminTmdbCatalogusStatus, setBezigCatalogus, 'Films top 100 + series top 100 per jaartal en NL top 10 opbouwen…', 'Film- en seriecatalogus klaar.')}
                                 disabled={bezigCatalogus || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}
                             >
-                                {bezigCatalogus ? 'Jaartalcatalogus opbouwen…' : 'Top 100 per jaar + NL top 10 opbouwen'}
+                                {bezigCatalogus ? 'Film- en seriecatalogus opbouwen…' : 'Films top 100 + series top 100 per jaar'}
                             </button>
-                            <p className="dim">1980–nu: top 100 films en series per jaar. 1950–nu: top 10 oorspronkelijk Nederlandstalige films en series. Dit zet metadata in de database; gebruik daarna de aparte YouTube- en Download-tabs.</p>
+                            <p className="dim">Alleen films en series: 1980–nu top 100 films én top 100 series per jaar. Daarnaast 1950–nu top 10 oorspronkelijk Nederlandstalige films én series. Er wordt hier geen muziek-toplijst gevuld; YouTube zoeken en MP3-downloads blijven aparte tabs.</p>
                             <div className="zoekbalk">
                                 <select className="invoer" value={importGenre} onChange={(e) => setImportGenre(e.target.value)} aria-label="Genre voor TMDB-import">
                                     <option value="">Alle genres</option>
