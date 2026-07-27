@@ -53,6 +53,16 @@ async function maakTitel(naam, type, taal) {
 /** Voeg een playlisttrack toe via de meegegeven executor/transaction. */
 async function zetTrack(titelId, video, playlistNaam, executor = pool, tmdbControle = null) {
     const bronUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+    // Een volledig lokale titel is klaar. De playlist mag de bestaande
+    // lokale track niet vervangen of opnieuw als externe kandidaat opslaan.
+    const lokaal = await executor.query(
+        `SELECT id FROM tracks
+          WHERE titel_id = $1 AND bron = 'lokaal' AND werkt = true
+            AND download_status = 'available'
+          LIMIT 1`,
+        [titelId],
+    );
+    if (lokaal.rows[0]) return lokaal.rows[0];
     const bestaande = await executor.query(
         `SELECT id FROM tracks
           WHERE titel_id = $1 AND (preview_url = $2 OR bron_url = $3)
