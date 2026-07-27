@@ -29,7 +29,8 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 2. Open P1 — de bulkcontrole van alle nieuwe YouTube-matches en het handmatig
    beoordelen van de resterende meldingen. De code weigert onzekere matches,
    maar “altijd het juiste nummer” blijft alleen haalbaar met deze laatste
-   admincontrole per titel.
+   admincontrole per titel. Meldingen hebben nu hiervoor direct de acties
+   **YouTube zoeken**, **Koppelen + goedkeuren** en **Track goedkeuren**.
 3. Open P2 — het vullen van de volledige 1600+-catalogus met handmatig
    bevestigde tracks en de technische beperking dat iTunes slechts korte
    previews levert. Automatische healthcheck, retry, curatie en verified-modus
@@ -47,6 +48,10 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
   `te_beoordelen` binnen en doet geen YouTube-zoekactie of download.
 - **Open P1:** resterende titels zonder gevalideerde YouTube-match handmatig
   beoordelen via de meldingen- en downloadtab.
+- **P1 opgelost:** ronde 1 laat de audiostatus zien, start lokale audio zonder
+  op YouTube-initialisatie te wachten en toont een herstelknop bij startfouten.
+- **P1/P2 opgelost:** Admin toont bronstatus per titel en meldingen kunnen een
+  kandidaat koppelen of een bestaande track goedkeuren.
 
 ## Status na lokale-audio- en bonusronde — 2026-07-26
 
