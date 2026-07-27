@@ -23,7 +23,7 @@ meerdere collecties gekoppeld.
 ## Admin-volgorde
 
 1. Open **Admin → Imports**.
-2. Klik **Top 100 per jaar + NL top 10 opbouwen**.
+2. Klik **Films top 100 + series top 100 per jaar**.
 3. Volg de taak in de taakmonitor. De import slaat alleen metadata op; nieuwe
    titels krijgen `curatie_status = te_beoordelen` en worden niet automatisch
    in het standaardspel gezet.
@@ -33,6 +33,10 @@ meerdere collecties gekoppeld.
 5. Open **Downloads** en start de vooraf-download. Alleen volledig bevestigde
    tracks komen in `/media/downloads` en kunnen daarna zonder externe stream
    worden afgespeeld.
+
+Deze catalogustaak vult uitsluitend films en series. Muziek-toplijsten vallen
+hier nadrukkelijk buiten; muziek wordt alleen via de aparte YouTube/iTunes-
+trackimport behandeld.
 
 ## Databasevelden
 
