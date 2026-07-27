@@ -22,6 +22,7 @@ const itunes = require('../server/lib/itunes');
 const ytzoek = require('../server/lib/ytzoek');
 const { pastBijTitel } = require('../server/lib/trackcheck');
 const tmdb = require('../server/lib/tmdb');
+const { veiligeTiteltekst, veiligeMetadata } = require('../server/lib/content-filter');
 
 const args = process.argv.slice(2);
 
@@ -35,7 +36,8 @@ function leesSeedCatalogus(collectie = null) {
             if (path.basename(bestand) === 'titels-extra.json' && err.code === 'ENOENT') return [];
             throw err;
         }
-    }).filter((t) => !collectie || (t.collecties || []).includes(collectie));
+    }).filter((t) => (!collectie || (t.collecties || []).includes(collectie))
+        && veiligeTiteltekst(t.naam));
 }
 const FORCE = args.includes('--force');
 const LIMIET = (() => {
@@ -77,17 +79,13 @@ const GOEDE_WOORDEN = [
  * Kies uit iTunes-fallbackresultaten de meest waarschijnlijke soundtrack/thema
  * voor deze titel, in plaats van botweg het eerste resultaat.
  */
-// Weiger niet-Latijns schrift (Arabisch, Cyrillisch, CJK ...).
-const NIET_LATIJN =
-    /[Ѐ-ӿ֐-׿؀-ۿ܀-ݏऀ-ॿ฀-๿⺀-鿿가-힯ﭐ-﷿ﹰ-﻿]/;
-
 function kiesBeste(resultaten, titel) {
     let beste = null;
     let besteScore = -Infinity;
 
-    resultaten = resultaten.filter(
-        (r) => !NIET_LATIJN.test(`${r.tracknaam || ''} ${r.album || ''} ${r.artiest || ''}`),
-    );
+    resultaten = resultaten.filter((r) => veiligeMetadata(
+        r.tracknaam || '', r.album || '', r.artiest || '',
+    ));
     if (resultaten.length === 0) return null;
 
     resultaten.forEach((r, index) => {
@@ -394,6 +392,10 @@ async function importeer({
 
     for (const t of titels) {
         if (verwerkt >= limiet) break;
+        if (!veiligeTiteltekst(t.naam)) {
+            log({ titel: t.naam, gevonden: null, overgeslagen: 'onveilige tekens' });
+            continue;
+        }
         verwerkt++;
         onProgress?.({ verwerkt, totaal: Math.min(titels.length, limiet), huidige: t.naam });
 
