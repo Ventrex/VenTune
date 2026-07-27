@@ -236,6 +236,7 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
         voorwaarden.push(`EXISTS (
             SELECT 1 FROM tracks x
              WHERE x.titel_id = t.id AND x.werkt = true
+               AND x.bron = 'lokaal' AND x.download_status = 'available'
                AND x.preview_url IS NOT NULL AND x.preview_url <> ''
         )`);
     } else if (filter === 'afgekeurd') {
@@ -260,6 +261,11 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
         voorwaarden.push(`EXISTS (SELECT 1 FROM meldingen m WHERE m.titel_id = t.id AND m.afgehandeld = false)`);
     } else if (filter === 'te-beoordelen') {
         voorwaarden.push(`t.curatie_status = 'te_beoordelen'`);
+    } else if (filter === 'studio-ontbreekt') {
+        voorwaarden.push(`NULLIF(BTRIM(t.studio), '') IS NULL`);
+    } else if (/^leeftijd-(0|6|9|10|12|16|18)$/.test(filter)) {
+        const leeftijd = Number(filter.split('-')[1]);
+        voorwaarden.push(`t.leeftijdsgrens <= ${leeftijd}`);
     }
     const where = voorwaarden.length ? `WHERE ${voorwaarden.join(' AND ')}` : '';
     const { rows } = await pool.query(
@@ -294,8 +300,8 @@ router.post('/api/admin/titels', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
          `INSERT INTO titels
              (naam, aliassen, type, taal, jaar, land, genres, tmdb_id, hoofdrollen,
-              speelplek, toevoeg_reden, nl_tv_bekend, curatie_status, leeftijdsgrens)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+              speelplek, studio, toevoeg_reden, nl_tv_bekend, curatie_status, leeftijdsgrens)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          RETURNING *`,
         [
             b.naam,
@@ -308,11 +314,12 @@ router.post('/api/admin/titels', vereisAdmin, async (req, res) => {
             b.tmdb_id ?? null,
             b.hoofdrollen || [],
             b.speelplek || null,
+            b.studio || null,
             b.toevoeg_reden || 'Handmatig toegevoegd door de admin.',
             b.nl_tv_bekend !== false,
             ['goedgekeurd', 'te_beoordelen', 'uitgesloten'].includes(b.curatie_status)
                 ? b.curatie_status : 'goedgekeurd',
-            [0, 6, 10, 12, 16, 18].includes(Number(b.leeftijdsgrens))
+            [0, 6, 9, 10, 12, 16, 18].includes(Number(b.leeftijdsgrens))
                 ? Number(b.leeftijdsgrens) : 16,
         ],
     );
@@ -328,8 +335,8 @@ router.put('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
         `UPDATE titels SET naam = $2, aliassen = $3, type = $4, taal = $5,
                 jaar = $6, land = $7, genres = $8, tmdb_id = $9,
-                hoofdrollen = $10, speelplek = $11, toevoeg_reden = $12,
-                nl_tv_bekend = $13, curatie_status = $14, leeftijdsgrens = $15
+                hoofdrollen = $10, speelplek = $11, studio = $12, toevoeg_reden = $13,
+                nl_tv_bekend = $14, curatie_status = $15, leeftijdsgrens = $16
           WHERE id = $1 RETURNING *`,
         [
             req.params.id,
@@ -343,11 +350,12 @@ router.put('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
             b.tmdb_id ?? null,
             b.hoofdrollen || [],
             b.speelplek || null,
+            b.studio || null,
             b.toevoeg_reden || 'Handmatig bijgewerkt door de admin.',
             b.nl_tv_bekend !== false,
             ['goedgekeurd', 'te_beoordelen', 'uitgesloten'].includes(b.curatie_status)
                 ? b.curatie_status : 'goedgekeurd',
-            [0, 6, 10, 12, 16, 18].includes(Number(b.leeftijdsgrens))
+            [0, 6, 9, 10, 12, 16, 18].includes(Number(b.leeftijdsgrens))
                 ? Number(b.leeftijdsgrens) : 16,
         ],
     );
@@ -447,6 +455,62 @@ router.get('/api/admin/titels/:id/vragen', vereisAdmin, async (req, res) => {
     res.json(rows);
 });
 
+// Spelersuggesties voor bonusvragen. Open suggesties worden hier beoordeeld;
+// goedkeuren kopieert de vraag naar de normale, vooraf geladen vragenbank.
+router.get('/api/admin/vraag-suggesties', vereisAdmin, async (req, res) => {
+    const status = ['open', 'goedgekeurd', 'afgewezen'].includes(req.query.status)
+        ? req.query.status : 'open';
+    const { rows } = await pool.query(
+        `SELECT s.*, t.naam AS titel_naam, t.type AS titel_type, t.jaar AS titel_jaar
+           FROM vraag_suggesties s
+           JOIN titels t ON t.id = s.titel_id
+          WHERE s.status = $1
+          ORDER BY s.aangemaakt_op DESC
+          LIMIT 300`,
+        [status],
+    );
+    res.json(rows);
+});
+
+router.post('/api/admin/vraag-suggesties/:id/goedkeuren', vereisAdmin, async (req, res) => {
+    const suggestie = await pool.query(
+        `SELECT * FROM vraag_suggesties WHERE id = $1 AND status = 'open'`,
+        [req.params.id],
+    );
+    if (!suggestie.rows[0]) return res.status(404).json({ fout: 'Open bonusvraag niet gevonden.' });
+    const s = suggestie.rows[0];
+    try {
+        const vraag = await pool.query(
+            `INSERT INTO vragen (titel_id, soort, vraag, opties, correct_index)
+             VALUES ($1, 'speler', $2, $3::jsonb, $4)
+             ON CONFLICT (titel_id, soort, vraag) DO UPDATE
+                 SET opties = EXCLUDED.opties, correct_index = EXCLUDED.correct_index
+             RETURNING *`,
+            [s.titel_id, s.vraag, JSON.stringify(s.opties), s.correct_index],
+        );
+        await pool.query(
+            `UPDATE vraag_suggesties SET status = 'goedgekeurd', beoordeeld_op = now()
+              WHERE id = $1`,
+            [req.params.id],
+        );
+        res.json({ ok: true, vraag: vraag.rows[0] });
+    } catch (err) {
+        res.status(400).json({ fout: `Bonusvraag goedkeuren mislukt: ${err.message}` });
+    }
+});
+
+router.post('/api/admin/vraag-suggesties/:id/afwijzen', vereisAdmin, async (req, res) => {
+    const { rows } = await pool.query(
+        `UPDATE vraag_suggesties
+            SET status = 'afgewezen', toelichting = $2, beoordeeld_op = now()
+          WHERE id = $1 AND status = 'open'
+          RETURNING *`,
+        [req.params.id, String(req.body?.toelichting || '').trim().slice(0, 500) || null],
+    );
+    if (!rows[0]) return res.status(404).json({ fout: 'Open bonusvraag niet gevonden.' });
+    res.json({ ok: true, suggestie: rows[0] });
+});
+
 router.delete('/api/admin/vragen/:id', vereisAdmin, async (req, res) => {
     await pool.query(`DELETE FROM vragen WHERE id = $1`, [req.params.id]);
     res.json({ ok: true });
@@ -483,12 +547,16 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                (SELECT count(*)::int FROM titels t
                  WHERE EXISTS (SELECT 1 FROM tracks x
                                 WHERE x.titel_id = t.id AND x.werkt
+                                  AND x.bron = 'lokaal'
+                                  AND x.download_status = 'available'
                                   AND x.preview_url IS NOT NULL AND x.preview_url <> '')) AS speelbaar,
                (SELECT count(*)::int FROM vragen) AS vragen,
                (SELECT count(*)::int FROM meldingen WHERE afgehandeld = false) AS open_meldingen,
                (SELECT count(*)::int FROM titels t
                  WHERE NOT EXISTS (SELECT 1 FROM tracks x
                                     WHERE x.titel_id = t.id AND x.werkt
+                                      AND x.bron = 'lokaal'
+                                      AND x.download_status = 'available'
                                       AND x.preview_url IS NOT NULL AND x.preview_url <> ''))
                  AS ontbrekende_tracks,
                (SELECT count(*)::int FROM zoek_cache) AS cache_regels`,
@@ -729,6 +797,8 @@ router.get('/api/admin/ontbrekende-tracks', vereisAdmin, async (_req, res) => {
           WHERE NOT EXISTS (SELECT 1 FROM tracks tr
                              WHERE tr.titel_id = t.id
                                AND tr.werkt = true
+                               AND tr.bron = 'lokaal'
+                               AND tr.download_status = 'available'
                                AND tr.preview_url IS NOT NULL
                                AND tr.preview_url <> '')
           ORDER BY t.naam ASC
@@ -747,7 +817,8 @@ router.get('/api/admin/kwaliteit', vereisAdmin, async (_req, res) => {
                 COUNT(*) FILTER (WHERE gecontroleerd = true AND verificatie_score >= 0.85)::int AS gecontroleerd,
                 COUNT(*) FILTER (WHERE verificatie_score < 0.85)::int AS onzeker,
                 ROUND(COALESCE(AVG(verificatie_score), 0)::numeric, 3)::float AS gemiddelde
-              FROM tracks WHERE werkt = true`),
+              FROM tracks
+             WHERE werkt = true AND bron = 'lokaal' AND download_status = 'available'`),
             pool.query(`SELECT download_status, COUNT(*)::int AS aantal
               FROM tracks GROUP BY download_status ORDER BY download_status`),
             pool.query(`SELECT soort, COUNT(*)::int AS aantal
@@ -761,7 +832,11 @@ router.get('/api/admin/kwaliteit', vereisAdmin, async (_req, res) => {
                     COALESCE((SELECT ARRAY_AGG(DISTINCT tr.bron) FROM tracks tr WHERE tr.titel_id = t.id), '{}') AS bronnen,
                     (SELECT COUNT(*)::int FROM meldingen m WHERE m.titel_id = t.id AND m.afgehandeld = false) AS open_meldingen
               FROM titels t
-             WHERE NOT EXISTS (SELECT 1 FROM tracks vc WHERE vc.titel_id = t.id AND vc.werkt AND vc.gecontroleerd AND vc.verificatie_score >= 0.85)
+             WHERE NOT EXISTS (SELECT 1 FROM tracks vc
+                                WHERE vc.titel_id = t.id AND vc.werkt
+                                  AND vc.bron = 'lokaal'
+                                  AND vc.download_status = 'available'
+                                  AND vc.gecontroleerd AND vc.verificatie_score >= 0.85)
              ORDER BY t.naam LIMIT 300`),
         ]);
         res.json({
@@ -918,8 +993,8 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
     if (!b.preview_url || !b.tracknaam) {
         return res.status(400).json({ fout: 'preview_url en tracknaam verplicht.' });
     }
-    const geldigeBron = ['itunes', 'youtube', 'lokaal'].includes(b.bron) ? b.bron : null;
-    if (!geldigeBron) return res.status(400).json({ fout: 'Kies expliciet YouTube, iTunes of lokaal.' });
+    const geldigeBron = ['youtube', 'lokaal'].includes(b.bron) ? b.bron : null;
+    if (!geldigeBron) return res.status(400).json({ fout: 'Kies expliciet YouTube of lokaal.' });
     if (geldigeBron === 'youtube' && !/^[A-Za-z0-9_-]{11}$/.test(String(b.preview_url))) {
         return res.status(400).json({ fout: 'YouTube-track heeft geen geldig video-id.' });
     }
@@ -985,7 +1060,14 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
           WHERE titel_id = $1 AND soort = 'geen_track' AND afgehandeld = false`,
         [req.params.id],
     );
-    res.json(rows[0]);
+    const download = geldigeBron === 'youtube'
+        ? startTrackDownload(rows[0].id, async () => {
+            await controleerTrackUrl({ ...rows[0], naam: titel.naam });
+            await downloadTrack({ ...rows[0], naam: titel.naam });
+            return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+        })
+        : null;
+    res.json({ ...rows[0], download });
 });
 
 router.delete('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
@@ -1020,8 +1102,8 @@ router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
         [req.params.id],
     );
     if (!rows[0]) return res.status(404).json({ fout: 'Track niet gevonden.' });
-    if (!['itunes', 'youtube', 'lokaal'].includes(rows[0].bron)) {
-        return res.status(400).json({ fout: 'Alleen YouTube-, iTunes- of herstelbare lokale tracks kunnen vooraf worden gedownload.' });
+    if (!['youtube', 'lokaal'].includes(rows[0].bron)) {
+        return res.status(400).json({ fout: 'Alleen YouTube- of herstelbare lokale tracks kunnen vooraf worden gedownload.' });
     }
     const antwoord = startTrackDownload(rows[0].id, async () => {
         await controleerTrackUrl(rows[0]);
@@ -1236,7 +1318,12 @@ router.post('/api/admin/meldingen/:id/koppel', vereisAdmin, async (req, res) => 
         );
     }
     await pool.query(`UPDATE meldingen SET track_id = $2, afgehandeld = true WHERE id = $1`, [req.params.id, track.id]);
-    res.json({ ok: true, track, melding_id: Number(req.params.id) });
+    const download = startTrackDownload(track.id, async () => {
+        await controleerTrackUrl({ ...track, naam: tracknaam });
+        await downloadTrack({ ...track, naam: tracknaam });
+        return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+    });
+    res.json({ ok: true, track, download, melding_id: Number(req.params.id) });
 });
 
 // Markeer een bestaande track als door de admin goedgekeurd. Hierdoor wordt
@@ -1302,8 +1389,10 @@ let playlistImportStatus = {
 };
 let tmdbImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let catalogusImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let studioImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let vragenImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let downloadStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let lokaleAanvullingStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let mediaHealthStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let collectieImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 const trackDownloadStatuses = new Map();
@@ -1316,8 +1405,10 @@ const ADMIN_TAAK_LABELS = {
     playlists: 'YouTube-playlists verversen',
     tmdb: 'TMDB-films en series ophalen',
     'tmdb-catalogus': 'Populaire films/series per jaar + NL top 10 + Cult Classics',
+    studio: 'Ontbrekende studio’s via TMDB aanvullen',
     vragen: 'Bonusvragen genereren',
     downloads: 'MP3’s vooraf downloaden',
+    'lokale-aanvulling': 'Ontbrekende lokale MP3’s zoeken en downloaden',
     'downloads-retry': 'Mislukte downloads opnieuw proberen',
     'media-health': 'Lokale bestanden controleren',
     collecties: 'Spelcollecties importeren',
@@ -1334,8 +1425,10 @@ function adminTaakLijst() {
         playlists: playlistImportStatus,
         tmdb: tmdbImportStatus,
         'tmdb-catalogus': catalogusImportStatus,
+        studio: studioImportStatus,
         vragen: vragenImportStatus,
         downloads: downloadStatus,
+        'lokale-aanvulling': lokaleAanvullingStatus,
         'downloads-retry': downloadStatus,
         'media-health': mediaHealthStatus,
         collecties: collectieImportStatus,
@@ -1424,7 +1517,7 @@ function startTrackDownload(trackId, werk) {
     return { gestart: true, bezig: true, klaar: false, taak, track_id: Number(trackId) };
 }
 
-async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, alleenMislukt = false, alleenGecontroleerd = false, alleenYoutube = false, onProgress = null } = {}) {
+async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, alleenMislukt = false, alleenGecontroleerd = false, alleenYoutube = true, alleenZonderLokaal = false, onProgress = null } = {}) {
     const sleutels = normaliseerCollecties(collecties);
     const params = [];
     let extra = '';
@@ -1442,17 +1535,25 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     const gecontroleerdeParam = params.length;
     params.push(alleenYoutube);
     const youtubeParam = params.length;
+    params.push(alleenZonderLokaal);
+    const zonderLokaalParam = params.length;
     const { rows } = await pool.query(
         `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
                 tr.start_seconde, tr.download_status, t.naam
            FROM tracks tr JOIN titels t ON t.id = tr.titel_id
           WHERE tr.werkt = true
-            AND (tr.bron IN ('youtube', 'itunes') OR (tr.bron = 'lokaal' AND tr.bron_url IS NOT NULL))
+            AND tr.bron = 'youtube'
             AND tr.preview_url IS NOT NULL AND tr.preview_url <> ''
             AND ($${mislukteParam}::boolean = false OR tr.download_status = 'failed')
             AND ($${gecontroleerdeParam}::boolean = false OR (tr.gecontroleerd = true AND tr.verificatie_score >= 0.85))
-            AND ($${youtubeParam}::boolean = false OR tr.bron = 'youtube'
-                 OR (tr.bron = 'lokaal' AND lower(COALESCE(tr.bron_url, '')) LIKE '%youtube%'))
+            AND ($${youtubeParam}::boolean = false OR tr.bron = 'youtube')
+            AND ($${zonderLokaalParam}::boolean = false OR NOT EXISTS (
+                SELECT 1 FROM tracks lokaal
+                 WHERE lokaal.titel_id = tr.titel_id
+                   AND lokaal.bron = 'lokaal'
+                   AND lokaal.werkt = true
+                   AND lokaal.download_status = 'available'
+            ))
             ${extra}
           ORDER BY tr.id`,
         params,
@@ -1494,6 +1595,40 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     };
 }
 
+// Eén herstelactie voor de databasefilter “zonder lokale MP3”: eerst alleen
+// die titels op YouTube zoeken, daarna de nieuwe kandidaten meteen lokaal
+// opslaan. Titels met een beschikbare lokale track worden in beide stappen
+// overgeslagen.
+router.post('/api/admin/ontbrekende-lokale/start', vereisAdmin, (req, res) => {
+    const antwoord = startAdminScript(
+        'lokale-aanvulling',
+        lokaleAanvullingStatus,
+        (v) => { lokaleAanvullingStatus = v; },
+        async () => {
+            const importSamenvatting = await importeer({
+                force: true,
+                alleenDb: true,
+                youtubeAlleen: true,
+                alleenZonderLokaal: true,
+                limiet: Math.min(5000, Math.max(1, Number(req.body?.limiet) || 5000)),
+                onProgress: (voortgang) => { lokaleAanvullingStatus = { ...lokaleAanvullingStatus, ...voortgang }; },
+            });
+            const downloadSamenvatting = await downloadTracksVooruit({
+                alleenYoutube: true,
+                alleenZonderLokaal: true,
+                controleer: true,
+                onProgress: (voortgang) => { lokaleAanvullingStatus = { ...lokaleAanvullingStatus, ...voortgang }; },
+            });
+            return { import: importSamenvatting, downloads: downloadSamenvatting };
+        },
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/ontbrekende-lokale/status', vereisAdmin, (_req, res) => {
+    res.json(lokaleAanvullingStatus);
+});
+
 router.post('/api/admin/downloads/start', vereisAdmin, (req, res) => {
     const antwoord = startAdminScript(
         'downloads',
@@ -1508,7 +1643,8 @@ router.post('/api/admin/downloads/start', vereisAdmin, (req, res) => {
                 controleer: req.body?.controleer !== false,
                 alleenMislukt: req.body?.alleenMislukt === true,
                 alleenGecontroleerd: req.body?.alleenGecontroleerd === true,
-                alleenYoutube: req.body?.alleenYoutube === true,
+                alleenYoutube: req.body?.alleenYoutube !== false,
+                alleenZonderLokaal: req.body?.alleenZonderLokaal === true,
                 onProgress: (voortgang) => { downloadStatus = { ...downloadStatus, ...voortgang }; },
             });
         },
@@ -1767,6 +1903,49 @@ router.get('/api/admin/tmdb/catalogus/status', vereisAdmin, (_req, res) => {
     res.json(catalogusImportStatus);
 });
 
+// Studio/producent is een apart verrijkingsproces. Zo kun je later Disney,
+// Pixar of Marvel als collectie gebruiken zonder bij iedere import opnieuw
+// alle TMDB-details op te halen.
+router.post('/api/admin/studio/import', vereisAdmin, (req, res) => {
+    const antwoord = startAdminScript(
+        'studio',
+        studioImportStatus,
+        (v) => { studioImportStatus = v; },
+        async () => {
+            const limiet = Math.min(1000, Math.max(1, Number(req.body?.limiet) || 250));
+            const { rows } = await pool.query(
+                `SELECT id, naam, type, tmdb_id
+                   FROM titels
+                  WHERE tmdb_id IS NOT NULL AND NULLIF(BTRIM(studio), '') IS NULL
+                  ORDER BY id
+                  LIMIT $1`,
+                [limiet],
+            );
+            let aangevuld = 0;
+            let overgeslagen = 0;
+            for (const [index, titel] of rows.entries()) {
+                studioImportStatus = { ...studioImportStatus, verwerkt: index, totaal: rows.length, huidige: titel.naam };
+                try {
+                    const details = await tmdb.haalDetails(titel.tmdb_id, titel.type);
+                    if (!details.studio) { overgeslagen++; continue; }
+                    await pool.query(`UPDATE titels SET studio = $2 WHERE id = $1`, [titel.id, details.studio]);
+                    aangevuld++;
+                } catch (err) {
+                    overgeslagen++;
+                    logger.waarschuwing('Studio kon niet worden aangevuld.', { titel: titel.naam, melding: err.message });
+                }
+                studioImportStatus = { ...studioImportStatus, verwerkt: index + 1, totaal: rows.length, huidige: titel.naam };
+            }
+            return { verwerkt: rows.length, aangevuld, overgeslagen };
+        },
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/studio/status', vereisAdmin, (_req, res) => {
+    res.json(studioImportStatus);
+});
+
 router.post('/api/admin/vragen/import', vereisAdmin, (req, res) => {
     const metTmdb = !!req.body?.tmdb;
     const antwoord = startAdminScript(
@@ -1831,7 +2010,7 @@ function startPlaylistPlanner() {
                     taak: 'seed-auto',
                     status: seedStatus,
                     zetStatus: (v) => { seedStatus = v; },
-                    werk: () => importeer({ force: false, alleenDb: true, youtubeAlleen: true }),
+                    werk: () => importeer({ force: false, alleenDb: true, youtubeAlleen: true, alleenZonderLokaal: true }),
                 },
                 {
                     aan: beheer.downloadsAutomatisch === true,
@@ -1844,6 +2023,7 @@ function startPlaylistPlanner() {
                     werk: () => downloadTracksVooruit({
                         alleenGecontroleerd: true,
                         alleenYoutube: true,
+                        alleenZonderLokaal: true,
                         controleer: true,
                     }),
                 },
