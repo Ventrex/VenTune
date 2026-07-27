@@ -7,9 +7,10 @@
 - [x] **P1** Filtertelling niet langer op minimaal 15 titels blokkeren; één
       lokale titel is geldig en het spel meldt wanneer er minder rondes dan
       gevraagd beschikbaar zijn.
-- [x] **P1/P2** Herhaalbare jaartalcatalogus toevoegen: top 100 films en series
-      per jaar vanaf 1980, plus Nederlandstalige top 10 films en series per jaar
-      vanaf 1950. Metadata, rang, collectie en toevoegreden worden opgeslagen.
+- [x] **P1/P2** Herhaalbare film- en seriecatalogus toevoegen: top 100 films én
+      top 100 series per jaar vanaf 1980, plus Nederlandstalige top 10 films en
+      series per jaar vanaf 1950. Muziek valt buiten deze taak. Metadata, rang,
+      collectie en toevoegreden worden opgeslagen.
 - [x] **P2** Jaartalcatalogus als zichtbare admin-taak met voortgang aanbieden;
       YouTube zoeken en lokale MP3-downloads bewust als aparte vervolgstappen
       laten draaien.
