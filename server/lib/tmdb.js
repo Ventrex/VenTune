@@ -72,6 +72,9 @@ async function haalDetails(tmdbId, type) {
         genreIds,
         regisseur,
         cast,
+        studio: soort === 'movie'
+            ? (data.production_companies || [])[0]?.name || null
+            : (data.networks || data.production_companies || [])[0]?.name || null,
     };
 }
 
