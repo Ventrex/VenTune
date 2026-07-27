@@ -1122,6 +1122,29 @@ h1 {
     pointer-events: none;
 }
 
+.host-audio-status {
+    margin: -1rem 0 0.75rem;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.host-audio-fout {
+    position: relative;
+    z-index: 3;
+    max-width: 26rem;
+    padding: 0.75rem;
+    border: 1px solid var(--red-hot);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.9);
+    text-align: center;
+}
+
+.host-audio-fout p {
+    margin: 0 0 0.5rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
 /* --- Admin-overzicht --- */
 .overzicht {
     display: grid;
@@ -1172,6 +1195,40 @@ h1 {
     margin: 0.6rem 0 0;
     text-align: center;
     font-size: 0.85rem;
+}
+
+.admin-legenda {
+    margin: 0.35rem 0 0;
+    line-height: 1.7;
+}
+
+.admin-titel-status {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.bron-pill {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 0.08rem 0.35rem;
+    font-size: 0.7rem;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.bron-pill.lokaal { color: #62d39a; }
+.bron-pill.youtube { color: #ff6f76; }
+.bron-pill.itunes { color: #c9a7ff; }
+.bron-pill.melding { color: #ffc857; }
+.bron-pill.leeg { opacity: 0.35; }
+
+@media (max-width: 650px) {
+    .admin-titel-status { justify-content: flex-start; margin-top: 0.35rem; }
 }
 
 .admin-accounts {
