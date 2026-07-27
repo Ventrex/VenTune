@@ -94,11 +94,6 @@ export default function Home() {
                 </Link>
             </p>
 
-            <p style={{ marginTop: '2.5rem' }}>
-                <Link className="terug" to="/muziek">
-                    Muziek zoeken (test) →
-                </Link>
-            </p>
         </main>
     );
 }
