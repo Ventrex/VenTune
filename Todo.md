@@ -2,6 +2,21 @@
 
 ## Eerstvolgend
 
+- [x] **P1** Lokale MP3 is de bron van waarheid: gezonde lokale tracks worden
+      niet opnieuw gescand, gecontroleerd of tijdens spelstart gedownload.
+- [x] **P1** YouTube als enige automatische zoek-/downloadbron gebruiken en
+      iTunes uit de speler, import en adminzoeker halen.
+- [x] **P1** Adminactie **YouTube zoeken + MP3 downloaden voor titels zonder
+      lokale MP3** toevoegen, inclusief zichtbare taakstatus.
+- [x] **P1** Verkeerd-nummer-melding direct koppelen aan een gekozen YouTube-
+      kandidaat en de download automatisch starten.
+- [x] **P2** Bonusvraag-suggesties van spelers opslaan en via Admin goedkeuren
+      of afwijzen.
+- [x] **P2** Studio/producent opslaan, ontbrekende studio’s via TMDB aanvullen
+      en in Admin filteren.
+- [x] **P2** Admin-titelfilters uitbreiden met lokale MP3 ontbreekt, studio
+      ontbreekt en leeftijdscategorieën.
+
 - [x] **P0** Start spel altijd directe voortgang/foutfeedback geven en een
       achtergebleven server-spelstate opruimen.
 - [x] **P1** Filtertelling niet langer op minimaal 15 titels blokkeren; één
