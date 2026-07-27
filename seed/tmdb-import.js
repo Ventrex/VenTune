@@ -17,6 +17,7 @@
 // =====================================================================
 
 const { pool } = require('../server/db/pool');
+const { veiligeTiteltekst } = require('../server/lib/content-filter');
 
 const BASIS = 'https://api.themoviedb.org/3';
 const KEY = process.env.TMDB_API_KEY || '';
@@ -33,10 +34,6 @@ const MIN_STEMMEN = arg('min-stemmen', 25); // filtert obscure titels weg
 function slaap(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }
-
-// Weiger titels met niet-Latijns schrift.
-const NIET_LATIJN =
-    /[Ѐ-ӿ֐-׿؀-ۿ܀-ݏऀ-ॿ฀-๿⺀-鿿가-힯ﭐ-﷿ﹰ-﻿]/;
 
 // TMDB-genre-id's → Nederlandse namen (film en tv samen).
 const GENRES = {
@@ -116,7 +113,11 @@ function naarTitel(r, type) {
     const naam = type === 'serie' ? r.name : r.title;
     const origineel = type === 'serie' ? r.original_name : r.original_title;
     if (!naam) return null;
-    if (NIET_LATIJN.test(naam)) return null;
+    // Een gelokaliseerde naam met een Russisch/Arabisch/CJK origineel is
+    // eveneens ongewenst in de speelcatalogus. Zo komen zulke entries niet
+    // via een nette Nederlandse vertaling alsnog binnen.
+    if (!veiligeTiteltekst(naam)) return null;
+    if (origineel && !veiligeTiteltekst(origineel)) return null;
 
     const datum = type === 'serie' ? r.first_air_date : r.release_date;
     const jaar = datum ? Number(String(datum).slice(0, 4)) : null;
@@ -132,7 +133,7 @@ function naarTitel(r, type) {
 
     // Aliassen: de originele titel als die afwijkt.
     const aliassen = [];
-    if (origineel && origineel !== naam && !NIET_LATIJN.test(origineel)) {
+    if (origineel && origineel !== naam) {
         aliassen.push(origineel);
     }
 
@@ -159,7 +160,7 @@ function naarTitel(r, type) {
     };
 }
 
-async function bewaarTitel(t) {
+async function bewaarTitel(t, { forceerCuratie = false } = {}) {
     // Bestaat deze titel al (op tmdb_id, of naam+jaar)?
     const bestaand = await pool.query(
         `SELECT id FROM titels
@@ -179,11 +180,33 @@ async function bewaarTitel(t) {
                     populariteit = GREATEST(populariteit, $5),
                     stemmen      = GREATEST(stemmen, $6),
                     poster_pad   = COALESCE(poster_pad, $7),
-                    omschrijving = COALESCE(omschrijving, $8)
+                    omschrijving = COALESCE(omschrijving, $8),
+                    toevoeg_reden = CASE
+                        WHEN curatie_status = 'goedgekeurd'
+                          OR (curatie_status = 'uitgesloten' AND $13::boolean = false)
+                        THEN toevoeg_reden
+                        ELSE COALESCE($9, toevoeg_reden)
+                    END,
+                    curatie_status = CASE
+                        WHEN curatie_status = 'goedgekeurd'
+                          OR (curatie_status = 'uitgesloten' AND $13::boolean = false)
+                        THEN curatie_status
+                        ELSE COALESCE($10, curatie_status)
+                    END,
+                    nl_tv_bekend = CASE
+                        WHEN curatie_status = 'goedgekeurd'
+                          OR (curatie_status = 'uitgesloten' AND $13::boolean = false)
+                        THEN nl_tv_bekend
+                        ELSE COALESCE($11, nl_tv_bekend)
+                    END,
+                    leeftijdsgrens = COALESCE($12, leeftijdsgrens)
               WHERE id = $1`,
             [
                 bestaand.rows[0].id, t.tmdb_id, t.land, t.genres,
                 t.populariteit, t.stemmen, t.poster_pad, t.omschrijving,
+                t.toevoeg_reden || null, t.curatie_status || null,
+                typeof t.nl_tv_bekend === 'boolean' ? t.nl_tv_bekend : null,
+                t.leeftijdsgrens ?? null, forceerCuratie,
             ],
         );
         return false; // niet nieuw
@@ -206,6 +229,9 @@ async function bewaarTitel(t) {
 
 /** Haal meerdere pagina's op van een discover-endpoint. */
 async function verzamel(soort, type, extraParams, paginas, label, teller, minStemmen = MIN_STEMMEN) {
+    const regio = soort === 'movie'
+        ? { region: 'NL', with_release_type: '2|3|4|5|6' }
+        : { region: 'NL', watch_region: 'NL' };
     for (let p = 1; p <= paginas; p++) {
         let data;
         try {
@@ -214,6 +240,7 @@ async function verzamel(soort, type, extraParams, paginas, label, teller, minSte
                 sort_by: 'popularity.desc',
                 include_adult: 'false',
                 'vote_count.gte': String(minStemmen),
+                ...regio,
                 ...extraParams,
             });
         } catch (err) {
@@ -282,11 +309,11 @@ async function idVanTitel(titel) {
 }
 
 /**
- * Haal één jaartop op. TMDB kan door een stemdrempel minder dan 100
- * resultaten teruggeven; oudere jaren vallen daarom gecontroleerd terug
- * van 100 naar 25 naar 1 stem, met deduplicatie op TMDB-id.
+ * Haal één populaire jaartop op. Er is alleen een veiligheidsplafond; een
+ * jaar mag kleiner uitvallen. Series krijgen bij een dun jaar minimaal tien
+ * bruikbare titels. Films gebruiken Nederlandse bioscoop-releasetypes.
  */
-async function haalTopVoorJaar(soort, type, jaar, limiet, nederlandstalig = false) {
+async function haalTopVoorJaar(soort, type, jaar, limiet) {
     const gevonden = [];
     const gezien = new Set();
     const huidigJaar = new Date().getUTCFullYear();
@@ -295,15 +322,24 @@ async function haalTopVoorJaar(soort, type, jaar, limiet, nederlandstalig = fals
     const datum = type === 'serie'
         ? { 'first_air_date.gte': `${jaar}-01-01`, 'first_air_date.lte': laatsteDatum }
         : { 'primary_release_date.gte': `${jaar}-01-01`, 'primary_release_date.lte': laatsteDatum };
-    const taal = nederlandstalig ? { with_original_language: 'nl' } : {};
+    // `region=NL` laat TMDB voor films de Nederlandse releasedatum gebruiken.
+    // Voor series nemen we dezelfde NL-context mee; TMDB heeft daar geen
+    // historische bioscoopachtige regioveld voor, dus we filteren niet op
+    // productieland. Een Duitse serie mag blijven als hij in de NL-selectie
+    // voorkomt (zoals Commissaris Max).
+    const regio = type === 'film'
+        ? { region: 'NL', with_release_type: '2|3' }
+        : { region: 'NL', watch_region: 'NL' };
 
     for (const stemdrempel of [100, 25, 1]) {
+        const minimum = type === 'serie' ? 10 : 1;
+        if (stemdrempel === 1 && gevonden.length >= minimum) break;
         for (let pagina = 1; pagina <= 5 && gevonden.length < limiet; pagina++) {
             const data = await haal(`/discover/${soort}`, {
                 ...datum,
-                ...taal,
+                ...regio,
                 page: String(pagina),
-                sort_by: 'vote_average.desc',
+                sort_by: 'popularity.desc',
                 include_adult: 'false',
                 'vote_count.gte': String(stemdrempel),
             });
@@ -322,17 +358,132 @@ async function haalTopVoorJaar(soort, type, jaar, limiet, nederlandstalig = fals
     return gevonden.slice(0, limiet);
 }
 
+// Cultstatus ontstaat vaak pas jaren na de release. Deze kleine, bewust
+// uitlegbare basislijst staat los van de jaartalranglijst en is daarna via
+// Admin uit te breiden met dezelfde collectie.
+const CULT_CLASSICS = [
+    { type: 'film', naam: 'Blade Runner', jaar: 1982 },
+    { type: 'film', naam: 'Brazil', jaar: 1985 },
+    { type: 'film', naam: 'The Rocky Horror Picture Show', jaar: 1975 },
+    { type: 'film', naam: 'The Big Lebowski', jaar: 1998 },
+    { type: 'film', naam: 'Donnie Darko', jaar: 2001 },
+    { type: 'film', naam: 'The Room', jaar: 2003 },
+    { type: 'film', naam: 'Idiocracy', jaar: 2006 },
+    { type: 'film', naam: 'Office Space', jaar: 1999 },
+    { type: 'film', naam: 'Clerks', jaar: 1994 },
+    { type: 'film', naam: 'Evil Dead II', jaar: 1987 },
+    { type: 'film', naam: 'They Live', jaar: 1988 },
+    { type: 'film', naam: 'Trainspotting', jaar: 1996 },
+    { type: 'film', naam: 'Labyrinth', jaar: 1986 },
+    { type: 'film', naam: 'Heathers', jaar: 1988 },
+    { type: 'film', naam: 'The Princess Bride', jaar: 1987 },
+    { type: 'film', naam: 'Napoleon Dynamite', jaar: 2004 },
+    { type: 'film', naam: 'The Wicker Man', jaar: 1973 },
+    { type: 'film', naam: 'The Crow', jaar: 1994 },
+    { type: 'serie', naam: 'Twin Peaks', jaar: 1990 },
+    { type: 'serie', naam: 'The X-Files', jaar: 1993 },
+    { type: 'serie', naam: 'Freaks and Geeks', jaar: 1999 },
+    { type: 'serie', naam: 'Firefly', jaar: 2002 },
+    { type: 'serie', naam: 'Arrested Development', jaar: 2003 },
+    { type: 'serie', naam: 'Community', jaar: 2009 },
+];
+
+// Bekende series die we expliciet als vangnet opnemen. Zo is een iconische
+// titel als Sliders niet afhankelijk van een momentopname van TMDB-popularity
+// in één discover-pagina.
+const ICONISCHE_VANGNET_SERIES = [
+    { type: 'serie', naam: 'Sliders', jaar: 1995 },
+];
+
+function normaliseerZoektekst(tekst) {
+    return String(tekst || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+async function zoekCultTitel(item) {
+    const isSerie = item.type === 'serie';
+    const params = isSerie
+        ? { query: item.naam, first_air_date_year: String(item.jaar), watch_region: 'NL', region: 'NL', page: '1' }
+        : { query: item.naam, year: String(item.jaar), region: 'NL', page: '1' };
+    const data = await haal(`/search/${isSerie ? 'tv' : 'movie'}`, params);
+    const gezocht = normaliseerZoektekst(item.naam);
+    const kandidaten = (data.results || [])
+        .map((resultaat) => naarTitel(resultaat, item.type))
+        .filter(Boolean)
+        .sort((a, b) => {
+            const score = (titel) => normaliseerZoektekst(titel.naam) === gezocht ? 2 : 0;
+            return score(b) - score(a) || b.populariteit - a.populariteit;
+        });
+    return kandidaten[0] || null;
+}
+
 function berekenCatalogusOmvang({ startJaar = 1980, eindJaar = new Date().getUTCFullYear() } = {}) {
     const jaren = Math.max(0, eindJaar - startJaar + 1);
     const nederlandstaligeJaren = Math.max(0, eindJaar - 1950 + 1);
     return {
         jaren,
         nederlandstaligeJaren,
-        films: jaren * 100,
-        series: jaren * 100,
+        films: jaren * 50,
+        series: jaren * 25,
         nederlandstaligeFilms: nederlandstaligeJaren * 10,
         nederlandstaligeSeries: nederlandstaligeJaren * 10,
+        cultClassics: CULT_CLASSICS.length,
+        iconischeVangnetSeries: ICONISCHE_VANGNET_SERIES
+            .filter((titel) => titel.jaar >= startJaar && titel.jaar <= eindJaar).length,
     };
+}
+
+const OUDE_CATALOGUS_SLEUTELS = [
+    'top100-per-jaar', 'top100-films', 'top100-series',
+    'nederlandstalig-top10', 'top10-per-jaar-nl',
+];
+
+/**
+ * Maak een nieuwe catalogusrun idempotent. Oude automatische koppelingen
+ * worden losgemaakt en ongoedgekeurde oude entries worden uitgesloten, maar
+ * titels, tracks en downloads worden nooit verwijderd. Als een titel in de
+ * nieuwe NL-ranglijst terugkomt, zet verwerk() hem weer op te_beoordelen.
+ */
+async function vernieuwCatalogusBasis() {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const { rows } = await client.query(
+            `UPDATE titels t
+                SET curatie_status = 'uitgesloten', nl_tv_bekend = false
+              WHERE t.curatie_status = 'te_beoordelen'
+                AND EXISTS (
+                    SELECT 1 FROM titel_collecties tc
+                    JOIN collecties c ON c.id = tc.collectie_id
+                    WHERE tc.titel_id = t.id
+                      AND c.sleutel = ANY($1::text[])
+                )
+              RETURNING t.id`,
+            [OUDE_CATALOGUS_SLEUTELS],
+        );
+        const verwijderd = await client.query(
+            `DELETE FROM titel_collecties tc
+              USING collecties c
+             WHERE tc.collectie_id = c.id
+               AND c.sleutel = ANY($1::text[])`,
+            [OUDE_CATALOGUS_SLEUTELS],
+        );
+        await client.query(
+            `UPDATE collecties SET actief = false
+              WHERE sleutel = 'nederlandstalig-top10'`,
+        );
+        await client.query('COMMIT');
+        return { uitgesloten: rows.length, koppelingenVerwijderd: verwijderd.rowCount };
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
 }
 
 /**
@@ -355,41 +506,49 @@ async function importeerJaarCatalogus({
 
     const omvang = berekenCatalogusOmvang({ startJaar: Math.max(1980, van), eindJaar: tot });
     const verwacht = omvang.films + omvang.series
-        + omvang.nederlandstaligeFilms + omvang.nederlandstaligeSeries;
+        + omvang.nederlandstaligeFilms + omvang.nederlandstaligeSeries
+        + omvang.cultClassics + omvang.iconischeVangnetSeries;
     let verwerkt = 0;
     let nieuw = 0;
     let bestaand = 0;
     let fouten = 0;
 
+    const opgeschoond = await vernieuwCatalogusBasis();
+
     await maakCatalogusCollectie(
-        'top100-per-jaar', 'Top 100 per jaar',
-        'Best beoordeelde films en series per jaartal volgens TMDB.', 'beide',
-        'Automatische jaartalcatalogus; TMDB-score en populariteit bepalen de volgorde.',
+        'top100-per-jaar', 'Populaire films en series per jaar',
+        'Populaire films en series per jaartal volgens TMDB met Nederlandse regio-context.', 'beide',
+        'Automatische jaartalcatalogus; populariteit bepaalt de volgorde met een gecontroleerde kwaliteitsdrempel.',
     );
     await maakCatalogusCollectie(
-        'top100-films', 'Top 100 films',
-        'Films uit de top 100 per jaartal.', 'film',
-        'Automatische TMDB-jaartalcatalogus voor films.',
+        'top100-films', 'Populaire films per jaar (max 50)',
+        'Populaire bioscoopfilms uit de Nederlandse topselectie per jaartal; een jaar mag kleiner zijn.', 'film',
+        'Automatische populaire NL-jaartalcatalogus voor bioscoopfilms.',
     );
     await maakCatalogusCollectie(
-        'top100-series', 'Top 100 series',
-        'Series uit de top 100 per jaartal.', 'serie',
-        'Automatische TMDB-jaartalcatalogus voor series.',
+        'top100-series', 'Populaire series per jaar (max 25, min 10)',
+        'Populaire series per jaartal; een jaar krijgt minimaal tien bruikbare series als TMDB die kan leveren.', 'serie',
+        'Automatische populaire NL-jaartalcatalogus voor series.',
     );
     await maakCatalogusCollectie(
-        'nederlandstalig-top10', 'Nederlandstalige top 10',
-        'Nederlandstalige films en series per jaartal vanaf 1950.', 'beide',
-        'Automatische selectie van oorspronkelijk Nederlandstalige TMDB-titels.',
+        'top10-per-jaar-nl', 'Top 10 per jaar in Nederland',
+        'Films en series die volgens de NL-context tot de top 10 van hun jaar behoren.', 'beide',
+        'Automatische selectie op Nederlandse regio-context; oorspronkelijke taal is niet doorslaggevend.',
+    );
+    await maakCatalogusCollectie(
+        'cult-classics', 'Cult Classics',
+        'Films en series die later een cultstatus kregen en daarom los van hun oorspronkelijke jaarranglijst speelbaar zijn.', 'beide',
+        'Handmatig gecureerde cultklassiekers, waaronder Idiocracy.',
     );
 
     async function verwerk(lijst, jaar, type, collecties, reden) {
         for (const [index, titel] of lijst.entries()) {
             try {
                 const wasEr = await idVanTitel(titel);
-                titel.toevoeg_reden = `${reden} Rang ${index + 1}; nog te beoordelen op Nederlandse tv-bekendheid.`;
+                titel.toevoeg_reden = `${reden} Rang ${index + 1}; nog te beoordelen op herkenbaarheid in Nederland.`;
                 titel.curatie_status = 'te_beoordelen';
                 titel.nl_tv_bekend = false;
-                const isNieuw = await bewaarTitel(titel);
+                const isNieuw = await bewaarTitel(titel, { forceerCuratie: true });
                 const id = await idVanTitel(titel);
                 if (!id) throw new Error('Titel kon niet worden teruggevonden na opslaan.');
                 await koppelCatalogusCollecties(id, collecties);
@@ -415,29 +574,82 @@ async function importeerJaarCatalogus({
     }
 
     for (let jaar = Math.max(1980, van); jaar <= tot; jaar++) {
-        for (const [soort, type, collectie] of [['movie', 'film', 'top100-films'], ['tv', 'serie', 'top100-series']]) {
-            const lijst = await haalTopVoorJaar(soort, type, jaar, 100);
+        for (const [soort, type, collectie, limiet] of [['movie', 'film', 'top100-films', 50], ['tv', 'serie', 'top100-series', 25]]) {
+            const lijst = await haalTopVoorJaar(soort, type, jaar, limiet);
             await verwerk(
                 lijst,
                 jaar,
                 type,
                 ['top100-per-jaar', collectie],
-                `Top 100 ${type} uit ${jaar} volgens TMDB-score/populariteit.`,
+                `${type === 'film' ? 'Populaire bioscoopfilms' : 'Populaire series'} uit ${jaar} in Nederland; geselecteerd op populariteit.`,
+            );
+        }
+    }
+
+    // Leg expliciet vast dat bekende vangnettels niet verdwijnen door een
+    // wisselende populariteitsscore. Alleen titels binnen de gekozen jaren
+    // worden toegevoegd.
+    for (const item of ICONISCHE_VANGNET_SERIES.filter((x) => x.jaar >= van && x.jaar <= tot)) {
+        const titel = await zoekCultTitel(item);
+        if (!titel) {
+            fouten++;
+            continue;
+        }
+        const bestaand = await pool.query(
+            `SELECT 1 FROM titels t
+              JOIN titel_collecties tc ON tc.titel_id = t.id
+              JOIN collecties c ON c.id = tc.collectie_id
+             WHERE c.sleutel = 'top100-series'
+               AND ((t.tmdb_id IS NOT NULL AND t.tmdb_id = $1)
+                    OR (t.naam = $2 AND COALESCE(t.jaar, 0) = COALESCE($3, 0)))
+             LIMIT 1`,
+            [titel.tmdb_id, titel.naam, titel.jaar],
+        );
+        if (!bestaand.rows.length) {
+            await verwerk(
+                [titel], item.jaar, 'serie',
+                ['top100-per-jaar', 'top100-series'],
+                `Iconische vangnetserie ${item.naam} uit ${item.jaar}; expliciet behouden naast de populaire ranglijst.`,
             );
         }
     }
 
     for (let jaar = 1950; jaar <= tot; jaar++) {
         for (const [soort, type] of [['movie', 'film'], ['tv', 'serie']]) {
-            const lijst = await haalTopVoorJaar(soort, type, jaar, 10, true);
+            const lijst = await haalTopVoorJaar(soort, type, jaar, 10);
             await verwerk(
                 lijst,
                 jaar,
                 type,
-                ['nederlandstalig-top10'],
-                `Nederlandstalige top 10 ${type} uit ${jaar} volgens TMDB-score/populariteit.`,
+                ['top10-per-jaar-nl'],
+                `Top 10 ${type} uit ${jaar} in Nederland volgens TMDB-score/populariteit.`,
             );
         }
+    }
+
+    for (const item of CULT_CLASSICS) {
+        verwerkt++;
+        try {
+            const titel = await zoekCultTitel(item);
+            if (!titel) throw new Error('Geen exacte TMDB-match gevonden.');
+            titel.toevoeg_reden = `Handmatig gecureerde Cult Classic: ${item.naam} kreeg later een cultstatus; niet alleen op oorspronkelijke jaarranglijst geselecteerd.`;
+            titel.curatie_status = 'te_beoordelen';
+            titel.nl_tv_bekend = false;
+            const isNieuw = await bewaarTitel(titel, { forceerCuratie: true });
+            const id = await idVanTitel(titel);
+            if (!id) throw new Error('Titel kon niet worden teruggevonden na opslaan.');
+            await koppelCatalogusCollecties(id, ['cult-classics']);
+            if (isNieuw) nieuw++;
+            else bestaand++;
+        } catch (err) {
+            fouten++;
+            console.error(`Cult Classic overgeslagen (${item.naam}): ${err.message}`);
+        }
+        opProgress?.({
+            fase: 'Cult Classics', type: item.type, jaar: item.jaar,
+            verwerkt, totaal: verwacht, nieuw, bestaand, fouten,
+            huidige: item.naam,
+        });
     }
 
     return {
@@ -449,6 +661,8 @@ async function importeerJaarCatalogus({
         bestaand,
         fouten,
         omvang,
+        opgeschoond,
+        cultClassics: CULT_CLASSICS.length,
         vervolg: 'Start daarna YouTube zoeken voor titels zonder track en MP3-downloads in aparte admin-taken.',
     };
 }
