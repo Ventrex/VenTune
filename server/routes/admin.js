@@ -496,19 +496,15 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
         let perBron = [];
         try {
             const resultaat = await pool.query(
-                `SELECT CASE
-                            WHEN bron = 'youtube'
-                                 OR (bron = 'lokaal' AND lower(COALESCE(bron_url, '')) LIKE '%youtube%')
-                                THEN 'youtube'
-                            WHEN bron = 'itunes'
-                                 OR (bron = 'lokaal' AND lower(COALESCE(bron_url, '')) LIKE '%apple%')
-                                THEN 'itunes'
-                            ELSE bron
-                        END AS bron,
-                        count(*)::int AS n
+                `SELECT bron, count(*)::int AS n
                    FROM tracks
-                  GROUP BY 1
-                  ORDER BY CASE WHEN bron = 'youtube' THEN 0 ELSE 1 END, n DESC`,
+                  GROUP BY bron
+                  ORDER BY CASE bron
+                               WHEN 'lokaal' THEN 0
+                               WHEN 'youtube' THEN 1
+                               WHEN 'itunes' THEN 2
+                               ELSE 3
+                           END, n DESC`,
             );
             perBron = resultaat.rows;
         } catch (err) {
@@ -1268,7 +1264,7 @@ const ADMIN_TAAK_LABELS = {
     seed: 'YouTube-first muziek vernieuwen',
     playlists: 'YouTube-playlists verversen',
     tmdb: 'TMDB-films en series ophalen',
-    'tmdb-catalogus': 'Top 100 per jaar + Nederlandstalige top 10',
+    'tmdb-catalogus': 'Films top 100 + series top 100 per jaar + NL top 10',
     vragen: 'Bonusvragen genereren',
     downloads: 'MP3’s vooraf downloaden',
     'downloads-retry': 'Mislukte downloads opnieuw proberen',
