@@ -1,10 +1,9 @@
 // =====================================================================
 // Download een toegestane audiopreview naar het lokale /media-volume.
 //
-// Dit script start nooit automatisch. Het downloadt uitsluitend bestaande
-// Apple/iTunes-preview-URL's of expliciet door de admin aangewezen YouTube-
-// tracks. Zo kan VenTune later lokaal afspelen zonder blind zoekresultaten
-// of willekeurige externe URL's als downloader te gebruiken.
+// Dit script downloadt uitsluitend expliciet door de admin aangewezen
+// YouTube-tracks. Zo kan VenTune lokaal afspelen zonder tijdens een spel
+// afhankelijk te zijn van YouTube of iTunes.
 //
 // Gebruik:
 //   node /app/seed/download-track.js --track 42
@@ -194,23 +193,7 @@ async function controleerTrackUrl(track) {
     if (track.bron === 'youtube' || (track.bron === 'lokaal' && youtubeUrl(track))) {
         return controleerYoutubeUrl(track);
     }
-    const appleUrl = track.bron === 'lokaal' ? track.bron_url : track.preview_url;
-    if (!['itunes', 'lokaal'].includes(track.bron) || !isToegestanePreview(appleUrl)) {
-        throw new Error('Geen toegestane downloadbron.');
-    }
-    let response = await fetch(appleUrl, {
-        method: 'HEAD',
-        headers: { 'User-Agent': 'VenTune/1.0 source-check' },
-    });
-    // Sommige Apple/CDN-varianten weigeren HEAD maar leveren wel audio op een
-    // kleine ranged GET. Dat is nog steeds alleen een URL-check, geen mp3-save.
-    if (response.status === 405 || response.status === 403) {
-        response = await fetch(appleUrl, {
-            headers: { 'User-Agent': 'VenTune/1.0 source-check', Range: 'bytes=0-0' },
-        });
-    }
-    if (!response.ok) throw new Error(`Bron gaf HTTP ${response.status}.`);
-    return { bestaat: true, url: appleUrl };
+    throw new Error('Alleen YouTube is een toegestane downloadbron; iTunes is uitgeschakeld.');
 }
 
 /** Controleer of een eerder opgeslagen lokale kopie nog echt op disk staat. */
@@ -347,13 +330,6 @@ async function downloadTrack(track, droog = false) {
     if (track.bron === 'youtube' || (track.bron === 'lokaal' && youtubeUrl(track))) {
         return downloadYoutubeTrack({ ...track, bron: 'youtube' }, droog);
     }
-    if (track.bron === 'itunes' || (track.bron === 'lokaal' && isToegestanePreview(track.bron_url))) {
-        return downloadAppleTrack({
-            ...track,
-            bron: 'itunes',
-            preview_url: track.bron_url || track.preview_url,
-        }, droog);
-    }
     throw new Error('Deze track heeft geen herstelbare downloadbron.');
 }
 
@@ -366,7 +342,7 @@ async function main() {
     }
 
     const params = [];
-    let where = `(tr.bron = 'itunes' OR tr.bron = 'youtube') AND tr.preview_url IS NOT NULL`;
+    let where = `tr.bron = 'youtube' AND tr.preview_url IS NOT NULL`;
     if (id) {
         params.push(Number(id));
         where += ` AND tr.id = $${params.length}`;
@@ -379,7 +355,7 @@ async function main() {
           ORDER BY tr.id`,
         params,
     );
-    if (!rows.length) throw new Error('Geen passende YouTube- of iTunes-track gevonden.');
+    if (!rows.length) throw new Error('Geen passende YouTube-track gevonden.');
 
     let mislukt = 0;
     for (const track of rows) {
