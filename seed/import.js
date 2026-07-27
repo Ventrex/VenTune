@@ -2,8 +2,9 @@
 // Seed-import voor VenTune.
 //
 // Leest seed/titels.json, zet de titels in de database en zoekt per titel
-// een passende YouTube-intro of titelsong. Alleen als YouTube geen betrouwbare
-// match oplevert, valt de import terug op een gratis iTunes-preview. Titels
+// een passende YouTube-intro of titelsong. YouTube wordt uitsluitend als
+// downloadbron geregistreerd; het spel gebruikt later alleen lokale audio.
+// Titels
 // die al een track hebben worden overgeslagen (tenzij --force).
 //
 // Gebruik (bijv. in de servercontainer, waar iTunes bereikbaar is):
@@ -11,14 +12,13 @@
 // of lokaal met een DATABASE_URL:
 //   DATABASE_URL=postgres://... node seed/import.js [--force] [--limit N]
 //
-// De pg-pool, YouTube-helper en iTunes-fallback komen uit de server, zodat er
-// geen aparte dependencies nodig zijn.
+// De pg-pool en YouTube-helper komen uit de server, zodat er geen aparte
+// dependencies nodig zijn.
 // =====================================================================
 
 const fs = require('fs');
 const path = require('path');
 const { pool } = require('../server/db/pool');
-const itunes = require('../server/lib/itunes');
 const ytzoek = require('../server/lib/ytzoek');
 const { pastBijTitel } = require('../server/lib/trackcheck');
 const tmdb = require('../server/lib/tmdb');
@@ -139,10 +139,11 @@ async function upsertTitel(t) {
         await pool.query(
             `UPDATE titels SET aliassen = $2, type = $3, taal = $4, land = $5,
                     genres = $6, tmdb_id = COALESCE($7, tmdb_id),
-                    toevoeg_reden = COALESCE($8, toevoeg_reden),
-                    nl_tv_bekend = COALESCE($9, nl_tv_bekend),
-                    curatie_status = COALESCE($10, curatie_status),
-                    leeftijdsgrens = COALESCE($11, leeftijdsgrens)
+                    studio = COALESCE($8, studio),
+                    toevoeg_reden = COALESCE($9, toevoeg_reden),
+                    nl_tv_bekend = COALESCE($10, nl_tv_bekend),
+                    curatie_status = COALESCE($11, curatie_status),
+                    leeftijdsgrens = COALESCE($12, leeftijdsgrens)
               WHERE id = $1`,
             [
                 id,
@@ -152,6 +153,7 @@ async function upsertTitel(t) {
                 t.land || null,
                 t.genres || [],
                 t.tmdb_id ?? null,
+                t.studio || null,
                 t.toevoeg_reden || null,
                 typeof t.nl_tv_bekend === 'boolean' ? t.nl_tv_bekend : null,
                 t.curatie_status || null,
@@ -166,8 +168,8 @@ async function upsertTitel(t) {
     }
     const nieuw = await pool.query(
         `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres, tmdb_id,
-                            toevoeg_reden, nl_tv_bekend, curatie_status, leeftijdsgrens)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+                            studio, toevoeg_reden, nl_tv_bekend, curatie_status, leeftijdsgrens)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
         [
             t.naam,
             t.aliassen || [],
@@ -177,6 +179,7 @@ async function upsertTitel(t) {
             t.land || null,
             t.genres || [],
             t.tmdb_id ?? null,
+            t.studio || null,
             t.toevoeg_reden || 'Gecureerde VenTune-lijst: herkenbare film of serie die in Nederland breed te zien was.',
             t.nl_tv_bekend ?? true,
             t.curatie_status || 'goedgekeurd',
@@ -217,8 +220,9 @@ async function heeftRecenteWerkendeTrack(titelId) {
         `SELECT 1 FROM tracks
           WHERE titel_id = $1 AND werkt = true
             AND preview_url IS NOT NULL AND preview_url <> ''
-            AND (download_status = 'available'
-                 OR laatst_gecontroleerd_op >= now() - interval '7 days')
+            AND ((bron = 'lokaal' AND download_status = 'available')
+                 OR (bron = 'youtube'
+                     AND laatst_gecontroleerd_op >= now() - interval '7 days'))
           LIMIT 1`,
         [titelId],
     );
@@ -241,38 +245,6 @@ async function meldOntbrekendeTrack(titelId) {
           )`,
         [titelId],
     );
-}
-
-async function voegItunesTrackToe(titelId, resultaat, executor = pool) {
-    const bestaande = await executor.query(
-        `SELECT id FROM tracks
-          WHERE titel_id = $1 AND (preview_url = $2 OR bron_url = $2)
-          LIMIT 1`,
-        [titelId, resultaat.preview_url],
-    );
-    if (bestaande.rows[0]) {
-        await executor.query(`UPDATE tracks SET laatst_gecontroleerd_op = now() WHERE id = $1`, [bestaande.rows[0].id]);
-        return bestaande.rows[0];
-    }
-    const { rows } = await executor.query(
-        `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
-                             tracknaam, artiest, album, herkenbaarheid,
-                             gecontroleerd, verificatie_score, verificatie_reden,
-                             laatst_gecontroleerd_op, bron_url)
-         VALUES ($1, 'itunes', $2, $3, $4, $5, $6, 3, true, $7, $8, now(), $3)
-         RETURNING id`,
-        [
-            titelId,
-            resultaat.itunes_track_id,
-            resultaat.preview_url,
-            resultaat.tracknaam,
-            resultaat.artiest,
-            resultaat.album || null,
-            verificatieScore(resultaat),
-            resultaat.verificatie?.reden || 'iTunes-titelcontrole',
-        ],
-    );
-    return rows[0];
 }
 
 function verificatieScore(resultaat) {
@@ -346,7 +318,8 @@ async function vervangTracks(titelId, voegToe) {
 
 /**
  * Voer de import uit. Herbruikbaar vanuit de CLI én de admin-portal.
- * @param {object} opties { force, limiet, onLog, alleenDb, youtubeAlleen }
+ * @param {object} opties { force, limiet, onLog, alleenDb, youtubeAlleen,
+ *                           alleenZonderLokaal }
  * @returns {Promise<{verwerkt, metTrack, zonder:string[]}>}
  */
 async function importeer({
@@ -355,6 +328,7 @@ async function importeer({
     onLog,
     alleenDb = false,
     youtubeAlleen = false,
+    alleenZonderLokaal = false,
     titelFilter = null,
     collectie = null,
     onProgress,
@@ -378,7 +352,11 @@ async function importeer({
         const { rows } = await pool.query(
             `SELECT id, naam, aliassen, type, taal, jaar, land, genres, tmdb_id
                FROM titels t
-              WHERE ${force ? 'TRUE' : 'NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id)'}
+              WHERE ${alleenZonderLokaal
+                ? `NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
+                                 AND x.bron = 'lokaal' AND x.werkt = true
+                                 AND x.download_status = 'available')`
+                : (force ? 'TRUE' : 'NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id)')}
               ORDER BY id`,
         );
         titels = rows.map((r) => ({ ...r, _id: r.id }));
@@ -456,39 +434,6 @@ async function importeer({
             }
         } catch (err) {
             log({ titel: t.naam, bron: 'youtube', fout: err.message });
-        }
-
-        // 2) Lukt YouTube niet, dan pas iTunes als fallback proberen.
-        if (!gelukt && !youtubeAlleen) {
-            try {
-                const term = t.zoekterm || `${t.naam} soundtrack`;
-                const resultaten = await itunes.zoek(term, { limiet: 8 });
-                let keuze = resultaten.length ? kiesBeste(resultaten, t) : null;
-                if (keuze) {
-                    const lokaleControle = pastBijTitel(t, keuze);
-                    const check = await controleerMetLagen(t, keuze, lokaleControle);
-                    if (!check) {
-                        log({ titel: t.naam, bron: 'itunes', geweigerd: keuze.tracknaam });
-                        keuze = null;
-                    } else {
-                        keuze.verificatie = check;
-                    }
-                }
-                if (keuze) {
-                    if (force) {
-                        await vervangTracks(titelId, (client) =>
-                            voegItunesTrackToe(titelId, keuze, client),
-                        );
-                    } else {
-                        await voegItunesTrackToe(titelId, keuze);
-                    }
-                    metTrack++;
-                    gelukt = true;
-                    log({ titel: t.naam, bron: 'itunes', gevonden: keuze.tracknaam });
-                }
-            } catch (err) {
-                log({ titel: t.naam, bron: 'itunes', fout: err.message });
-            }
         }
 
         if (!gelukt) {
