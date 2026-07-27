@@ -76,6 +76,10 @@ router.get('/api/tracks/telling', async (req, res) => {
         kindvriendelijk: req.query.kindvriendelijk === 'true',
         alleen_nl_tv: req.query.alleen_nl_tv !== 'false',
         alleen_gecontroleerd: req.query.alleen_gecontroleerd === 'true',
+        // Het spel draait lokaal; YouTube is alleen voor het admin-
+        // downloadproces. Zonder deze vlag zou de teller externe tracks
+        // meetellen die tijdens het spel niet meer mogen worden afgespeeld.
+        alleen_lokaal: true,
         rondes: Number(req.query.rondes),
     };
     const { where, params } = bouwFilter(filter);
@@ -88,6 +92,8 @@ router.get('/api/tracks/telling', async (req, res) => {
                FROM titels t
                LEFT JOIN tracks tr ON tr.titel_id = t.id
                                   AND tr.werkt = true
+                                  AND tr.bron = 'lokaal'
+                                  AND tr.download_status = 'available'
                                   AND tr.preview_url IS NOT NULL
                                   AND tr.preview_url <> ''
                                   AND ($${params.length + 1}::boolean = false
@@ -108,6 +114,41 @@ router.get('/api/tracks/telling', async (req, res) => {
     } catch (err) {
         logger.fout('Telling mislukt.', { melding: err.message });
         res.status(500).json({ fout: 'Kon de telling niet ophalen.' });
+    }
+});
+
+// Spelers mogen een bonusvraag voorstellen. De vraag wordt bewust pas na
+// admin-goedkeuring aan de actieve vragenbank toegevoegd.
+router.post('/api/vraag-suggesties', async (req, res) => {
+    const titelId = Number(req.body?.titel_id);
+    const vraag = String(req.body?.vraag || '').trim().slice(0, 500);
+    const opties = Array.isArray(req.body?.opties)
+        ? req.body.opties.map((optie) => String(optie || '').trim().slice(0, 160))
+        : [];
+    const correctIndex = Number(req.body?.correct_index);
+    const spelerNaam = String(req.body?.speler_naam || '').trim().slice(0, 80) || null;
+    const uniek = new Set(opties.map((optie) => optie.toLocaleLowerCase('nl-NL')));
+    if (!Number.isInteger(titelId) || !vraag || opties.length !== 6
+        || opties.some((optie) => !optie) || uniek.size !== 6
+        || !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 5) {
+        return res.status(400).json({ fout: 'Vul een vraag, zes verschillende opties en één juist antwoord in.' });
+    }
+    try {
+        const titel = await pool.query(
+            `SELECT id FROM titels WHERE id = $1 AND type IN ('film', 'serie')`,
+            [titelId],
+        );
+        if (!titel.rows[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
+        const { rows } = await pool.query(
+            `INSERT INTO vraag_suggesties (titel_id, speler_naam, vraag, opties, correct_index)
+             VALUES ($1, $2, $3, $4::jsonb, $5)
+             RETURNING id, status, aangemaakt_op`,
+            [titelId, spelerNaam, vraag, JSON.stringify(opties), correctIndex],
+        );
+        res.status(201).json({ ok: true, ...rows[0] });
+    } catch (err) {
+        logger.fout('Bonusvraag insturen mislukt.', { melding: err.message });
+        res.status(500).json({ fout: 'Kon de bonusvraag niet insturen.' });
     }
 });
 
