@@ -6,7 +6,6 @@ import Join from './pages/Join.jsx';
 import Host from './pages/Host.jsx';
 import Play from './pages/Play.jsx';
 import Admin from './pages/Admin.jsx';
-import MuziekTest from './pages/MuziekTest.jsx';
 import Changelog from './pages/Changelog.jsx';
 import HostAuth from './pages/HostAuth.jsx';
 import HostProfile from './pages/HostProfile.jsx';
@@ -46,7 +45,6 @@ export default function App() {
                     <Route path="/host" element={<Host />} />
                     <Route path="/play" element={<Play />} />
                     <Route path="/admin" element={<Admin />} />
-                    <Route path="/muziek" element={<MuziekTest />} />
                     <Route path="/changelog" element={<Changelog />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
