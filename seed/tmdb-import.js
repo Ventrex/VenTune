@@ -543,7 +543,7 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
     console.log(`Bestond al:       ${teller.bestond}`);
     if (teller.fouten) console.log(`Fouten:           ${teller.fouten}`);
     console.log(`\nTotaal in database: ${d.n} titels (${d.nl} Nederlandstalig, ${d.series} series)`);
-    console.log('\nVolgende stap — YouTube-muziek erbij zoeken:');
+    console.log("\nVolgende stap — YouTube-intro's en thema's erbij zoeken:");
     console.log('  node /app/seed/import.js --db');
     return { ...teller, totaal: d.n, nl: d.nl, series: d.series, genre: genreTekst || null };
 }
