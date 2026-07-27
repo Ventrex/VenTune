@@ -1,5 +1,29 @@
 # VenTune changelog
 
+## [0.4.0] - 2026-07-27
+
+### Audio starten
+
+- De host wacht bij **Start spel** niet meer op een trage YouTube-iframe als de
+  ronde lokaal opgeslagen audio gebruikt.
+- De host meldt nu zichtbaar: audio wordt geladen, speelt, of kon niet starten.
+  Bij een fout staat er direct een knop **Opnieuw afspelen** in plaats van een
+  stille visualizer.
+- Ronde 1 toont ook wanneer de audio-opdracht nog wordt klaargezet. Daarmee is
+  het onderscheid tussen “nog laden” en “geen geluid” zichtbaar.
+
+### Admin: catalogus en meldingen
+
+- Titels & muziek toont per film/serie direct de actuele bron: **MP3 lokaal**,
+  **YT**, **iTunes** en open meldingen. De filters voor films, series, lokaal,
+  nog extern en meldingen zijn klikbaar.
+- Een melding kan vanuit Admin opnieuw op YouTube zoeken, de kandidaat koppelen
+  en direct goedkeuren. Een bestaande gemelde track kan ook apart worden
+  goedgekeurd; daarna doet de titel weer mee.
+- De melding toont nu type, jaar, trackstatus, downloadstatus en toelichting.
+- Overzicht bevat aparte aantallen voor films en series en lege meldingenlijsten
+  leggen uit wat de volgende actie is.
+
 ## [0.3.9] - 2026-07-27
 
 ### Voor spelers en hosts
