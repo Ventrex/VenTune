@@ -369,6 +369,8 @@ class SpelBeheer {
             alleen_lokaal: true,
         };
 
+        const basisFilter = { ...spelInstellingen, alleen_lokaal: false };
+        const { where: basisWhere, params: basisParams } = bouwFilter(basisFilter);
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
@@ -387,7 +389,7 @@ class SpelBeheer {
             params,
         );
 
-        await this.registreerOntbrekendeTitels(where, params);
+        await this.registreerOntbrekendeTitels(basisWhere, basisParams);
 
         if (titels.length === 0) {
             this.io.to(kamer(code)).emit('spel:fout', {
@@ -444,7 +446,7 @@ class SpelBeheer {
             logger.info('Spel gestart.', { code, totaal });
 
             this.io.to(kamer(code)).emit('spel:voorbereiden', {
-                melding: 'Nummers volledig lokaal opslaan…',
+                melding: 'Lokale MP3’s controleren…',
                 verwerkt: 0,
                 totaal,
             });
@@ -457,7 +459,7 @@ class SpelBeheer {
                 );
                 const eersteFout = voorbereiding.mislukt[0];
                 this.io.to(kamer(code)).emit('spel:fout', {
-                    melding: `Spel niet gestart: ${voorbereiding.mislukt.length} van ${voorbereiding.totaal} nummers zijn niet volledig gedownload. ${eersteFout ? `${eersteFout.titel}: ${eersteFout.melding}` : 'Controleer de downloads in het adminportaal.'}`,
+                    melding: `Spel niet gestart: er zijn maar ${voorbereiding.gevonden} volledig lokale MP3’s beschikbaar voor deze filters${gevraagd > 0 ? `, terwijl er ${voorbereiding.gevraagd} rondes gevraagd zijn` : ''}. ${eersteFout ? `${eersteFout.titel}: ${eersteFout.melding}` : 'Controleer de downloads in het adminportaal.'}`,
                 });
                 logger.waarschuwing('Spelstart afgebroken omdat niet alle audio lokaal beschikbaar is.', {
                     code,
@@ -483,32 +485,37 @@ class SpelBeheer {
     }
 
     async bereidTracksVoor(state) {
-        const gepland = state.pool.slice(0, state.totaalRondes);
+        const gevraagd = state.totaalRondes;
+        const kandidaten = state.pool.slice();
+        const geplandeTitels = [];
         const mislukt = [];
         let verwerkt = 0;
-        for (const titel of gepland) {
+        for (const titel of kandidaten) {
+            if (geplandeTitels.length >= gevraagd) break;
             const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen, true);
             if (!track) {
                 mislukt.push({ titel: titel.naam, melding: 'Geen volledig lokaal audiobestand gekoppeld.' });
+                await this.registreerOntbrekendeTitel(titel.id);
                 verwerkt += 1;
                 this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                    melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
+                    melding: `Lokale MP3’s controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
                     verwerkt,
-                    totaal: gepland.length,
+                    totaal: gevraagd,
                     huidige: titel.naam,
                 });
                 continue;
             }
-            state.voorbereideTracks.set(titel.id, track);
             const lokaleKopie = track.bron === 'lokaal'
                 && track.download_status === 'available'
                 && await lokaalBestandBeschikbaar(track);
             if (lokaleKopie) {
+                state.voorbereideTracks.set(titel.id, track);
+                geplandeTitels.push(titel);
                 verwerkt += 1;
                 this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                    melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
+                    melding: `Lokale MP3’s controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
                     verwerkt,
-                    totaal: gepland.length,
+                    totaal: gevraagd,
                     huidige: titel.naam,
                 });
                 continue;
@@ -519,28 +526,33 @@ class SpelBeheer {
             if (track.bron !== 'lokaal' || track.download_status !== 'available'
                 || !(await lokaalBestandBeschikbaar(track))) {
                 mislukt.push({ titel: titel.naam, melding: 'Lokale MP3 ontbreekt of is niet volledig beschikbaar.' });
+                await this.registreerOntbrekendeTitel(titel.id);
             }
             verwerkt += 1;
             this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
+                melding: `Lokale MP3’s controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
                 verwerkt,
-                totaal: gepland.length,
+                totaal: gevraagd,
                 huidige: titel.naam,
             });
         }
+        state.pool = geplandeTitels;
+        state.totaalRondes = geplandeTitels.length;
         return {
-            totaal: gepland.length,
+            gevraagd,
+            gevonden: geplandeTitels.length,
+            totaal: kandidaten.length,
             mislukt,
-            geslaagd: mislukt.length === 0 && verwerkt === gepland.length,
+            geslaagd: geplandeTitels.length === gevraagd,
         };
     }
 
     async kiesTrackVoorTitel(titel, uitgesloten = new Set(), instellingen = {}, alleenLokaal = false) {
         const { rows } = await pool.query(
-            `SELECT tr.id, tr.bron, tr.preview_url, tr.start_seconde,
+            `SELECT tr.id, tr.bron, tr.preview_url, tr.bestand_pad, tr.start_seconde,
                     tr.tracknaam, tr.artiest, tr.album,
                     tr.verificatie_score, tr.verificatie_reden, tr.download_status,
-                    tr.bron_url
+                    tr.bron_url, tr.audio_sha256
                FROM tracks tr
               WHERE tr.titel_id = $1
                 AND tr.werkt = true
