@@ -128,11 +128,18 @@ function setupSockets(io) {
         socket.on('spel:start', async () => {
             try {
                 if (!socket.data.isHost || !socket.data.lobbyId) return;
+                socket.emit('spel:voorbereiden', {
+                    melding: 'Spel voorbereiden…',
+                    bezig: true,
+                });
                 const { rows } = await pool.query(
                     `SELECT instellingen FROM lobbies WHERE id = $1`,
                     [socket.data.lobbyId],
                 );
-                if (!rows[0]) return;
+                if (!rows[0]) {
+                    socket.emit('spel:fout', { melding: 'Lobby niet gevonden; maak een nieuwe lobby aan.' });
+                    return;
+                }
                 await spel.startSpel({
                     lobbyId: socket.data.lobbyId,
                     code: socket.data.code,
@@ -140,7 +147,9 @@ function setupSockets(io) {
                 });
             } catch (err) {
                 logger.fout('spel:start mislukt.', { melding: err.message });
-                socket.emit('spel:fout', { melding: 'Kon het spel niet starten.' });
+                socket.emit('spel:fout', {
+                    melding: `Kon het spel niet starten: ${err.message || 'onbekende fout'}`,
+                });
             }
         });
 

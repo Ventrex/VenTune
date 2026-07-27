@@ -127,6 +127,7 @@ export async function haalTelling(filters) {
         kindvriendelijk: String(filters.kindvriendelijk === true),
         alleen_nl_tv: String(filters.alleen_nl_tv !== false),
         alleen_gecontroleerd: String(filters.alleen_gecontroleerd === true),
+        rondes: String(filters.rondes ?? 10),
     });
     const resp = await fetch(`/api/tracks/telling?${params.toString()}`);
     const data = await jsonOfNull(resp);
@@ -296,6 +297,12 @@ export async function adminTmdbImport(type = 'beide', genre = '') {
 }
 export async function adminTmdbStatus() {
     return adminFetch('/api/admin/tmdb/status');
+}
+export async function adminTmdbCatalogus() {
+    return adminFetch('/api/admin/tmdb/catalogus', { method: 'POST', ...jsonBody({}) });
+}
+export async function adminTmdbCatalogusStatus() {
+    return adminFetch('/api/admin/tmdb/catalogus/status');
 }
 export async function adminVragenImport(tmdb = false) {
     return adminFetch('/api/admin/vragen/import', {

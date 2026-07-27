@@ -1,6 +1,6 @@
 const assert = require('assert/strict');
 const { beoordeelTrackMetDetails } = require('../lib/tmdb');
-const { leeftijdsgrensVoorGenres } = require('../../seed/tmdb-import');
+const { leeftijdsgrensVoorGenres, berekenCatalogusOmvang } = require('../../seed/tmdb-import');
 
 const gooische = {
     naam: 'Gooische Vrouwen',
@@ -20,6 +20,21 @@ assert.equal(
 assert.equal(leeftijdsgrensVoorGenres(['Familie']), 6);
 assert.equal(leeftijdsgrensVoorGenres(['Fantasy']), 9);
 assert.equal(leeftijdsgrensVoorGenres(['Horror']), 16);
+
+// Inclusief tellen: 1980 t/m 2026 zijn 47 jaartallen en 1950 t/m 2026
+// zijn 77 jaartallen. De admin kan daardoor de verwachte omvang tonen zonder
+// de één-jaar-verschilfout uit de oorspronkelijke berekening.
+assert.deepEqual(
+    berekenCatalogusOmvang({ startJaar: 1980, eindJaar: 2026 }),
+    {
+        jaren: 47,
+        nederlandstaligeJaren: 77,
+        films: 4700,
+        series: 4700,
+        nederlandstaligeFilms: 770,
+        nederlandstaligeSeries: 770,
+    },
+);
 
 // Een bekende lokale afkorting blijft geldig als TMDB de officiële titel
 // bevestigt (bijvoorbeeld GTST versus Goede Tijden Slechte Tijden).

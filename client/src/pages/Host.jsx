@@ -41,13 +41,24 @@ export default function Host() {
     const [, setBonusTik] = useState(0);
     const [nieuwTeam, setNieuwTeam] = useState('');
     const [lobbyWijziging, setLobbyWijziging] = useState(null);
+    const [startBezig, setStartBezig] = useState(false);
 
     // Ontgrendel de speler tijdens de tik op 'Start spel', zodat ook latere
     // rondes vanzelf geluid geven (iOS staat afspelen alleen toe na een tik).
     async function startMetGeluid() {
-        if (spelerRef.current) await spelerRef.current.ontgrendel();
-        spel.startSpel();
+        if (startBezig || voorbereiding) return;
+        setStartBezig(true);
+        try {
+            if (spelerRef.current) await spelerRef.current.ontgrendel();
+            spel.startSpel();
+        } catch {
+            setStartBezig(false);
+        }
     }
+
+    useEffect(() => {
+        if (fase !== 'wachten' || spel.fout) setStartBezig(false);
+    }, [fase, spel.fout]);
 
     useEffect(() => { setGok(''); setGokIngediend(false); }, [ronde?.rondeId]);
     useEffect(() => {
@@ -208,10 +219,10 @@ export default function Host() {
                                 </div>}
                                 <button className="knop knop-stil" type="button" onClick={() => spel.bewaarLobbyInstellingen(lobbyWijziging || {})}>Instellingen opslaan</button>
                             </div>
-                            {voorbereiding && (
+                            {(voorbereiding || startBezig) && (
                                 <div className="kaart" style={{ marginTop: '1.5rem' }} role="status">
-                                    <strong>{voorbereiding.melding || 'Nummers voorbereiden…'}</strong>
-                                    {voorbereiding.totaal > 0 && (
+                                    <strong>{voorbereiding?.melding || 'Spel voorbereiden… even geduld.'}</strong>
+                                    {voorbereiding?.totaal > 0 && (
                                         <>
                                             <div className="admin-progress" style={{ marginTop: '0.75rem' }}>
                                                 <span style={{ width: `${Math.min(100, Math.round(((voorbereiding.verwerkt || 0) / voorbereiding.totaal) * 100))}%` }} />
@@ -226,9 +237,9 @@ export default function Host() {
                                 <button
                                     className="knop"
                                     onClick={startMetGeluid}
-                                    disabled={spelers.length < 1 || !!voorbereiding}
+                                    disabled={spelers.length < 1 || !!voorbereiding || startBezig}
                                 >
-                                    {voorbereiding ? 'Nummers voorbereiden…' : 'Start spel'}
+                                    {voorbereiding || startBezig ? 'Spel voorbereiden…' : 'Start spel'}
                                 </button>
                             </div>
                         </div>

@@ -337,7 +337,13 @@ class SpelBeheer {
 
     // ---- Spel starten ----
     async startSpel({ lobbyId, code, instellingen }) {
-        if (this.spellen.has(lobbyId)) return;
+        if (this.spellen.has(lobbyId)) {
+            this.io.to(kamer(code)).emit('spel:voorbereiden', {
+                melding: 'Dit spel wordt al voorbereid. Even geduld…',
+                bezig: true,
+            });
+            return;
+        }
 
         // De jongste deelnemer bepaalt automatisch de veilige bovengrens.
         // De host kan daarnaast in Setup een strengere grens kiezen.
@@ -427,38 +433,50 @@ class SpelBeheer {
         };
         this.spellen.set(lobbyId, state);
 
-        await pool.query(
-            `UPDATE lobbies SET status = 'bezig', huidige_ronde = 0 WHERE id = $1`,
-            [lobbyId],
-        );
-        logger.info('Spel gestart.', { code, totaal });
+        try {
+            await pool.query(
+                `UPDATE lobbies SET status = 'bezig', huidige_ronde = 0 WHERE id = $1`,
+                [lobbyId],
+            );
+            logger.info('Spel gestart.', { code, totaal });
 
-        this.io.to(kamer(code)).emit('spel:voorbereiden', {
-            melding: 'Nummers volledig lokaal opslaan...',
-            verwerkt: 0,
-            totaal,
-        });
-        const voorbereiding = await this.bereidTracksVoor(state);
-        if (!voorbereiding.geslaagd) {
+            this.io.to(kamer(code)).emit('spel:voorbereiden', {
+                melding: 'Nummers volledig lokaal opslaan…',
+                verwerkt: 0,
+                totaal,
+            });
+            const voorbereiding = await this.bereidTracksVoor(state);
+            if (!voorbereiding.geslaagd) {
+                this.spellen.delete(lobbyId);
+                await pool.query(
+                    `UPDATE lobbies SET status = 'wachten', huidige_ronde = 0 WHERE id = $1`,
+                    [lobbyId],
+                );
+                const eersteFout = voorbereiding.mislukt[0];
+                this.io.to(kamer(code)).emit('spel:fout', {
+                    melding: `Spel niet gestart: ${voorbereiding.mislukt.length} van ${voorbereiding.totaal} nummers zijn niet volledig gedownload. ${eersteFout ? `${eersteFout.titel}: ${eersteFout.melding}` : 'Controleer de downloads in het adminportaal.'}`,
+                });
+                logger.waarschuwing('Spelstart afgebroken omdat niet alle audio lokaal beschikbaar is.', {
+                    code,
+                    totaal: voorbereiding.totaal,
+                    mislukt: voorbereiding.mislukt.length,
+                });
+                return;
+            }
+            state.alleenLokaal = true;
+
+            await this.volgendeRonde(state);
+        } catch (err) {
             this.spellen.delete(lobbyId);
             await pool.query(
                 `UPDATE lobbies SET status = 'wachten', huidige_ronde = 0 WHERE id = $1`,
                 [lobbyId],
-            );
-            const eersteFout = voorbereiding.mislukt[0];
+            ).catch(() => {});
             this.io.to(kamer(code)).emit('spel:fout', {
-                melding: `Spel niet gestart: ${voorbereiding.mislukt.length} van ${voorbereiding.totaal} nummers zijn niet volledig gedownload. ${eersteFout ? `${eersteFout.titel}: ${eersteFout.melding}` : 'Controleer de downloads in het adminportaal.'}`,
+                melding: `Spel starten mislukt: ${err.message || 'onbekende fout'}`,
             });
-            logger.waarschuwing('Spelstart afgebroken omdat niet alle audio lokaal beschikbaar is.', {
-                code,
-                totaal: voorbereiding.totaal,
-                mislukt: voorbereiding.mislukt.length,
-            });
-            return;
+            throw err;
         }
-        state.alleenLokaal = true;
-
-        await this.volgendeRonde(state);
     }
 
     async bereidTracksVoor(state) {

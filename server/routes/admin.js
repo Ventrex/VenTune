@@ -30,7 +30,7 @@ const cookies = require('../lib/cookies');
 const logger = require('../lib/logger');
 const { importeer } = require('../../seed/import');
 const { importeerPlaylists } = require('../../seed/playlist-import');
-const { importeerTmdb } = require('../../seed/tmdb-import');
+const { importeerTmdb, importeerJaarCatalogus } = require('../../seed/tmdb-import');
 const { importeerVragen } = require('../../seed/vragen-import');
 const { pastBijTitel } = require('../lib/trackcheck');
 const ytzoek = require('../lib/ytzoek');
@@ -1127,6 +1127,7 @@ let playlistImportStatus = {
     fout: null,
 };
 let tmdbImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let catalogusImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let vragenImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let downloadStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let mediaHealthStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
@@ -1140,6 +1141,7 @@ const ADMIN_TAAK_LABELS = {
     seed: 'YouTube-first muziek vernieuwen',
     playlists: 'YouTube-playlists verversen',
     tmdb: 'TMDB-films en series ophalen',
+    'tmdb-catalogus': 'Top 100 per jaar + Nederlandstalige top 10',
     vragen: 'Bonusvragen genereren',
     downloads: 'MP3’s vooraf downloaden',
     'downloads-retry': 'Mislukte downloads opnieuw proberen',
@@ -1157,6 +1159,7 @@ function adminTaakLijst() {
         seed: seedStatus,
         playlists: playlistImportStatus,
         tmdb: tmdbImportStatus,
+        'tmdb-catalogus': catalogusImportStatus,
         vragen: vragenImportStatus,
         downloads: downloadStatus,
         'downloads-retry': downloadStatus,
@@ -1568,6 +1571,26 @@ router.post('/api/admin/tmdb/import', vereisAdmin, (req, res) => {
 
 router.get('/api/admin/tmdb/status', vereisAdmin, (_req, res) => {
     res.json(tmdbImportStatus);
+});
+
+// Grote catalogusimport: alleen titels/metadata. YouTube zoeken en MP3's
+// downloaden blijven afzonderlijke taken, zodat beide hervatbaar zijn.
+router.post('/api/admin/tmdb/catalogus', vereisAdmin, (req, res) => {
+    const antwoord = startAdminScript(
+        'tmdb-catalogus',
+        catalogusImportStatus,
+        (v) => { catalogusImportStatus = v; },
+        () => importeerJaarCatalogus({
+            startJaar: 1980,
+            eindJaar: new Date().getUTCFullYear(),
+            opProgress: (voortgang) => { catalogusImportStatus = { ...catalogusImportStatus, ...voortgang }; },
+        }),
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/tmdb/catalogus/status', vereisAdmin, (_req, res) => {
+    res.json(catalogusImportStatus);
 });
 
 router.post('/api/admin/vragen/import', vereisAdmin, (req, res) => {

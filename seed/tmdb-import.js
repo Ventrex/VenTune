@@ -240,6 +240,219 @@ async function verzamel(soort, type, extraParams, paginas, label, teller, minSte
     console.log(`  ${label}: klaar (nieuw tot nu toe: ${teller.nieuw})`);
 }
 
+async function maakCatalogusCollectie(sleutel, naam, beschrijving, type, reden) {
+    const { rows } = await pool.query(
+        `INSERT INTO collecties (sleutel, naam, beschrijving, standaard_type, toevoeg_reden)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (sleutel) DO UPDATE SET
+             naam = EXCLUDED.naam,
+             beschrijving = EXCLUDED.beschrijving,
+             standaard_type = EXCLUDED.standaard_type
+         RETURNING id`,
+        [sleutel, naam, beschrijving, type, reden],
+    );
+    return rows[0].id;
+}
+
+async function koppelCatalogusCollecties(titelId, sleutels) {
+    for (const sleutel of [...new Set(sleutels)]) {
+        const { rows } = await pool.query(
+            `SELECT id FROM collecties WHERE sleutel = $1 LIMIT 1`,
+            [sleutel],
+        );
+        if (!rows[0]) continue;
+        await pool.query(
+            `INSERT INTO titel_collecties (titel_id, collectie_id)
+             VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [titelId, rows[0].id],
+        );
+    }
+}
+
+async function idVanTitel(titel) {
+    const { rows } = await pool.query(
+        `SELECT id FROM titels
+          WHERE (tmdb_id IS NOT NULL AND tmdb_id = $1)
+             OR (naam = $2 AND COALESCE(jaar, 0) = COALESCE($3, 0))
+          ORDER BY CASE WHEN tmdb_id = $1 THEN 0 ELSE 1 END
+          LIMIT 1`,
+        [titel.tmdb_id, titel.naam, titel.jaar],
+    );
+    return rows[0]?.id || null;
+}
+
+/**
+ * Haal één jaartop op. TMDB kan door een stemdrempel minder dan 100
+ * resultaten teruggeven; oudere jaren vallen daarom gecontroleerd terug
+ * van 100 naar 25 naar 1 stem, met deduplicatie op TMDB-id.
+ */
+async function haalTopVoorJaar(soort, type, jaar, limiet, nederlandstalig = false) {
+    const gevonden = [];
+    const gezien = new Set();
+    const huidigJaar = new Date().getUTCFullYear();
+    const vandaag = new Date().toISOString().slice(0, 10);
+    const laatsteDatum = jaar === huidigJaar ? vandaag : `${jaar}-12-31`;
+    const datum = type === 'serie'
+        ? { 'first_air_date.gte': `${jaar}-01-01`, 'first_air_date.lte': laatsteDatum }
+        : { 'primary_release_date.gte': `${jaar}-01-01`, 'primary_release_date.lte': laatsteDatum };
+    const taal = nederlandstalig ? { with_original_language: 'nl' } : {};
+
+    for (const stemdrempel of [100, 25, 1]) {
+        for (let pagina = 1; pagina <= 5 && gevonden.length < limiet; pagina++) {
+            const data = await haal(`/discover/${soort}`, {
+                ...datum,
+                ...taal,
+                page: String(pagina),
+                sort_by: 'vote_average.desc',
+                include_adult: 'false',
+                'vote_count.gte': String(stemdrempel),
+            });
+            for (const resultaat of data.results || []) {
+                if (gezien.has(resultaat.id)) continue;
+                const titel = naarTitel(resultaat, type);
+                if (!titel) continue;
+                gezien.add(resultaat.id);
+                gevonden.push(titel);
+                if (gevonden.length >= limiet) break;
+            }
+            if (!data.results?.length || pagina >= (data.total_pages || 1)) break;
+            await slaap(120);
+        }
+    }
+    return gevonden.slice(0, limiet);
+}
+
+function berekenCatalogusOmvang({ startJaar = 1980, eindJaar = new Date().getUTCFullYear() } = {}) {
+    const jaren = Math.max(0, eindJaar - startJaar + 1);
+    const nederlandstaligeJaren = Math.max(0, eindJaar - 1950 + 1);
+    return {
+        jaren,
+        nederlandstaligeJaren,
+        films: jaren * 100,
+        series: jaren * 100,
+        nederlandstaligeFilms: nederlandstaligeJaren * 10,
+        nederlandstaligeSeries: nederlandstaligeJaren * 10,
+    };
+}
+
+/**
+ * Bouw de grote, herhaalbare jaartalcatalogus. Dit vult alleen metadata; er
+ * worden geen YouTube-requests en geen downloads vanuit deze taak gestart.
+ * De bestaande admin-acties "YouTube zoeken" en "MP3 downloaden" blijven
+ * daardoor afzonderlijk, hervatbaar en zichtbaar.
+ */
+async function importeerJaarCatalogus({
+    startJaar = 1980,
+    eindJaar = new Date().getUTCFullYear(),
+    opProgress = null,
+} = {}) {
+    if (!KEY) throw new Error('TMDB_API_KEY ontbreekt. Zet deze in .env en start de server opnieuw.');
+    if (!(await controleerSleutel())) throw new Error('TMDB weigert deze sleutel (401).');
+
+    const van = Math.max(1950, Number(startJaar) || 1980);
+    const tot = Math.min(new Date().getUTCFullYear(), Number(eindJaar) || new Date().getUTCFullYear());
+    if (tot < van) throw new Error('Eindjaar moet gelijk aan of groter dan startjaar zijn.');
+
+    const omvang = berekenCatalogusOmvang({ startJaar: Math.max(1980, van), eindJaar: tot });
+    const verwacht = omvang.films + omvang.series
+        + omvang.nederlandstaligeFilms + omvang.nederlandstaligeSeries;
+    let verwerkt = 0;
+    let nieuw = 0;
+    let bestaand = 0;
+    let fouten = 0;
+
+    await maakCatalogusCollectie(
+        'top100-per-jaar', 'Top 100 per jaar',
+        'Best beoordeelde films en series per jaartal volgens TMDB.', 'beide',
+        'Automatische jaartalcatalogus; TMDB-score en populariteit bepalen de volgorde.',
+    );
+    await maakCatalogusCollectie(
+        'top100-films', 'Top 100 films',
+        'Films uit de top 100 per jaartal.', 'film',
+        'Automatische TMDB-jaartalcatalogus voor films.',
+    );
+    await maakCatalogusCollectie(
+        'top100-series', 'Top 100 series',
+        'Series uit de top 100 per jaartal.', 'serie',
+        'Automatische TMDB-jaartalcatalogus voor series.',
+    );
+    await maakCatalogusCollectie(
+        'nederlandstalig-top10', 'Nederlandstalige top 10',
+        'Nederlandstalige films en series per jaartal vanaf 1950.', 'beide',
+        'Automatische selectie van oorspronkelijk Nederlandstalige TMDB-titels.',
+    );
+
+    async function verwerk(lijst, jaar, type, collecties, reden) {
+        for (const [index, titel] of lijst.entries()) {
+            try {
+                const wasEr = await idVanTitel(titel);
+                titel.toevoeg_reden = `${reden} Rang ${index + 1}; nog te beoordelen op Nederlandse tv-bekendheid.`;
+                titel.curatie_status = 'te_beoordelen';
+                titel.nl_tv_bekend = false;
+                const isNieuw = await bewaarTitel(titel);
+                const id = await idVanTitel(titel);
+                if (!id) throw new Error('Titel kon niet worden teruggevonden na opslaan.');
+                await koppelCatalogusCollecties(id, collecties);
+                if (isNieuw && !wasEr) nieuw++;
+                else bestaand++;
+            } catch (err) {
+                fouten++;
+                console.error(`Catalogustitel overgeslagen (${titel.naam}): ${err.message}`);
+            }
+            verwerkt++;
+            opProgress?.({
+                fase: `${type === 'film' ? 'Films' : 'Series'} ${jaar}`,
+                jaar,
+                type,
+                verwerkt,
+                totaal: verwacht,
+                nieuw,
+                bestaand,
+                fouten,
+                huidige: titel.naam,
+            });
+        }
+    }
+
+    for (let jaar = Math.max(1980, van); jaar <= tot; jaar++) {
+        for (const [soort, type, collectie] of [['movie', 'film', 'top100-films'], ['tv', 'serie', 'top100-series']]) {
+            const lijst = await haalTopVoorJaar(soort, type, jaar, 100);
+            await verwerk(
+                lijst,
+                jaar,
+                type,
+                ['top100-per-jaar', collectie],
+                `Top 100 ${type} uit ${jaar} volgens TMDB-score/populariteit.`,
+            );
+        }
+    }
+
+    for (let jaar = 1950; jaar <= tot; jaar++) {
+        for (const [soort, type] of [['movie', 'film'], ['tv', 'serie']]) {
+            const lijst = await haalTopVoorJaar(soort, type, jaar, 10, true);
+            await verwerk(
+                lijst,
+                jaar,
+                type,
+                ['nederlandstalig-top10'],
+                `Nederlandstalige top 10 ${type} uit ${jaar} volgens TMDB-score/populariteit.`,
+            );
+        }
+    }
+
+    return {
+        startJaar: van,
+        eindJaar: tot,
+        verwacht,
+        verwerkt,
+        nieuw,
+        bestaand,
+        fouten,
+        omvang,
+        vervolg: 'Start daarna YouTube zoeken voor titels zonder track en MP3-downloads in aparte admin-taken.',
+    };
+}
+
 async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type = 'beide', genre = '' } = {}) {
     const soort = ['film', 'serie'].includes(type) ? type : 'beide';
     if (!KEY) {
@@ -335,7 +548,12 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
     return { ...teller, totaal: d.n, nl: d.nl, series: d.series, genre: genreTekst || null };
 }
 
-module.exports = { importeerTmdb, leeftijdsgrensVoorGenres };
+module.exports = {
+    importeerTmdb,
+    importeerJaarCatalogus,
+    berekenCatalogusOmvang,
+    leeftijdsgrensVoorGenres,
+};
 
 if (require.main === module) {
     importeerTmdb()

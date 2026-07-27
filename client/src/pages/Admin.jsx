@@ -62,6 +62,7 @@ function Beheer({ onUit }) {
     const [bezigSeed, setBezigSeed] = useState(false);
     const [bezigPlaylist, setBezigPlaylist] = useState(false);
     const [bezigTmdb, setBezigTmdb] = useState(false);
+    const [bezigCatalogus, setBezigCatalogus] = useState(false);
     const [bezigVragen, setBezigVragen] = useState(false);
     const [bezigDownloads, setBezigDownloads] = useState(false);
     const [bezigHealth, setBezigHealth] = useState(false);
@@ -449,38 +450,46 @@ function Beheer({ onUit }) {
                         <p className="kaart-label">Titels en vragen importeren</p>
                         <p className="dim">Deze acties vullen de database. Voor MP3’s ga je naar de aparte tab Downloads.</p>
                         <div className="stapel">
-                            <button className="knop knop-stil" onClick={() => seed()} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
+                            <button className="knop knop-stil" onClick={() => seed()} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCatalogus}>
                                 {bezigSeed ? 'Bezig…' : 'YouTube-first muziek vernieuwen'}
                             </button>
-                            <button className="knop knop-stil" onClick={() => seed(true, true, false)} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}>
+                            <button className="knop knop-stil" onClick={() => seed(true, true, false)} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCatalogus}>
                                 {bezigSeed ? 'Bezig…' : 'YouTube zoeken voor titels zonder track'}
                             </button>
-                            <button className="knop knop-stil" onClick={playlistImport} disabled={bezigPlaylist || bezigSeed || bezigTmdb || bezigVragen}>
+                            <button className="knop knop-stil" onClick={playlistImport} disabled={bezigPlaylist || bezigSeed || bezigTmdb || bezigVragen || bezigCatalogus}>
                                 {bezigPlaylist ? 'Playlists importeren…' : 'YouTube-playlists verversen'}
                             </button>
                             <button
                                 className="knop knop-stil"
                                 onClick={() => achtergrondTaak(api.adminTmdbImport, api.adminTmdbStatus, setBezigTmdb, 'TMDB-titels importeren…', 'TMDB-import klaar.')}
-                                disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}
+                                disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen || bezigCatalogus}
                             >
                                 {bezigTmdb ? 'TMDB importeren…' : 'TMDB-titels importeren'}
                             </button>
+                            <button
+                                className="knop"
+                                onClick={() => achtergrondTaak(api.adminTmdbCatalogus, api.adminTmdbCatalogusStatus, setBezigCatalogus, 'Top 100 per jaartal en Nederlandstalige top 10 opbouwen…', 'Jaartalcatalogus klaar.')}
+                                disabled={bezigCatalogus || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}
+                            >
+                                {bezigCatalogus ? 'Jaartalcatalogus opbouwen…' : 'Top 100 per jaar + NL top 10 opbouwen'}
+                            </button>
+                            <p className="dim">1980–nu: top 100 films en series per jaar. 1950–nu: top 10 oorspronkelijk Nederlandstalige films en series. Dit zet metadata in de database; gebruik daarna de aparte YouTube- en Download-tabs.</p>
                             <div className="zoekbalk">
                                 <select className="invoer" value={importGenre} onChange={(e) => setImportGenre(e.target.value)} aria-label="Genre voor TMDB-import">
                                     <option value="">Alle genres</option>
                                     {['Actie', 'Avontuur', 'Animatie', 'Komedie', 'Drama', 'Familie', 'Fantasy', 'Horror', 'Musical', 'Romantiek', 'Sciencefiction', 'Thriller', 'Superhelden'].map((g) => <option key={g} value={g}>{g}</option>)}
                                 </select>
-                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('film', importGenre), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe films ophalen…', 'Nieuwe films ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
+                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('film', importGenre), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe films ophalen…', 'Nieuwe films ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen || bezigCatalogus}>
                                     Nieuwe films ophalen{importGenre ? ` · ${importGenre}` : ''}
                                 </button>
-                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('serie', importGenre), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe series ophalen…', 'Nieuwe series ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen}>
+                                <button className="knop knop-stil" onClick={() => achtergrondTaak(() => api.adminTmdbImport('serie', importGenre), api.adminTmdbStatus, setBezigTmdb, 'Nieuwe series ophalen…', 'Nieuwe series ophalen klaar.')} disabled={bezigTmdb || bezigSeed || bezigPlaylist || bezigVragen || bezigCatalogus}>
                                     Nieuwe series ophalen{importGenre ? ` · ${importGenre}` : ''}
                                 </button>
                             </div>
                             <button
                                 className="knop knop-stil"
                                 onClick={() => achtergrondTaak(() => api.adminVragenImport(false), api.adminVragenStatus, setBezigVragen, 'Bonusvragen genereren…', 'Bonusvragen genereren klaar.')}
-                                disabled={bezigVragen || bezigSeed || bezigPlaylist || bezigTmdb}
+                                disabled={bezigVragen || bezigSeed || bezigPlaylist || bezigTmdb || bezigCatalogus}
                             >
                                 {bezigVragen ? 'Vragen genereren…' : 'Bonusvragen genereren'}
                             </button>

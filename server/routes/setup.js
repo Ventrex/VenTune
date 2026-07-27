@@ -17,8 +17,9 @@ const logger = require('../lib/logger');
 
 const router = express.Router();
 
-// Minimaal aantal speelbare titels om te mogen starten.
-const MIN_TITELS = 15;
+// Eén bruikbare titel is een geldige kleine selectie. De engine begrenst het
+// aantal rondes op de werkelijk beschikbare pool.
+const MIN_TITELS = 1;
 
 // Publieke collectieknoppen voor de host. Alleen actieve collecties worden
 // getoond; de admin kan later nieuwe edities toevoegen zonder frontend-build.
@@ -75,6 +76,7 @@ router.get('/api/tracks/telling', async (req, res) => {
         kindvriendelijk: req.query.kindvriendelijk === 'true',
         alleen_nl_tv: req.query.alleen_nl_tv !== 'false',
         alleen_gecontroleerd: req.query.alleen_gecontroleerd === 'true',
+        rondes: Number(req.query.rondes),
     };
     const { where, params } = bouwFilter(filter);
 
@@ -101,6 +103,7 @@ router.get('/api/tracks/telling', async (req, res) => {
             tracks: rows[0].tracks,
             drempel: MIN_TITELS,
             genoeg: titels >= MIN_TITELS,
+            minder_dan_gevraagd: Number(filter.rondes) > 0 && titels < Number(filter.rondes),
         });
     } catch (err) {
         logger.fout('Telling mislukt.', { melding: err.message });

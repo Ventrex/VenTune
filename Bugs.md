@@ -5,6 +5,9 @@ verwacht gedrag en werkelijk gedrag toe.
 
 | Prioriteit | Status | Datum | Onderwerp | Reproduceerstappen | Verwacht | Werkelijk |
 |---|---|---|---|---|---|---|
+| P0 | Opgelost | 2026-07-27 | Klik op Start spel gaf geen zichtbare reactie | Start vanuit Host terwijl lokale voorbereiding of een oude spelstate bestaat | Directe voorbereidingstekst, voortgang of concrete fout; lobby blijft herstelbaar | Een al bestaande serverstate gaf stil `return`, en vroege DB/downloadfouten waren alleen generiek zichtbaar |
+| P1 | Opgelost | 2026-07-27 | Kleine filteraanpassing maakte spelen onmogelijk | Kies een geldige selectie met minder dan 15 speelbare titels | Start met de beschikbare pool en meld het werkelijke aantal rondes | Setup blokkeerde hard onder een vaste drempel van 15 |
+| P1 | Open | 2026-07-27 | Grote TMDB-catalogus heeft nog geen audio | Bouw de jaartalcatalogus en controleer daarna ontbrekende tracks | Alle betrouwbare YouTube-matches zichtbaar en lokaal downloadbaar | TMDB kan geen betrouwbare intro garanderen; resterende titels vragen admincontrole of eigen audio |
 | P1 | Opgelost | 2026-07-26 | Spel startte soms met niet-afgemaakte of externe audio | Start met een track die nog niet lokaal staat of downloadt traag | Spel start pas na 100% lokale bevestiging; lokale audio speelt daarna direct | Een downloadfout werd gelogd maar de externe fallback kon alsnog als rondebron worden gebruikt |
 | P1 | Opgelost | 2026-07-26 | Bonusjaar kon buiten de gekozen periode vallen | Kies 2020–2026 en speel een titel met een opgeslagen/TMDB-bonusvraag | Het bonusjaar is exact het titeljaar en valt binnen 2020–2026 | Een oude vraag of TMDB-releasejaar kon 2019 of 2027+ tonen |
 | P1 | Opgelost | 2026-07-26 | Solo-speler had geen tweede titelgok | Start een spel met één deelnemer en geef een verkeerde gok | Tweede gok is toegestaan en telt voor 50%; meer spelers houden één gok | De server blokkeerde iedere speler na de eerste inzending |

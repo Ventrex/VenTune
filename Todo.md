@@ -2,6 +2,21 @@
 
 ## Eerstvolgend
 
+- [x] **P0** Start spel altijd directe voortgang/foutfeedback geven en een
+      achtergebleven server-spelstate opruimen.
+- [x] **P1** Filtertelling niet langer op minimaal 15 titels blokkeren; één
+      lokale titel is geldig en het spel meldt wanneer er minder rondes dan
+      gevraagd beschikbaar zijn.
+- [x] **P1/P2** Herhaalbare jaartalcatalogus toevoegen: top 100 films en series
+      per jaar vanaf 1980, plus Nederlandstalige top 10 films en series per jaar
+      vanaf 1950. Metadata, rang, collectie en toevoegreden worden opgeslagen.
+- [x] **P2** Jaartalcatalogus als zichtbare admin-taak met voortgang aanbieden;
+      YouTube zoeken en lokale MP3-downloads bewust als aparte vervolgstappen
+      laten draaien.
+- [ ] **P1** Na de catalogusimport de resterende meldingen zonder betrouwbare
+      YouTube-match nalopen en handmatig goedkeuren of eigen/licentie-audio
+      uploaden.
+
 - [x] **P1** Spelstart blokkeren totdat alle geplande tracks 100% lokaal zijn
       opgeslagen en na een diskfout niet stil naar YouTube terugvallen.
 - [x] **P1** Bonusvragen controleren tegen het geselecteerde periodefilter en

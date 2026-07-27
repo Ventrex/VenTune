@@ -152,6 +152,13 @@ Dit kan ook met één klik in `/admin` via **TMDB-titels importeren** en daarna
 series ophalen** kun je TMDB gericht gebruiken. Bonusvragen kun je daar ook
 genereren.
 
+Voor de volledige jaartalcatalogus gebruik je in **Admin → Imports** de knop
+**Top 100 per jaar + NL top 10 opbouwen**. Inclusief tellen betekent 1980–2026
+47 jaartallen (maximaal 4.700 films en 4.700 series) en 1950–2026 77 jaren
+(maximaal 770 Nederlandstalige films en 770 series). Daarna start je apart
+**YouTube zoeken voor titels zonder track** en vervolgens de MP3-download in
+**Downloads**. Zie [Catalogus.md](Catalogus.md).
+
 In de tab **Spelcollecties** kun je Disney, Pixar, Marvel, Streaming,
 Smartlappen en Rock vullen. Een titel kan meerdere collecties hebben: Frozen
 blijft een film en staat daarnaast in Disney. De knop **Vullen + MP3** zoekt de

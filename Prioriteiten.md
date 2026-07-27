@@ -24,7 +24,8 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 
 ## Huidige volgorde
 
-1. Open P0 — momenteel geen.
+1. Open P0 — momenteel geen. Startfeedback, foutopruiming en de minimale
+   speelbare filterpool zijn in 0.3.9 afgedekt.
 2. Open P1 — de bulkcontrole van alle nieuwe YouTube-matches en het handmatig
    beoordelen van de resterende meldingen. De code weigert onzekere matches,
    maar “altijd het juiste nummer” blijft alleen haalbaar met deze laatste
@@ -34,6 +35,18 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
    previews levert. Automatische healthcheck, retry, curatie en verified-modus
    zijn gebouwd.
 4. Open P3/P4 — verdere spelvarianten en rechten-/onderzoekskeuzes.
+
+## Status na start- en catalogusronde — 2026-07-27
+
+- **P0 opgelost:** klikken op Start spel geeft altijd voortgang of een concrete
+  foutmelding; een vastgelopen in-memory spelstate blijft niet stil.
+- **P1 opgelost:** een kleine filterselectie met minimaal één volledig lokaal
+  nummer kan starten; minder rondes dan gevraagd worden expliciet gemeld.
+- **P1/P2 toegevoegd:** grote TMDB-jaartalcatalogus met top 100 films/series
+  vanaf 1980 en Nederlandstalige top 10 vanaf 1950. De import komt eerst als
+  `te_beoordelen` binnen en doet geen YouTube-zoekactie of download.
+- **Open P1:** resterende titels zonder gevalideerde YouTube-match handmatig
+  beoordelen via de meldingen- en downloadtab.
 
 ## Status na lokale-audio- en bonusronde — 2026-07-26
 

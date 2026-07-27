@@ -272,7 +272,7 @@ export default function Setup() {
     }
 
     async function start() {
-        if (telling && !telling.genoeg) return;
+        if (!telling || !telling.genoeg) return;
         setBezig(true);
         setFout('');
         try {
@@ -713,6 +713,7 @@ export default function Setup() {
                                 <p className="dim">
                                     {telling.titels} speelbare titels beschikbaar met deze filters.
                                     {telling.catalogus > telling.titels && ` (${telling.catalogus} titels in de catalogus; tracks ontbreken nog bij ${telling.catalogus - telling.titels})`}
+                                    {telling.minder_dan_gevraagd && ` Het spel speelt ${telling.titels} ronde${telling.titels === 1 ? '' : 's'} met deze selectie.`}
                                 </p>
                             ) : (
                                 <p className="waarschuwing">

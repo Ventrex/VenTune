@@ -1,5 +1,25 @@
 # VenTune changelog
 
+## [0.3.9] - 2026-07-27
+
+### Voor spelers en hosts
+
+- De knop **Start spel** geeft direct feedback, ook als lokale voorbereiding
+  of een databaseactie nog bezig is. Serverfouten worden concreet getoond.
+- Een kleine filterselectie blokkeert het spel niet meer bij minder dan 15
+  titels. Met één volledig lokaal beschikbaar nummer kan een spel starten; het
+  aantal rondes wordt automatisch begrensd op de selectie.
+
+### Catalogus en beheer
+
+- Nieuwe admin-taak **Top 100 per jaar + NL top 10 opbouwen**.
+- 1980–nu: maximaal 100 films en 100 series per jaartal. 1950–nu: maximaal
+  10 oorspronkelijk Nederlandstalige films en 10 series per jaartal.
+- Elke geïmporteerde titel bewaart TMDB-metadata, jaar, rang, collectie en
+  toevoegreden. De titels komen eerst op `te_beoordelen`; YouTube zoeken en
+  MP3-downloads zijn aparte, zichtbare admin-taken.
+- De admin-taakmonitor toont ook de voortgang van deze grote catalogusimport.
+
 ## [0.3.8] - 2026-07-26
 
 ### Betrouwbaarder spelen
