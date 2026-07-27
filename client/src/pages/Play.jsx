@@ -5,6 +5,7 @@ import { wisSessie } from '../lib/sessie.js';
 import Visualizer from '../components/Visualizer.jsx';
 import { AntwoordInfo } from './Host.jsx';
 import Timer from '../components/Timer.jsx';
+import { dienBonusVraagIn } from '../lib/api.js';
 
 // Spelerscherm (telefoon). Geen audio, geen titel — alleen de visualizer
 // en het raadveld. Feedback komt van de server.
@@ -306,6 +307,7 @@ export default function Play() {
                     <p className="kaart-label">Het antwoord was</p>
                     <h1>{antwoord.naam}</h1>
                     <AntwoordInfo antwoord={antwoord} />
+                    <BonusVraagInsturen titelId={antwoord.titelId} />
                 </>
             )}
 
@@ -369,6 +371,7 @@ export default function Play() {
                         </button>
                     )}
                     <p className="dim" style={{ marginTop: '0.75rem' }}>Hoe sneller je goed antwoordt, hoe meer bonuspunten.</p>
+                    <BonusVraagInsturen titelId={antwoord?.titelId} />
                 </>
             )}
 
@@ -382,6 +385,7 @@ export default function Play() {
                             <AntwoordInfo antwoord={antwoord} />
                         </>
                     )}
+                    {antwoord && <BonusVraagInsturen titelId={antwoord.titelId} />}
                     <MiniScore lijst={scorebord} mijnId={sessie.spelerId} />
                 </>
             )}
@@ -399,6 +403,68 @@ export default function Play() {
                 </>
             )}
         </main>
+    );
+}
+
+function BonusVraagInsturen({ titelId }) {
+    const [open, setOpen] = useState(false);
+    const [vraag, setVraag] = useState('');
+    const [naam, setNaam] = useState('');
+    const [opties, setOpties] = useState(Array.from({ length: 6 }, () => ''));
+    const [juist, setJuist] = useState(0);
+    const [status, setStatus] = useState('');
+    if (!titelId) return null;
+
+    async function verstuur(e) {
+        e.preventDefault();
+        setStatus('Bezig…');
+        try {
+            await dienBonusVraagIn(titelId, {
+                vraag,
+                opties,
+                correct_index: juist,
+                speler_naam: naam,
+            });
+            setStatus('Bedankt! De admin beoordeelt je vraag.');
+            setOpen(false);
+            setVraag('');
+            setNaam('');
+            setOpties(Array.from({ length: 6 }, () => ''));
+        } catch (err) {
+            setStatus(err.message);
+        }
+    }
+
+    return (
+        <div className="kaart" style={{ marginTop: '1.25rem', textAlign: 'left' }}>
+            <button className="knop knop-stil" type="button" onClick={() => setOpen((waarde) => !waarde)}>
+                {open ? 'Bonusvraag sluiten' : 'Zelf een bonusvraag insturen'}
+            </button>
+            {status && <p className="dim" style={{ marginBottom: 0 }}>{status}</p>}
+            {open && (
+                <form className="stapel" style={{ marginTop: '0.75rem' }} onSubmit={verstuur}>
+                    <input className="invoer" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Jouw naam (optioneel)" maxLength={80} />
+                    <input className="invoer" required value={vraag} onChange={(e) => setVraag(e.target.value)} placeholder="Vraag" maxLength={500} />
+                    {opties.map((optie, i) => (
+                        <div className="zoekbalk" key={i}>
+                            <input
+                                className="invoer"
+                                required
+                                value={optie}
+                                onChange={(e) => setOpties((oud) => oud.map((x, index) => index === i ? e.target.value : x))}
+                                placeholder={`Antwoord ${i + 1}`}
+                                maxLength={160}
+                            />
+                            <label className="keuze klein">
+                                <input type="radio" name={`juist-${titelId}`} checked={juist === i} onChange={() => setJuist(i)} />
+                                juist
+                            </label>
+                        </div>
+                    ))}
+                    <button className="knop" type="submit" disabled={status === 'Bezig…'}>Insturen ter goedkeuring</button>
+                </form>
+            )}
+        </div>
     );
 }
 
