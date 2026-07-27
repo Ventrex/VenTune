@@ -1,5 +1,30 @@
 # VenTune changelog
 
+## [0.5.0] - 2026-07-27
+
+### Lokaal-eerst audio
+
+- Een titel met een gezonde lokale MP3 wordt nergens opnieuw gezocht of URL-gecontroleerd.
+- Het spel telt en gebruikt uitsluitend `bron=lokaal` met `download_status=available`.
+- YouTube is alleen nog zoek-/downloadbron; iTunes is uit de automatische import,
+  adminzoeker en spelerflow gehaald. Oude iTunes-rijen blijven alleen als historie staan.
+- De admin kan vanuit de filter **Zonder lokale MP3** automatisch YouTube zoeken en
+  daarna de MP3 downloaden. Downloads staan blijvend in `/media/downloads` en zijn
+  maximaal vijf minuten lang.
+- Een playlist-refresh overschrijft geen lokale track. De dagelijkse aanvulling en
+  bulkdownload slaan lokale bestanden over.
+
+### Admin en spelers
+
+- Een verkeerd-nummer-melding kan vanuit dezelfde kaart een YouTube-kandidaat zoeken,
+  koppelen en direct laten downloaden.
+- Spelers kunnen na de onthulling een bonusvraag met zes opties insturen. De admin
+  heeft een aparte tab om vragen goed te keuren of af te wijzen.
+- Titels hebben nu een studio/producent, een adminactie om ontbrekende studio’s via
+  TMDB aan te vullen en leeftijdsfilters vanaf alle leeftijden, 6+, 9+, 12+, 16+ en 18+.
+- Overzicht, ontbrekende-tracklijst en kwaliteitsdashboard rekenen speelbaarheid nu
+  op basis van lokale MP3’s, niet op basis van een externe URL.
+
 ## [0.4.0] - 2026-07-27
 
 ### Nederlandse catalogus en Cult Classics
