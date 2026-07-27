@@ -493,12 +493,12 @@ function Beheer({ onUit }) {
                             </button>
                             <button
                                 className="knop"
-                                onClick={() => achtergrondTaak(api.adminTmdbCatalogus, api.adminTmdbCatalogusStatus, setBezigCatalogus, 'Films top 100 + series top 100 per jaartal en NL top 10 opbouwen…', 'Film- en seriecatalogus klaar.')}
+                            onClick={() => achtergrondTaak(api.adminTmdbCatalogus, api.adminTmdbCatalogusStatus, setBezigCatalogus, 'Populaire films en series per jaartal, NL top 10 en Cult Classics opbouwen…', 'Film- en seriecatalogus klaar.')}
                                 disabled={bezigCatalogus || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen}
                             >
-                                {bezigCatalogus ? 'Film- en seriecatalogus opbouwen…' : 'Films top 100 + series top 100 per jaar'}
+                                {bezigCatalogus ? 'Populaire catalogus opbouwen…' : 'Populaire films & series per jaar'}
                             </button>
-                            <p className="dim">Alleen films en series: 1980–nu top 100 films én top 100 series per jaar. Daarnaast 1950–nu top 10 oorspronkelijk Nederlandstalige films én series. Er wordt hier geen muziek-toplijst gevuld; YouTube zoeken en MP3-downloads blijven aparte tabs.</p>
+                            <p className="dim">Alleen films en series: 1980–nu populaire bioscoopfilms (max. 50) en series (max. 25, minimaal 10 als die beschikbaar zijn) per jaar in de Nederlandse regio. Daarnaast 1950–nu de populairste 10 films en series per jaar in Nederland, plus Cult Classics. De aantallen mogen per jaar lager zijn; er worden geen obscure opvultitels toegevoegd. Er wordt hier geen muziek-toplijst gevuld; YouTube zoeken en MP3-downloads blijven aparte tabs.</p>
                             <div className="zoekbalk">
                                 <select className="invoer" value={importGenre} onChange={(e) => setImportGenre(e.target.value)} aria-label="Genre voor TMDB-import">
                                     <option value="">Alle genres</option>
@@ -963,7 +963,11 @@ function Databasebeheer({ onMelding }) {
                     <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('afgehandelde_meldingen', 'Afgehandelde meldingen verwijderen?')}>Afgehandelde meldingen verwijderen</button>
                     <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('spelgeschiedenis', 'Alle afgelopen spellen verwijderen?')}>Spelgeschiedenis verwijderen</button>
                     <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('afgekeurde_tracks', 'Alle afgekeurde tracks uit de database verwijderen?')}>Afgekeurde tracks verwijderen</button>
+                    <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('onveilige_tekens', 'Onveilige titels en audiometadata uitsluiten? Er wordt niets fysiek verwijderd.')}>Onveilige tekens uitsluiten</button>
                 </div>
+                <p className="dim" style={{ marginTop: '0.75rem' }}>
+                    Deze controleert op Cyrillisch, Arabisch, CJK, controle-tekens en vergelijkbare vervuiling. Een Duitse titel wordt niet op land alleen verwijderd: als hij in de Nederlandse ranglijst thuishoort, mag hij blijven.
+                </p>
             </div>
         </section>
     );
