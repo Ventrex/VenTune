@@ -42,6 +42,7 @@ export default function Host() {
     const [nieuwTeam, setNieuwTeam] = useState('');
     const [lobbyWijziging, setLobbyWijziging] = useState(null);
     const [startBezig, setStartBezig] = useState(false);
+    const [audioStatus, setAudioStatus] = useState(null);
 
     // Ontgrendel de speler tijdens de tik op 'Start spel', zodat ook latere
     // rondes vanzelf geluid geven (iOS staat afspelen alleen toe na een tik).
@@ -60,7 +61,7 @@ export default function Host() {
         if (fase !== 'wachten' || spel.fout) setStartBezig(false);
     }, [fase, spel.fout]);
 
-    useEffect(() => { setGok(''); setGokIngediend(false); }, [ronde?.rondeId]);
+    useEffect(() => { setGok(''); setGokIngediend(false); setAudioStatus(null); }, [ronde?.rondeId]);
     useEffect(() => {
         if (resultaat?.opnieuw) setGokIngediend(false);
     }, [resultaat]);
@@ -124,7 +125,16 @@ export default function Host() {
             <Brand compact />
             {/* Al vóór de start gemonteerd: de klik op "Start spel" kan de
                 browser zo echt ontgrendelen voor latere lokale audio. */}
-            <HostPlayer ref={spelerRef} audio={audio} verborgen={fase !== 'raden'} />
+            <HostPlayer ref={spelerRef} audio={audio} verborgen={fase !== 'raden'} onStatus={setAudioStatus} />
+            {fase === 'raden' && ronde && !audio && (
+                <p className="dim host-audio-status" role="status">Audio wordt klaargezet…</p>
+            )}
+            {fase === 'raden' && audio && audioStatus?.status === 'laden' && (
+                <p className="dim host-audio-status" role="status">Audio ontvangen · lokaal bestand starten…</p>
+            )}
+            {fase === 'raden' && audioStatus?.status === 'fout' && (
+                <p className="waarschuwing host-audio-status" role="alert">{audioStatus.fout}</p>
+            )}
             {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
             {((!verbonden && fase !== 'wachten') || herstelNodig) && (
                 <div className="herstelkaart" role="status">
