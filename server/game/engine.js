@@ -15,7 +15,7 @@ const vragenbank = require('./vragen');
 const { pastBijTitel } = require('../lib/trackcheck');
 const logger = require('../lib/logger');
 const tmdb = require('../lib/tmdb');
-const { downloadTrack, lokaalBestandBeschikbaar } = require('../../seed/download-track');
+const { lokaalBestandBeschikbaar } = require('../../seed/download-track');
 
 const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
 // 'Heel nummer': ruime bovengrens; de ronde eindigt zodra iedereen geraden
@@ -366,19 +366,22 @@ class SpelBeheer {
             ...(instellingen || {}),
             leeftijd_max: leeftijdMax,
             kindvriendelijk: kindmodusUit(instellingen),
+            alleen_lokaal: true,
         };
 
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
                     t.land, t.genres, t.tmdb_id, t.poster_pad, t.omschrijving,
-                    t.hoofdrollen, t.speelplek, t.leeftijdsgrens,
+                    t.hoofdrollen, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
                ${where ? where + ' AND' : 'WHERE'}
                     EXISTS (SELECT 1 FROM tracks tr
                               WHERE tr.titel_id = t.id
                                 AND tr.werkt = true
+                                AND tr.bron = 'lokaal'
+                                AND tr.download_status = 'available'
                                 AND tr.preview_url IS NOT NULL
                                 AND tr.preview_url <> '')`,
             params,
@@ -421,7 +424,7 @@ class SpelBeheer {
             gebruikteTrackIds: new Set(),
             leeftijden: new Map(spelers.map((s) => [s.id, Number(s.leeftijd)])),
             solo: spelers.filter((speler) => speler.verbonden !== false).length === 1,
-            alleenLokaal: false,
+            alleenLokaal: true,
             // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
             // titel niet twee keer dezelfde bonusvraag geeft.
             gebruikteVragen: new Set(),
@@ -484,9 +487,9 @@ class SpelBeheer {
         const mislukt = [];
         let verwerkt = 0;
         for (const titel of gepland) {
-            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen, false);
+            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen, true);
             if (!track) {
-                mislukt.push({ titel: titel.naam, melding: 'Geen werkende track gekoppeld.' });
+                mislukt.push({ titel: titel.naam, melding: 'Geen volledig lokaal audiobestand gekoppeld.' });
                 verwerkt += 1;
                 this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
                     melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
@@ -510,43 +513,12 @@ class SpelBeheer {
                 });
                 continue;
             }
-            // Een lokale track waarvan het bestand verdwenen is, probeert via
-            // de bewaarde bron_url te herstellen. Zo speelt een stale DB-pad
-            // nooit stilzwijgend een ronde zonder muziek.
-            if (!['youtube', 'itunes'].includes(track.bron)
-                && !(track.bron === 'lokaal' && track.bron_url)) {
-                mislukt.push({ titel: titel.naam, melding: 'Track heeft geen herstelbare bron.' });
-                verwerkt += 1;
-                this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                    melding: `Nummers lokaal opslaan… ${verwerkt}/${gepland.length}`,
-                    verwerkt,
-                    totaal: gepland.length,
-                    huidige: titel.naam,
-                });
-                continue;
-            }
-            try {
-                await downloadTrack(track, false);
-                const { rows } = await pool.query(
-                    `SELECT id, bron, preview_url, start_seconde, tracknaam, artiest,
-                            album, verificatie_score, verificatie_reden, download_status,
-                            bron_url
-                       FROM tracks WHERE id = $1`,
-                    [track.id],
-                );
-                const lokaal = rows[0]
-                    && rows[0].bron === 'lokaal'
-                    && rows[0].download_status === 'available'
-                    && await lokaalBestandBeschikbaar(rows[0]);
-                if (lokaal) state.voorbereideTracks.set(titel.id, rows[0]);
-                else mislukt.push({ titel: titel.naam, melding: 'Download werd niet als volledig lokaal bevestigd.' });
-            } catch (err) {
-                mislukt.push({ titel: titel.naam, melding: err.message });
-                logger.waarschuwing('Track kon niet vooraf lokaal worden opgeslagen.', {
-                    titel: titel.naam,
-                    trackId: track.id,
-                    melding: err.message,
-                });
+            // Het spel downloadt nooit tijdens de start. De admin moet
+            // vooraf een volledige MP3 klaarzetten; hier controleren we
+            // alleen het lokale bestand en starten daarna onmiddellijk.
+            if (track.bron !== 'lokaal' || track.download_status !== 'available'
+                || !(await lokaalBestandBeschikbaar(track))) {
+                mislukt.push({ titel: titel.naam, melding: 'Lokale MP3 ontbreekt of is niet volledig beschikbaar.' });
             }
             verwerkt += 1;
             this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
@@ -579,14 +551,8 @@ class SpelBeheer {
                 AND ($3::boolean = false
                      OR (tr.bron = 'lokaal' AND tr.download_status = 'available'))
               ORDER BY CASE
-                           -- YouTube blijft de hoofdbron, ook nadat de clip
-                           -- lokaal is opgeslagen. bron_url bewaart de
-                           -- oorspronkelijke herkomst.
-                           WHEN tr.bron = 'lokaal'
-                                AND lower(COALESCE(tr.bron_url, '')) LIKE '%youtube%' THEN 5
-                           WHEN tr.bron = 'youtube' THEN 4
-                           WHEN tr.bron = 'lokaal' THEN 3
-                           WHEN tr.bron = 'itunes' THEN 2
+                           -- Alleen lokale bestanden mogen het spel in.
+                           WHEN tr.bron = 'lokaal' THEN 5
                            ELSE 1
                        END DESC,
                        tr.fout_aantal ASC,
@@ -649,6 +615,8 @@ class SpelBeheer {
                         SELECT 1 FROM tracks tr
                          WHERE tr.titel_id = t.id
                            AND tr.werkt = true
+                           AND tr.bron = 'lokaal'
+                           AND tr.download_status = 'available'
                            AND tr.preview_url IS NOT NULL
                            AND tr.preview_url <> ''
                     )
