@@ -243,13 +243,37 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
         voorwaarden.push(`NOT EXISTS (SELECT 1 FROM vragen v WHERE v.titel_id = t.id)`);
     } else if (filter === 'gecurateerd') {
         voorwaarden.push(`t.nl_tv_bekend = true AND t.curatie_status = 'goedgekeurd'`);
+    } else if (['film', 'serie'].includes(filter)) {
+        voorwaarden.push(`t.type = '${filter}'`);
+    } else if (filter === 'lokaal') {
+        voorwaarden.push(`EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
+            AND x.werkt = true AND x.bron = 'lokaal' AND x.download_status = 'available')`);
+    } else if (filter === 'zonder-lokaal') {
+        voorwaarden.push(`NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
+            AND x.werkt = true AND x.bron = 'lokaal' AND x.download_status = 'available')`);
+    } else if (filter === 'youtube') {
+        voorwaarden.push(`EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id AND x.werkt = true AND x.bron = 'youtube')`);
+    } else if (filter === 'itunes') {
+        voorwaarden.push(`EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id AND x.werkt = true AND x.bron = 'itunes')`);
+    } else if (filter === 'met-melding') {
+        voorwaarden.push(`EXISTS (SELECT 1 FROM meldingen m WHERE m.titel_id = t.id AND m.afgehandeld = false)`);
+    } else if (filter === 'te-beoordelen') {
+        voorwaarden.push(`t.curatie_status = 'te_beoordelen'`);
     }
     const where = voorwaarden.length ? `WHERE ${voorwaarden.join(' AND ')}` : '';
     const { rows } = await pool.query(
-        `SELECT t.*, COUNT(tr.id)::int AS aantal_tracks,
+        `SELECT t.*, COUNT(DISTINCT tr.id)::int AS aantal_tracks,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.preview_url IS NOT NULL AND tr.preview_url <> '')::int AS werkende_tracks,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'lokaal' AND tr.download_status = 'available')::int AS lokale_tracks,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'youtube')::int AS youtube_tracks,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'itunes')::int AS itunes_tracks,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.download_status = 'failed')::int AS download_fouten,
+                COUNT(DISTINCT m.id) FILTER (WHERE m.afgehandeld = false)::int AS open_meldingen,
+                MAX(tr.laatst_gecontroleerd_op) AS laatste_controle,
                 COALESCE(array_agg(DISTINCT c.sleutel) FILTER (WHERE c.sleutel IS NOT NULL), '{}') AS collecties
            FROM titels t
            LEFT JOIN tracks tr ON tr.titel_id = t.id
+           LEFT JOIN meldingen m ON m.titel_id = t.id
            LEFT JOIN titel_collecties tc ON tc.titel_id = t.id
            LEFT JOIN collecties c ON c.id = tc.collectie_id
            ${where}
@@ -431,6 +455,8 @@ router.delete('/api/admin/vragen/:id', vereisAdmin, async (req, res) => {
 router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
     const leeg = {
         titels: 0,
+        films: 0,
+        series: 0,
         bekende_titels: 0,
         tracks: 0,
         afgekeurd: 0,
@@ -447,6 +473,8 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
         const d = await pool.query(
             `SELECT
                (SELECT count(*)::int FROM titels) AS titels,
+               (SELECT count(*)::int FROM titels WHERE type = 'film') AS films,
+               (SELECT count(*)::int FROM titels WHERE type = 'serie') AS series,
                (SELECT count(*)::int FROM titels WHERE nl_tv_bekend = true AND curatie_status = 'goedgekeurd') AS bekende_titels,
                (SELECT count(*)::int FROM tracks) AS tracks,
                (SELECT count(*)::int FROM tracks WHERE werkt = false) AS afgekeurd,
@@ -1023,8 +1051,10 @@ router.get('/api/admin/meldingen', vereisAdmin, async (req, res) => {
     const alle = req.query.alle === '1';
     const { rows } = await pool.query(
         `SELECT m.id, m.soort, m.toelichting, m.afgehandeld, m.aangemaakt_op,
-                t.id AS titel_id, t.naam AS titel_naam,
-                tr.id AS track_id, tr.bron, tr.preview_url, tr.tracknaam
+                t.id AS titel_id, t.naam AS titel_naam, t.type AS titel_type, t.jaar AS titel_jaar,
+                tr.id AS track_id, tr.bron, tr.preview_url, tr.tracknaam, tr.artiest,
+                tr.werkt AS track_werkt, tr.gecontroleerd AS track_gecontroleerd,
+                tr.verificatie_score, tr.download_status
            FROM meldingen m
            LEFT JOIN titels t  ON t.id = m.titel_id
            LEFT JOIN tracks tr ON tr.id = m.track_id
@@ -1085,6 +1115,103 @@ router.post('/api/admin/meldingen/:id/zoek', vereisAdmin, async (req, res) => {
     } catch (err) {
         res.status(502).json({ fout: `YouTube zoeken mislukt: ${err.message}` });
     }
+});
+
+// Koppel een door de admin gecontroleerde YouTube-kandidaat aan de melding.
+// Koppelen is bewust ook goedkeuren: daarna mag de titel direct weer meedoen.
+router.post('/api/admin/meldingen/:id/koppel', vereisAdmin, async (req, res) => {
+    const kandidaat = req.body?.kandidaat || req.body || {};
+    const videoId = String(kandidaat.preview_url || kandidaat.videoId || '').trim();
+    const tracknaam = String(kandidaat.tracknaam || kandidaat.titel || '').trim().slice(0, 300);
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId) || !tracknaam) {
+        return res.status(400).json({ fout: 'Kies eerst een geldige YouTube-kandidaat.' });
+    }
+    const meldingRij = await pool.query(
+        `SELECT m.id, m.titel_id, m.track_id,
+                t.naam, t.aliassen, t.type, t.taal, t.jaar, t.tmdb_id
+           FROM meldingen m JOIN titels t ON t.id = m.titel_id
+          WHERE m.id = $1`,
+        [req.params.id],
+    );
+    if (!meldingRij.rows[0]) return res.status(404).json({ fout: 'Melding of titel niet gevonden.' });
+    const melding = meldingRij.rows[0];
+    const trackGegevens = {
+        tracknaam,
+        album: kandidaat.album,
+        artiest: String(kandidaat.artiest || kandidaat.kanaal || 'YouTube').slice(0, 300),
+    };
+    const titelControle = pastBijTitel(melding, trackGegevens);
+    if (!titelControle.past) return res.status(422).json({ fout: `Koppeling afgewezen: ${titelControle.reden}` });
+    const tmdbControle = await tmdb.controleerTrackMetTmdb(melding, trackGegevens);
+    if (!tmdbControle.past) return res.status(422).json({ fout: `Koppeling afgewezen door TMDB: ${tmdbControle.reden}` });
+
+    const reden = [
+        kandidaat.verificatie_reden || kandidaat._controle?.reden || 'YouTube-kandidaat gecontroleerd',
+        tmdbControle.beschikbaar ? tmdbControle.reden : null,
+        'handmatig gekoppeld en goedgekeurd vanuit melding',
+    ].filter(Boolean).join('; ');
+    const bestaande = await pool.query(
+        `SELECT id FROM tracks WHERE titel_id = $1 AND bron = 'youtube' AND preview_url = $2 LIMIT 1`,
+        [melding.titel_id, videoId],
+    );
+    let track;
+    if (bestaande.rows[0]) {
+        ({ rows: [track] } = await pool.query(
+            `UPDATE tracks SET werkt = true, fout_aantal = 0, gecontroleerd = true,
+                    verificatie_score = 1, verificatie_reden = $2,
+                    laatst_gecontroleerd_op = now(), tracknaam = $3, artiest = $4,
+                    bron_url = $5, start_seconde = $6
+              WHERE id = $1 RETURNING *`,
+            [bestaande.rows[0].id, reden, tracknaam, trackGegevens.artiest,
+                kandidaat.bron_url || `https://www.youtube.com/watch?v=${videoId}`,
+                Math.max(0, Number(kandidaat.start_seconde) || 0)],
+        ));
+    } else {
+        ({ rows: [track] } = await pool.query(
+            `INSERT INTO tracks
+                (titel_id, bron, preview_url, start_seconde, tracknaam, artiest,
+                 herkenbaarheid, gecontroleerd, verificatie_score, verificatie_reden,
+                 laatst_gecontroleerd_op, bron_url)
+             VALUES ($1, 'youtube', $2, $3, $4, $5, 5, true, 1, $6, now(), $7)
+             RETURNING *`,
+            [melding.titel_id, videoId, Math.max(0, Number(kandidaat.start_seconde) || 0),
+                tracknaam, trackGegevens.artiest, reden,
+                kandidaat.bron_url || `https://www.youtube.com/watch?v=${videoId}`],
+        ));
+    }
+    // Bewaar de gemelde oude track voor audit, maar speel hem niet opnieuw.
+    if (melding.track_id && Number(melding.track_id) !== Number(track.id)) {
+        await pool.query(
+            `UPDATE tracks SET werkt = false, fout_aantal = fout_aantal + 1,
+                    verificatie_reden = COALESCE(verificatie_reden, '') || ' | vervangen vanuit melding'
+              WHERE id = $1`,
+            [melding.track_id],
+        );
+    }
+    await pool.query(`UPDATE meldingen SET track_id = $2, afgehandeld = true WHERE id = $1`, [req.params.id, track.id]);
+    res.json({ ok: true, track, melding_id: Number(req.params.id) });
+});
+
+// Markeer een bestaande track als door de admin goedgekeurd. Hierdoor wordt
+// ook een foutmelding die eraan gekoppeld is opgelost en doet de titel weer mee.
+router.post('/api/admin/meldingen/:id/goedkeuren', vereisAdmin, async (req, res) => {
+    const { rows } = await pool.query(
+        `SELECT m.id, m.titel_id, m.track_id FROM meldingen m WHERE m.id = $1`,
+        [req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ fout: 'Melding niet gevonden.' });
+    const trackId = req.body?.track_id || rows[0].track_id;
+    if (!trackId) return res.status(400).json({ fout: 'Deze melding heeft geen gekoppelde track. Zoek eerst een YouTube-kandidaat.' });
+    const trackRij = await pool.query(
+        `UPDATE tracks SET werkt = true, fout_aantal = 0, gecontroleerd = true,
+                verificatie_score = 1, verificatie_reden = 'handmatig goedgekeurd vanuit melding',
+                laatst_gecontroleerd_op = now()
+          WHERE id = $1 AND titel_id = $2 RETURNING *`,
+        [trackId, rows[0].titel_id],
+    );
+    if (!trackRij.rows[0]) return res.status(404).json({ fout: 'Gekoppelde track niet gevonden bij deze titel.' });
+    await pool.query(`UPDATE meldingen SET afgehandeld = true WHERE id = $1`, [req.params.id]);
+    res.json({ ok: true, track: trackRij.rows[0] });
 });
 
 router.post('/api/admin/meldingen/:id/afgehandeld', vereisAdmin, async (req, res) => {
