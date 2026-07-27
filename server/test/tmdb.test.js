@@ -1,6 +1,7 @@
 const assert = require('assert/strict');
 const { beoordeelTrackMetDetails } = require('../lib/tmdb');
 const { leeftijdsgrensVoorGenres, berekenCatalogusOmvang } = require('../../seed/tmdb-import');
+const { veiligeTiteltekst } = require('../lib/content-filter');
 
 const gooische = {
     naam: 'Gooische Vrouwen',
@@ -22,19 +23,26 @@ assert.equal(leeftijdsgrensVoorGenres(['Fantasy']), 9);
 assert.equal(leeftijdsgrensVoorGenres(['Horror']), 16);
 
 // Inclusief tellen: 1980 t/m 2026 zijn 47 jaartallen en 1950 t/m 2026
-// zijn 77 jaartallen. De admin kan daardoor de verwachte omvang tonen zonder
-// de één-jaar-verschilfout uit de oorspronkelijke berekening.
+// zijn 77 jaartallen. De plafonds zijn bewust lager dan de oude vaste top100/
+// top50-lijsten; de werkelijke populaire lijst mag per jaar kleiner zijn.
 assert.deepEqual(
     berekenCatalogusOmvang({ startJaar: 1980, eindJaar: 2026 }),
     {
         jaren: 47,
         nederlandstaligeJaren: 77,
-        films: 4700,
-        series: 4700,
+        films: 2350,
+        series: 1175,
         nederlandstaligeFilms: 770,
         nederlandstaligeSeries: 770,
+        cultClassics: 24,
+        iconischeVangnetSeries: 1,
     },
 );
+
+assert.equal(veiligeTiteltekst('Commissaris Max'), true);
+assert.equal(veiligeTiteltekst('The Office (US)'), true);
+assert.equal(veiligeTiteltekst('Русский фильм'), false);
+assert.equal(veiligeTiteltekst('فيلم عربي'), false);
 
 // Een bekende lokale afkorting blijft geldig als TMDB de officiële titel
 // bevestigt (bijvoorbeeld GTST versus Goede Tijden Slechte Tijden).
