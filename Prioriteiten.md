@@ -24,6 +24,22 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 
 ## Huidige volgorde
 
+## Status lokale-audio- en catalogusronde — 2026-07-27
+
+- **P1 opgelost:** een beschikbare lokale MP3 is de enige speelbron en wordt
+  niet opnieuw gescand, URL-gecontroleerd of tijdens spelstart gedownload.
+- **P1 opgelost:** YouTube is de enige automatische zoek-/downloadbron; iTunes
+  blijft alleen als historische databasebron zichtbaar en wordt niet afgespeeld.
+- **P1 opgelost:** Admin heeft één actie voor titels zonder lokale MP3: YouTube
+  zoeken en daarna automatisch lokaal downloaden.
+- **P1 opgelost:** een verkeerd-nummermelding kan direct een kandidaat koppelen
+  en de MP3-download starten.
+- **P2 opgelost:** spelers kunnen bonusvragen insturen; Admin keurt ze goed of af.
+- **P2 opgelost:** studio/producent en leeftijdscategorieën zijn opgeslagen en
+  filterbaar; ontbrekende studio’s kunnen via TMDB worden aangevuld.
+- **Open P1:** de resterende titels zonder betrouwbare YouTube-match handmatig
+  beoordelen of van eigen/licentie-audio voorzien.
+
 1. Open P0 — momenteel geen. Startfeedback, foutopruiming en de minimale
    speelbare filterpool zijn in 0.3.9 afgedekt.
 2. Open P1 — de bulkcontrole van alle nieuwe YouTube-matches en het handmatig
