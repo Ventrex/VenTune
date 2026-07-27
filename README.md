@@ -153,9 +153,11 @@ series ophalen** kun je TMDB gericht gebruiken. Bonusvragen kun je daar ook
 genereren.
 
 Voor de volledige jaartalcatalogus gebruik je in **Admin → Imports** de knop
-**Top 100 per jaar + NL top 10 opbouwen**. Inclusief tellen betekent 1980–2026
-47 jaartallen (maximaal 4.700 films en 4.700 series) en 1950–2026 77 jaren
-(maximaal 770 Nederlandstalige films en 770 series). Daarna start je apart
+**Populaire films + series per jaar + NL top 10 opbouwen**. Inclusief tellen
+betekent 1980–2026 47 jaartallen (maximaal 2.350 bioscoopfilms en 1.175
+series) en 1950–2026 77 jaren (maximaal 770 films en 770 series in de
+Nederlandse regio-context). Per jaar kan de lijst kleiner zijn; obscure
+opvulling wordt niet toegevoegd. Daarna start je apart
 **YouTube zoeken voor titels zonder track** en vervolgens de MP3-download in
 **Downloads**. Zie [Catalogus.md](Catalogus.md).
 
