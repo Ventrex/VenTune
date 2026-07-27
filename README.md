@@ -6,8 +6,8 @@ via een tunnel op `ventune.ventrex.cc`.
 
 De host speelt de muziek en kan tegelijk zelf raden; spelers scannen een QR-code,
 kiezen een naam en raden de titel op hun telefoon. Spelers hebben geen account
-nodig; een host logt wel in met een hostaccount. **Geen Spotify** — de muziek komt primair van YouTube,
-met iTunes-previews en eigen clips als fallback.
+nodig; een host logt wel in met een hostaccount. **Geen Spotify** — YouTube is
+alleen de zoek- en downloadbron; het spel speelt uitsluitend lokale MP3’s.
 
 ---
 
@@ -65,7 +65,7 @@ zonder punten te verliezen.
 | Database | PostgreSQL 16                           |
 | Frontend | React 18 + Vite (PWA)                   |
 | Styling  | Eigen theme-tokens (OLED zwart/rood)    |
-| Audio    | YouTube (primair) + iTunes-previews + lokale clips |
+| Audio    | YouTube-downloads + lokale MP3’s (maximaal 5 minuten) |
 | Metadata | TMDB API (server-side, optioneel)       |
 
 Alles draait in Docker via één `docker-compose.yml`. Geen betaalde API's,
@@ -132,8 +132,8 @@ Bij een verse installatie is de vragenbank leeg. Vullen kan op twee manieren:
 **A. Via het beheerportaal (aanbevolen).** Ga naar `/admin`, log in en klik op
 **"Startseed importeren (YouTube eerst)"**. VenTune zet ~290 titels klaar
 (Nederlands en internationaal) en zoekt per titel eerst een betrouwbare
-YouTube-intro. Alleen bij een mislukte YouTube-match wordt iTunes als fallback
-geprobeerd.
+YouTube-intro. Een gezonde lokale MP3 wordt daarna nooit opnieuw gezocht of
+gecontroleerd.
 
 **A2. Duizenden titels via TMDB (aanbevolen).** De handgeschreven lijst van
 ~290 titels is klein. Met een gratis TMDB-key haal je er automatisch duizenden
@@ -172,12 +172,10 @@ Downloads-tab toont de bulkactie en heeft een ingeklapte herstelwachtrij voor
 titels zonder track. Een losse download geeft direct status terug en draait op
 de achtergrond. In het **Overzicht** zijn de tellingen klikbaar; zo open je
 meteen de lijst of actie waarmee je een probleem kunt bekijken of herstellen.
-YouTube blijft de voorkeursbron, ook nadat een YouTube-track lokaal is
-opgeslagen; iTunes is alleen fallback.
-Staat er nog een oudere iTunes-koppeling in de database, gebruik dan in
-**Imports** de actie **YouTube voor hele database opnieuw zoeken**. Die zoekt
-alle bestaande titels opnieuw, vervangt alleen met een betrouwbare YouTube-
-match en laat een bestaande iTunes-fallback staan als YouTube niets vindt.
+YouTube wordt alleen gebruikt om ontbrekende audio te vinden en te downloaden.
+De actie **YouTube zoeken + MP3 downloaden voor titels zonder lokale MP3**
+doet precies die twee stappen. Oude iTunes-rijen blijven alleen als historie
+zichtbaar en worden niet gezocht, gecontroleerd of afgespeeld.
 
 Stap 2 kan lang duren (YouTube knijpt af bij te veel verzoeken). Het script is
 hervatbaar: draai het gerust nogmaals, het pakt alleen de titels op die nog geen
@@ -210,14 +208,12 @@ docker compose exec server node /app/seed/import.js
 docker compose exec server node /app/seed/import.js --force
 ```
 
-De knop **YouTube-first muziek vernieuwen** in `/admin` gebruikt bewust de
-veilige force-migratie. Een oude iTunes-track wordt alleen vervangen nadat een
-nieuwe gecontroleerde YouTube-track (of pas daarna een iTunes-fallback) is
-gevonden.
+De knop **YouTube-first muziek vernieuwen** in `/admin` zoekt gecontroleerde
+YouTube-kandidaten. Een gezonde lokale track wordt daarbij overgeslagen.
 
-De import zoekt **eerst op YouTube** naar de intro/titelsong (daar staat vrijwel
-elke film- en seriemuziek, ook de Nederlandse) en valt terug op iTunes als daar
-niets bruikbaars staat. Per titel wordt de meest waarschijnlijke intro gekozen:
+De import zoekt op **YouTube** naar de intro/titelsong (daar staat vrijwel elke
+film- en seriemuziek, ook de Nederlandse). iTunes wordt niet meer automatisch
+aangeroepen. Per titel wordt de meest waarschijnlijke intro gekozen:
 reaction-video's, trailers en hele afleveringen worden weggefilterd.
 
 Als een titel een `tmdb_id` heeft en `TMDB_API_KEY` is ingesteld, controleert
@@ -242,14 +238,14 @@ wordt geweigerd. Tijdens het spel controleert de engine de track nogmaals; een
 verkeerde track wordt dan uitgeschakeld.
 
 Dat betekent bewust: bij twijfel liever geen ronde dan muziek van een andere
-film of serie onder de verkeerde naam. Zoekresultaten van YouTube en iTunes
-kunnen immers veranderen.
+film of serie onder de verkeerde naam. Zoekresultaten van YouTube kunnen immers
+veranderen.
 
 ### Lokale audio en YouTube-downloads
 
 De compose-stack bevat een persistent `./media`-volume. Vanuit `/admin` kun je
-een bestaande, gecontroleerde YouTube- of iTunes-track expliciet vooraf downloaden,
-of een eigen/gelicentieerd audiobestand uploaden:
+een gecontroleerde YouTube-track expliciet vooraf downloaden, of een
+eigen/gelicentieerd audiobestand uploaden:
 
     docker compose exec server node /app/seed/download-track.js --track 42 --droog
     docker compose exec server node /app/seed/download-track.js --track 42
@@ -280,7 +276,10 @@ Inloggen met `ADMIN_PASSWORD` uit je `.env`. Je kunt er:
   jaar, land, genres, TMDB-id);
 - per titel eerst de beste YouTube-intro automatisch zoeken en toevoegen;
 - handmatig een **YouTube-link** plakken (met optionele startseconde);
-- iTunes pas als fallback zoeken, beluisteren en toevoegen;
+- studio/producent en leeftijdscategorie per titel beheren;
+- ontbrekende studio’s via TMDB aanvullen;
+- titels zonder lokale MP3 filteren en automatisch via YouTube aanvullen;
+- bonusvragen van spelers goedkeuren of afwijzen;
 - tracks verwijderen, goedkeuren, afkeuren, controleren en lokaal cachen;
 - titels in **Tracks nodig** openen als er geen speelbare track gekoppeld is;
 - eigen/gelicentieerde audio uploaden en direct koppelen;
@@ -294,11 +293,9 @@ Inloggen met `ADMIN_PASSWORD` uit je `.env`. Je kunt er:
   afgekeurde tracks exporteren;
 - een hostprofiel gebruiken met eigen presets en spelhistorie.
 
-**YouTube als hoofdbron.** De host speelt een YouTube-video af met de visualizer
-eroverheen, zodat de
-titel verborgen blijft. Let op: een ingesloten YouTube-speler erft je Premium
-niet altijd, dus er kan af en toe een advertentie verschijnen. iTunes wordt
-alleen gebruikt als YouTube geen veilige match oplevert.
+**Lokale audio als speelbron.** De host speelt de lokale MP3 met de visualizer
+eroverheen, zodat de titel verborgen blijft. YouTube is tijdens het spel niet
+nodig; een verwijderde video breekt een reeds gedownloade titel dus niet.
 
 Vul een **TMDB-id** in bij een titel om er bonusvragen voor mogelijk te maken.
 
@@ -390,14 +387,12 @@ Kopieer `.env.example` naar `.env` en vul in. Het minimum om te starten:
 | `SESSION_SECRET`   | ja        | Lange willekeurige reeks (`openssl rand -hex 32`) |
 | `ADMIN_PASSWORD`   | ja        | Toegang tot `/admin`                              |
 | `APP_URL`          | ja        | `https://ventune.ventrex.cc`                      |
-| `ITUNES_LAND`      | nee       | Store voor de muziekzoekopdracht (standaard `NL`) |
 | `TMDB_API_KEY`     | nee       | Gratis key; alleen nodig voor bonusvragen         |
 | `DISCORD_WEBHOOK_URL` | nee    | Meldingen (crash, DB-fout, nieuwe lobby)          |
 
 YouTube werkt zonder sleutel via de zoekpagina. Een optionele
-`YOUTUBE_API_KEY` maakt de zoekresultaten stabieler. iTunes is alleen de gratis
-fallback en vereist geen account. `MEDIA_DIR` is optioneel en staat standaard op
-`/media` in de servercontainer.
+`YOUTUBE_API_KEY` maakt de zoekresultaten stabieler. `MEDIA_DIR` is optioneel
+en staat standaard op `/media` in de servercontainer.
 
 ---
 
@@ -409,19 +404,19 @@ VenTune/
 ├── .env.example
 ├── server/                  # backend (Express + Socket.IO)
 │   ├── db/{schema.sql,migrate.js,pool.js}
-│   ├── lib/{itunes,tmdb,match,discord,logger,cookies}.js
+│   ├── lib/{tmdb,match,discord,logger,cookies}.js
 │   ├── game/{engine,lobby,filters,scoring,bonus}.js
-│   ├── routes/{muziek,lobby,setup,admin}.js
+│   ├── routes/{lobby,setup,admin}.js
 │   ├── socket.js
 │   └── index.js
 ├── client/                  # frontend (React + Vite + nginx)
 │   └── src/
-│       ├── pages/{Home,Setup,Join,Host,Play,Admin,MuziekTest}.jsx
+│       ├── pages/{Home,Setup,Join,Host,Play,Admin}.jsx
 │       ├── components/{Visualizer,Timer}.jsx
 │       ├── lib/{api,socket,sessie,useSpel}.js
 │       └── styles/theme.css
 └── seed/
-    ├── import.js            # iTunes-import
+    ├── import.js            # YouTube-matchimport
     └── titels.json          # startseed (~290 titels, NL + internationaal)
 ```
 
@@ -432,9 +427,9 @@ VenTune/
 **`/api/health` geeft geen `ok`.** Draait de db-container? `docker compose logs db`.
 Controleer of `DATABASE_URL` hetzelfde wachtwoord heeft als `POSTGRES_PASSWORD`.
 
-**Spel wil niet starten / "te weinig titels".** De vragenbank is (te) leeg —
-importeer de seed via `/admin` of de CLI. Je hebt minstens 15 passende titels
-nodig.
+**Spel wil niet starten / geen lokale titels.** Open in `/admin` de filter
+**Zonder lokale MP3** en start **YouTube zoeken + MP3 downloaden**. Het spel
+start bewust niet met een externe URL en downloadt nooit tijdens een ronde.
 
 **Geen geluid.** Alleen de **host** speelt audio (in de kamer). Lokale MP3's
 worden vóór de eerste ronde klaargezet; als de browser autoplay blokkeert,
@@ -442,9 +437,9 @@ verschijnt op het hostscherm een duidelijke startknop. Spelers horen bewust
 niets op hun telefoon.
 
 **Nederlandse titels zonder clip.** Niet elke Nederlandse titel heeft een
-bruikbare online match. Gebruik in `/admin` eerst de YouTube-zoeker voor de
-**titelsong of themamuziek**; iTunes blijft de fallback. Voeg alleen met bron-
-en rechtenregistratie een eigen `lokaal`-track toe.
+bruikbare online match. Gebruik in `/admin` de YouTube-zoeker voor de
+**titelsong of themamuziek**, controleer de kandidaat en download hem. Voeg
+alleen met bron- en rechtenregistratie een eigen `lokaal`-track toe.
 
 **Tunnel bereikt de app niet.** Wijs de tunnel naar het **host-IP**
 (`http://192.168.0.76:8091`), niet naar `127.0.0.1`. Zorg dat WebSockets
