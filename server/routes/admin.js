@@ -46,6 +46,7 @@ const {
     valideerGebruikersnaam,
     valideerDisplayNaam,
 } = require('../lib/auth');
+const { veiligeTiteltekst, veiligeMetadata } = require('../lib/content-filter');
 
 const router = express.Router();
 
@@ -637,7 +638,57 @@ router.post('/api/admin/database/opschonen', vereisAdmin, async (req, res) => {
         afgekeurde_tracks: `DELETE FROM tracks WHERE werkt = false`,
     };
     if (!acties[actie]) {
-        return res.status(400).json({ fout: 'Onbekende opschoonactie.' });
+        if (actie !== 'onveilige_tekens') {
+            return res.status(400).json({ fout: 'Onbekende opschoonactie.' });
+        }
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const titels = await client.query(
+                `SELECT id, naam, curatie_status FROM titels
+                  WHERE curatie_status <> 'goedgekeurd'`,
+            );
+            let titelsUitgesloten = 0;
+            for (const titel of titels.rows) {
+                if (!veiligeTiteltekst(titel.naam)) {
+                    await client.query(
+                        `UPDATE titels SET curatie_status = 'uitgesloten', nl_tv_bekend = false
+                          WHERE id = $1`,
+                        [titel.id],
+                    );
+                    titelsUitgesloten++;
+                }
+            }
+            const tracks = await client.query(
+                `SELECT id, tracknaam, artiest, album FROM tracks WHERE werkt = true`,
+            );
+            let tracksUitgeschakeld = 0;
+            for (const track of tracks.rows) {
+                if (!veiligeMetadata(track.tracknaam, track.artiest, track.album)) {
+                    await client.query(
+                        `UPDATE tracks SET werkt = false,
+                                verificatie_reden = 'Automatisch uitgesloten: onveilige tekens in audiometadata.'
+                          WHERE id = $1`,
+                        [track.id],
+                    );
+                    tracksUitgeschakeld++;
+                }
+            }
+            await client.query('COMMIT');
+            return res.json({
+                ok: true,
+                actie,
+                verwijderd: 0,
+                titelsUitgesloten,
+                tracksUitgeschakeld,
+                melding: 'Onveilige entries zijn uitgesloten; er is niets fysiek verwijderd.',
+            });
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
     }
     const resultaat = await pool.query(acties[actie]);
     res.json({ ok: true, actie, verwijderd: resultaat.rowCount });
@@ -1264,7 +1315,7 @@ const ADMIN_TAAK_LABELS = {
     seed: 'YouTube-first muziek vernieuwen',
     playlists: 'YouTube-playlists verversen',
     tmdb: 'TMDB-films en series ophalen',
-    'tmdb-catalogus': 'Films top 100 + series top 100 per jaar + NL top 10',
+    'tmdb-catalogus': 'Populaire films/series per jaar + NL top 10 + Cult Classics',
     vragen: 'Bonusvragen genereren',
     downloads: 'MP3’s vooraf downloaden',
     'downloads-retry': 'Mislukte downloads opnieuw proberen',
