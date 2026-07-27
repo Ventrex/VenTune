@@ -60,6 +60,7 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS poster_pad TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS omschrijving TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS hoofdrollen TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS speelplek TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS studio TEXT;
 -- Curatie: waarom staat een titel in de database en is hij geschikt voor de
 -- standaardselectie "bekend van Nederlandse tv"?
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS toevoeg_reden TEXT NOT NULL
@@ -74,7 +75,7 @@ BEGIN
         CHECK (curatie_status IN ('goedgekeurd', 'te_beoordelen', 'uitgesloten'));
     ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_leeftijdsgrens_check;
     ALTER TABLE titels ADD CONSTRAINT titels_leeftijdsgrens_check
-        CHECK (leeftijdsgrens IN (0, 6, 10, 12, 16, 18));
+        CHECK (leeftijdsgrens IN (0, 6, 9, 10, 12, 16, 18));
 END$$;
 
 CREATE INDEX IF NOT EXISTS idx_titels_type    ON titels (type);
@@ -83,13 +84,15 @@ CREATE INDEX IF NOT EXISTS idx_titels_taal    ON titels (taal);
 CREATE INDEX IF NOT EXISTS idx_titels_jaar    ON titels (jaar);
 CREATE INDEX IF NOT EXISTS idx_titels_genres  ON titels USING GIN (genres);
 CREATE INDEX IF NOT EXISTS idx_titels_curatie ON titels (nl_tv_bekend, curatie_status, leeftijdsgrens);
+CREATE INDEX IF NOT EXISTS idx_titels_studio ON titels (studio);
 
 -- ---------------------------------------------------------------------
 -- Vragenbank: tracks (per titel één of meer nummers)
 --
--- YouTube is de hoofdbron voor intro's en titelsongs. iTunes is alleen een
--- fallback voor titels waarvoor YouTube geen betrouwbare match oplevert.
--- Eigen/lokale audio kan later expliciet door de beheerder worden toegevoegd.
+-- YouTube is alleen de zoek- en downloadbron voor intro's en titelsongs.
+-- Het spel gebruikt uitsluitend volledig lokaal opgeslagen audio. iTunes kan
+-- nog als historische bron in bestaande rijen staan, maar wordt niet meer
+-- automatisch gezocht, gecontroleerd of afgespeeld.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tracks (
     id               SERIAL PRIMARY KEY,
@@ -582,6 +585,28 @@ CREATE TABLE IF NOT EXISTS vragen (
 );
 
 CREATE INDEX IF NOT EXISTS idx_vragen_titel ON vragen (titel_id, keer_gebruikt);
+
+-- Bonusvragen die spelers zelf insturen. Ze worden nooit direct speelbaar:
+-- de admin keurt ze eerst goed of wijst ze af.
+CREATE TABLE IF NOT EXISTS vraag_suggesties (
+    id             SERIAL PRIMARY KEY,
+    titel_id       INTEGER NOT NULL REFERENCES titels (id) ON DELETE CASCADE,
+    speler_naam    TEXT,
+    vraag          TEXT NOT NULL,
+    opties         JSONB NOT NULL,
+    correct_index  SMALLINT NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'open',
+    toelichting    TEXT,
+    beoordeeld_op  TIMESTAMPTZ,
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT vraag_suggesties_status_check
+        CHECK (status IN ('open', 'goedgekeurd', 'afgewezen')),
+    CONSTRAINT vraag_suggesties_correct_check
+        CHECK (correct_index BETWEEN 0 AND 5)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vraag_suggesties_status
+    ON vraag_suggesties (status, aangemaakt_op DESC);
 
 -- =====================================================================
 -- Einde schema
