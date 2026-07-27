@@ -280,6 +280,15 @@ export async function adminSeed(force = false, alleenDb = false, youtubeAlleen =
         ...jsonBody({ force, alleenDb, youtubeAlleen }),
     });
 }
+export async function adminOntbrekendeLokaleStart(limiet = 5000) {
+    return adminFetch('/api/admin/ontbrekende-lokale/start', {
+        method: 'POST',
+        ...jsonBody({ limiet }),
+    });
+}
+export async function adminOntbrekendeLokaleStatus() {
+    return adminFetch('/api/admin/ontbrekende-lokale/status');
+}
 export async function adminSeedStatus() {
     return adminFetch('/api/admin/seed/status');
 }
@@ -303,6 +312,12 @@ export async function adminTmdbCatalogus() {
 }
 export async function adminTmdbCatalogusStatus() {
     return adminFetch('/api/admin/tmdb/catalogus/status');
+}
+export async function adminStudioImport(limiet = 250) {
+    return adminFetch('/api/admin/studio/import', { method: 'POST', ...jsonBody({ limiet }) });
+}
+export async function adminStudioStatus() {
+    return adminFetch('/api/admin/studio/status');
 }
 export async function adminVragenImport(tmdb = false) {
     return adminFetch('/api/admin/vragen/import', {
@@ -360,6 +375,27 @@ export async function adminTrackStatus(id, data) {
 }
 export async function adminVragen(titelId) {
     return adminFetch(`/api/admin/titels/${titelId}/vragen`);
+}
+export async function dienBonusVraagIn(titelId, data) {
+    const resp = await fetch('/api/vraag-suggesties', {
+        method: 'POST',
+        ...jsonBody({ ...data, titel_id: titelId }),
+    });
+    const antwoord = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(antwoord?.fout || 'Bonusvraag insturen mislukt.');
+    return antwoord;
+}
+export async function adminVraagSuggesties(status = 'open') {
+    return adminFetch(`/api/admin/vraag-suggesties?status=${encodeURIComponent(status)}`);
+}
+export async function adminVraagSuggestieGoedkeuren(id) {
+    return adminFetch(`/api/admin/vraag-suggesties/${id}/goedkeuren`, { method: 'POST' });
+}
+export async function adminVraagSuggestieAfwijzen(id, toelichting = '') {
+    return adminFetch(`/api/admin/vraag-suggesties/${id}/afwijzen`, {
+        method: 'POST',
+        ...jsonBody({ toelichting }),
+    });
 }
 export async function adminVerwijderVraag(id) {
     return adminFetch(`/api/admin/vragen/${id}`, { method: 'DELETE' });
