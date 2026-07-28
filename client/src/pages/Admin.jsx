@@ -358,7 +358,10 @@ function Beheer({ onUit }) {
 
     async function downloadVooraf(collectieSlugs = []) {
         await achtergrondTaak(
-            () => api.adminDownloadStart({ collecties: collectieSlugs, controleer: true }),
+            // De download zelf valideert de YouTube-bron al. Geen losse
+            // --simulate-check per track: dat verdubbelt het werk en maakt
+            // "alles downloaden" onnodig serieel.
+            () => api.adminDownloadStart({ collecties: collectieSlugs, controleer: false }),
             api.adminDownloadStatus,
             setBezigDownloads,
             collectieSlugs.length ? 'Collectietracks controleren en vooraf downloaden…' : 'Alle beschikbare MP3-tracks controleren en vooraf downloaden…',
