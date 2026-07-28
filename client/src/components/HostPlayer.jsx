@@ -21,6 +21,14 @@ function metTimeout(belofte, ms, melding) {
     return Promise.race([belofte, timeout]).finally(() => clearTimeout(timer));
 }
 
+function formatTijd(seconden) {
+    if (!Number.isFinite(seconden) || seconden < 0) return '0:00';
+    const totaal = Math.floor(seconden);
+    const minuten = Math.floor(totaal / 60);
+    const rest = String(totaal % 60).padStart(2, '0');
+    return `${minuten}:${rest}`;
+}
+
 /** Wacht totdat de browser metadata heeft en start daarna pas de audio. */
 async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
     element.pause();
@@ -70,12 +78,24 @@ async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
 // Daarom wordt de speler bij de "Start spel"-tik eenmalig ontgrendeld
 // (ontgrendel()); daarna mag hij ook in latere rondes vanzelf spelen.
 // Lukt het toch niet, dan verschijnt een grote "Tik om te starten"-knop.
-const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false, onStatus }, ref) {
+const HostPlayer = forwardRef(function HostPlayer({
+    audio,
+    verborgen = false,
+    onStatus,
+    gepauzeerd = false,
+    onPauze,
+    onHervat,
+    onHerhaal,
+}, ref) {
     const audioRef = useRef(null);
     const ontgrendeldRef = useRef(false);
     const speelTokenRef = useRef(0);
     const [moetTikken, setMoetTikken] = useState(false);
     const [foutmelding, setFoutmelding] = useState('');
+    const [speeltijd, setSpeeltijd] = useState(0);
+    const [duur, setDuur] = useState(0);
+    const [speelt, setSpeelt] = useState(false);
+    const [volume, setVolume] = useState(1);
 
     // Wordt aangeroepen vanuit de tik op "Start spel": geeft de browser het
     // signaal dat afspelen door de gebruiker is gestart.
@@ -117,6 +137,8 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false, on
             onStatus?.({ status: 'fout', fout: melding, bron: audio.bron });
         };
         setFoutmelding('');
+        setSpeeltijd(0);
+        setDuur(0);
         onStatus?.({ status: 'laden', bron: audio.bron });
 
         if (audio.bron !== 'lokaal') {
@@ -156,11 +178,55 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false, on
         }
     }, [audio, onStatus]);
 
+    const pauzeerOfHervat = useCallback(() => {
+        if (!audio) return;
+        if (gepauzeerd || audio.pauze) {
+            onHervat?.();
+            return;
+        }
+        if (speelt) {
+            onPauze?.();
+            return;
+        }
+        const el = audioRef.current;
+        if (!el?.src) {
+            start();
+            return;
+        }
+        el.play().catch(() => {
+            setMoetTikken(true);
+            setFoutmelding('Tik op Afspelen om het lokale nummer te starten.');
+        });
+    }, [audio, gepauzeerd, onHervat, onPauze, speelt, start]);
+
+    const beginOpnieuw = useCallback(() => {
+        if (!audio) return;
+        if (onHerhaal) {
+            onHerhaal();
+            return;
+        }
+        const el = audioRef.current;
+        if (!el) return;
+        el.currentTime = 0;
+        el.play().catch(() => setMoetTikken(true));
+    }, [audio, onHerhaal]);
+
+    const verspringNaar = useCallback((event) => {
+        const el = audioRef.current;
+        if (!el) return;
+        const waarde = Number(event.target.value);
+        el.currentTime = waarde;
+        setSpeeltijd(waarde);
+    }, []);
+
     useEffect(() => {
         const token = ++speelTokenRef.current;
         if (!audio) {
             setMoetTikken(false);
             setFoutmelding('');
+            setSpeeltijd(0);
+            setDuur(0);
+            setSpeelt(false);
             onStatus?.({ status: 'geen-audio' });
             if (audioRef.current) audioRef.current.pause();
             return;
@@ -210,7 +276,72 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false, on
                 </div>
             )}
 
-            <audio ref={audioRef} preload="auto" playsInline />
+            {audio && (
+                <div className="host-audio-bediening" aria-label="Muziekspeler">
+                    <div className="host-audio-tijd">
+                        <span>{formatTijd(speeltijd)}</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max={duur || 0}
+                            step="0.1"
+                            value={Math.min(speeltijd, duur || 0)}
+                            onChange={verspringNaar}
+                            disabled={!duur}
+                            aria-label="Voortgang van het nummer"
+                        />
+                        <span>{formatTijd(duur)}</span>
+                    </div>
+                    <div className="host-audio-knoppen">
+                        <button
+                            className="knop knop-stil"
+                            type="button"
+                            onClick={beginOpnieuw}
+                            title="Het nummer opnieuw vanaf het begin"
+                        >
+                            ↻ Vanaf begin
+                        </button>
+                        <button
+                            className="knop"
+                            type="button"
+                            onClick={pauzeerOfHervat}
+                        >
+                            {gepauzeerd || audio.pauze
+                                ? '▶ Hervat'
+                                : speelt
+                                    ? '⏸ Pauze'
+                                    : '▶ Afspelen'}
+                        </button>
+                        <label className="host-volume">
+                            <span aria-hidden="true">🔊</span>
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value={volume}
+                                onChange={(event) => {
+                                    const waarde = Number(event.target.value);
+                                    setVolume(waarde);
+                                    if (audioRef.current) audioRef.current.volume = waarde;
+                                }}
+                                aria-label="Volume"
+                            />
+                        </label>
+                    </div>
+                </div>
+            )}
+            <audio
+                ref={audioRef}
+                preload="auto"
+                playsInline
+                onLoadedMetadata={(event) => setDuur(event.currentTarget.duration || 0)}
+                onDurationChange={(event) => setDuur(event.currentTarget.duration || 0)}
+                onTimeUpdate={(event) => setSpeeltijd(event.currentTarget.currentTime || 0)}
+                onPlay={() => setSpeelt(true)}
+                onPause={() => setSpeelt(false)}
+                onEnded={() => setSpeelt(false)}
+            />
         </div>
     );
 });
