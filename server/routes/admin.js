@@ -1836,47 +1836,62 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     const batchGrootte = begrensBatchGrootte(ingesteldeBatch);
     let verwerkt = 0;
     let geannuleerd = false;
-    for (let start = 0; start < rows.length; start += batchGrootte) {
+    let volgendeIndex = 0;
+
+    // Een workerpool houdt de ingestelde paralleliteit constant. Een vaste
+    // reeks batches moest altijd wachten op de traagste track van de groep,
+    // waardoor "alles downloaden" zichtbaar één voor één leek te lopen.
+    async function verwerkTrack(track) {
         if (isGeannuleerd()) {
             geannuleerd = true;
-            break;
+            return;
         }
-        const batch = rows.slice(start, start + batchGrootte);
-        await Promise.all(batch.map(async (track) => {
-            if (isGeannuleerd()) {
-                geannuleerd = true;
-                return;
-            }
-            // Een download is permanent lokaal bezit. Ook bij force=true mag de
-            // oorspronkelijke URL dan niet opnieuw worden gecontroleerd.
-            if (track.download_status === 'available') {
-                overgeslagen++;
-            } else {
-                try {
-                    if (isGeannuleerd()) {
-                        geannuleerd = true;
-                        return;
-                    }
-                    if (controleer) await controleerTrackUrl(track);
-                    if (isGeannuleerd()) {
-                        geannuleerd = true;
-                        return;
-                    }
-                    await downloadTrack(track);
-                    gedownload++;
-                } catch (err) {
-                    mislukt++;
-                    fouten.push({ id: track.id, naam: track.naam, fout: err.message });
-                    await pool.query(
-                        'UPDATE tracks SET download_status = \'failed\', download_melding = $2 WHERE id = $1',
-                        [track.id, String(err.message).slice(0, 500)],
-                    ).catch(() => {});
+
+        // Een download is permanent lokaal bezit. Ook bij force=true mag de
+        // oorspronkelijke URL dan niet opnieuw worden gecontroleerd.
+        if (track.download_status === 'available') {
+            overgeslagen++;
+        } else {
+            try {
+                if (isGeannuleerd()) {
+                    geannuleerd = true;
+                    return;
                 }
+                // yt-dlp controleert de bron tijdens de download zelf. De
+                // aparte --simulate-check wordt alleen gebruikt door callers
+                // die expliciet controleer=true meegeven.
+                if (controleer) await controleerTrackUrl(track);
+                if (isGeannuleerd()) {
+                    geannuleerd = true;
+                    return;
+                }
+                await downloadTrack(track);
+                gedownload++;
+            } catch (err) {
+                mislukt++;
+                fouten.push({ id: track.id, naam: track.naam, fout: err.message });
+                await pool.query(
+                    'UPDATE tracks SET download_status = \'failed\', download_melding = $2 WHERE id = $1',
+                    [track.id, String(err.message).slice(0, 500)],
+                ).catch(() => {});
             }
-            verwerkt++;
-            onProgress?.({ verwerkt, totaal: rows.length, huidige: track.naam, overgeslagen, gedownload, mislukt });
-        }));
+        }
+        verwerkt++;
+        onProgress?.({ verwerkt, totaal: rows.length, huidige: track.naam, overgeslagen, gedownload, mislukt });
     }
+
+    async function worker() {
+        while (!isGeannuleerd()) {
+            const index = volgendeIndex++;
+            if (index >= rows.length) return;
+            await verwerkTrack(rows[index]);
+        }
+        geannuleerd = true;
+    }
+
+    const aantalWorkers = Math.min(batchGrootte, rows.length);
+    await Promise.all(Array.from({ length: aantalWorkers }, () => worker()));
+    if (isGeannuleerd()) geannuleerd = true;
     return {
         verwerkt,
         geannuleerd,
