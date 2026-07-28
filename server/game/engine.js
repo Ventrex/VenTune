@@ -613,35 +613,43 @@ class SpelBeheer {
     }
 
     /**
-     * Haal een diverse steekproef afleider-kandidaten uit de héle
-     * titeldatabase: bij voorkeur dezelfde taal, willekeurig geordend en ruim
-     * begrensd, zodat `bouwMeerkeuzeOpties` er passende afleiders per genre,
-     * type/jaar en een willekeurige uit kan samenstellen die per ronde
-     * wisselen. Levert de eigen taal te weinig titels, dan wordt de steekproef
-     * met alle talen aangevuld. Afleiders hoeven geen speelbare track te
-     * hebben. Bij een mislukte query valt de aanroeper terug op de spel-pool.
+     * Haal een diverse steekproef afleider-kandidaten voor de meerkeuzevraag.
+     *
+     * Belangrijk: de afleiders moeten dezelfde inhoudsfilters respecteren als
+     * de speelbare titels. Anders zou een kindvriendelijk spel (of een spel met
+     * een leeftijdsgrens of uitgesloten genres) een titel voor volwassenen of
+     * een niet-gecureerde titel (`curatie_status <> 'goedgekeurd'`) als
+     * antwoordoptie kunnen tonen. Daarom hergebruikt deze query `bouwFilter`
+     * met exact de spelinstellingen — alleen zonder `alleen_lokaal`, want een
+     * afleider hoeft geen speelbare lokale track te hebben.
+     *
+     * Bij voorkeur dezelfde taal als het juiste antwoord; levert dat te weinig,
+     * dan wordt aangevuld met de andere talen binnen dezelfde filters. Zo
+     * wisselen de afleiders per ronde en blijven ze inhoudelijk veilig. Bij een
+     * mislukte query valt de aanroeper terug op de spel-pool.
      */
-    async haalAfleiderPool(titel) {
+    async haalAfleiderPool(state, titel) {
         try {
+            const filter = bouwFilter({ ...state.instellingen, alleen_lokaal: false });
+            const idIdx = filter.params.length + 1;
+            const basis = `SELECT t.id, t.naam, t.type, t.taal, t.jaar, t.genres
+                             FROM titels t
+                            ${filter.where} AND t.id <> $${idIdx}`;
+
+            const taalIdx = filter.params.length + 2;
             const { rows } = await pool.query(
-                `SELECT id, naam, type, taal, jaar, genres
-                   FROM titels
-                  WHERE id <> $1
-                    AND ($2::titel_taal IS NULL OR taal = $2)
-                  ORDER BY random()
-                  LIMIT 150`,
-                [titel.id, titel.taal || null],
+                `${basis}
+                    AND ($${taalIdx}::titel_taal IS NULL OR t.taal = $${taalIdx})
+                  ORDER BY random() LIMIT 150`,
+                [...filter.params, titel.id, titel.taal || null],
             );
-            // Genoeg titels in de eigen taal? Klaar. Anders aanvullen met een
-            // brede steekproef over alle talen, zodat er altijd zes opties zijn.
+            // Genoeg titels in de eigen taal? Klaar. Anders aanvullen met de
+            // andere talen binnen dezelfde filters, zodat er altijd zes
+            // opties zijn.
             if (rows.length >= 5 * (AANTAL_MEERKEUZE_OPTIES - 1)) return rows;
             const breed = await pool.query(
-                `SELECT id, naam, type, taal, jaar, genres
-                   FROM titels
-                  WHERE id <> $1
-                  ORDER BY random()
-                  LIMIT 150`,
-                [titel.id],
+                `${basis} ORDER BY random() LIMIT 150`,
+                [...filter.params, titel.id],
             );
             const gezien = new Set(rows.map((r) => r.id));
             for (const r of breed.rows) {
@@ -724,7 +732,7 @@ class SpelBeheer {
                 // spel-pool als de database niets bruikbaars geeft.
                 let antwoordOpties = null;
                 if (state.antwoordModus === 'meerkeuze') {
-                    const afleiderPool = await this.haalAfleiderPool(titel);
+                    const afleiderPool = await this.haalAfleiderPool(state, titel);
                     const bron = afleiderPool.length >= AANTAL_MEERKEUZE_OPTIES - 1
                         ? afleiderPool
                         : state.pool;
