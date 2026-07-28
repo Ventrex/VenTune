@@ -418,6 +418,7 @@ async function importeer({
     opnieuwProberen = false,
     batchGrootte = null,
     onProgress,
+    isGeannuleerd = () => false,
 } = {}) {
     const log = onLog || (() => {});
 
@@ -489,11 +490,16 @@ async function importeer({
     const MAX_NETWERKFOUTEN = 5;
     let netwerkfouten = 0;
     let gestopt = null;
+    let geannuleerd = false;
 
     const zoekBatchGrootte = await haalBatchGrootte(batchGrootte);
 
     let titelIndex = 0;
-    while (titelIndex < titels.length && verwerkt < limiet && !gestopt) {
+    while (titelIndex < titels.length && verwerkt < limiet && !gestopt && !geannuleerd) {
+        if (isGeannuleerd()) {
+            geannuleerd = true;
+            break;
+        }
         const batch = [];
         while (titelIndex < titels.length
             && batch.length < zoekBatchGrootte
@@ -506,7 +512,15 @@ async function importeer({
             verwerkt++;
             batch.push(t);
         }
+        if (isGeannuleerd()) {
+            geannuleerd = true;
+            break;
+        }
         await Promise.all(batch.map(async (t) => {
+            if (isGeannuleerd()) {
+                geannuleerd = true;
+                return;
+            }
             onProgress?.({ verwerkt, totaal: Math.min(titels.length, limiet), huidige: t.naam });
 
             // Titels uit de database hebben al een id; die uit titels.json niet.
@@ -523,6 +537,11 @@ async function importeer({
             // mag bewust opnieuw zoeken.
 
             let gelukt = false;
+
+            if (isGeannuleerd()) {
+                geannuleerd = true;
+                return;
+            }
 
             // 1) Eerst uitzoeken wélk nummer bij deze titel hoort, in plaats van
             //    blind te zoeken. Via het soundtrack-album (de albumnaam moet de
@@ -543,6 +562,10 @@ async function importeer({
             // 2) YouTube is de bron waaruit gedownload wordt: daar staat vrijwel
             //    elke intro en titelsong, ook de Nederlandse. Kennen we de naam
             //    van de titelsong, dan zoekt YouTube daar eerst gericht op.
+            if (isGeannuleerd()) {
+                geannuleerd = true;
+                return;
+            }
             let reden = 'geen bruikbare video gevonden';
             try {
                 let keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250, songnaam });
@@ -626,7 +649,13 @@ async function importeer({
         }));
     }
 
-    return { verwerkt, metTrack, zonder, gestopt };
+    return {
+        verwerkt,
+        metTrack,
+        zonder,
+        gestopt: geannuleerd ? 'Gestopt door admin.' : gestopt,
+        geannuleerd,
+    };
 }
 
 module.exports = { importeer, kiesBeste, verificatieScore };
