@@ -1865,7 +1865,10 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
                     geannuleerd = true;
                     return;
                 }
-                await downloadTrack(track);
+                // Bij bulkdownloads is de workerpool de limiet. De losse
+                // download-rate-gate staat alleen aan voor expliciete URL-controle;
+                // optie 3 mag de ingestelde 50 workers echt gelijktijdig starten.
+                await downloadTrack(track, false, { rateLimit: controleer });
                 gedownload++;
             } catch (err) {
                 mislukt++;
