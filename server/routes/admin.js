@@ -57,6 +57,7 @@ const HTTPS = (process.env.APP_URL || '').startsWith('https');
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(MEDIA_DIR, 'uploads');
 const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(MEDIA_DIR, 'downloads');
+const DOWNLOAD_BATCH_GROOTTE = 5;
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 },
@@ -1782,28 +1783,31 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     let overgeslagen = 0;
     let mislukt = 0;
     const fouten = [];
-    for (const [index, track] of rows.entries()) {
-        onProgress?.({ verwerkt: index, totaal: rows.length, huidige: track.naam });
-        // Een download is permanent lokaal bezit. Ook bij force=true mag de
-        // oorspronkelijke URL dan niet opnieuw worden gecontroleerd.
-        if (track.download_status === 'available') {
-            overgeslagen++;
-            onProgress?.({ verwerkt: index + 1, totaal: rows.length, huidige: track.naam, overgeslagen, gedownload, mislukt });
-            continue;
-        }
-        try {
-            if (controleer) await controleerTrackUrl(track);
-            await downloadTrack(track);
-            gedownload++;
-        } catch (err) {
-            mislukt++;
-            fouten.push({ id: track.id, naam: track.naam, fout: err.message });
-            await pool.query(
-                `UPDATE tracks SET download_status = 'failed', download_melding = $2 WHERE id = $1`,
-                [track.id, String(err.message).slice(0, 500)],
-            ).catch(() => {});
-        }
-        onProgress?.({ verwerkt: index + 1, totaal: rows.length, huidige: track.naam, overgeslagen, gedownload, mislukt });
+    let verwerkt = 0;
+    for (let start = 0; start < rows.length; start += DOWNLOAD_BATCH_GROOTTE) {
+        const batch = rows.slice(start, start + DOWNLOAD_BATCH_GROOTTE);
+        await Promise.all(batch.map(async (track) => {
+            // Een download is permanent lokaal bezit. Ook bij force=true mag de
+            // oorspronkelijke URL dan niet opnieuw worden gecontroleerd.
+            if (track.download_status === 'available') {
+                overgeslagen++;
+            } else {
+                try {
+                    if (controleer) await controleerTrackUrl(track);
+                    await downloadTrack(track);
+                    gedownload++;
+                } catch (err) {
+                    mislukt++;
+                    fouten.push({ id: track.id, naam: track.naam, fout: err.message });
+                    await pool.query(
+                        'UPDATE tracks SET download_status = \'failed\', download_melding = $2 WHERE id = $1',
+                        [track.id, String(err.message).slice(0, 500)],
+                    ).catch(() => {});
+                }
+            }
+            verwerkt++;
+            onProgress?.({ verwerkt, totaal: rows.length, huidige: track.naam, overgeslagen, gedownload, mislukt });
+        }));
     }
     return {
         verwerkt: rows.length,
