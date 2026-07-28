@@ -82,7 +82,9 @@ function lifelineAantal(instellingen) {
 }
 
 function antwoordModusUit(instellingen) {
-    return instellingen?.antwoord_modus === 'meerkeuze' ? 'meerkeuze' : 'typen';
+    // Meerkeuze (zes opties) is de standaard; alleen wie bewust 'typen' kiest
+    // krijgt een invulveld.
+    return instellingen?.antwoord_modus === 'typen' ? 'typen' : 'meerkeuze';
 }
 
 function kindmodusUit(instellingen) {
