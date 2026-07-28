@@ -284,6 +284,11 @@ export async function adminMediaHealthStatus() {
 export async function adminTaken() {
     return adminFetch('/api/admin/taken');
 }
+export async function adminTaakStop(naam) {
+    return adminFetch(`/api/admin/taken/${encodeURIComponent(naam)}/stop`, {
+        method: 'POST',
+    });
+}
 export async function adminUploadTrack(titelId, bestand, gegevens = {}) {
     const form = new FormData();
     form.append('bestand', bestand);
