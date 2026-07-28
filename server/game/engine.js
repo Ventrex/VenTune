@@ -100,37 +100,44 @@ function bouwMeerkeuzeOpties(titel, pool_) {
 
     const taalOk = (t) => !titel.taal || !t.taal || t.taal === titel.taal;
     const genreOk = (t) => (t.genres || []).some((g) => genres.has(String(g).toLowerCase()));
-    const jaarOk = (t) => !titel.jaar || !t.jaar
-        || Math.abs(Number(t.jaar) - Number(titel.jaar)) <= 12;
     const typeOk = (t) => !titel.type || t.type === titel.type;
+    const jaarBij = (t, marge) => !!titel.jaar && !!t.jaar
+        && Math.abs(Number(t.jaar) - Number(titel.jaar)) <= marge;
 
-    // Voorkeurslagen van sterk naar zwak. De opties worden eerst met de best
-    // passende afleiders gevuld (zelfde taal, genre en jaar); lukt dat niet met
-    // genoeg titels, dan vult het aan met steeds bredere kandidaten. Zo
-    // verdwijnen de knoppen nooit halverwege het spel en hoeft niemand terug
-    // te vallen op zelf typen.
-    const lagen = [];
-    if (genres.size) {
-        lagen.push(zonderZelf.filter((t) => taalOk(t) && genreOk(t) && jaarOk(t)));
-        lagen.push(zonderZelf.filter((t) => taalOk(t) && genreOk(t)));
-    }
-    lagen.push(zonderZelf.filter((t) => taalOk(t) && typeOk(t) && jaarOk(t)));
-    lagen.push(zonderZelf.filter((t) => taalOk(t) && typeOk(t)));
-    lagen.push(zonderZelf.filter((t) => taalOk(t)));
-    lagen.push(zonderZelf);
+    // Basis: alleen dezelfde taal. Levert dat te weinig op, dan telt alles.
+    const zelfdeTaal = zonderZelf.filter(taalOk);
+    const basis = zelfdeTaal.length >= AANTAL_MEERKEUZE_OPTIES - 1 ? zelfdeTaal : zonderZelf;
 
     const opties = [titel.naam];
     const gezien = new Set([String(titel.naam).toLowerCase()]);
-    for (const laag of lagen) {
-        for (const t of husselArray(laag)) {
-            if (opties.length >= AANTAL_MEERKEUZE_OPTIES) break;
+    // Voeg tot `aantal` titels uit `lijst` toe (gehusseld, zonder dubbele),
+    // maar nooit meer dan zes opties in totaal.
+    const voegToe = (lijst, aantal) => {
+        let over = aantal;
+        for (const t of husselArray(lijst)) {
+            if (over <= 0 || opties.length >= AANTAL_MEERKEUZE_OPTIES) break;
             const sleutel = String(t.naam).toLowerCase();
             if (gezien.has(sleutel)) continue;
             gezien.add(sleutel);
             opties.push(t.naam);
+            over -= 1;
         }
-        if (opties.length >= AANTAL_MEERKEUZE_OPTIES) break;
-    }
+    };
+
+    // Samenstelling van de foute antwoorden. Voorbeeld: een Nederlandse comedy-
+    // serie uit 1990 krijgt ~2 Nederlandse comedy's, ~2 Nederlandse titels van
+    // hetzelfde type uit 1989–1991 en ~1 willekeurige Nederlandse titel. Zo
+    // zijn de afleiders passend én wisselen ze per ronde.
+    if (genres.size) voegToe(basis.filter(genreOk), 2);
+    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 1)), 2);
+    // Jaarvenster stapsgewijs verruimen als 1990±1 te weinig opleverde.
+    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 3)), 2);
+    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 8)), 2);
+    // Eén willekeurige zelfde-taal-titel en, als vangnet, elke resterende titel,
+    // zodat er altijd zes opties zijn en de knoppen nooit verdwijnen.
+    voegToe(basis, AANTAL_MEERKEUZE_OPTIES);
+    voegToe(zonderZelf, AANTAL_MEERKEUZE_OPTIES);
+
     // Alleen als de hele pool te klein is (minder dan zes titels) lukt het niet.
     if (opties.length < AANTAL_MEERKEUZE_OPTIES) return null;
     const gehusseld = husselArray(opties);
@@ -606,33 +613,40 @@ class SpelBeheer {
     }
 
     /**
-     * Haal afleider-kandidaten voor de meerkeuzevraag uit de héle
-     * titeldatabase: dezelfde taal en een overlappend genre, met het jaar in
-     * de buurt. Zo variëren de foute antwoorden per ronde in plaats van steeds
-     * dezelfde paar titels uit de quiz-pool. Willekeurig geordend en begrensd;
-     * afleiders hoeven geen speelbare track te hebben. Bij een lege of mislukte
-     * query valt de aanroeper terug op de spel-pool.
+     * Haal een diverse steekproef afleider-kandidaten uit de héle
+     * titeldatabase: bij voorkeur dezelfde taal, willekeurig geordend en ruim
+     * begrensd, zodat `bouwMeerkeuzeOpties` er passende afleiders per genre,
+     * type/jaar en een willekeurige uit kan samenstellen die per ronde
+     * wisselen. Levert de eigen taal te weinig titels, dan wordt de steekproef
+     * met alle talen aangevuld. Afleiders hoeven geen speelbare track te
+     * hebben. Bij een mislukte query valt de aanroeper terug op de spel-pool.
      */
     async haalAfleiderPool(titel) {
         try {
-            const genres = Array.isArray(titel.genres) ? titel.genres : [];
-            // Eén brede query: álle titels komen in aanmerking, maar de best
-            // passende (zelfde taal, dan genre, dan jaar in de buurt) staan
-            // vooraan. Zo zijn de foute antwoorden passend én is er altijd
-            // genoeg om zes opties te vullen — de knoppen verdwijnen nooit.
             const { rows } = await pool.query(
                 `SELECT id, naam, type, taal, jaar, genres
                    FROM titels
                   WHERE id <> $1
-                  ORDER BY (($2::titel_taal IS NULL OR taal = $2))::int DESC,
-                           ((cardinality($3::text[]) = 0
-                             OR genres && $3::text[]))::int DESC,
-                           (($4::int IS NULL OR jaar IS NULL
-                             OR abs(jaar - $4) <= 12))::int DESC,
-                           random()
-                  LIMIT 80`,
-                [titel.id, titel.taal || null, genres, titel.jaar ?? null],
+                    AND ($2::titel_taal IS NULL OR taal = $2)
+                  ORDER BY random()
+                  LIMIT 150`,
+                [titel.id, titel.taal || null],
             );
+            // Genoeg titels in de eigen taal? Klaar. Anders aanvullen met een
+            // brede steekproef over alle talen, zodat er altijd zes opties zijn.
+            if (rows.length >= 5 * (AANTAL_MEERKEUZE_OPTIES - 1)) return rows;
+            const breed = await pool.query(
+                `SELECT id, naam, type, taal, jaar, genres
+                   FROM titels
+                  WHERE id <> $1
+                  ORDER BY random()
+                  LIMIT 150`,
+                [titel.id],
+            );
+            const gezien = new Set(rows.map((r) => r.id));
+            for (const r of breed.rows) {
+                if (!gezien.has(r.id)) rows.push(r);
+            }
             return rows;
         } catch (err) {
             logger.waarschuwing('Afleiderpool ophalen mislukt.', {

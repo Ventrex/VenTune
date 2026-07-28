@@ -112,6 +112,32 @@ const altijdZes = bouwMeerkeuzeOpties(
 assert.equal(altijdZes.opties.length, 6);
 assert.equal(altijdZes.opties[altijdZes.correctIndex], 'The Good, the Bad and the Ugly');
 
+// Samenstelling: een Nederlandse comedy-serie uit 1990 krijgt afleiders in
+// dezelfde taal, met minstens één genre-genoot (comedy) en minstens één titel
+// van hetzelfde type in de buurt van 1990. Engelstalige titels blijven weg.
+const nlPool = [
+    { id: 50, naam: "Zeg 'ns Aaa", type: 'serie', taal: 'nl', jaar: 1990, genres: ['Komedie'] },
+    { id: 51, naam: 'Flodder', type: 'film', taal: 'nl', jaar: 1986, genres: ['Komedie'] },
+    { id: 52, naam: 'New Kids Turbo', type: 'film', taal: 'nl', jaar: 2010, genres: ['Komedie'] },
+    { id: 53, naam: 'Costa!', type: 'film', taal: 'nl', jaar: 2001, genres: ['Komedie'] },
+    { id: 54, naam: 'Goede Tijden Slechte Tijden', type: 'serie', taal: 'nl', jaar: 1990, genres: ['Drama'] },
+    { id: 55, naam: 'Medisch Centrum West', type: 'serie', taal: 'nl', jaar: 1988, genres: ['Drama'] },
+    { id: 56, naam: 'Baantjer', type: 'serie', taal: 'nl', jaar: 1995, genres: ['Misdaad'] },
+    { id: 57, naam: 'Friends', type: 'serie', taal: 'en', jaar: 1994, genres: ['Komedie'] },
+    { id: 58, naam: 'Seinfeld', type: 'serie', taal: 'en', jaar: 1989, genres: ['Komedie'] },
+];
+for (let i = 0; i < 25; i++) {
+    const samenstelling = bouwMeerkeuzeOpties(nlPool[0], nlPool);
+    assert.equal(samenstelling.opties.length, 6);
+    const afleiders = samenstelling.opties.filter((n) => n !== "Zeg 'ns Aaa");
+    assert(!afleiders.includes('Friends') && !afleiders.includes('Seinfeld'),
+        'geen Engelstalige afleiders');
+    assert(afleiders.some((n) => ['Flodder', 'New Kids Turbo', 'Costa!'].includes(n)),
+        'minstens één comedy-genoot');
+    assert(afleiders.some((n) => ['Goede Tijden Slechte Tijden', 'Medisch Centrum West'].includes(n)),
+        'minstens één serie rond 1990');
+}
+
 // Een pool die te klein is (minder dan zes titels) geeft null terug, zodat de
 // client netjes terugvalt op het typveld.
 const teKlein = bouwMeerkeuzeOpties(
