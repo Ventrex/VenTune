@@ -2072,8 +2072,9 @@ router.post('/api/admin/media-health/start', vereisAdmin, (req, res) => {
         'media-health',
         mediaHealthStatus,
         (v) => { mediaHealthStatus = v; },
-        async () => controleerLokaleBestanden({
+        async ({ isGeannuleerd = () => false } = {}) => controleerLokaleBestanden({
             onProgress: (voortgang) => { mediaHealthStatus = { ...mediaHealthStatus, ...voortgang }; },
+            isGeannuleerd,
         }),
     );
     res.json(antwoord);
