@@ -41,6 +41,58 @@ router.get('/api/collecties', async (_req, res) => {
     }
 });
 
+/**
+ * Kant-en-klare spelvarianten ("edities"), met per quiz het aantal titels
+ * dat écht speelbaar is: een lokale MP3 op de server. Zo zie je meteen
+ * welke quiz al gespeeld kan worden en welke nog gevuld moet worden.
+ */
+router.get('/api/quizzen', async (_req, res) => {
+    try {
+        const { rows } = await pool.query(
+            `SELECT sleutel, naam, emoji, beschrijving, filter, volgorde
+               FROM quizzen
+              WHERE actief = true
+              ORDER BY volgorde ASC, naam ASC`,
+        );
+
+        // Per quiz tellen hoeveel titels er speelbaar zijn. Het zijn er
+        // hooguit enkele tientallen, dus dit blijft één snelle ronde.
+        const uitkomst = [];
+        for (const quiz of rows) {
+            const filter = { ...(quiz.filter || {}), alleen_lokaal: true };
+            const { where, params } = bouwFilter(filter);
+            let speelbaar = 0;
+            try {
+                const telling = await pool.query(
+                    `SELECT count(*)::int AS n FROM titels t ${where}`,
+                    params,
+                );
+                speelbaar = telling.rows[0]?.n || 0;
+            } catch (err) {
+                logger.waarschuwing('Telling voor quiz mislukt.', {
+                    quiz: quiz.sleutel,
+                    melding: err.message,
+                });
+            }
+            uitkomst.push({
+                sleutel: quiz.sleutel,
+                naam: quiz.naam,
+                emoji: quiz.emoji,
+                beschrijving: quiz.beschrijving,
+                filter: quiz.filter,
+                speelbaar,
+                // Onder de drempel valt er weinig te spelen; de host ziet dat
+                // dan meteen in plaats van pas bij het starten.
+                klaar: speelbaar >= 10,
+            });
+        }
+        res.json(uitkomst);
+    } catch (err) {
+        logger.waarschuwing('Quizzen ophalen mislukt.', { melding: err.message });
+        res.json([]);
+    }
+});
+
 // Publieke, niet-gevoelige huisstijl-instellingen. Het admin-wachtwoord en
 // andere operationele waarden zitten nooit in deze response.
 router.get('/api/instellingen', async (_req, res) => {
@@ -68,6 +120,14 @@ router.get('/api/tracks/telling', async (req, res) => {
         min_bekendheid: Number(req.query.bekendheid),
         zonder_genres: req.query.zonder
             ? String(req.query.zonder).split(',').filter(Boolean)
+            : [],
+        // Een quiz-editie kan op genre selecteren (Comedy, Actie, Tekenfilm).
+        // Zonder dit telde de teller de hele catalogus in plaats van de quiz.
+        met_genres: req.query.genres
+            ? String(req.query.genres).split(',').filter(Boolean)
+            : [],
+        studios: req.query.studios
+            ? String(req.query.studios).split(',').filter(Boolean)
             : [],
         collecties: req.query.collectie && String(req.query.collectie) !== 'alles'
             ? String(req.query.collectie).split(',').filter(Boolean)

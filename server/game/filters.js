@@ -101,6 +101,22 @@ function bouwFilter(f = {}) {
         condities.push(`NOT (t.genres && $${params.length}::text[])`);
     }
 
+    // Genres eisen: de basis onder de Comedy-, Actie- en Tekenfilm-quiz.
+    // TMDB levert genres soms in het Nederlands en soms in het Engels, dus
+    // beide schrijfwijzen worden meegegeven.
+    if (Array.isArray(f.met_genres) && f.met_genres.length > 0) {
+        params.push(f.met_genres);
+        condities.push(`t.genres && $${params.length}::text[]`);
+    }
+
+    // Studio's, voor een editie rond één maker (Disney, Pixar, Ghibli).
+    // Collecties blijven leidend; dit is de aanvulling voor titels die nog
+    // niet handmatig in een collectie zijn gezet.
+    if (Array.isArray(f.studios) && f.studios.length > 0) {
+        params.push(f.studios.map((s) => String(s).toLowerCase()));
+        condities.push(`lower(COALESCE(t.studio, '')) = ANY($${params.length}::text[])`);
+    }
+
     // De standaard spelcatalogus is gecureerd voor titels die in Nederland
     // op televisie of breed via de Nederlandse zenders te zien waren. Nieuwe
     // TMDB-imports blijven eerst buiten het spel tot de admin ze beoordeelt.

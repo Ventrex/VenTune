@@ -5,6 +5,7 @@ import {
     haalTelling,
     haalPresets,
     haalCollecties,
+    haalQuizzen,
     bewaarPreset,
     verwijderPreset,
     authSessie,
@@ -82,7 +83,10 @@ const PERIODE_SNEL = [
 // Het filtermenu: vier volledige schermen met grote tapdoelen.
 export default function Setup() {
     const navigate = useNavigate();
-    const [stap, setStap] = useState(1);
+    // Stap 0 is de editiekeuze: kies een kant-en-klare quiz, of stel zelf in.
+    const [stap, setStap] = useState(0);
+    const [quizzen, setQuizzen] = useState([]);
+    const [quizSleutel, setQuizSleutel] = useState(null);
     const [filters, setFilters] = useState({
         categorie: 'beide',
         categorieen: ['film', 'serie'],
@@ -126,7 +130,36 @@ export default function Setup() {
     useEffect(() => {
         haalPresets().then(setPresets).catch(() => {});
         haalCollecties().then(setCollecties).catch(() => {});
+        haalQuizzen().then(setQuizzen).catch(() => {});
     }, []);
+
+    /**
+     * Een editie kiezen: de filters van die quiz overnemen en doorgaan naar
+     * de spelinstellingen. Alles blijft daarna aanpasbaar, dus de quiz is
+     * een startpunt en geen keurslijf.
+     */
+    function kiesQuiz(quiz) {
+        const f = quiz.filter || {};
+        const categorieen = f.categorieen || ['film', 'serie'];
+        setQuizSleutel(quiz.sleutel);
+        setFilters((oud) => ({
+            ...oud,
+            categorieen,
+            categorie: categorieen.length === 1
+                ? ({ film: 'films', serie: 'series', muziek: 'muziek' })[categorieen[0]]
+                : 'beide',
+            collecties: f.collecties || [],
+            met_genres: f.met_genres || [],
+            studios: f.studios || [],
+            taal: f.taal || 'beide',
+            periode_start: f.periode_start ?? 1930,
+            periode_eind: f.periode_eind ?? NU,
+            kindvriendelijk: f.kindvriendelijk === true,
+            leeftijd_max: f.leeftijd_max ?? 0,
+            zonder_genres: f.zonder_genres || [],
+        }));
+        setStap(2);
+    }
 
     // Live telling ophalen wanneer de filters veranderen.
     const ververTelling = useCallback(() => {
@@ -290,7 +323,7 @@ export default function Setup() {
         }
     }
 
-    const terug = () => (stap > 1 ? setStap(stap - 1) : navigate('/'));
+    const terug = () => (stap > 0 ? setStap(stap - 1) : navigate('/'));
     const verder = () => setStap(Math.min(stap + 1, 4));
 
     return (
@@ -323,7 +356,7 @@ export default function Setup() {
 
             {/* Voortgang */}
             <div className="stappen">
-                {[1, 2, 3, 4].map((n) => (
+                {[0, 1, 2, 3, 4].map((n) => (
                     <span
                         key={n}
                         className={'stap-bol' + (n <= stap ? ' actief' : '')}
@@ -332,6 +365,51 @@ export default function Setup() {
             </div>
 
             {fout && <p className="waarschuwing">{fout}</p>}
+
+            {/* Stap 0: welke quiz spelen we? */}
+            {stap === 0 && (
+                <section>
+                    <h1>Welke quiz?</h1>
+                    <p className="dim">
+                        Kies een kant-en-klare editie. Je kunt daarna nog alles
+                        aanpassen.
+                    </p>
+                    {quizzen.length === 0 && (
+                        <p className="dim">Edities worden geladen…</p>
+                    )}
+                    <div className="quiz-grid">
+                        {quizzen.map((q) => (
+                            <button
+                                key={q.sleutel}
+                                type="button"
+                                className={
+                                    'quiz-kaart' +
+                                    (quizSleutel === q.sleutel ? ' gekozen' : '') +
+                                    (q.klaar ? '' : ' leeg')
+                                }
+                                onClick={() => kiesQuiz(q)}
+                                disabled={q.speelbaar === 0}
+                            >
+                                <span className="quiz-emoji" aria-hidden="true">{q.emoji || '🎵'}</span>
+                                <span className="quiz-naam">{q.naam}</span>
+                                <span className="quiz-aantal">
+                                    {q.speelbaar === 0
+                                        ? 'nog geen muziek'
+                                        : `${q.speelbaar} titels`}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        className="knop knop-stil"
+                        type="button"
+                        style={{ marginTop: '1rem' }}
+                        onClick={() => { setQuizSleutel(null); setStap(1); }}
+                    >
+                        Zelf instellen
+                    </button>
+                </section>
+            )}
 
             {/* Stap 1: Gamekeuze */}
             {stap === 1 && (

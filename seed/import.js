@@ -236,6 +236,56 @@ async function heeftWerkendeTrack(titelId) {
     return rows.length > 0;
 }
 
+// Hoeveel uur er gewacht wordt voordat een titel opnieuw geprobeerd wordt.
+// Na de laatste stap komt de titel op 'opgegeven' en blokkeert hij de
+// wachtrij niet langer; via /admin of --opnieuw kun je hem terughalen.
+const WACHTTIJD_UREN = [6, 24, 72, 168];
+
+/**
+ * Leg vast dat er voor deze titel gezocht is. Zonder deze administratie
+ * pakt de volgende batch weer exact dezelfde titels.
+ *
+ * @param {number} titelId
+ * @param {boolean} gevonden
+ * @param {string|null} melding  reden waarom er niets gevonden is
+ */
+async function noteerZoekpoging(titelId, gevonden, melding = null) {
+    if (gevonden) {
+        await pool.query(
+            `UPDATE titels
+                SET zoek_status = 'gevonden',
+                    zoek_pogingen = 0,
+                    laatste_zoekpoging = now(),
+                    volgende_poging = NULL,
+                    zoek_melding = NULL
+              WHERE id = $1`,
+            [titelId],
+        ).catch(() => {});
+        return;
+    }
+    await pool.query(
+        `UPDATE titels
+            SET zoek_pogingen = zoek_pogingen + 1,
+                laatste_zoekpoging = now(),
+                zoek_melding = $2,
+                zoek_status = CASE
+                    WHEN zoek_pogingen + 1 >= $3 THEN 'opgegeven'
+                    ELSE 'geen_kandidaat'
+                END,
+                volgende_poging = CASE
+                    WHEN zoek_pogingen + 1 >= $3 THEN NULL
+                    ELSE now() + ($4::int[])[LEAST(zoek_pogingen + 1, $3 - 1)] * interval '1 hour'
+                END
+          WHERE id = $1`,
+        [
+            titelId,
+            melding ? String(melding).slice(0, 500) : null,
+            WACHTTIJD_UREN.length + 1,
+            WACHTTIJD_UREN,
+        ],
+    ).catch(() => {});
+}
+
 async function meldOntbrekendeTrack(titelId) {
     await pool.query(
         `INSERT INTO meldingen (titel_id, soort, toelichting)
@@ -344,6 +394,7 @@ async function importeer({
     alleenZonderLokaal = false,
     titelFilter = null,
     collectie = null,
+    opnieuwProberen = false,
     onProgress,
 } = {}) {
     const log = onLog || (() => {});
@@ -367,10 +418,18 @@ async function importeer({
         const databaseLimiet = Number.isFinite(Number(limiet))
             ? Math.max(1, Math.floor(Number(limiet)))
             : null;
-        const parameters = databaseLimiet ? [databaseLimiet] : [];
-        const limietSql = databaseLimiet ? `\n              LIMIT $1` : '';
+        const parameters = [];
+        // Titels die het al te vaak zonder resultaat probeerden, blokkeren de
+        // wachtrij niet meer. Met opnieuwProberen pak je ze bewust weer op.
+        const wachtrij = opnieuwProberen
+            ? ''
+            : `AND t.zoek_status <> 'opgegeven'
+               AND (t.volgende_poging IS NULL OR t.volgende_poging <= now())`;
+        if (databaseLimiet) parameters.push(databaseLimiet);
+        const limietSql = databaseLimiet ? `\n              LIMIT $${parameters.length}` : '';
         const { rows } = await pool.query(
-            `SELECT id, naam, aliassen, type, taal, jaar, land, genres, tmdb_id
+            `SELECT id, naam, aliassen, type, taal, jaar, land, genres, tmdb_id,
+                    zoek_pogingen
                FROM titels t
               WHERE ${alleenZonderLokaal
                 ? `NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
@@ -385,7 +444,13 @@ async function importeer({
                                AND (x.bron = 'youtube' OR
                                     (x.bron = 'lokaal' AND x.itunes_track_id IS NULL
                                      AND x.download_status = 'available')))`}
-              ORDER BY id${limietSql}`,
+                ${wachtrij}
+              -- Nooit geprobeerd gaat vóór; daarna wat het langst wacht. Zo
+              -- schuift elke run door in plaats van dezelfde kop te herhalen.
+              ORDER BY t.zoek_pogingen ASC,
+                       t.laatste_zoekpoging ASC NULLS FIRST,
+                       t.populariteit DESC,
+                       t.id${limietSql}`,
             parameters,
         );
         titels = rows.map((r) => ({ ...r, _id: r.id }));
@@ -440,6 +505,7 @@ async function importeer({
         // 2) YouTube is de bron waaruit gedownload wordt: daar staat vrijwel
         //    elke intro en titelsong, ook de Nederlandse. Kennen we de naam
         //    van de titelsong, dan zoekt YouTube daar eerst gericht op.
+        let reden = 'geen bruikbare video gevonden';
         try {
             let keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250, songnaam });
             // Extra slot op de deur: hoort deze video echt bij deze titel?
@@ -458,6 +524,7 @@ async function importeer({
                     artiest: keuze.kanaal,
                 }, lokaleControle);
                 if (!check) {
+                    reden = `kandidaat geweigerd: ${keuze.titel}`;
                     log({ titel: t.naam, bron: 'youtube', geweigerd: keuze.titel });
                     keuze = null;
                 } else {
@@ -486,8 +553,13 @@ async function importeer({
                 });
             }
         } catch (err) {
+            reden = err.message;
             log({ titel: t.naam, bron: 'youtube', fout: err.message });
         }
+
+        // Altijd vastleggen wat deze poging opleverde. Zonder dit pakt de
+        // volgende run precies dezelfde titels en komt er nooit beweging in.
+        await noteerZoekpoging(titelId, gelukt, gelukt ? null : reden);
 
         if (!gelukt) {
             zonder.push(t.naam);
@@ -517,6 +589,8 @@ if (require.main === module) {
         limiet: LIMIET,
         alleenDb,
         titelFilter,
+        // Titels die eerder zijn opgegeven bewust weer meenemen.
+        opnieuwProberen: args.includes('--opnieuw'),
         onLog: (r) => console.log(JSON.stringify(r)),
     })
         .then(async (s) => {
@@ -532,7 +606,10 @@ if (require.main === module) {
                 }
             }
             const rest = await pool.query(
-                `SELECT count(*)::int AS n FROM titels t
+                `SELECT count(*)::int AS n,
+                        count(*) FILTER (WHERE t.zoek_status = 'opgegeven')::int AS opgegeven,
+                        count(*) FILTER (WHERE t.volgende_poging > now())::int AS wachtend
+                   FROM titels t
                   WHERE NOT EXISTS (
                       SELECT 1 FROM tracks x
                        WHERE x.titel_id = t.id AND x.werkt = true
@@ -542,11 +619,18 @@ if (require.main === module) {
                                AND x.download_status = 'available'))
                   )`,
             );
-            if (rest.rows[0].n > 0) {
-                console.log(
-                    `\nNog ${rest.rows[0].n} titels zonder muziek. Draai opnieuw met:` +
-                        '\n  node /app/seed/import.js --db',
-                );
+            const r = rest.rows[0];
+            if (r.n > 0) {
+                console.log(`\nNog ${r.n} titels zonder muziek.`);
+                console.log(`  Direct te proberen: ${r.n - r.opgegeven - r.wachtend}`);
+                console.log(`  Wachten op een nieuwe poging: ${r.wachtend}`);
+                console.log(`  Opgegeven (te vaak niets gevonden): ${r.opgegeven}`);
+                console.log('\nVolgende batch:');
+                console.log('  node /app/seed/import.js --db');
+                if (r.opgegeven > 0) {
+                    console.log('Opgegeven titels toch weer proberen:');
+                    console.log('  node /app/seed/import.js --db --opnieuw');
+                }
             }
             await pool.end();
         })

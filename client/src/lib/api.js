@@ -122,6 +122,8 @@ export async function haalTelling(filters) {
         eind: String(filters.periode_eind),
         bekendheid: String(filters.min_bekendheid ?? 0),
         zonder: (filters.zonder_genres || []).join(','),
+        genres: (filters.met_genres || []).join(','),
+        studios: (filters.studios || []).join(','),
         collectie: (filters.collecties || []).join(',') || filters.collectie || 'alles',
         leeftijd_max: String(filters.leeftijd_max ?? 0),
         kindvriendelijk: String(filters.kindvriendelijk === true),
@@ -177,6 +179,17 @@ export async function haalAppInstellingen() {
     const data = await jsonOfNull(resp);
     if (!resp.ok) throw new Error(data?.fout || 'Instellingen konden niet worden geladen.');
     return data || {};
+}
+
+/**
+ * Kant-en-klare quiz-edities, met per quiz hoeveel titels er al speelbaar
+ * zijn (lokale MP3 aanwezig).
+ */
+export async function haalQuizzen() {
+    const resp = await fetch('/api/quizzen');
+    const data = await jsonOfNull(resp);
+    if (!resp.ok) throw new Error(data?.fout || 'Quizzen konden niet worden geladen.');
+    return data || [];
 }
 
 export async function haalCollecties() {

@@ -673,6 +673,53 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                  AS ontbrekende_tracks,
                (SELECT count(*)::int FROM zoek_cache) AS cache_regels`,
         );
+
+        // Stand van de zoekwachtrij: wat kan er nu, wat wacht, wat is
+        // opgegeven. Zonder deze cijfers is niet te zien of de pijplijn
+        // vooruitgaat of vastzit.
+        let wachtrij = { direct: 0, wachtend: 0, opgegeven: 0 };
+        try {
+            const resultaat = await pool.query(
+                `SELECT
+                   count(*) FILTER (
+                       WHERE t.zoek_status <> 'opgegeven'
+                         AND (t.volgende_poging IS NULL OR t.volgende_poging <= now())
+                   )::int AS direct,
+                   count(*) FILTER (WHERE t.volgende_poging > now())::int AS wachtend,
+                   count(*) FILTER (WHERE t.zoek_status = 'opgegeven')::int AS opgegeven
+                 FROM titels t
+                WHERE NOT EXISTS (SELECT 1 FROM tracks x
+                                   WHERE x.titel_id = t.id AND x.werkt
+                                     AND x.preview_url IS NOT NULL AND x.preview_url <> ''
+                                     AND (x.bron = 'youtube'
+                                          OR (x.bron = 'lokaal' AND x.itunes_track_id IS NULL
+                                              AND x.download_status = 'available')))`,
+            );
+            wachtrij = resultaat.rows[0];
+        } catch (err) {
+            logger.waarschuwing('Zoekwachtrij in overzicht mislukt.', { melding: err.message });
+        }
+
+        // Hoeveel titels hebben wel een YouTube-kandidaat maar nog geen MP3?
+        // Dat is precies het werk dat de downloadstap moet doen.
+        let teDownloaden = 0;
+        try {
+            const resultaat = await pool.query(
+                `SELECT count(*)::int AS n FROM tracks tr
+                  WHERE tr.werkt = true AND tr.bron = 'youtube'
+                    AND tr.preview_url IS NOT NULL AND tr.preview_url <> ''
+                    AND tr.download_status <> 'available'
+                    AND NOT EXISTS (SELECT 1 FROM tracks lokaal
+                                     WHERE lokaal.titel_id = tr.titel_id
+                                       AND lokaal.bron = 'lokaal'
+                                       AND lokaal.itunes_track_id IS NULL
+                                       AND lokaal.werkt = true
+                                       AND lokaal.download_status = 'available')`,
+            );
+            teDownloaden = resultaat.rows[0]?.n || 0;
+        } catch (err) {
+            logger.waarschuwing('Downloadtelling in overzicht mislukt.', { melding: err.message });
+        }
         const fouten = [];
         let perBron = [];
         try {
@@ -709,6 +756,10 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
             ...d.rows[0],
             per_bron: perBron,
             zoek_log_regels: zoekLogRegels,
+            zoek_direct: wachtrij.direct,
+            zoek_wachtend: wachtrij.wachtend,
+            zoek_opgegeven: wachtrij.opgegeven,
+            te_downloaden: teDownloaden,
             ...(fouten.length ? { fout: fouten.join(' | ') } : {}),
         });
     } catch (err) {
@@ -1769,28 +1820,43 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
 // opslaan. Titels met een beschikbare lokale track worden in beide stappen
 // overgeslagen.
 router.post('/api/admin/ontbrekende-lokale/start', vereisAdmin, (req, res) => {
-    const limiet = Math.min(250, Math.max(1, Number(req.body?.limiet) || 250));
+    // Zoeken blijft een batch: YouTube knijpt af bij te veel verzoeken.
+    // Downloaden hoeft dat niet — dat is puur je eigen server. Standaard
+    // wordt daarom álles gedownload waarvoor al een kandidaat klaarstaat.
+    const zoekLimiet = Math.min(1000, Math.max(1, Number(req.body?.limiet) || 250));
+    const alleenDownloaden = req.body?.alleen_downloaden === true;
+    const downloadLimiet = Number(req.body?.download_limiet) > 0
+        ? Math.floor(Number(req.body.download_limiet))
+        : null;
     const antwoord = startAdminScript(
         'lokale-aanvulling',
         lokaleAanvullingStatus,
         (v) => { lokaleAanvullingStatus = v; },
         async () => {
-            const importSamenvatting = await importeer({
-                force: false,
-                alleenDb: true,
-                youtubeAlleen: true,
-                alleenZonderLokaal: true,
-                // Alleen ontbrekende records aanvullen. Een volgende run
-                // pakt automatisch de volgende batch uit de database.
-                limiet,
-                onProgress: (voortgang) => { lokaleAanvullingStatus = { ...lokaleAanvullingStatus, ...voortgang }; },
-            });
+            // Stap 1: zoeken. Titels die eerder niets opleverden staan in de
+            // wachtrij achteraan, dus elke run pakt nieuwe titels op.
+            const importSamenvatting = alleenDownloaden
+                ? { overgeslagen: true }
+                : await importeer({
+                    force: false,
+                    alleenDb: true,
+                    youtubeAlleen: true,
+                    alleenZonderLokaal: true,
+                    limiet: zoekLimiet,
+                    opnieuwProberen: req.body?.opnieuw === true,
+                    onProgress: (voortgang) => {
+                        lokaleAanvullingStatus = { ...lokaleAanvullingStatus, stap: 'zoeken', ...voortgang };
+                    },
+                });
+            // Stap 2: alles wat een kandidaat heeft lokaal opslaan.
             const downloadSamenvatting = await downloadTracksVooruit({
                 alleenYoutube: true,
                 alleenZonderLokaal: true,
                 controleer: true,
-                limiet,
-                onProgress: (voortgang) => { lokaleAanvullingStatus = { ...lokaleAanvullingStatus, ...voortgang }; },
+                limiet: downloadLimiet,
+                onProgress: (voortgang) => {
+                    lokaleAanvullingStatus = { ...lokaleAanvullingStatus, stap: 'downloaden', ...voortgang };
+                },
             });
             return { import: importSamenvatting, downloads: downloadSamenvatting };
         },
@@ -1827,6 +1893,58 @@ router.post('/api/admin/downloads/start', vereisAdmin, (req, res) => {
 
 router.get('/api/admin/downloads/status', vereisAdmin, (_req, res) => {
     res.json(downloadStatus);
+});
+
+// ---- Zoekwachtrij: wat is er vastgelopen en waarom? ----
+router.get('/api/admin/zoekwachtrij', vereisAdmin, async (req, res) => {
+    const limiet = Math.min(200, Math.max(1, Number(req.query?.limiet) || 50));
+    try {
+        const { rows } = await pool.query(
+            `SELECT t.id, t.naam, t.jaar, t.type, t.taal,
+                    t.zoek_status, t.zoek_pogingen, t.zoek_melding,
+                    t.laatste_zoekpoging, t.volgende_poging
+               FROM titels t
+              WHERE t.zoek_status IN ('geen_kandidaat', 'opgegeven')
+                AND NOT EXISTS (SELECT 1 FROM tracks x
+                                 WHERE x.titel_id = t.id AND x.werkt
+                                   AND x.preview_url IS NOT NULL AND x.preview_url <> '')
+              ORDER BY t.zoek_pogingen DESC, t.laatste_zoekpoging DESC NULLS LAST
+              LIMIT $1`,
+            [limiet],
+        );
+        res.json(rows);
+    } catch (err) {
+        logger.waarschuwing('Zoekwachtrij opvragen mislukt.', { melding: err.message });
+        res.json([]);
+    }
+});
+
+/**
+ * Opgegeven titels terugzetten in de wachtrij. Zonder deze knop zou een
+ * titel die vijf keer niets opleverde voorgoed buiten beeld blijven.
+ * Met `alles` gaan ook de wachtende titels meteen weer mee.
+ */
+router.post('/api/admin/zoekwachtrij/opnieuw', vereisAdmin, async (req, res) => {
+    const alles = req.body?.alles === true;
+    const titelId = Number(req.body?.titel_id) || null;
+    try {
+        const { rowCount } = await pool.query(
+            `UPDATE titels
+                SET zoek_status = 'nieuw',
+                    zoek_pogingen = 0,
+                    volgende_poging = NULL,
+                    zoek_melding = NULL
+              WHERE ($1::int IS NULL OR id = $1)
+                AND ($1::int IS NOT NULL
+                     OR zoek_status = 'opgegeven'
+                     OR ($2::boolean = true AND volgende_poging IS NOT NULL))`,
+            [titelId, alles],
+        );
+        res.json({ ok: true, hersteld: rowCount });
+    } catch (err) {
+        logger.waarschuwing('Zoekwachtrij herstellen mislukt.', { melding: err.message });
+        res.status(500).json({ fout: err.message });
+    }
 });
 
 router.post('/api/admin/downloads/retry-mislukt', vereisAdmin, (req, res) => {

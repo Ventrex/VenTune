@@ -78,6 +78,31 @@ BEGIN
         CHECK (leeftijdsgrens IN (0, 6, 9, 10, 12, 16, 18));
 END$$;
 
+-- Zoekgeschiedenis per titel. Zonder deze administratie pakt elke nieuwe
+-- batch weer dezelfde titels die de vorige keer al niets opleverden, en komt
+-- de vragenbank nooit verder. Nu schuift elke run door naar de volgende
+-- titels en krijgt een mislukking een steeds langere wachttijd.
+--   zoek_status      nieuw | gevonden | geen_kandidaat | opgegeven
+--   zoek_pogingen    hoe vaak er al gezocht is (bepaalt de wachttijd)
+--   volgende_poging  vóór dit moment wordt er niet opnieuw gezocht
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS zoek_status TEXT NOT NULL DEFAULT 'nieuw';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS zoek_pogingen INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS laatste_zoekpoging TIMESTAMPTZ;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS volgende_poging TIMESTAMPTZ;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS zoek_melding TEXT;
+DO $$
+BEGIN
+    ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_zoek_status_check;
+    ALTER TABLE titels ADD CONSTRAINT titels_zoek_status_check
+        CHECK (zoek_status IN ('nieuw', 'gevonden', 'geen_kandidaat', 'opgegeven'));
+END$$;
+
+-- De wachtrij van de import: eerst wat nog nooit geprobeerd is, daarna wat
+-- het langst geleden is. Deze index houdt die vraag snel bij tienduizenden
+-- titels.
+CREATE INDEX IF NOT EXISTS idx_titels_zoekwachtrij
+    ON titels (zoek_status, volgende_poging NULLS FIRST, zoek_pogingen, id);
+
 CREATE INDEX IF NOT EXISTS idx_titels_type    ON titels (type);
 CREATE INDEX IF NOT EXISTS idx_titels_pop     ON titels (populariteit DESC);
 CREATE INDEX IF NOT EXISTS idx_titels_taal    ON titels (taal);
@@ -320,11 +345,132 @@ VALUES
     ('streaming', 'Streaming', 'Bekende streamingfilms en -series', 'beide', 'Bekende streamingtitels voor een Streaming Edition.'),
     ('smartlappen', 'Smartlappen', 'Nederlandse levensliederen en smartlappen', 'muziek', 'Herkenbare Nederlandse muziek voor een Smartlappen-editie.'),
     ('rock', 'Rock', 'Bekende rocknummers en rockklassiekers', 'muziek', 'Herkenbare rockmuziek voor een Rock-editie.'),
-    ('kerst', 'Kerst', 'Kerstfilms, kerstseries en kerstmuziek', 'alles', 'Seizoenscollectie voor kerstspecials.')
+    ('kerst', 'Kerst', 'Kerstfilms, kerstseries en kerstmuziek', 'alles', 'Seizoenscollectie voor kerstspecials.'),
+    ('zomer', 'Zomer', 'Zomerse films, series en muziek', 'alles', 'Seizoenscollectie voor de Summer Quiz.'),
+    ('nl-pop', 'Nederpop', 'Nederlandstalige popmuziek', 'muziek', 'Nederlandstalige muziek voor de 100% NL-editie.'),
+    ('sport', 'Sport', 'Sportfilms, sportseries en sportmuziek', 'alles', 'Sportcollectie voor een eigen editie.'),
+    ('james-bond', 'James Bond', 'De Bond-films en hun titelsongs', 'film', 'Bond-titelsongs zijn een herkenbare eigen editie.')
 ON CONFLICT (sleutel) DO UPDATE SET
     naam = EXCLUDED.naam,
     beschrijving = EXCLUDED.beschrijving,
     standaard_type = EXCLUDED.standaard_type;
+
+-- ---------------------------------------------------------------------
+-- Quizzen: kant-en-klare spelvarianten (zoals de edities van Hitster).
+--
+-- Een quiz is niets meer dan een opgeslagen filter. Daardoor hoeft er voor
+-- een nieuwe editie geen code bij: alleen een regel in deze tabel. De
+-- filterwaarden zijn dezelfde als die van server/game/filters.js.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS quizzen (
+    id             SERIAL PRIMARY KEY,
+    sleutel        TEXT        NOT NULL UNIQUE,
+    naam           TEXT        NOT NULL,
+    emoji          TEXT,
+    beschrijving   TEXT,
+    -- Filter in dezelfde vorm als bouwFilter() verwacht.
+    filter         JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    volgorde       INTEGER     NOT NULL DEFAULT 100,
+    actief         BOOLEAN     NOT NULL DEFAULT true,
+    -- Ingebouwde quizzen worden bij elke migratie bijgewerkt; zelfgemaakte
+    -- quizzen blijven onaangeroerd.
+    ingebouwd      BOOLEAN     NOT NULL DEFAULT false,
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT quizzen_sleutel_check CHECK (sleutel ~ '^[a-z0-9][a-z0-9-]*$')
+);
+
+CREATE INDEX IF NOT EXISTS idx_quizzen_actief ON quizzen (actief, volgorde, naam);
+
+INSERT INTO quizzen (sleutel, naam, emoji, beschrijving, volgorde, ingebouwd, filter)
+VALUES
+    -- Breed
+    ('film-serie', 'Film & Serie Quiz', '🎬', 'Films en series door elkaar', 10, true,
+     '{"categorieen":["film","serie"]}'),
+    ('film', 'Film Quiz', '🍿', 'Alleen films', 11, true,
+     '{"categorieen":["film"]}'),
+    ('serie', 'Serie Quiz', '📺', 'Alleen series en tv-shows', 12, true,
+     '{"categorieen":["serie"]}'),
+    ('alles', 'Alles Door Elkaar', '🎲', 'Films, series én muziek', 13, true,
+     '{"categorieen":["film","serie","muziek"]}'),
+
+    -- Tijdvakken
+    ('70s', '70s Quiz', '🕺', 'Alles uit de jaren 70', 20, true,
+     '{"categorieen":["film","serie","muziek"],"periode_start":1970,"periode_eind":1979}'),
+    ('80s', '80s Quiz', '📼', 'Alles uit de jaren 80', 21, true,
+     '{"categorieen":["film","serie","muziek"],"periode_start":1980,"periode_eind":1989}'),
+    ('90s', '90s Quiz', '💿', 'Alles uit de jaren 90', 22, true,
+     '{"categorieen":["film","serie","muziek"],"periode_start":1990,"periode_eind":1999}'),
+    ('00s', '00s Quiz', '📀', 'Alles uit de jaren 00', 23, true,
+     '{"categorieen":["film","serie","muziek"],"periode_start":2000,"periode_eind":2009}'),
+    ('10s', '10s Quiz', '📱', 'Alles uit de jaren 10', 24, true,
+     '{"categorieen":["film","serie","muziek"],"periode_start":2010,"periode_eind":2019}'),
+    ('nu', 'Nu Quiz', '✨', 'Alles van 2020 tot nu', 25, true,
+     '{"categorieen":["film","serie","muziek"],"periode_start":2020,"periode_eind":2100}'),
+
+    -- Land en taal
+    ('nederland', 'Nederland Quiz', '🇳🇱', 'Nederlandse films en series', 30, true,
+     '{"categorieen":["film","serie"],"taal":"nl"}'),
+    ('nl-films', 'Nederlandse Films', '🎞️', 'Alleen Nederlandse films', 31, true,
+     '{"categorieen":["film"],"taal":"nl"}'),
+    ('nl-series', 'Nederlandse Series', '📡', 'Alleen Nederlandse series', 32, true,
+     '{"categorieen":["serie"],"taal":"nl"}'),
+    ('nl-muziek', '100% NL Muziek', '🎤', 'Nederlandstalige muziek', 33, true,
+     '{"categorieen":["muziek"],"taal":"nl"}'),
+
+    -- Genres
+    ('comedy', 'Comedy Quiz', '😂', 'Komedies en sitcoms', 40, true,
+     '{"categorieen":["film","serie"],"met_genres":["Komedie","Comedy"]}'),
+    ('actie', 'Actie Quiz', '💥', 'Actie en avontuur', 41, true,
+     '{"categorieen":["film","serie"],"met_genres":["Actie","Action","Avontuur","Adventure"]}'),
+    ('fantasy-scifi', 'Fantasy & Sci-Fi', '🚀', 'Andere werelden en de toekomst', 42, true,
+     '{"categorieen":["film","serie"],"met_genres":["Fantasy","Sciencefiction","Science Fiction"]}'),
+    ('animatie', 'Tekenfilm Quiz', '🎨', 'Animatie en tekenfilms', 43, true,
+     '{"categorieen":["film","serie"],"met_genres":["Animatie","Animation"]}'),
+    ('musical', 'Musical Quiz', '🎭', 'Musicals en zangfilms', 44, true,
+     '{"categorieen":["film","serie"],"met_genres":["Musical"]}'),
+
+    -- Collecties
+    ('kids', 'Kinder Quiz', '🧸', 'Alles wat kinderen kennen', 50, true,
+     '{"categorieen":["film","serie"],"kindvriendelijk":true,"leeftijd_max":12}'),
+    ('disney', 'Disney Quiz', '🏰', 'Disney-films en -series', 51, true,
+     '{"categorieen":["film","serie"],"collecties":["disney"]}'),
+    ('pixar', 'Pixar Quiz', '💡', 'De films van Pixar', 52, true,
+     '{"categorieen":["film"],"collecties":["pixar"]}'),
+    ('disney-pixar', 'Disney & Pixar', '🌟', 'Disney en Pixar samen', 53, true,
+     '{"categorieen":["film","serie"],"collecties":["disney","pixar"]}'),
+    ('superhelden', 'Superhelden Quiz', '🦸', 'Marvel, DC en de rest', 54, true,
+     '{"categorieen":["film","serie"],"collecties":["marvel","superhelden"]}'),
+    ('star-wars', 'Star Wars Quiz', '⚔️', 'Een sterrenstelsel ver, ver weg', 55, true,
+     '{"categorieen":["film","serie"],"collecties":["star-wars"]}'),
+    ('cult', 'Cult Quiz', '🕶️', 'Titels die pas later iconisch werden', 56, true,
+     '{"categorieen":["film","serie"],"collecties":["cult-classics"]}'),
+    ('streaming', 'Streaming Quiz', '🍿', 'Netflix, Disney+ en de rest', 57, true,
+     '{"categorieen":["film","serie"],"collecties":["streaming"]}'),
+    ('james-bond', 'James Bond Quiz', '🕴️', 'De Bond-titelsongs', 58, true,
+     '{"categorieen":["film"],"collecties":["james-bond"]}'),
+    ('sport', 'Sport Quiz', '⚽', 'Sportfilms, -series en -muziek', 59, true,
+     '{"categorieen":["film","serie","muziek"],"collecties":["sport"]}'),
+
+    -- Seizoenen
+    ('kerst', 'Kerst Quiz', '🎄', 'Alles rond de kerstdagen', 70, true,
+     '{"categorieen":["film","serie","muziek"],"collecties":["kerst"]}'),
+    ('zomer', 'Summer Quiz', '🌴', 'Zomerse films, series en nummers', 71, true,
+     '{"categorieen":["film","serie","muziek"],"collecties":["zomer"]}'),
+
+    -- Muziek
+    ('rock', 'Rock Quiz', '🎸', 'Rockklassiekers', 80, true,
+     '{"categorieen":["muziek"],"collecties":["rock"]}'),
+    ('smartlappen', 'Smartlappen Quiz', '🍺', 'Nederlandse levensliederen', 81, true,
+     '{"categorieen":["muziek"],"collecties":["smartlappen"]}')
+ON CONFLICT (sleutel) DO UPDATE SET
+    naam         = EXCLUDED.naam,
+    emoji        = EXCLUDED.emoji,
+    beschrijving = EXCLUDED.beschrijving,
+    volgorde     = EXCLUDED.volgorde,
+    filter       = EXCLUDED.filter
+    -- Alleen ingebouwde quizzen bijwerken; eigen quizzen blijven zoals ze
+    -- zijn, ook als iemand toevallig dezelfde sleutel koos.
+    WHERE quizzen.ingebouwd = true;
 
 -- ---------------------------------------------------------------------
 -- Lobbies: één actief spel per lobbycode
