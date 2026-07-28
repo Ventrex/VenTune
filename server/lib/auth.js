@@ -96,7 +96,18 @@ function publiekeGebruiker(rij) {
         id: rij.id,
         gebruikersnaam: rij.gebruikersnaam,
         display_naam: rij.display_naam,
+        geboortedatum: rij.geboortedatum || null,
     };
+}
+
+function leeftijdUitGeboortedatum(waarde, vandaag = new Date()) {
+    if (!waarde) return null;
+    const datum = new Date(waarde);
+    if (Number.isNaN(datum.getTime())) return null;
+    let leeftijd = vandaag.getFullYear() - datum.getFullYear();
+    const maandVerschil = vandaag.getMonth() - datum.getMonth();
+    if (maandVerschil < 0 || (maandVerschil === 0 && vandaag.getDate() < datum.getDate())) leeftijd -= 1;
+    return leeftijd >= 4 && leeftijd <= 120 ? leeftijd : null;
 }
 
 async function maakSessie(gebruikerId) {
@@ -114,7 +125,7 @@ async function gebruikerUitRequest(req) {
     const token = jar[COOKIE];
     if (!token) return null;
     const { rows } = await pool.query(
-        `SELECT g.id, g.gebruikersnaam, g.display_naam
+        `SELECT g.id, g.gebruikersnaam, g.display_naam, g.geboortedatum
            FROM auth_sessies s
            JOIN gebruikers g ON g.id = s.gebruiker_id
           WHERE s.token_hash = $1
@@ -159,7 +170,11 @@ router.get('/api/auth/profile', vereisHost, async (req, res) => {
     try {
         const { rows } = await pool.query(
             `SELECT g.id, g.gebruikersnaam, g.display_naam, g.actief,
-                    g.aangemaakt_op, g.laatst_ingelogd, g.voorkeuren,
+                    g.aangemaakt_op, g.laatst_ingelogd,
+                    COALESCE(g.voorkeuren, '{}'::jsonb) AS voorkeuren,
+                    g.geboortedatum,
+                    CASE WHEN g.geboortedatum IS NULL THEN NULL
+                         ELSE date_part('year', age(g.geboortedatum))::int END AS leeftijd,
                     COUNT(DISTINCT l.id)::int AS spellen,
                     COALESCE(SUM(s.score), 0)::int AS punten,
                     COALESCE(MAX(s.score), 0)::int AS beste_score
@@ -204,14 +219,24 @@ router.patch('/api/auth/profile', vereisHost, async (req, res) => {
         const voorkeuren = req.body?.voorkeuren && typeof req.body.voorkeuren === 'object'
             ? req.body.voorkeuren
             : {};
+        const geboortedatum = String(req.body?.geboortedatum || '').trim() || null;
+        if (geboortedatum && !/^\d{4}-\d{2}-\d{2}$/.test(geboortedatum)) {
+            return res.status(400).json({ fout: 'Gebruik geboortedatum als jjjj-mm-dd.' });
+        }
+        const leeftijd = leeftijdUitGeboortedatum(geboortedatum);
+        if (geboortedatum && leeftijd === null) {
+            return res.status(400).json({ fout: 'Geboortedatum geeft geen geldige leeftijd tussen 4 en 120 jaar.' });
+        }
         const veiligeVoorkeuren = {
             fontSchaal: Math.min(1.4, Math.max(0.85, Number(voorkeuren.fontSchaal) || 1)),
         };
         const { rows } = await pool.query(
-            `UPDATE gebruikers SET display_naam = $2, voorkeuren = $3::jsonb
+            `UPDATE gebruikers SET display_naam = $2, voorkeuren = $3::jsonb, geboortedatum = $4
               WHERE id = $1
-              RETURNING id, gebruikersnaam, display_naam, actief, voorkeuren`,
-            [req.gebruiker.id, displayNaam, JSON.stringify(veiligeVoorkeuren)],
+              RETURNING id, gebruikersnaam, display_naam, actief, voorkeuren, geboortedatum,
+                        CASE WHEN geboortedatum IS NULL THEN NULL
+                             ELSE date_part('year', age(geboortedatum))::int END AS leeftijd`,
+            [req.gebruiker.id, displayNaam, JSON.stringify(veiligeVoorkeuren), geboortedatum],
         );
         res.json(rows[0]);
     } catch (err) {
@@ -282,4 +307,5 @@ module.exports = {
     valideerWachtwoord,
     valideerGebruikersnaam,
     valideerDisplayNaam,
+    leeftijdUitGeboortedatum,
 };

@@ -131,6 +131,50 @@ body {
     background: rgba(196, 18, 48, 0.18);
 }
 
+.setup-logo-grid {
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+}
+
+.keuze-logo {
+    display: block;
+    font-size: 2rem;
+    line-height: 1;
+    margin-bottom: 0.35rem;
+}
+
+.keuze-logo-img {
+    display: block;
+    width: 3.2rem;
+    height: 3.2rem;
+    object-fit: contain;
+    margin: 0 auto 0.4rem;
+    filter: drop-shadow(0 0 12px rgba(196, 18, 48, 0.35));
+}
+
+.keuze.gekozen,
+.chip.gekozen {
+    background: rgba(196, 18, 48, 0.26);
+    border-color: var(--red-hot);
+    box-shadow: inset 0 0 0 1px rgba(196, 18, 48, 0.25), 0 0 18px rgba(196, 18, 48, 0.18);
+}
+
+.bulk-balk,
+.admin-snelacties {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.admin-snelacties {
+    margin-top: 0.9rem;
+}
+
+.gevaar {
+    border-color: #ff4757 !important;
+    color: #ffb3bb !important;
+}
+
 .admin-panel {
     text-align: left;
 }

@@ -93,6 +93,7 @@ router.get('/api/tracks/telling', async (req, res) => {
                LEFT JOIN tracks tr ON tr.titel_id = t.id
                                   AND tr.werkt = true
                                   AND tr.bron = 'lokaal'
+                                  AND tr.itunes_track_id IS NULL
                                   AND tr.download_status = 'available'
                                   AND tr.preview_url IS NOT NULL
                                   AND tr.preview_url <> ''

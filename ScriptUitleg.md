@@ -21,7 +21,7 @@ de rest blijft zichtbaar als overgeslagen. Als een titel een `tmdb_id` heeft en
 `TMDB_API_KEY` is ingesteld, moet de kandidaat ook met de officiële TMDB-titel
 en het jaar overeenkomen.
 
-## Lokale preview-cache
+## Lokale audio-downloads
 
 De download start nooit vanzelf:
 
@@ -29,14 +29,15 @@ De download start nooit vanzelf:
     docker compose exec server node /app/seed/download-track.js --track 42
     docker compose exec server node /app/seed/download-track.js --all
 
-Dit script accepteert bestaande Apple/iTunes-preview-URL's en expliciet
-opgeslagen YouTube-tracks. YouTube wordt met `yt-dlp` en `ffmpeg` naar m4a
-gecachet. Het script draait nooit automatisch en zoekt zelf geen nieuwe video.
-Gebruik YouTube-cache alleen voor tracks waarvoor je de bron en rechten mag
-gebruiken.
+Dit script accepteert expliciet opgeslagen YouTube-tracks. YouTube wordt met
+`yt-dlp` en `ffmpeg` lokaal opgeslagen: een nummer blijft volledig zolang het
+korter is dan vijf minuten en langere bronnen worden op vijf minuten begrensd.
+Het script draait nooit automatisch en zoekt zelf geen nieuwe video. Gebruik
+YouTube-downloads alleen voor tracks waarvoor je de bron en rechten mag
+gebruiken. Eigen uploads, waaronder m4a, blijven ondersteund.
 
-Elke YouTube- of iTunes-track kan ook direct vanuit `/admin` met de
-downloadknop naast de track naar het gedeelde `/media`-volume worden gecachet.
+Elke YouTube-track kan ook direct vanuit `/admin` met de downloadknop naast de
+track naar het gedeelde `/media`-volume worden gedownload.
 Voor volledig eigen of gelicentieerd geluid gebruik je **Eigen audio uploaden**
 bij de titel.
 

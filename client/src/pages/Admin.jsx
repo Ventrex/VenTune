@@ -58,6 +58,8 @@ function Beheer({ onUit }) {
     const [titels, setTitels] = useState([]);
     const [zoek, setZoek] = useState('');
     const [titelFilter, setTitelFilter] = useState('');
+    const [titelTaal, setTitelTaal] = useState('');
+    const [geselecteerdeTitels, setGeselecteerdeTitels] = useState([]);
     const [melding, setMelding] = useState('');
     const [bezigSeed, setBezigSeed] = useState(false);
     const [bezigPlaylist, setBezigPlaylist] = useState(false);
@@ -87,9 +89,10 @@ function Beheer({ onUit }) {
     const [vraagSuggesties, setVraagSuggesties] = useState([]);
     const [bezigSuggesties, setBezigSuggesties] = useState(false);
 
-    async function laadTitels(zoekOverride = zoek, filterOverride = titelFilter) {
+    async function laadTitels(zoekOverride = zoek, filterOverride = titelFilter, taalOverride = titelTaal) {
         try {
-            setTitels(await api.adminTitels(zoekOverride, filterOverride));
+            setTitels(await api.adminTitels(zoekOverride, filterOverride, taalOverride));
+            setGeselecteerdeTitels([]);
         } catch (err) {
             setMelding(err.message);
         }
@@ -101,8 +104,8 @@ function Beheer({ onUit }) {
             setMelding(err.message);
         }
     }
-    async function laad(zoekOverride = zoek, filterOverride = titelFilter) {
-        await Promise.all([laadTitels(zoekOverride, filterOverride), laadOntbrekend()]);
+    async function laad(zoekOverride = zoek, filterOverride = titelFilter, taalOverride = titelTaal) {
+        await Promise.all([laadTitels(zoekOverride, filterOverride, taalOverride), laadOntbrekend()]);
     }
     async function laadMeldingen() {
         try {
@@ -434,10 +437,25 @@ function Beheer({ onUit }) {
     function openTab(waarde, opties = {}) {
         if (opties.filter !== undefined) setTitelFilter(opties.filter);
         if (opties.zoek !== undefined) setZoek(opties.zoek);
+        if (opties.taal !== undefined) setTitelTaal(opties.taal);
         setTab(waarde);
         if (waarde === 'titels') {
-            laadTitels(opties.zoek ?? zoek, opties.filter ?? titelFilter);
+            laadTitels(opties.zoek ?? zoek, opties.filter ?? titelFilter, opties.taal ?? titelTaal);
         }
+    }
+
+    async function verwijderGeselecteerdeTitels() {
+        if (!geselecteerdeTitels.length) return;
+        if (!window.confirm(`${geselecteerdeTitels.length} titels definitief verwijderen? Lokale MP3-bestanden van deze titels worden ook verwijderd.`)) return;
+        try {
+            const res = await api.adminVerwijderTitels(geselecteerdeTitels);
+            setMelding(`${res.verwijderd} titels verwijderd · ${res.bestanden_verwijderd || 0} MP3-bestanden verwijderd.`);
+            await Promise.all([laadTitels(), laadOverzicht()]);
+        } catch (err) { setMelding(err.message); }
+    }
+
+    function wisselTitelSelectie(id) {
+        setGeselecteerdeTitels((oud) => oud.includes(id) ? oud.filter((x) => x !== id) : [...oud, id]);
     }
 
     return (
@@ -451,7 +469,7 @@ function Beheer({ onUit }) {
             <nav className="admin-tabs" aria-label="Adminsecties">
                 {[
                     ['overzicht', 'Overzicht'],
-                    ['kwaliteit', 'Kwaliteit'],
+                    ['kwaliteit', 'Onderhoud'],
                     ['titels', 'Titels & muziek'],
                     ['import', 'Imports'],
                     ['downloads', 'Downloads'],
@@ -505,7 +523,18 @@ function Beheer({ onUit }) {
                 </p>
             )}
 
-            {tab === 'kwaliteit' && <Kwaliteitsdashboard data={kwaliteit} onRefresh={laadKwaliteit} />}
+            {tab === 'kwaliteit' && (
+                <Kwaliteitsdashboard
+                    data={kwaliteit}
+                    onRefresh={laadKwaliteit}
+                    onHealth={healthcheck}
+                    onOntbrekend={zoekEnDownloadOntbrekendeLokale}
+                    onVragen={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Bonusvragen controleren en aanvullen…', 'Bonusvragen klaar.')}
+                    onStudio={() => achtergrondTaak(() => api.adminStudioImport(), api.adminStudioStatus, setBezigStudio, 'Studio’s controleren…', 'Studio-check klaar.')}
+                    onLeeftijd={() => achtergrondTaak(() => api.adminTmdbCatalogus(), api.adminTmdbCatalogusStatus, setBezigCatalogus, 'Leeftijd en catalogus controleren…', 'Leeftijd/catalogus klaar.')}
+                    onOpschonen={(actie) => api.adminDatabaseOpschonen(actie).then((r) => setMelding(`${r.verwijderd || 0} verwijderd / opgeschoond.`)).then(() => Promise.all([laadKwaliteit(), laadOverzicht()])).catch((err) => setMelding(err.message))}
+                />
+            )}
 
             {tab === 'vragen' && (
                 <VraagSuggesties
@@ -623,6 +652,18 @@ function Beheer({ onUit }) {
                                 <label className="kaart-label">Playlists elke <input className="invoer" type="number" min="1" max="168" value={planning?.playlistIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), playlistIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
                                 <label className="kaart-label">Bestanden elke <input className="invoer" type="number" min="1" max="168" value={planning?.mediaHealthIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), mediaHealthIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
                                 <label className="kaart-label">Data elke <input className="invoer" type="number" min="1" max="168" value={planning?.tmdbIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), tmdbIntervalUren: Number(e.target.value) || 24, youtubeIntervalUren: Number(e.target.value) || 24, downloadsIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
+                                <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({
+                                    playlistAutomatisch: true,
+                                    mediaHealthAutomatisch: true,
+                                    tmdbAutomatisch: true,
+                                    youtubeAutomatisch: true,
+                                    downloadsAutomatisch: true,
+                                    playlistIntervalUren: 24,
+                                    mediaHealthIntervalUren: 24,
+                                    tmdbIntervalUren: 24,
+                                    youtubeIntervalUren: 24,
+                                    downloadsIntervalUren: 24,
+                                })}>Alles dagelijks aanzetten</button>
                                 <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({ playlistIntervalUren: planning?.playlistIntervalUren || 24, mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24, tmdbIntervalUren: planning?.tmdbIntervalUren || 24, youtubeIntervalUren: planning?.youtubeIntervalUren || 24, downloadsIntervalUren: planning?.downloadsIntervalUren || 24 })}>Planning opslaan</button>
                             </div>
                         </div>
@@ -633,13 +674,13 @@ function Beheer({ onUit }) {
             {tab === 'downloads' && (
                 <section className="admin-panel admin-acties" style={{ marginTop: '1rem' }}>
                     <div className="kaart">
-                        <p className="kaart-label">MP3-downloadcentrum</p>
+                        <p className="kaart-label">Lokale audio-downloadcentrum</p>
                         <p className="dim">
                             Controleert de YouTube-URL en slaat de volledige audio blijvend op in <code>/media/downloads</code>.
-                            Lokale MP3’s worden overgeslagen; iTunes wordt niet meer gebruikt.
+                            Korte iTunes-fragmenten worden geweigerd; eigen m4a-uploads blijven toegestaan.
                         </p>
                         <button className="knop" onClick={() => downloadVooraf()} disabled={bezigDownloads || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCollecties}>
-                            {bezigDownloads ? 'MP3’s controleren/downloaden…' : 'Alle MP3’s vooraf downloaden + URL controleren'}
+                            {bezigDownloads ? 'Lokale audio controleren/downloaden…' : 'Alle YouTube-audio vooraf downloaden + URL controleren'}
                         </button>
                         <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
                             <button className="knop knop-stil" onClick={retryDownloads} disabled={bezigDownloads}>Mislukte downloads opnieuw proberen</button>
@@ -649,7 +690,7 @@ function Beheer({ onUit }) {
                             Alleen gecontroleerde YouTube-tracks downloaden
                         </button>
                         <button className="knop knop-stil" style={{ marginTop: '0.75rem' }} onClick={zoekEnDownloadOntbrekendeLokale} disabled={bezigDownloads}>
-                            YouTube zoeken + downloaden voor titels zonder lokale MP3
+                            YouTube zoeken + downloaden voor titels zonder lokale audio
                         </button>
                         <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
                             <button className="knop knop-stil" onClick={() => api.adminAfgekeurdeTracksExport()}>Afgekeurde tracks exporteren</button>
@@ -785,8 +826,23 @@ function Beheer({ onUit }) {
                     <option value="te-beoordelen">Te beoordelen</option>
                     <option value="zonder-vraag">Zonder bonusvraag</option>
                 </select>
+                <select className="invoer" value={titelTaal} onChange={(e) => setTitelTaal(e.target.value)} aria-label="Taalfilter">
+                    <option value="">Alle talen</option>
+                    <option value="nl">Nederlands</option>
+                    <option value="en">Internationaal</option>
+                </select>
                 <button className="knop" type="submit">Zoek</button>
             </form>
+
+            {geselecteerdeTitels.length > 0 && (
+                <div className="kaart bulk-balk" style={{ marginTop: '0.75rem' }}>
+                    <strong>{geselecteerdeTitels.length} geselecteerd</strong>
+                    <button className="knop knop-stil gevaar" type="button" onClick={verwijderGeselecteerdeTitels}>
+                        Verwijder geselecteerde + MP3
+                    </button>
+                    <button className="afspeelknop klein" type="button" onClick={() => setGeselecteerdeTitels([])}>Selectie leeg</button>
+                </div>
+            )}
 
             {titelFilter === 'zonder-lokaal' && (
                 <button className="knop knop-stil" style={{ marginTop: '0.75rem', width: '100%' }} onClick={zoekEnDownloadOntbrekendeLokale} disabled={bezigDownloads}>
@@ -807,6 +863,13 @@ function Beheer({ onUit }) {
                             className="titel-rij"
                             onClick={() => setOpen(open === t.id ? null : t.id)}
                         >
+                            <input
+                                type="checkbox"
+                                checked={geselecteerdeTitels.includes(t.id)}
+                                onChange={(e) => { e.stopPropagation(); wisselTitelSelectie(t.id); }}
+                                onClick={(e) => e.stopPropagation()}
+                                aria-label={`${t.naam} selecteren`}
+                            />
                             <span className="speler-naam">
                                 {t.naam}
                                 <span className="dim"> · {t.type} · {t.taal} · {t.jaar || '—'} · {t.curatie_status || '—'} · {t.leeftijdsgrens ?? 16}+{t.studio ? ` · ${t.studio}` : ' · studio ontbreekt'}{t.collecties?.length ? ` · ${t.collecties.join(', ')}` : ''}</span>
@@ -989,21 +1052,29 @@ function Collectiebeheer({ collecties, bezig, onImport, onDownload, onWijzig, on
     );
 }
 
-function Kwaliteitsdashboard({ data, onRefresh }) {
+function Kwaliteitsdashboard({ data, onRefresh, onHealth, onOntbrekend, onVragen, onStudio, onLeeftijd, onOpschonen }) {
     const verificatie = data?.verificatie || {};
     const downloadMap = Object.fromEntries((data?.downloads || []).map((r) => [r.download_status || 'onbekend', r.aantal]));
     return (
         <section className="admin-panel" style={{ marginTop: '1rem' }}>
             <div className="kaart">
                 <p className="kaart-label">Kwaliteitsdashboard</p>
-                <p className="dim">Hier zie je het verschil tussen een grote catalogus en een veilige speelpool.</p>
+                <p className="dim">Gebruik dit als onderhoudspaneel: lokale MP3’s controleren, ontbrekende audio aanvullen en metadata repareren.</p>
                 <div className="overzicht">
                     <div className="tegel"><span className="tegel-waarde">{verificatie.totaal ?? '—'}</span><span className="tegel-label">Werkende tracks</span></div>
                     <div className="tegel"><span className="tegel-waarde">{verificatie.gecontroleerd ?? '—'}</span><span className="tegel-label">Gecontroleerd</span></div>
                     <div className="tegel"><span className="tegel-waarde">{verificatie.onzeker ?? '—'}</span><span className="tegel-label">Onzeker</span></div>
                     <div className="tegel"><span className="tegel-waarde">{downloadMap.failed ?? 0}</span><span className="tegel-label">Downloadfouten</span></div>
                 </div>
-                <button className="knop knop-stil" type="button" onClick={onRefresh}>Kwaliteit vernieuwen</button>
+                <div className="admin-snelacties">
+                    <button className="knop knop-stil" type="button" onClick={onHealth}>Controleer lokale MP3-bestanden</button>
+                    <button className="knop knop-stil" type="button" onClick={onOntbrekend}>Zoek YouTube + download ontbrekende MP3’s</button>
+                    <button className="knop knop-stil" type="button" onClick={onVragen}>Check bonusvragen</button>
+                    <button className="knop knop-stil" type="button" onClick={onStudio}>Studio check</button>
+                    <button className="knop knop-stil" type="button" onClick={onLeeftijd}>Leeftijd/catalogus check</button>
+                    <button className="knop knop-stil gevaar" type="button" onClick={() => onOpschonen('wees_media')}>MP3 zonder database verwijderen</button>
+                    <button className="knop knop-stil" type="button" onClick={onRefresh}>Cijfers vernieuwen</button>
+                </div>
             </div>
             <div className="kaart" style={{ marginTop: '1rem' }}>
                 <p className="kaart-label">Titels zonder gecontroleerde track ({data?.titels_zonder_gecontroleerde_track?.length || 0})</p>
@@ -1062,12 +1133,14 @@ function Databasebeheer({ onMelding }) {
             </div>
             <div className="kaart" style={{ marginTop: '1rem' }}>
                 <p className="kaart-label">Opschonen</p>
-                <p className="dim">Deze acties verwijderen alleen de gekozen categorie. Audio-bestanden blijven staan.</p>
+                <p className="dim">Deze acties ruimen gericht op. Bij weesmedia worden MP3-bestanden verwijderd die niet meer in de database staan.</p>
                 <div className="stapel">
                     <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('zoek_cache', 'Alle zoekresultaat-cache verwijderen?')}>Zoekcache leegmaken</button>
+                    <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('oude_zoekcache', 'Zoekcache ouder dan 7 dagen verwijderen?')}>Zoekcache ouder dan 7 dagen verwijderen</button>
                     <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('afgehandelde_meldingen', 'Afgehandelde meldingen verwijderen?')}>Afgehandelde meldingen verwijderen</button>
                     <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('spelgeschiedenis', 'Alle afgelopen spellen verwijderen?')}>Spelgeschiedenis verwijderen</button>
                     <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('afgekeurde_tracks', 'Alle afgekeurde tracks uit de database verwijderen?')}>Afgekeurde tracks verwijderen</button>
+                    <button className="knop knop-stil gevaar" disabled={bezig} onClick={() => opschonen('wees_media', 'MP3-bestanden verwijderen die niet meer in de database staan?')}>MP3 zonder databasekoppeling verwijderen</button>
                     <button className="knop knop-stil" disabled={bezig} onClick={() => opschonen('onveilige_tekens', 'Onveilige titels en audiometadata uitsluiten? Er wordt niets fysiek verwijderd.')}>Onveilige tekens uitsluiten</button>
                 </div>
                 <p className="dim" style={{ marginTop: '0.75rem' }}>
@@ -1202,6 +1275,16 @@ function Hostaccounts({ gebruikers, spelers, onWijzig }) {
         }
     }
 
+    async function verwijder(gebruiker) {
+        if (!window.confirm(`Hostaccount "${gebruiker.gebruikersnaam}" definitief verwijderen? Sessies worden uitgelogd. Spelgeschiedenis blijft als historie bestaan.`)) return;
+        try {
+            await api.adminVerwijderGebruiker(gebruiker.id);
+            onWijzig();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
     return (
         <section className="admin-accounts">
             <p className="kaart-label" style={{ textAlign: 'left' }}>
@@ -1228,6 +1311,9 @@ function Hostaccounts({ gebruikers, spelers, onWijzig }) {
                                 </button>
                                 <button className="afspeelknop klein" onClick={() => wissel(gebruiker)}>
                                     {gebruiker.actief ? 'Uit' : 'Aan'}
+                                </button>
+                                <button className="afspeelknop klein gevaar" onClick={() => verwijder(gebruiker)}>
+                                    Verwijder
                                 </button>
                             </span>
                         </li>
@@ -1559,7 +1645,7 @@ function TitelDetail({ titel, onWijzig }) {
 }
 
 // Zoek automatisch een gecontroleerde YouTube-kandidaat. YouTube is de
-// hoofdbron; iTunes staat bewust pas onder deze sectie als fallback.
+// enige automatische audiobron; iTunes-previewclips worden niet gekoppeld.
 function YoutubeZoeker({ titelId, onToegevoegd }) {
     const [kandidaat, setKandidaat] = useState(null);
     const [bezig, setBezig] = useState(false);

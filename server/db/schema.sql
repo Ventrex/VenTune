@@ -91,8 +91,8 @@ CREATE INDEX IF NOT EXISTS idx_titels_studio ON titels (studio);
 --
 -- YouTube is alleen de zoek- en downloadbron voor intro's en titelsongs.
 -- Het spel gebruikt uitsluitend volledig lokaal opgeslagen audio. iTunes kan
--- nog als historische bron in bestaande rijen staan, maar wordt niet meer
--- automatisch gezocht, gecontroleerd of afgespeeld.
+-- nog als historische bron in bestaande rijen staan, maar previews worden
+-- nooit als lokale speeltrack geaccepteerd.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tracks (
     id               SERIAL PRIMARY KEY,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS tracks (
                      CHECK (bron IN ('itunes', 'youtube', 'lokaal')),
     -- iTunes-trackid (indien van iTunes), handig om later te verversen.
     itunes_track_id  BIGINT,
-    -- Waar de audio zit: iTunes previewUrl, /media/bestand.m4a, of bij
+    -- Waar de audio zit: historische iTunes previewUrl, /media/bestand.m4a, of bij
     -- YouTube het video-id.
     preview_url      TEXT        NOT NULL,
     -- Startpositie in seconden (vooral voor YouTube; iTunes-previews starten
@@ -193,6 +193,11 @@ CREATE TABLE IF NOT EXISTS gebruikers (
     aangemaakt_op       TIMESTAMPTZ NOT NULL DEFAULT now(),
     laatst_ingelogd     TIMESTAMPTZ
 );
+
+-- Migratie voor bestaande hostaccounts. Oudere databases hadden de tabel al
+-- zonder voorkeuren; daardoor kon /host/profile stuklopen op g.voorkeuren.
+ALTER TABLE gebruikers ADD COLUMN IF NOT EXISTS voorkeuren JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE gebruikers ADD COLUMN IF NOT EXISTS geboortedatum DATE;
 
 CREATE INDEX IF NOT EXISTS idx_gebruikers_naam ON gebruikers (gebruikersnaam_norm);
 
@@ -298,6 +303,10 @@ VALUES
     ('pixar', 'Pixar', 'Pixar-animatiefilms', 'film', 'Bekende Pixar-films voor een eigen Pixar-editie.'),
     ('kids', 'Kids', 'Kindvriendelijke films en series', 'beide', 'Titels voor de kindvriendelijke VenTune-editie.'),
     ('marvel', 'Marvel', 'Marvel-films en -series', 'beide', 'Iconische Marvel-titels voor een superheldeneditie.'),
+    ('star-wars', 'Star Wars', 'Star Wars-films en -series', 'beide', 'Disney/Lucasfilm-collectie voor Star Wars.'),
+    ('cult-classics', 'Cult Classics', 'Films en series die later iconisch werden', 'beide', 'Culttitels die niet altijd in gewone toplijsten bovenaan staan.'),
+    ('fantasy', 'Fantasy', 'Fantasyfilms en -series', 'beide', 'Fantasy-editie voor herkenbare avonturen en werelden.'),
+    ('superhelden', 'Superhelden', 'Superheldenfilms en -series', 'beide', 'Marvel/DC en andere superheldentitels.'),
     ('streaming', 'Streaming', 'Bekende streamingfilms en -series', 'beide', 'Bekende streamingtitels voor een Streaming Edition.'),
     ('smartlappen', 'Smartlappen', 'Nederlandse levensliederen en smartlappen', 'muziek', 'Herkenbare Nederlandse muziek voor een Smartlappen-editie.'),
     ('rock', 'Rock', 'Bekende rocknummers en rockklassiekers', 'muziek', 'Herkenbare rockmuziek voor een Rock-editie.'),
@@ -504,21 +513,39 @@ VALUES (
       "mediaHealthIntervalUren": 24,
       "mediaHealthLaatsteRun": null,
       "mediaHealthVolgendeRun": null,
-      "tmdbAutomatisch": false,
+      "tmdbAutomatisch": true,
       "tmdbIntervalUren": 24,
       "tmdbLaatsteRun": null,
       "tmdbVolgendeRun": null,
-      "youtubeAutomatisch": false,
+      "youtubeAutomatisch": true,
       "youtubeIntervalUren": 24,
       "youtubeLaatsteRun": null,
       "youtubeVolgendeRun": null,
-      "downloadsAutomatisch": false,
+      "downloadsAutomatisch": true,
       "downloadsIntervalUren": 24,
       "downloadsLaatsteRun": null,
       "downloadsVolgendeRun": null
     }'::jsonb
 )
 ON CONFLICT (sleutel) DO NOTHING;
+
+-- Bestaande installaties meekrijgen: onderhoud draait dagelijks, zodat
+-- YouTube-matches, lokale MP3's en metadata niet handmatig bijgehouden
+-- hoeven te worden. Playlist-import blijft handmatig omdat die afhankelijk
+-- is van samengestelde bronlijsten.
+UPDATE app_instellingen
+SET waarde = waarde || '{
+  "mediaHealthAutomatisch": true,
+  "mediaHealthIntervalUren": 24,
+  "tmdbAutomatisch": true,
+  "tmdbIntervalUren": 24,
+  "youtubeAutomatisch": true,
+  "youtubeIntervalUren": 24,
+  "downloadsAutomatisch": true,
+  "downloadsIntervalUren": 24
+}'::jsonb,
+    bijgewerkt_op = now()
+WHERE sleutel = 'beheer';
 
 -- ---------------------------------------------------------------------
 -- Zoekcache: onthoudt wat er al opgehaald is (YouTube/iTunes), zodat

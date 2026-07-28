@@ -150,18 +150,16 @@ export default function Play() {
                         ))}
                     </ul>
                     {teams.length > 0 && (
-                        <label className="kaart-label" style={{ display: 'block', textAlign: 'left', marginTop: '1rem' }}>
-                            Jouw team
-                            <select
-                                className="invoer"
-                                style={{ marginTop: '0.35rem' }}
-                                value={spelers.find((s) => s.id === sessie.spelerId)?.team_naam || ''}
-                                onChange={(e) => spel.wijzigTeam(e.target.value || null)}
-                            >
-                                <option value="">Geen team</option>
-                                {teams.map((team) => <option key={team} value={team}>{team}</option>)}
-                            </select>
-                        </label>
+                        <div className="kaart" style={{ marginTop: '1rem', textAlign: 'left' }}>
+                            <p className="kaart-label">Kies je team</p>
+                            <div className="chips team-chips">
+                                <button className={'chip' + (!spelers.find((s) => s.id === sessie.spelerId)?.team_naam ? ' gekozen' : '')} onClick={() => spel.wijzigTeam(null)}>Geen team</button>
+                                {teams.map((team) => {
+                                    const actief = spelers.find((s) => s.id === sessie.spelerId)?.team_naam === team;
+                                    return <button className={'chip' + (actief ? ' gekozen' : '')} key={team} onClick={() => spel.wijzigTeam(team)}>{team}</button>;
+                                })}
+                            </div>
+                        </div>
                     )}
                     <p style={{ marginTop: '2rem' }}>
                         <button className="terug als-link" onClick={verlaten}>

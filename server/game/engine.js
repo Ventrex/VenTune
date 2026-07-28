@@ -15,7 +15,11 @@ const vragenbank = require('./vragen');
 const { pastBijTitel } = require('../lib/trackcheck');
 const logger = require('../lib/logger');
 const tmdb = require('../lib/tmdb');
-const { lokaalBestandBeschikbaar } = require('../../seed/download-track');
+const {
+    lokaalBestandBeschikbaar,
+    isAppleTrack,
+    isSpeelbareLokaleTrack,
+} = require('../../seed/download-track');
 
 const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
 // 'Heel nummer': ruime bovengrens; de ronde eindigt zodra iedereen geraden
@@ -383,6 +387,7 @@ class SpelBeheer {
                               WHERE tr.titel_id = t.id
                                 AND tr.werkt = true
                                 AND tr.bron = 'lokaal'
+                                AND tr.itunes_track_id IS NULL
                                 AND tr.download_status = 'available'
                                 AND tr.preview_url IS NOT NULL
                                 AND tr.preview_url <> '')`,
@@ -446,7 +451,7 @@ class SpelBeheer {
             logger.info('Spel gestart.', { code, totaal });
 
             this.io.to(kamer(code)).emit('spel:voorbereiden', {
-                melding: 'Lokale MP3’s controleren…',
+                melding: 'Lokale audio controleren…',
                 verwerkt: 0,
                 totaal,
             });
@@ -459,7 +464,7 @@ class SpelBeheer {
                 );
                 const eersteFout = voorbereiding.mislukt[0];
                 this.io.to(kamer(code)).emit('spel:fout', {
-                    melding: `Spel niet gestart: er zijn maar ${voorbereiding.gevonden} volledig lokale MP3’s beschikbaar voor deze filters${gevraagd > 0 ? `, terwijl er ${voorbereiding.gevraagd} rondes gevraagd zijn` : ''}. ${eersteFout ? `${eersteFout.titel}: ${eersteFout.melding}` : 'Controleer de downloads in het adminportaal.'}`,
+                    melding: `Spel niet gestart: er zijn maar ${voorbereiding.gevonden} volledig lokale audiobestanden beschikbaar voor deze filters${gevraagd > 0 ? `, terwijl er ${voorbereiding.gevraagd} rondes gevraagd zijn` : ''}. ${eersteFout ? `${eersteFout.titel}: ${eersteFout.melding}` : 'Controleer de downloads in het adminportaal.'}`,
                 });
                 logger.waarschuwing('Spelstart afgebroken omdat niet alle audio lokaal beschikbaar is.', {
                     code,
@@ -498,22 +503,21 @@ class SpelBeheer {
                 await this.registreerOntbrekendeTitel(titel.id);
                 verwerkt += 1;
                 this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                    melding: `Lokale MP3’s controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
+                    melding: `Lokale audio controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
                     verwerkt,
                     totaal: gevraagd,
                     huidige: titel.naam,
                 });
                 continue;
             }
-            const lokaleKopie = track.bron === 'lokaal'
-                && track.download_status === 'available'
+            const lokaleKopie = isSpeelbareLokaleTrack(track)
                 && await lokaalBestandBeschikbaar(track);
             if (lokaleKopie) {
                 state.voorbereideTracks.set(titel.id, track);
                 geplandeTitels.push(titel);
                 verwerkt += 1;
                 this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                    melding: `Lokale MP3’s controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
+                    melding: `Lokale audio controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
                     verwerkt,
                     totaal: gevraagd,
                     huidige: titel.naam,
@@ -521,16 +525,16 @@ class SpelBeheer {
                 continue;
             }
             // Het spel downloadt nooit tijdens de start. De admin moet
-            // vooraf een volledige MP3 klaarzetten; hier controleren we
+            // vooraf een volledig lokaal audiobestand klaarzetten; hier controleren we
             // alleen het lokale bestand en starten daarna onmiddellijk.
-            if (track.bron !== 'lokaal' || track.download_status !== 'available'
+            if (!isSpeelbareLokaleTrack(track)
                 || !(await lokaalBestandBeschikbaar(track))) {
-                mislukt.push({ titel: titel.naam, melding: 'Lokale MP3 ontbreekt of is niet volledig beschikbaar.' });
+                mislukt.push({ titel: titel.naam, melding: 'Lokale audio ontbreekt, is kort, of is niet volledig beschikbaar.' });
                 await this.registreerOntbrekendeTitel(titel.id);
             }
             verwerkt += 1;
             this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                melding: `Lokale MP3’s controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
+                melding: `Lokale audio controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
                 verwerkt,
                 totaal: gevraagd,
                 huidige: titel.naam,
@@ -552,10 +556,12 @@ class SpelBeheer {
             `SELECT tr.id, tr.bron, tr.preview_url, tr.bestand_pad, tr.start_seconde,
                     tr.tracknaam, tr.artiest, tr.album,
                     tr.verificatie_score, tr.verificatie_reden, tr.download_status,
-                    tr.bron_url, tr.audio_sha256
+                    tr.bron_url, tr.audio_sha256, tr.itunes_track_id
                FROM tracks tr
               WHERE tr.titel_id = $1
                 AND tr.werkt = true
+                AND tr.bron <> 'itunes'
+                AND (tr.bron <> 'lokaal' OR tr.itunes_track_id IS NULL)
                 AND tr.preview_url IS NOT NULL
                 AND tr.preview_url <> ''
                 AND ($2::boolean = false
@@ -580,6 +586,15 @@ class SpelBeheer {
 
         let eersteGeldige = null;
         for (const kandidaat of rows) {
+            if (isAppleTrack(kandidaat)) {
+                await pool.query(
+                    `UPDATE tracks SET werkt = false, download_status = 'failed',
+                            download_melding = 'Oude iTunes-preview uitgesloten; vervang door volledige lokale audio.'
+                      WHERE id = $1`,
+                    [kandidaat.id],
+                ).catch(() => {});
+                continue;
+            }
             if (kandidaat.bron === 'lokaal' && !(await lokaalBestandBeschikbaar(kandidaat))) {
                 await pool.query(
                     `UPDATE tracks SET werkt = false, download_status = 'failed',
@@ -628,6 +643,7 @@ class SpelBeheer {
                          WHERE tr.titel_id = t.id
                            AND tr.werkt = true
                            AND tr.bron = 'lokaal'
+                           AND tr.itunes_track_id IS NULL
                            AND tr.download_status = 'available'
                            AND tr.preview_url IS NOT NULL
                            AND tr.preview_url <> ''

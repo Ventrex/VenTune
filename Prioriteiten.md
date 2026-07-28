@@ -24,6 +24,24 @@ gaat over volgorde en impact, niet over hoeveel code een item kost.
 
 ## Huidige volgorde
 
+## Status admin-profiel-onderhoudsronde — 2026-07-27
+
+- **P0 opgelost:** hostprofiel laadt weer op bestaande databases door de
+  migratie voor `gebruikers.voorkeuren`; geboortedatum is toegevoegd en leeftijd
+  wordt berekend uit het profiel.
+- **P1 opgelost:** Admin kan titels bulk-verwijderen, tracks verwijderen en
+  hostaccounts verwijderen met bevestiging. Gekoppelde lokale MP3’s worden mee
+  verwijderd.
+- **P1 opgelost:** Databasebeheer kan wees-MP3’s verwijderen en zoekcache ouder
+  dan zeven dagen opruimen.
+- **P1 opgelost:** dagelijks onderhoud staat standaard aan voor lokale
+  bestandscontrole, TMDB/catalogus, YouTube-aanvulling en downloads.
+- **P2 opgelost:** spel aanmaken is compacter: eerst game, dan taal, dan
+  editie/collectie; teamkeuze staat zichtbaar in de lobby.
+- **Open P1 blijft:** resterende titels zonder betrouwbare lokale MP3 handmatig
+  beoordelen of eigen audio uploaden. Automatisch “altijd juist” is niet
+  verdedigbaar zonder admincontrole per titel.
+
 ## Status lokale-audio- en catalogusronde — 2026-07-27
 
 - **P1 opgelost:** een beschikbare lokale MP3 is de enige speelbron en wordt

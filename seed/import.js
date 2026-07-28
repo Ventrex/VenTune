@@ -220,7 +220,7 @@ async function heeftRecenteWerkendeTrack(titelId) {
         `SELECT 1 FROM tracks
           WHERE titel_id = $1 AND werkt = true
             AND preview_url IS NOT NULL AND preview_url <> ''
-            AND ((bron = 'lokaal' AND download_status = 'available')
+            AND ((bron = 'lokaal' AND itunes_track_id IS NULL AND download_status = 'available')
                  OR (bron = 'youtube'
                      AND laatst_gecontroleerd_op >= now() - interval '7 days'))
           LIMIT 1`,
@@ -237,6 +237,8 @@ async function meldOntbrekendeTrack(titelId) {
           WHERE NOT EXISTS (
               SELECT 1 FROM tracks
                WHERE titel_id = $1 AND werkt = true
+                 AND bron <> 'itunes'
+                 AND (bron <> 'lokaal' OR itunes_track_id IS NULL)
                  AND preview_url IS NOT NULL AND preview_url <> ''
           )
             AND NOT EXISTS (
@@ -354,7 +356,7 @@ async function importeer({
                FROM titels t
               WHERE ${alleenZonderLokaal
                 ? `NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
-                                 AND x.bron = 'lokaal' AND x.werkt = true
+                                 AND x.bron = 'lokaal' AND x.itunes_track_id IS NULL AND x.werkt = true
                                  AND x.download_status = 'available')`
                 : (force ? 'TRUE' : 'NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id)')}
               ORDER BY id`,

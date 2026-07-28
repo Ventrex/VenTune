@@ -11,7 +11,7 @@
 //   GET    /api/admin/titels/:id/tracks
 //   POST   /api/admin/titels/:id/tracks
 //   DELETE /api/admin/tracks/:id
-//   POST   /api/admin/seed            (YouTube-import, iTunes als fallback)
+//   POST   /api/admin/seed            (YouTube-import; geen iTunes-preview)
 //   POST   /api/admin/tmdb/import      (gerichte film/serie-import)
 //   POST   /api/admin/collecties/import (collectie vullen + vooraf downloaden)
 //   POST   /api/admin/downloads/start  (URL-check + mp3 bulkdownload)
@@ -39,7 +39,9 @@ const {
     downloadTrack,
     controleerTrackUrl,
     controleerLokaleBestanden,
+    isAppleTrack,
 } = require('../../seed/download-track');
+const { absoluutPad } = require('../lib/media-health');
 const {
     hashWachtwoord,
     valideerWachtwoord,
@@ -54,6 +56,7 @@ const COOKIE = 'ventune_admin';
 const HTTPS = (process.env.APP_URL || '').startsWith('https');
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(MEDIA_DIR, 'uploads');
+const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(MEDIA_DIR, 'downloads');
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 },
@@ -94,6 +97,73 @@ function uploadAudio(req, res, next) {
         }
         return res.status(400).json({ fout: `Upload mislukt: ${err.message}` });
     });
+}
+
+function isVeiligMediaPad(absoluut) {
+    if (!absoluut) return false;
+    const opgelost = path.resolve(absoluut);
+    const roots = [DOWNLOAD_DIR, UPLOAD_DIR].map((dir) => path.resolve(dir));
+    return roots.some((root) => opgelost === root || opgelost.startsWith(`${root}${path.sep}`));
+}
+
+async function verwijderMediaBestand(track) {
+    if (!track || track.bron !== 'lokaal') return { verwijderd: false };
+    const absoluut = absoluutPad(track.bestand_pad || track.preview_url, MEDIA_DIR);
+    if (!isVeiligMediaPad(absoluut)) return { verwijderd: false, overgeslagen: true };
+    try {
+        await fs.unlink(absoluut);
+        return { verwijderd: true, pad: track.bestand_pad || track.preview_url };
+    } catch (err) {
+        if (err.code === 'ENOENT') return { verwijderd: false, ontbreekt: true };
+        throw err;
+    }
+}
+
+async function lokaleTracksVoorTitel(titelId) {
+    const { rows } = await pool.query(
+        `SELECT id, bron, preview_url, bestand_pad FROM tracks
+          WHERE titel_id = $1 AND bron = 'lokaal'`,
+        [titelId],
+    );
+    return rows;
+}
+
+async function ruimWeesMediaOp() {
+    const bekende = new Set();
+    const { rows } = await pool.query(
+        `SELECT preview_url, bestand_pad FROM tracks WHERE bron = 'lokaal'`,
+    );
+    for (const track of rows) {
+        for (const waarde of [track.preview_url, track.bestand_pad]) {
+            const absoluut = absoluutPad(waarde, MEDIA_DIR);
+            if (absoluut && isVeiligMediaPad(absoluut)) bekende.add(path.resolve(absoluut));
+        }
+    }
+    let gecontroleerd = 0;
+    let verwijderd = 0;
+    const fouten = [];
+    for (const dir of [DOWNLOAD_DIR, UPLOAD_DIR]) {
+        let bestanden = [];
+        try {
+            bestanden = await fs.readdir(dir, { withFileTypes: true });
+        } catch (err) {
+            if (err.code !== 'ENOENT') fouten.push({ dir, fout: err.message });
+            continue;
+        }
+        for (const item of bestanden) {
+            if (!item.isFile()) continue;
+            const absoluut = path.resolve(path.join(dir, item.name));
+            gecontroleerd++;
+            if (bekende.has(absoluut) || !isVeiligMediaPad(absoluut)) continue;
+            try {
+                await fs.unlink(absoluut);
+                verwijderd++;
+            } catch (err) {
+                fouten.push({ bestand: absoluut, fout: err.message });
+            }
+        }
+    }
+    return { gecontroleerd, verwijderd, fouten: fouten.slice(0, 50) };
 }
 
 // Vast token afgeleid van het wachtwoord + geheim. Verandert het wachtwoord,
@@ -220,6 +290,7 @@ router.patch('/api/admin/collecties/:id', vereisAdmin, async (req, res) => {
 router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
     const zoek = String(req.query.zoek || '').trim();
     const filter = String(req.query.filter || '').trim().toLowerCase();
+    const taal = String(req.query.taal || '').trim().toLowerCase();
     const params = [];
     const voorwaarden = [];
     if (zoek) {
@@ -237,6 +308,7 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
             SELECT 1 FROM tracks x
              WHERE x.titel_id = t.id AND x.werkt = true
                AND x.bron = 'lokaal' AND x.download_status = 'available'
+               AND x.itunes_track_id IS NULL
                AND x.preview_url IS NOT NULL AND x.preview_url <> ''
         )`);
     } else if (filter === 'afgekeurd') {
@@ -249,10 +321,12 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
         voorwaarden.push(`t.type = '${filter}'`);
     } else if (filter === 'lokaal') {
         voorwaarden.push(`EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
-            AND x.werkt = true AND x.bron = 'lokaal' AND x.download_status = 'available')`);
+            AND x.werkt = true AND x.bron = 'lokaal'
+            AND x.itunes_track_id IS NULL AND x.download_status = 'available')`);
     } else if (filter === 'zonder-lokaal') {
         voorwaarden.push(`NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
-            AND x.werkt = true AND x.bron = 'lokaal' AND x.download_status = 'available')`);
+            AND x.werkt = true AND x.bron = 'lokaal'
+            AND x.itunes_track_id IS NULL AND x.download_status = 'available')`);
     } else if (filter === 'youtube') {
         voorwaarden.push(`EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id AND x.werkt = true AND x.bron = 'youtube')`);
     } else if (filter === 'itunes') {
@@ -267,11 +341,16 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
         const leeftijd = Number(filter.split('-')[1]);
         voorwaarden.push(`t.leeftijdsgrens <= ${leeftijd}`);
     }
+    if (['nl', 'en'].includes(taal)) {
+        params.push(taal);
+        voorwaarden.push(`t.taal = $${params.length}`);
+    }
     const where = voorwaarden.length ? `WHERE ${voorwaarden.join(' AND ')}` : '';
     const { rows } = await pool.query(
         `SELECT t.*, COUNT(DISTINCT tr.id)::int AS aantal_tracks,
                 COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.preview_url IS NOT NULL AND tr.preview_url <> '')::int AS werkende_tracks,
-                COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'lokaal' AND tr.download_status = 'available')::int AS lokale_tracks,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'lokaal'
+                    AND tr.itunes_track_id IS NULL AND tr.download_status = 'available')::int AS lokale_tracks,
                 COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'youtube')::int AS youtube_tracks,
                 COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'itunes')::int AS itunes_tracks,
                 COUNT(DISTINCT tr.id) FILTER (WHERE tr.download_status = 'failed')::int AS download_fouten,
@@ -365,8 +444,34 @@ router.put('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
 });
 
 router.delete('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
-    await pool.query(`DELETE FROM titels WHERE id = $1`, [req.params.id]);
-    res.json({ ok: true });
+    const tracks = await lokaleTracksVoorTitel(req.params.id);
+    const { rowCount } = await pool.query(`DELETE FROM titels WHERE id = $1`, [req.params.id]);
+    if (!rowCount) return res.status(404).json({ fout: 'Titel niet gevonden.' });
+    let bestandenVerwijderd = 0;
+    for (const track of tracks) {
+        const resultaat = await verwijderMediaBestand(track);
+        if (resultaat.verwijderd) bestandenVerwijderd++;
+    }
+    res.json({ ok: true, verwijderd: rowCount, bestanden_verwijderd: bestandenVerwijderd });
+});
+
+router.post('/api/admin/titels/bulk-delete', vereisAdmin, async (req, res) => {
+    const ids = Array.isArray(req.body?.ids)
+        ? [...new Set(req.body.ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))].slice(0, 500)
+        : [];
+    if (!ids.length) return res.status(400).json({ fout: 'Kies minimaal één titel.' });
+    const tracks = await pool.query(
+        `SELECT id, titel_id, bron, preview_url, bestand_pad FROM tracks
+          WHERE titel_id = ANY($1::int[]) AND bron = 'lokaal'`,
+        [ids],
+    );
+    const { rowCount } = await pool.query(`DELETE FROM titels WHERE id = ANY($1::int[])`, [ids]);
+    let bestandenVerwijderd = 0;
+    for (const track of tracks.rows) {
+        const resultaat = await verwijderMediaBestand(track);
+        if (resultaat.verwijderd) bestandenVerwijderd++;
+    }
+    res.json({ ok: true, verwijderd: rowCount, bestanden_verwijderd: bestandenVerwijderd });
 });
 
 router.put('/api/admin/titels/:id/collecties', vereisAdmin, async (req, res) => {
@@ -548,6 +653,7 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                  WHERE EXISTS (SELECT 1 FROM tracks x
                                 WHERE x.titel_id = t.id AND x.werkt
                                   AND x.bron = 'lokaal'
+                                  AND x.itunes_track_id IS NULL
                                   AND x.download_status = 'available'
                                   AND x.preview_url IS NOT NULL AND x.preview_url <> '')) AS speelbaar,
                (SELECT count(*)::int FROM vragen) AS vragen,
@@ -556,6 +662,7 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                  WHERE NOT EXISTS (SELECT 1 FROM tracks x
                                     WHERE x.titel_id = t.id AND x.werkt
                                       AND x.bron = 'lokaal'
+                                      AND x.itunes_track_id IS NULL
                                       AND x.download_status = 'available'
                                       AND x.preview_url IS NOT NULL AND x.preview_url <> ''))
                  AS ontbrekende_tracks,
@@ -701,11 +808,16 @@ router.post('/api/admin/database/opschonen', vereisAdmin, async (req, res) => {
     const actie = String(req.body?.actie || '');
     const acties = {
         zoek_cache: `DELETE FROM zoek_cache`,
+        oude_zoekcache: `DELETE FROM zoek_cache WHERE opgehaald_op < now() - interval '7 days'`,
         afgehandelde_meldingen: `DELETE FROM meldingen WHERE afgehandeld = true`,
         spelgeschiedenis: `DELETE FROM lobbies WHERE status = 'afgelopen'`,
         afgekeurde_tracks: `DELETE FROM tracks WHERE werkt = false`,
     };
     if (!acties[actie]) {
+        if (actie === 'wees_media') {
+            const resultaat = await ruimWeesMediaOp();
+            return res.json({ ok: true, actie, verwijderd: resultaat.verwijderd, ...resultaat });
+        }
         if (actie !== 'onveilige_tekens') {
             return res.status(400).json({ fout: 'Onbekende opschoonactie.' });
         }
@@ -798,6 +910,7 @@ router.get('/api/admin/ontbrekende-tracks', vereisAdmin, async (_req, res) => {
                              WHERE tr.titel_id = t.id
                                AND tr.werkt = true
                                AND tr.bron = 'lokaal'
+                               AND tr.itunes_track_id IS NULL
                                AND tr.download_status = 'available'
                                AND tr.preview_url IS NOT NULL
                                AND tr.preview_url <> '')
@@ -818,7 +931,8 @@ router.get('/api/admin/kwaliteit', vereisAdmin, async (_req, res) => {
                 COUNT(*) FILTER (WHERE verificatie_score < 0.85)::int AS onzeker,
                 ROUND(COALESCE(AVG(verificatie_score), 0)::numeric, 3)::float AS gemiddelde
               FROM tracks
-             WHERE werkt = true AND bron = 'lokaal' AND download_status = 'available'`),
+             WHERE werkt = true AND bron = 'lokaal'
+               AND itunes_track_id IS NULL AND download_status = 'available'`),
             pool.query(`SELECT download_status, COUNT(*)::int AS aantal
               FROM tracks GROUP BY download_status ORDER BY download_status`),
             pool.query(`SELECT soort, COUNT(*)::int AS aantal
@@ -835,6 +949,7 @@ router.get('/api/admin/kwaliteit', vereisAdmin, async (_req, res) => {
              WHERE NOT EXISTS (SELECT 1 FROM tracks vc
                                 WHERE vc.titel_id = t.id AND vc.werkt
                                   AND vc.bron = 'lokaal'
+                                  AND vc.itunes_track_id IS NULL
                                   AND vc.download_status = 'available'
                                   AND vc.gecontroleerd AND vc.verificatie_score >= 0.85)
              ORDER BY t.naam LIMIT 300`),
@@ -932,6 +1047,17 @@ router.patch('/api/admin/gebruikers/:id', vereisAdmin, async (req, res) => {
         if (err.code === '23505') return res.status(409).json({ fout: 'Deze gebruikersnaam bestaat al.' });
         res.status(400).json({ fout: err.message || 'Gebruiker bijwerken mislukt.' });
     }
+});
+
+router.delete('/api/admin/gebruikers/:id', vereisAdmin, async (req, res) => {
+    await pool.query(`DELETE FROM auth_sessies WHERE gebruiker_id = $1`, [req.params.id]);
+    const { rows } = await pool.query(
+        `DELETE FROM gebruikers WHERE id = $1
+          RETURNING id, gebruikersnaam`,
+        [req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ fout: 'Gebruiker niet gevonden.' });
+    res.json({ ok: true, gebruiker: rows[0] });
 });
 
 router.post('/api/admin/gebruikers/:id/wachtwoord', vereisAdmin, async (req, res) => {
@@ -1071,8 +1197,14 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
 });
 
 router.delete('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
-    await pool.query(`DELETE FROM tracks WHERE id = $1`, [req.params.id]);
-    res.json({ ok: true });
+    const { rows } = await pool.query(
+        `DELETE FROM tracks WHERE id = $1
+          RETURNING id, bron, preview_url, bestand_pad`,
+        [req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ fout: 'Track niet gevonden.' });
+    const bestand = await verwijderMediaBestand(rows[0]);
+    res.json({ ok: true, bestand });
 });
 
 // Exporteer afgekeurde tracks als controlelijst. De admin kan dit bestand
@@ -1094,7 +1226,7 @@ router.get('/api/admin/tracks/afgekeurd/export', vereisAdmin, async (_req, res) 
 router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
         `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
-                tr.start_seconde, tr.download_status,
+                tr.start_seconde, tr.download_status, tr.itunes_track_id,
                 t.naam
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
@@ -1102,6 +1234,9 @@ router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
         [req.params.id],
     );
     if (!rows[0]) return res.status(404).json({ fout: 'Track niet gevonden.' });
+    if (isAppleTrack(rows[0])) {
+        return res.status(400).json({ fout: 'Dit is een iTunes/Apple-preview en geen volledig nummer. Zoek een YouTube-bron of upload volledige audio.' });
+    }
     if (!['youtube', 'lokaal'].includes(rows[0].bron)) {
         return res.status(400).json({ fout: 'Alleen YouTube- of herstelbare lokale tracks kunnen vooraf worden gedownload.' });
     }
@@ -1370,7 +1505,7 @@ router.delete('/api/admin/meldingen/:id', vereisAdmin, async (req, res) => {
     res.json({ ok: true, id: rows[0].id });
 });
 
-// ---- Seed importeren (YouTube → iTunes fallback) ----
+// ---- Seed importeren (YouTube als enige automatische audiobron) ----
 // Draait in de achtergrond: ~290 titels duurt langer dan een tunnel/proxy
 // een HTTP-verzoek openhoudt. De client vraagt de status apart op.
 let seedStatus = {
@@ -1551,6 +1686,7 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
                 SELECT 1 FROM tracks lokaal
                  WHERE lokaal.titel_id = tr.titel_id
                    AND lokaal.bron = 'lokaal'
+                   AND lokaal.itunes_track_id IS NULL
                    AND lokaal.werkt = true
                    AND lokaal.download_status = 'available'
             ))
@@ -1718,7 +1854,7 @@ router.post('/api/admin/seed', vereisAdmin, (req, res) => {
         seedStatus,
         (v) => { seedStatus = v; },
         async () => {
-            logger.info('Seed-import gestart via admin (YouTube eerst, iTunes fallback).');
+            logger.info('Seed-import gestart via admin (YouTube als enige automatische audiobron).');
             const samenvatting = await importeer({
                 force,
                 alleenDb: !!(req.body && req.body.alleenDb),
@@ -1765,15 +1901,15 @@ async function haalBeheerInstellingen() {
         mediaHealthIntervalUren: 24,
         mediaHealthLaatsteRun: null,
         mediaHealthVolgendeRun: null,
-        tmdbAutomatisch: false,
+        tmdbAutomatisch: true,
         tmdbIntervalUren: 24,
         tmdbLaatsteRun: null,
         tmdbVolgendeRun: null,
-        youtubeAutomatisch: false,
+        youtubeAutomatisch: true,
         youtubeIntervalUren: 24,
         youtubeLaatsteRun: null,
         youtubeVolgendeRun: null,
-        downloadsAutomatisch: false,
+        downloadsAutomatisch: true,
         downloadsIntervalUren: 24,
         downloadsLaatsteRun: null,
         downloadsVolgendeRun: null,

@@ -14,9 +14,9 @@ COPY server/package-lock.jso[n] ./
 
 RUN npm install --omit=dev
 
-# Lokale, door de admin aangevraagde YouTube-caches. yt-dlp haalt alleen
-# expliciet aangewezen video's op; ffmpeg zet ze om naar browser-vriendelijke
-# m4a-audio. Eigen uploads blijven ook ondersteund via /media.
+# Lokale, door de admin aangevraagde YouTube-downloads. yt-dlp haalt alleen
+# expliciet aangewezen video's op; ffmpeg maakt browser-vriendelijke audio.
+# Eigen uploads, waaronder m4a, blijven ook ondersteund via /media.
 RUN apk add --no-cache python3 py3-pip ffmpeg \
     && python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
 

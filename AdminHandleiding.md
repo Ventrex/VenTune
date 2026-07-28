@@ -38,7 +38,7 @@ gecontroleerd en lokale audio krijgt bij het spelen de hoogste voorkeur.
 
 ## Lokale downloads
 
-Bij een bestaande YouTube- of iTunes-track staat een downloadknop. In
+Bij een bestaande YouTube-track staat een downloadknop. In
 **Import & downloads** kun je daarnaast alle bestaande tracks vooraf laten
 controleren en downloaden. In **Spelcollecties** kan dit per editie, inclusief
 Disney/Pixar. VenTune zoekt tijdens deze downloadactie geen nieuwe video: alleen
@@ -46,7 +46,9 @@ een al opgeslagen en gecontroleerde track mag worden binnengehaald.
 YouTube wordt met `yt-dlp` en `ffmpeg` als mp3-audio opgeslagen in
 `./media/downloads`; eigen uploads staan in `./media/uploads`. Beide mappen
 komen via Docker en nginx mee en blijven na een rebuild bestaan. Per YouTube-
-track geldt maximaal 5 minuten audio.
+track wordt het volledige nummer opgeslagen tot maximaal 5 minuten. Een
+iTunes/Apple-preview wordt geweigerd omdat die bron alleen korte fragmenten
+levert. Eigen `.m4a`-uploads zijn wel toegestaan.
 
 De status is zichtbaar per track:
 

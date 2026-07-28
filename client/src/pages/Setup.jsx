@@ -16,16 +16,16 @@ import Brand from '../components/Brand.jsx';
 const NU = new Date().getFullYear();
 
 const CATEGORIEEN = [
-    { waarde: 'films', label: 'Films' },
-    { waarde: 'series', label: 'Series' },
-    { waarde: 'beide', label: 'Films & Series' },
-    { waarde: 'muziek', label: 'Muziek' },
+    { waarde: 'beide', label: 'Films & Series', logo: '/logos/films-series.svg', uitleg: 'Hitster voor intro’s, themes en soundtracks' },
+    { waarde: 'films', label: 'Films', logo: '/logos/films.svg', uitleg: 'Alleen films' },
+    { waarde: 'series', label: 'Series', logo: '/logos/series.svg', uitleg: 'Alleen series' },
+    { waarde: 'muziek', label: 'Muziek', logo: '/logos/music.svg', uitleg: 'Muziekedities later uitbreiden' },
 ];
 const TALEN = [
-    { waarde: 'nl', label: 'Nederlands' },
-    { waarde: 'us', label: 'Amerikaans (geen NL)' },
-    { waarde: 'en', label: 'Internationaal' },
-    { waarde: 'beide', label: 'Alle talen' },
+    { waarde: 'nl', label: 'Nederlands', icoon: '🇳🇱' },
+    { waarde: 'en', label: 'Internationaal', icoon: '🌍' },
+    { waarde: 'us', label: 'Amerikaans', icoon: '🇺🇸' },
+    { waarde: 'beide', label: 'Alle talen', icoon: '✨' },
 ];
 const LEEFTIJDEN = [
     { waarde: 0, label: 'Alle leeftijden', uitleg: 'Volledige gecureerde catalogus' },
@@ -333,11 +333,11 @@ export default function Setup() {
 
             {fout && <p className="waarschuwing">{fout}</p>}
 
-            {/* Stap 1: Categorie */}
+            {/* Stap 1: Gamekeuze */}
             {stap === 1 && (
                 <section>
-                    <h1>Categorie</h1>
-                    <div className="keuzes">
+                    <h1>Welke game?</h1>
+                    <div className="keuzes setup-logo-grid">
                         {CATEGORIEEN.map((c) => (
                             <button
                                 key={c.waarde}
@@ -357,34 +357,12 @@ export default function Setup() {
                                     verder();
                                 }}
                             >
-                                {c.label}
+                                <img className="keuze-logo-img" src={c.logo} alt="" />
+                                <span>{c.label}</span>
+                                <span className="keuze-uitleg">{c.uitleg}</span>
                             </button>
                         ))}
                     </div>
-                    {collecties.length > 0 && (
-                        <>
-                            <p className="kaart-label" style={{ textAlign: 'left', marginTop: '1.5rem' }}>
-                                Spelcollectie — Disney, Pixar, Marvel, Streaming, Smartlappen of Rock
-                            </p>
-                            <div className="chips">
-                                {collecties.map((c) => (
-                                    <button
-                                        key={c.sleutel}
-                                        type="button"
-                                        className={'chip' + ((filters.collecties || []).includes(c.sleutel) ? ' gekozen' : '')}
-                                        onClick={() => wisselCollectie(c)}
-                                    >
-                                        {c.naam} <span className="dim">({c.aantal})</span>
-                                    </button>
-                                ))}
-                            </div>
-                            {(filters.collecties || []).length > 0 && (
-                                <p className="dim" style={{ marginTop: '0.5rem' }}>
-                                    Meerdere collecties combineren mag. Frozen staat bijvoorbeeld in Films én Disney.
-                                </p>
-                            )}
-                        </>
-                    )}
                 </section>
             )}
 
@@ -392,7 +370,7 @@ export default function Setup() {
             {stap === 2 && (
                 <section>
                     <h1>Taal</h1>
-                    <div className="keuzes">
+                    <div className="keuzes setup-logo-grid">
                         {TALEN.map((t) => (
                             <button
                                 key={t.waarde}
@@ -405,16 +383,10 @@ export default function Setup() {
                                     verder();
                                 }}
                             >
-                                {t.label}
+                                <span className="keuze-logo">{t.icoon}</span>
+                                <span>{t.label}</span>
                             </button>
                         ))}
-                    </div>
-                    <p className="kaart-label" style={{ textAlign: 'left', marginTop: '0.75rem' }}>
-                        Leeftijd deelnemers (standaard 4–99; individuele leeftijden in de lobby bepalen automatisch de jongste)
-                    </p>
-                    <div className="velden leeftijdsbereik">
-                        <label>Jongste<input className="invoer" type="number" min="4" max="120" inputMode="numeric" value={filters.leeftijd_deelnemer_min ?? ''} onChange={(e) => wijzigDeelnemerLeeftijd('leeftijd_deelnemer_min', e.target.value)} onBlur={normaliseerDeelnemerLeeftijden} /></label>
-                        <label>Oudste<input className="invoer" type="number" min="4" max="120" inputMode="numeric" value={filters.leeftijd_deelnemer_max ?? ''} onChange={(e) => wijzigDeelnemerLeeftijd('leeftijd_deelnemer_max', e.target.value)} onBlur={normaliseerDeelnemerLeeftijden} /></label>
                     </div>
                 </section>
             )}
@@ -422,7 +394,36 @@ export default function Setup() {
             {/* Stap 3: Periode */}
             {stap === 3 && (
                 <section>
-                    <h1>Periode</h1>
+                    <h1>Editie & periode</h1>
+                    {collecties.length > 0 && (
+                        <>
+                            <p className="kaart-label" style={{ textAlign: 'left' }}>
+                                Editie / collectie
+                            </p>
+                            <div className="chips">
+                                <button
+                                    type="button"
+                                    className={'chip' + (!(filters.collecties || []).length ? ' gekozen' : '')}
+                                    onClick={() => zet('collecties', [])}
+                                >
+                                    Algemeen
+                                </button>
+                                {collecties.map((c) => (
+                                    <button
+                                        key={c.sleutel}
+                                        type="button"
+                                        className={'chip' + ((filters.collecties || []).includes(c.sleutel) ? ' gekozen' : '')}
+                                        onClick={() => wisselCollectie(c)}
+                                    >
+                                        {c.naam} <span className="dim">({c.aantal})</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="dim" style={{ marginTop: '0.5rem' }}>
+                                Meerdere keuzes kan. Een titel kan bijvoorbeeld Film én Disney/Pixar zijn.
+                            </p>
+                        </>
+                    )}
                     <p className="periode-waarde">
                         {filters.periode_start} – {filters.periode_eind}
                     </p>

@@ -57,7 +57,7 @@ async function zetTrack(titelId, video, playlistNaam, executor = pool, tmdbContr
     // lokale track niet vervangen of opnieuw als externe kandidaat opslaan.
     const lokaal = await executor.query(
         `SELECT id FROM tracks
-          WHERE titel_id = $1 AND bron = 'lokaal' AND werkt = true
+          WHERE titel_id = $1 AND bron = 'lokaal' AND itunes_track_id IS NULL AND werkt = true
             AND download_status = 'available'
           LIMIT 1`,
         [titelId],

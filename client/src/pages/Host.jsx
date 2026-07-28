@@ -177,17 +177,6 @@ export default function Host() {
                                             )}
                                             {s.team_naam && <span className="dim"> · {s.team_naam}</span>}
                                             {s.leeftijd && <span className="dim"> · {s.leeftijd} jaar</span>}
-                                            {s.id === sessie.spelerId && (teams || []).length > 0 && (
-                                                <select
-                                                    className="invoer team-kiezer"
-                                                    value={s.team_naam || ''}
-                                                    onChange={(e) => spel.wijzigTeam(e.target.value || null)}
-                                                    aria-label="Jouw team"
-                                                >
-                                                    <option value="">Geen team</option>
-                                                    {teams.map((team) => <option key={team} value={team}>{team}</option>)}
-                                                </select>
-                                            )}
                                         </span>
                                     </li>
                                 ))}
@@ -227,6 +216,22 @@ export default function Host() {
                                 {(lobbyWijziging?.teams || teams || []).length > 0 && <div className="chips">
                                     {(lobbyWijziging?.teams || teams || []).map((team) => <span className="chip gekozen" key={team}>{team}</span>)}
                                 </div>}
+                                {(teams || []).length > 0 && (
+                                    <div className="kaart team-keuze-kaart">
+                                        <p className="kaart-label">Jouw team</p>
+                                        <div className="chips team-chips">
+                                            <button className="chip" type="button" onClick={() => spel.wijzigTeam(null)}>Geen team</button>
+                                            {teams.map((team) => {
+                                                const actief = spelers.find((s) => s.id === sessie.spelerId)?.team_naam === team;
+                                                return (
+                                                    <button className={'chip' + (actief ? ' gekozen' : '')} type="button" key={team} onClick={() => spel.wijzigTeam(team)}>
+                                                        {team}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                                 <button className="knop knop-stil" type="button" onClick={() => spel.bewaarLobbyInstellingen(lobbyWijziging || {})}>Instellingen opslaan</button>
                             </div>
                             {(voorbereiding || startBezig) && (

@@ -62,6 +62,11 @@
       een expliciete titelactie mag gericht opnieuw zoeken.
 - [x] **P1** Lokale beschikbare audio als bron van waarheid gebruiken en de
       oorspronkelijke URL niet meer controleren zolang het bestand gezond is.
+- [x] **P1** iTunes/Apple-previewclips uitsluiten van downloads, lokale
+      speelbaarheid en speltelling; m4a van YouTube/eigen upload blijft wel
+      toegestaan.
+- [x] **P1** YouTube-audio volledig downloaden tot maximaal vijf minuten en
+      de werkelijke speelduur na `yt-dlp`/`ffmpeg` controleren.
 - [x] **P1** Geplande tracks vóór de eerste ronde lokaal voorbereiden met een
       YouTube-fragment van maximaal vijf minuten.
 - [x] **P1** Bonusopties globaal verwijderen na een fout, speler-cooldown van

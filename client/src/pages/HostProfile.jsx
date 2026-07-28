@@ -9,6 +9,7 @@ export default function HostProfile() {
     const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [naam, setNaam] = useState('');
+    const [geboortedatum, setGeboortedatum] = useState('');
     const [fout, setFout] = useState('');
     const [melding, setMelding] = useState('');
 
@@ -16,6 +17,7 @@ export default function HostProfile() {
         authProfiel().then((resultaat) => {
             setData(resultaat);
             setNaam(resultaat.profiel.display_naam);
+            setGeboortedatum(resultaat.profiel.geboortedatum ? String(resultaat.profiel.geboortedatum).slice(0, 10) : '');
         }).catch((err) => {
             if (/inlog/i.test(err.message)) navigate('/host/login?return=/host/profile', { replace: true });
             else setFout(err.message);
@@ -27,7 +29,7 @@ export default function HostProfile() {
         setFout('');
         setMelding('');
         try {
-            const resultaat = await authBewaarProfiel({ display_naam: naam });
+            const resultaat = await authBewaarProfiel({ display_naam: naam, geboortedatum: geboortedatum || null });
             setData((oud) => ({ ...oud, profiel: { ...oud.profiel, ...resultaat } }));
             setMelding('Profiel opgeslagen.');
         } catch (err) { setFout(err.message); }
@@ -49,6 +51,11 @@ export default function HostProfile() {
                         <p className="dim">@{data.profiel.gebruikersnaam} · {data.profiel.actief ? 'actief' : 'uitgeschakeld'}</p>
                         <label className="kaart-label" htmlFor="profiel-naam">Naam op het hostscherm</label>
                         <input id="profiel-naam" className="invoer" value={naam} onChange={(e) => setNaam(e.target.value)} maxLength={40} required />
+                        <label className="kaart-label" htmlFor="profiel-geboorte">Geboortedatum</label>
+                        <input id="profiel-geboorte" className="invoer" type="date" value={geboortedatum} onChange={(e) => setGeboortedatum(e.target.value)} />
+                        <p className="dim" style={{ marginTop: '-0.75rem' }}>
+                            {data.profiel.leeftijd ? `Leeftijd: ${data.profiel.leeftijd} jaar. Dit gebruikt VenTune automatisch voor host/gezinsinstellingen.` : 'Geen geboortedatum ingevuld; leeftijd blijft onbekend.'}
+                        </p>
                         <button className="knop" type="submit">Opslaan</button>
                         {melding && <p className="dim">{melding}</p>}
                     </form>

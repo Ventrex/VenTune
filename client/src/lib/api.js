@@ -209,9 +209,10 @@ export async function adminLogin(wachtwoord) {
 export async function adminLogout() {
     return adminFetch('/api/admin/logout', { method: 'POST' });
 }
-export async function adminTitels(zoek = '', filter = '') {
+export async function adminTitels(zoek = '', filter = '', taal = '') {
     const params = new URLSearchParams({ zoek });
     if (filter) params.set('filter', filter);
+    if (taal) params.set('taal', taal);
     return adminFetch(`/api/admin/titels?${params.toString()}`);
 }
 export async function adminMaakTitel(data) {
@@ -222,6 +223,12 @@ export async function adminUpdateTitel(id, data) {
 }
 export async function adminVerwijderTitel(id) {
     return adminFetch(`/api/admin/titels/${id}`, { method: 'DELETE' });
+}
+export async function adminVerwijderTitels(ids) {
+    return adminFetch('/api/admin/titels/bulk-delete', {
+        method: 'POST',
+        ...jsonBody({ ids }),
+    });
 }
 export async function adminTracks(titelId) {
     return adminFetch(`/api/admin/titels/${titelId}/tracks`);
@@ -357,6 +364,9 @@ export async function adminMaakGebruiker(data) {
 }
 export async function adminBewerkGebruiker(id, data) {
     return adminFetch(`/api/admin/gebruikers/${id}`, { method: 'PATCH', ...jsonBody(data) });
+}
+export async function adminVerwijderGebruiker(id) {
+    return adminFetch(`/api/admin/gebruikers/${id}`, { method: 'DELETE' });
 }
 export async function adminGebruikerStatus(id, actief) {
     return adminFetch(`/api/admin/gebruikers/${id}`, {

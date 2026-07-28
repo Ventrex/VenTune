@@ -1,7 +1,8 @@
 // =====================================================================
 // VenTune — serveringang.
 // Draait de migratie bij het opstarten, biedt een health-endpoint en de
-// muziek-routes (YouTube primair, iTunes als fallback), en legt de fundering
+// muziek-routes (YouTube als zoek- en downloadbron; iTunes-preview niet voor
+// gameplay), en legt de fundering
 // voor Express + Socket.IO.
 // De lobby- en game-logica komt in de volgende stappen.
 // =====================================================================

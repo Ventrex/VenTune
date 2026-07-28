@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Series">
+  <rect width="256" height="256" rx="54" fill="#000"/>
+  <rect x="40" y="56" width="176" height="132" rx="22" fill="#0a0a0a" stroke="#c41230" stroke-width="10"/>
+  <path d="M94 38l34 30 34-30" stroke="#c41230" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="192" cy="92" r="9" fill="#8b0f1d"/>
+  <circle cx="192" cy="126" r="9" fill="#8b0f1d"/>
+  <text x="118" y="138" text-anchor="middle" font-family="Verdana,Arial,sans-serif" font-weight="900" font-size="33" fill="#fff">TV</text>
+  <text x="128" y="218" text-anchor="middle" font-family="Verdana,Arial,sans-serif" font-weight="800" font-size="25" fill="#c41230">SERIES</text>
+</svg>

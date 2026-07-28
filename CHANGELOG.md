@@ -1,5 +1,50 @@
 # VenTune changelog
 
+## [0.5.3] - 2026-07-28
+
+### Volledige lokale audio
+
+- iTunes/Apple-previewclips worden niet meer gedownload, gecontroleerd of in
+  een spel gebruikt. Een oude lokaal opgeslagen iTunes-clip wordt automatisch
+  als onbruikbaar gemarkeerd, ook wanneer het bestand `.m4a` heet.
+- `.m4a` blijft toegestaan voor eigen/lokale audio; de bron bepaalt of het een
+  korte Apple-preview of een speelbaar lokaal bestand is.
+- YouTube-downloads worden vooraf met `yt-dlp` opgehaald en op een echte
+  speelduur gecontroleerd. Een nummer blijft volledig wanneer het korter is
+  dan vijf minuten en wordt anders afgekapt op maximaal vijf minuten.
+- Speltelling, voorbereiding, admin-overzicht en ontbrekende-tracklijsten
+  tellen alleen lokale audio mee die geen iTunes-preview is.
+
+## [0.5.2] - 2026-07-27
+
+### Admin, profiel en onderhoud
+
+- Profiel laden werkt weer op bestaande databases: `gebruikers.voorkeuren`
+  wordt gemigreerd en `geboortedatum` is toegevoegd.
+- Leeftijd wordt niet meer los gevraagd bij gasten. De host vult zijn/haar
+  geboortedatum in het profiel in; VenTune berekent daaruit de leeftijd.
+- Admin kan titels bulk-verwijderen, tracks verwijderen en hostaccounts
+  verwijderen. Bij titels/tracks worden gekoppelde lokale MP3-bestanden veilig
+  mee verwijderd.
+- Databasebeheer heeft nu een actie voor weesbestanden: MP3’s op disk zonder
+  databasekoppeling worden opgespoord en verwijderd.
+- Admin heeft een compactere **Onderhoud**-tab met de hoofdacties: lokale MP3
+  controleren, YouTube zoeken + downloaden, bonusvragen, studio, leeftijd en
+  opschonen.
+- Dagelijks onderhoud staat standaard aan voor media-health, TMDB/catalogus,
+  YouTube-aanvulling en downloads. Playlist-import blijft handmatig.
+
+### Spel aanmaken en lobby
+
+- Setup begint met duidelijke spelkeuze-kaarten met logo’s: Films & Series,
+  Films, Series en Muziek.
+- Taal en editie/collectie zijn compacter gemaakt; gekozen opties krijgen een
+  rode achtergrond, niet-gekozen opties blijven donker.
+- Teamkeuze staat nu direct zichtbaar in lobby en spelerweergave als knoppen in
+  plaats van verstopt in een dropdown.
+- Extra collecties toegevoegd: Star Wars, Cult Classics, Fantasy en
+  Superhelden.
+
 ## [0.5.1] - 2026-07-27
 
 ### Spelstart gebruikt alleen echte lokale MP3’s

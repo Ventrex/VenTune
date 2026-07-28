@@ -24,6 +24,7 @@ const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
 const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(MEDIA_DIR, 'downloads');
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_YOUTUBE_SECONDS = 5 * 60;
+const MAX_AUDIO_TOLERANCE_SECONDS = 1;
 const execFileAsync = promisify(execFile);
 
 function optie(naam) {
@@ -48,6 +49,41 @@ function isToegestanePreview(url) {
     }
 }
 
+/** Herken Apple/iTunes-previewbronnen, ook nadat ze lokaal zijn opgeslagen. */
+function isAppleAudioUrl(url) {
+    try {
+        const u = new URL(String(url || ''));
+        const host = u.hostname.toLowerCase();
+        return host === 'itunes.apple.com'
+            || host.endsWith('.itunes.apple.com')
+            || host === 'apple.com'
+            || host.endsWith('.apple.com')
+            || host.endsWith('.mzstatic.com');
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Een lokaal bestand kan een oude iTunes-preview zijn. Alleen naar de
+ * extensie kijken is hiervoor fout: een iTunes-preview kan ook als m4a zijn
+ * opgeslagen. De databasebron en de oorspronkelijke URL zijn leidend.
+ */
+function isAppleTrack(track) {
+    if (!track) return false;
+    if (String(track.bron || '').toLowerCase() === 'itunes') return true;
+    if (track.itunes_track_id !== null
+        && track.itunes_track_id !== undefined
+        && String(track.itunes_track_id).trim() !== '') return true;
+    return isAppleAudioUrl(track.bron_url) || isAppleAudioUrl(track.preview_url);
+}
+
+function isSpeelbareLokaleTrack(track) {
+    return track?.bron === 'lokaal'
+        && track.download_status === 'available'
+        && !isAppleTrack(track);
+}
+
 function veiligeNaam(tekst) {
     return String(tekst || 'track')
         .normalize('NFD')
@@ -67,86 +103,9 @@ async function markeerMislukt(id, melding) {
 }
 
 async function downloadAppleTrack(track, droog = false) {
-    if (!isToegestanePreview(track.preview_url)) {
-        if (!droog) {
-            await markeerMislukt(track.id, 'Bron is geen toegestane iTunes/Apple-preview-URL.');
-        }
-        throw new Error('Bron is geen toegestane iTunes/Apple-preview-URL.');
-    }
-
-    const naam = String(track.naam || track.tracknaam || 'track');
-    const bestandsnaam = `${veiligeNaam(naam)}-${track.id}.m4a`;
-    const bestand = path.join(DOWNLOAD_DIR, bestandsnaam);
-    const lokaal = `/media/downloads/${bestandsnaam}`;
-    if (droog) {
-        console.log(`DRY  ${track.id}: ${naam} → ${bestand}`);
-        return;
-    }
-
-    await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
-    await pool.query(
-        `UPDATE tracks SET download_status = 'pending', download_melding = NULL
-          WHERE id = $1`,
-        [track.id],
-    );
-
-    let response;
-    try {
-        response = await fetch(track.preview_url, {
-            headers: { 'User-Agent': 'VenTune/1.0 local-preview-cache' },
-        });
-    } catch (err) {
-        await markeerMislukt(track.id, err.message);
-        throw err;
-    }
-    if (!response.ok) {
-        const err = new Error(`Bron gaf HTTP ${response.status}.`);
-        await markeerMislukt(track.id, err.message);
-        throw err;
-    }
-
-    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-    if (contentType && !contentType.startsWith('audio/') && !contentType.includes('mp4')) {
-        const err = new Error(`Bron gaf geen audio terug (${contentType}).`);
-        await markeerMislukt(track.id, err.message);
-        throw err;
-    }
-
-    const lengte = Number(response.headers.get('content-length') || 0);
-    if (lengte > MAX_BYTES) {
-        const err = new Error(`Bestand is groter dan ${MAX_BYTES} bytes.`);
-        await markeerMislukt(track.id, err.message);
-        throw err;
-    }
-
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (!bytes.length || bytes.length > MAX_BYTES) {
-        const err = new Error('Leeg of te groot audiobestand ontvangen.');
-        await markeerMislukt(track.id, err.message);
-        throw err;
-    }
-
-    const hash = crypto.createHash('sha256').update(bytes).digest('hex');
-    const tijdelijk = `${bestand}.part-${process.pid}`;
-    try {
-        await fs.writeFile(tijdelijk, bytes, { flag: 'w' });
-        await fs.rename(tijdelijk, bestand);
-
-        await pool.query(
-            `UPDATE tracks
-                SET bron = 'lokaal', preview_url = $2, bestand_pad = $2,
-                    bron_url = $3, download_status = 'available',
-                    download_melding = NULL, audio_sha256 = $4,
-                    gedownload_op = now(), verificatie_score = GREATEST(verificatie_score, 0.95),
-                    verificatie_reden = COALESCE(verificatie_reden, 'lokale iTunes-previewcache')
-              WHERE id = $1`,
-            [track.id, lokaal, track.preview_url, hash],
-        );
-    } catch (err) {
-        await markeerMislukt(track.id, err.message);
-        throw err;
-    }
-    console.log(`OK   ${track.id}: ${naam} → ${bestand} (${bytes.length} bytes)`);
+    const fout = 'iTunes/Apple-preview wordt niet gedownload: dit zijn korte fragmenten. Gebruik een gecontroleerde YouTube-bron of upload een volledig audiobestand.';
+    if (!droog) await markeerMislukt(track.id, fout);
+    throw new Error(fout);
 }
 
 function youtubeUrl(track) {
@@ -183,10 +142,13 @@ async function controleerYoutubeUrl(track) {
 }
 
 async function controleerTrackUrl(track) {
+    if (isAppleTrack(track)) {
+        throw new Error('iTunes/Apple-preview uitgesloten: dit is geen volledig nummer.');
+    }
     // Een lokale, beschikbare kopie is de bron van waarheid. Controleer dan
     // nooit meer de oorspronkelijke YouTube/iTunes-URL; die kan later worden
     // verwijderd zonder dat het spel daardoor breekt.
-    if (track?.bron === 'lokaal' && track.download_status === 'available'
+    if (isSpeelbareLokaleTrack(track)
         && await lokaalBestandBeschikbaar(track)) {
         return { bestaat: true, lokaal: true, url: track.preview_url };
     }
@@ -212,11 +174,69 @@ async function lokaalBestandBeschikbaar(track) {
     }
 }
 
+/** Lees de werkelijke speelduur uit de container, niet uit de bestandsextensie. */
+async function audioDuurInSeconden(bestand) {
+    const { stdout } = await execFileAsync(
+        'ffprobe',
+        [
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            bestand,
+        ],
+        { timeout: 30000, maxBuffer: 128 * 1024 },
+    );
+    const duur = Number.parseFloat(String(stdout).trim());
+    if (!Number.isFinite(duur) || duur <= 0) {
+        throw new Error('Audiobestand heeft geen geldige speelduur.');
+    }
+    return duur;
+}
+
+/**
+ * YouTube-downloads zijn volledige nummers zolang ze korter dan vijf minuten
+ * zijn. Langere bronnen worden exact op vijf minuten afgeknipt. Een korte
+ * iTunes-preview wordt hier nooit doorheen gehaald: die wordt eerder op bron
+ * uitgesloten.
+ */
+async function begrensAudioOpVijfMinuten(bestand) {
+    let duur = await audioDuurInSeconden(bestand);
+    if (duur <= MAX_YOUTUBE_SECONDS + MAX_AUDIO_TOLERANCE_SECONDS) {
+        return Math.min(duur, MAX_YOUTUBE_SECONDS);
+    }
+
+    const extensie = path.extname(bestand) || '.mp3';
+    const tijdelijk = `${bestand}.max5-${process.pid}${extensie}`;
+    try {
+        await execFileAsync(
+            'ffmpeg',
+            [
+                '-hide_banner', '-loglevel', 'error', '-y',
+                '-i', bestand,
+                '-t', String(MAX_YOUTUBE_SECONDS),
+                '-map', '0:a:0',
+                '-c:a', 'copy',
+                tijdelijk,
+            ],
+            { timeout: 60000, maxBuffer: 512 * 1024 },
+        );
+        await fs.rename(tijdelijk, bestand);
+    } catch (err) {
+        await fs.unlink(tijdelijk).catch(() => {});
+        throw new Error(`Audio kon niet tot maximaal vijf minuten worden begrensd: ${err.message}`);
+    }
+    duur = await audioDuurInSeconden(bestand);
+    if (duur > MAX_YOUTUBE_SECONDS + MAX_AUDIO_TOLERANCE_SECONDS) {
+        throw new Error(`Gedownload nummer duurt ${Math.ceil(duur)} seconden en kon niet tot vijf minuten worden begrensd.`);
+    }
+    return Math.min(duur, MAX_YOUTUBE_SECONDS);
+}
+
 /** Controleer alle lokale tracks en synchroniseer status/hash met de disk. */
 async function controleerLokaleBestanden({ onProgress = null } = {}) {
     const { rows } = await pool.query(
         `SELECT tr.id, tr.bron, tr.preview_url, tr.bestand_pad, tr.audio_sha256,
-                tr.download_status, t.naam
+                tr.download_status, tr.itunes_track_id, tr.bron_url, t.naam
            FROM tracks tr JOIN titels t ON t.id = tr.titel_id
           WHERE tr.bron = 'lokaal' OR tr.download_status = 'available'
           ORDER BY tr.id`,
@@ -226,6 +246,19 @@ async function controleerLokaleBestanden({ onProgress = null } = {}) {
     let gewijzigd = 0;
     const fouten = [];
     for (const [index, track] of rows.entries()) {
+        if (isAppleTrack(track)) {
+            const fout = 'Oude iTunes-preview uitgesloten; vervang deze door een volledige YouTube-download of eigen upload.';
+            fouten.push({ id: track.id, naam: track.naam, fout });
+            await pool.query(
+                `UPDATE tracks SET werkt = false, download_status = 'failed',
+                        media_controle_op = now(), media_melding = $2,
+                        download_melding = $2
+                  WHERE id = $1`,
+                [track.id, fout],
+            );
+            onProgress?.({ verwerkt: index + 1, totaal: rows.length, huidige: track.naam, goed, ontbreekt, gewijzigd });
+            continue;
+        }
         const gezondheid = await bestandGezondheid(track);
         if (gezondheid.aanwezig && gezondheid.hashGelijk) {
             goed++;
@@ -303,6 +336,11 @@ async function downloadYoutubeTrack(track, droog = false) {
         if (!info.size || info.size > MAX_BYTES) {
             throw new Error(`Gedownload bestand is leeg of groter dan ${MAX_BYTES} bytes.`);
         }
+        const duur = await begrensAudioOpVijfMinuten(bestand);
+        const naBegrenzen = await fs.stat(bestand);
+        if (!naBegrenzen.size || naBegrenzen.size > MAX_BYTES) {
+            throw new Error(`Audio na begrenzen is leeg of groter dan ${MAX_BYTES} bytes.`);
+        }
         const bytes = await fs.readFile(bestand);
         const hash = crypto.createHash('sha256').update(bytes).digest('hex');
         await pool.query(
@@ -315,7 +353,7 @@ async function downloadYoutubeTrack(track, droog = false) {
               WHERE id = $1`,
             [track.id, lokaal, bronUrl, hash],
         );
-        console.log(`OK   ${track.id}: ${naam} → ${bestand} (${info.size} bytes)`);
+        console.log(`OK   ${track.id}: ${naam} → ${bestand} (${naBegrenzen.size} bytes, ${duur.toFixed(1)} s)`);
     } catch (err) {
         await markeerMislukt(track.id, err.message);
         throw new Error(`YouTube lokaal opslaan mislukt: ${err.message}`);
@@ -323,7 +361,10 @@ async function downloadYoutubeTrack(track, droog = false) {
 }
 
 async function downloadTrack(track, droog = false) {
-    if (track?.bron === 'lokaal' && track.download_status === 'available'
+    if (isAppleTrack(track)) {
+        throw new Error('iTunes/Apple-preview uitgesloten: dit is geen volledig nummer.');
+    }
+    if (isSpeelbareLokaleTrack(track)
         && await lokaalBestandBeschikbaar(track)) {
         return { ok: true, lokaal: true, preview_url: track.preview_url };
     }
@@ -386,5 +427,8 @@ module.exports = {
     controleerYoutubeUrl,
     controleerTrackUrl,
     lokaalBestandBeschikbaar,
+    isAppleAudioUrl,
+    isAppleTrack,
+    isSpeelbareLokaleTrack,
     controleerLokaleBestanden,
 };

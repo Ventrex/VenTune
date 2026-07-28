@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Films">
+  <rect width="256" height="256" rx="54" fill="#000"/>
+  <path d="M48 58h160l-18 108H66L48 58Z" fill="#0a0a0a" stroke="#c41230" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M62 82h132M74 112h108M84 142h88" stroke="#8b0f1d" stroke-width="10" stroke-linecap="round"/>
+  <path d="M92 198h72l18 22H74l18-22Z" fill="#c41230"/>
+  <text x="128" y="134" text-anchor="middle" font-family="Verdana,Arial,sans-serif" font-weight="900" font-size="34" fill="#fff">FILM</text>
+</svg>

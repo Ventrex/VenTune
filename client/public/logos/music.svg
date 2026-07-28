@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Muziek">
+  <rect width="256" height="256" rx="54" fill="#000"/>
+  <path d="M96 164V58l92-18v108" fill="none" stroke="#c41230" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="76" cy="178" r="31" fill="#0a0a0a" stroke="#c41230" stroke-width="10"/>
+  <circle cx="168" cy="160" r="31" fill="#0a0a0a" stroke="#c41230" stroke-width="10"/>
+  <path d="M96 86l92-18" stroke="#8b0f1d" stroke-width="10"/>
+  <text x="128" y="226" text-anchor="middle" font-family="Verdana,Arial,sans-serif" font-weight="900" font-size="26" fill="#fff">MUZIEK</text>
+</svg>

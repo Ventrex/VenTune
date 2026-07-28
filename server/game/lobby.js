@@ -8,6 +8,7 @@
 
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
+const { leeftijdUitGeboortedatum } = require('../lib/auth');
 
 // Codealfabet zonder verwarrende tekens (geen I, O, 0, 1).
 const ALFABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -35,6 +36,11 @@ async function maakLobby({ hostNaam = 'Host', gebruikerId, instellingen = {} } =
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        const gebruiker = await client.query(
+            `SELECT geboortedatum FROM gebruikers WHERE id = $1 LIMIT 1`,
+            [gebruikerId],
+        );
+        const hostLeeftijd = leeftijdUitGeboortedatum(gebruiker.rows[0]?.geboortedatum);
 
         // Unieke code zoeken (botsingskans is klein, maar we checken).
         let code;
@@ -60,10 +66,10 @@ async function maakLobby({ hostNaam = 'Host', gebruikerId, instellingen = {} } =
 
         const hostToken = maakToken();
         const speler = await client.query(
-            `INSERT INTO spelers (lobby_id, gebruiker_id, naam, is_host, is_gast, sessie_token, verbonden)
-             VALUES ($1, $2, $3, true, false, $4, true)
+            `INSERT INTO spelers (lobby_id, gebruiker_id, naam, leeftijd, is_host, is_gast, sessie_token, verbonden)
+             VALUES ($1, $2, $3, $4, true, false, $5, true)
              RETURNING id`,
-            [lobbyId, gebruikerId, hostNaam, hostToken],
+            [lobbyId, gebruikerId, hostNaam, hostLeeftijd, hostToken],
         );
         const hostSpelerId = speler.rows[0].id;
 
