@@ -999,6 +999,29 @@ function Beheer({ onUit }) {
                         <input type="checkbox" checked={planning?.downloadsAutomatisch === true} onChange={(e) => bewaarPlanning({ downloadsAutomatisch: e.target.checked })} />
                         <span><strong>Gecontroleerde YouTube-tracks downloaden</strong><span className="keuze-uitleg">Alleen al gecontroleerde bronnen naar /media/downloads</span></span>
                     </label>
+                    <div className="kaart" style={{ marginTop: '1rem' }}>
+                        <p className="kaart-label">Verwerkingssnelheid</p>
+                        <p className="dim">
+                            Bepaalt hoeveel nummers tegelijk worden gezocht en gedownload. YouTube-verzoeken
+                            blijven op minimaal 250 ms afstand; bij 403/429 wordt automatisch langer gewacht.
+                        </p>
+                        <label className="kaart-label">
+                            Batchgrootte
+                            <input
+                                className="invoer"
+                                type="number"
+                                min="1"
+                                max="50"
+                                value={planning?.batchGrootte ?? 5}
+                                onChange={(e) => setPlanning((oud) => ({
+                                    ...(oud || {}),
+                                    batchGrootte: Number(e.target.value) || 1,
+                                }))}
+                                style={{ maxWidth: 100, marginLeft: '0.5rem' }}
+                            />
+                            <span className="dim"> tegelijk (1–50)</span>
+                        </label>
+                    </div>
                     <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
                         <label className="kaart-label">Playlists elke <input className="invoer" type="number" min="1" max="168" value={planning?.playlistIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), playlistIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
                         <label className="kaart-label">Bestanden elke <input className="invoer" type="number" min="1" max="168" value={planning?.mediaHealthIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), mediaHealthIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
@@ -1015,7 +1038,7 @@ function Beheer({ onUit }) {
                             youtubeIntervalUren: 24,
                             downloadsIntervalUren: 24,
                         })}>Alles dagelijks aanzetten</button>
-                        <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({ playlistIntervalUren: planning?.playlistIntervalUren || 24, mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24, tmdbIntervalUren: planning?.tmdbIntervalUren || 24, youtubeIntervalUren: planning?.youtubeIntervalUren || 24, downloadsIntervalUren: planning?.downloadsIntervalUren || 24 })}>Planning opslaan</button>
+                        <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({ playlistIntervalUren: planning?.playlistIntervalUren || 24, mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24, tmdbIntervalUren: planning?.tmdbIntervalUren || 24, youtubeIntervalUren: planning?.youtubeIntervalUren || 24, downloadsIntervalUren: planning?.downloadsIntervalUren || 24, batchGrootte: planning?.batchGrootte || 5 })}>Planning opslaan</button>
                     </div>
                 </div>
                 </section>
