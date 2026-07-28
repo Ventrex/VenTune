@@ -93,6 +93,35 @@ assert.equal(taalMeerkeuze.opties.length, 6);
 assert.equal(taalMeerkeuze.opties[taalMeerkeuze.correctIndex], 'Flodder');
 assert(!taalMeerkeuze.opties.includes('The Hangover'));
 assert(!taalMeerkeuze.opties.includes('Superbad'));
+
+// Ook met een zeldzaam genre worden er altijd zes opties gevuld: de knoppen
+// verdwijnen nooit halverwege het spel. Hier deelt niemand het genre 'Western',
+// maar de pool heeft genoeg titels om aan te vullen.
+const altijdZes = bouwMeerkeuzeOpties(
+    { id: 30, naam: 'The Good, the Bad and the Ugly', type: 'film', taal: 'en', jaar: 1966, genres: ['Western'] },
+    [
+        { id: 30, naam: 'The Good, the Bad and the Ugly', type: 'film', taal: 'en', jaar: 1966, genres: ['Western'] },
+        { id: 31, naam: 'Jaws', type: 'film', taal: 'en', jaar: 1975, genres: ['Thriller'] },
+        { id: 32, naam: 'Rocky', type: 'film', taal: 'en', jaar: 1976, genres: ['Drama'] },
+        { id: 33, naam: 'Alien', type: 'film', taal: 'en', jaar: 1979, genres: ['Horror'] },
+        { id: 34, naam: 'The Shining', type: 'film', taal: 'en', jaar: 1980, genres: ['Horror'] },
+        { id: 35, naam: 'Blade Runner', type: 'film', taal: 'en', jaar: 1982, genres: ['Sciencefiction'] },
+        { id: 36, naam: 'Ghostbusters', type: 'film', taal: 'en', jaar: 1984, genres: ['Komedie'] },
+    ],
+);
+assert.equal(altijdZes.opties.length, 6);
+assert.equal(altijdZes.opties[altijdZes.correctIndex], 'The Good, the Bad and the Ugly');
+
+// Een pool die te klein is (minder dan zes titels) geeft null terug, zodat de
+// client netjes terugvalt op het typveld.
+const teKlein = bouwMeerkeuzeOpties(
+    { id: 40, naam: 'Solo', type: 'film', taal: 'en', jaar: 2000, genres: ['Drama'] },
+    [
+        { id: 40, naam: 'Solo', type: 'film', taal: 'en', jaar: 2000, genres: ['Drama'] },
+        { id: 41, naam: 'Duo', type: 'film', taal: 'en', jaar: 2001, genres: ['Drama'] },
+    ],
+);
+assert.equal(teKlein, null);
 assert.equal(leeftijdsFactor(5, { leeftijdspunten_aan: true }), 2);
 assert.equal(leeftijdsFactor(8, { leeftijdspunten_aan: true }), 1.75);
 assert.equal(leeftijdsFactor(12, { leeftijdspunten_aan: true }), 1.5);
