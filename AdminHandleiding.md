@@ -204,3 +204,26 @@ maar mag op hetzelfde hostscherm ook zelf raden.
 
 Zie `Bugs.md`, `Todo.md`, `Ideeen.md` en `Prioriteiten.md`. Een afgerond punt
 blijft als `[x]` staan zodat de geschiedenis controleerbaar blijft.
+
+## Netwerkstoringen versus titels zonder muziek
+
+`fetch failed` betekent dat YouTube niet bereikbaar was — het zegt niets over
+de titel. Zulke fouten kosten daarom géén poging meer, en de titel blijft
+gewoon vooraan in de wachtrij staan. Komen er vijf netwerkfouten op rij, dan
+stopt de run met een duidelijke melding in plaats van de rest van de batch op
+te branden.
+
+Staan er nog titels in **Vastgelopen** van vóór deze wijziging, dan zijn die
+onterecht afgekeurd. Herstellen kan met de knop **Storingen herstellen** in
+die lijst, of vanaf de opdrachtregel:
+
+```bash
+# eerst kijken hoeveel en waarom (wijzigt niets)
+docker compose exec server node /app/seed/herstel-netwerkfouten.js
+
+# alleen de storingen terugzetten
+docker compose exec server node /app/seed/herstel-netwerkfouten.js --ja
+
+# alles terugzetten, ook waar echt niets te vinden was
+docker compose exec server node /app/seed/herstel-netwerkfouten.js --ja --alles
+```

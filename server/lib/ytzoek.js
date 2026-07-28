@@ -459,9 +459,27 @@ async function zoek(term, opties = {}) {
     // YouTube knijpt af bij te veel verzoeken (429/403). Rustig opnieuw
     // proberen met oplopende wachttijd in plaats van de titel opgeven.
     let laatsteStatus = 0;
+    let netwerkfout = null;
     for (let poging = 0; poging < 4; poging++) {
         await wachtOpRateLimit();
-        const resp = await fetch(url, { headers });
+        let resp;
+        try {
+            resp = await fetch(url, { headers });
+            netwerkfout = null;
+        } catch (err) {
+            // "fetch failed": DNS, TLS of een verbroken verbinding. Dat zegt
+            // niets over de titel, dus opnieuw proberen in plaats van meteen
+            // opgeven. Zonder deze tak sneuvelde elke titel op de eerste hik.
+            netwerkfout = err;
+            const wacht = 2000 * Math.pow(2, poging);
+            logger.waarschuwing('YouTube niet bereikbaar, opnieuw proberen.', {
+                melding: err.message,
+                poging: poging + 1,
+                wacht_ms: wacht,
+            });
+            await new Promise((r) => setTimeout(r, wacht));
+            continue;
+        }
         if (resp.ok) {
             resetRateLimit();
             const html = await resp.text();
@@ -480,7 +498,14 @@ async function zoek(term, opties = {}) {
         });
         await new Promise((r) => setTimeout(r, wacht + Math.floor(Math.random() * 1000)));
     }
-    const fout = new Error(`YouTube zoekpagina status ${laatsteStatus}`);
+
+    // Onderscheid bewaren: een onbereikbaar netwerk is iets anders dan een
+    // titel zonder muziek. De import gebruikt dit om zo'n titel niet af te
+    // straffen en om de run te stoppen als het netwerk plat ligt.
+    const fout = netwerkfout
+        ? new Error(`YouTube niet bereikbaar: ${netwerkfout.message}`)
+        : new Error(`YouTube zoekpagina status ${laatsteStatus}`);
+    fout.netwerk = Boolean(netwerkfout) || laatsteStatus === 429 || laatsteStatus === 403;
     await cache.noteerZoekopdracht('youtube', zoekTerm, {
         limiet,
         status: 'fout',

@@ -1924,9 +1924,36 @@ router.get('/api/admin/zoekwachtrij', vereisAdmin, async (req, res) => {
  * titel die vijf keer niets opleverde voorgoed buiten beeld blijven.
  * Met `alles` gaan ook de wachtende titels meteen weer mee.
  */
+// Meldingen die op een storing wijzen in plaats van op een titel zonder
+// muziek. Zulke titels horen niet in de vastgelopen-lijst thuis.
+const STORINGSMELDINGEN = [
+    '%fetch failed%', '%niet bereikbaar%', '%ECONNRESET%', '%ETIMEDOUT%',
+    '%ENOTFOUND%', '%EAI_AGAIN%', '%socket hang up%',
+    '%status 429%', '%status 403%', '%timeout%',
+];
+
 router.post('/api/admin/zoekwachtrij/opnieuw', vereisAdmin, async (req, res) => {
     const alles = req.body?.alles === true;
     const titelId = Number(req.body?.titel_id) || null;
+
+    // Alleen de titels die door een storing zijn afgekeurd terugzetten.
+    if (req.body?.alleen_storingen === true) {
+        try {
+            const { rowCount } = await pool.query(
+                `UPDATE titels
+                    SET zoek_status = 'nieuw', zoek_pogingen = 0,
+                        volgende_poging = NULL, zoek_melding = NULL
+                  WHERE zoek_status IN ('geen_kandidaat', 'opgegeven')
+                    AND zoek_melding ILIKE ANY($1::text[])`,
+                [STORINGSMELDINGEN],
+            );
+            return res.json({ ok: true, hersteld: rowCount });
+        } catch (err) {
+            logger.waarschuwing('Storingen herstellen mislukt.', { melding: err.message });
+            return res.status(500).json({ fout: err.message });
+        }
+    }
+
     try {
         const { rowCount } = await pool.query(
             `UPDATE titels

@@ -461,6 +461,12 @@ async function importeer({
     let verwerkt = 0;
     let metTrack = 0;
     const zonder = [];
+    // Ligt YouTube eruit, dan heeft doorgaan geen zin: elke volgende titel
+    // faalt op dezelfde manier. Na een handvol fouten op rij stoppen we,
+    // zodat een storing niet de halve catalogus als "geen muziek" bestempelt.
+    const MAX_NETWERKFOUTEN = 5;
+    let netwerkfouten = 0;
+    let gestopt = null;
 
     for (const t of titels) {
         if (verwerkt >= limiet) break;
@@ -554,11 +560,28 @@ async function importeer({
             }
         } catch (err) {
             reden = err.message;
-            log({ titel: t.naam, bron: 'youtube', fout: err.message });
+            // Een onbereikbaar of afknijpend YouTube zegt niets over déze
+            // titel. Zulke fouten mogen geen poging kosten, anders raakt een
+            // half uur netwerkstoring honderden goede titels kwijt.
+            if (err.netwerk) netwerkfouten++;
+            else netwerkfouten = 0;
+            log({ titel: t.naam, bron: 'youtube', fout: err.message, netwerk: Boolean(err.netwerk) });
+            if (netwerkfouten >= MAX_NETWERKFOUTEN) {
+                gestopt = 'YouTube is niet bereikbaar. De import is gestopt zodat er geen titels onterecht worden afgekeurd.';
+                log({ gestopt });
+                break;
+            }
+            if (err.netwerk) {
+                // Titel onaangeroerd laten: hij komt bij de volgende run
+                // gewoon weer bovenaan de wachtrij.
+                await slaap(400);
+                continue;
+            }
         }
 
         // Altijd vastleggen wat deze poging opleverde. Zonder dit pakt de
         // volgende run precies dezelfde titels en komt er nooit beweging in.
+        if (gelukt) netwerkfouten = 0;
         await noteerZoekpoging(titelId, gelukt, gelukt ? null : reden);
 
         if (!gelukt) {
@@ -572,7 +595,7 @@ async function importeer({
         await slaap(400); // Vriendelijk voor YouTube.
     }
 
-    return { verwerkt, metTrack, zonder };
+    return { verwerkt, metTrack, zonder, gestopt };
 }
 
 module.exports = { importeer, kiesBeste, verificatieScore };
@@ -595,6 +618,7 @@ if (require.main === module) {
     })
         .then(async (s) => {
             console.log('\n=== Samenvatting ===');
+            if (s.gestopt) console.log(`LET OP: ${s.gestopt}`);
             console.log(`Titels verwerkt: ${s.verwerkt}`);
             console.log(`Met track:       ${s.metTrack}`);
             console.log(`Zonder track:    ${s.zonder.length}`);

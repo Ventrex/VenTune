@@ -1068,10 +1068,23 @@ function VraagSuggesties({ suggesties, bezig, onGoedkeuren, onAfwijzen }) {
 
 function tekstVoorTaak(klaarTekst, samenvatting) {
     if (!samenvatting || typeof samenvatting !== 'object') return klaarTekst;
+
+    // De gecombineerde actie levert { import, downloads }. Is de import
+    // vroegtijdig gestopt omdat YouTube eruit lag, dan is dát het bericht —
+    // anders lijkt het alsof er niets te vinden was.
+    const gestopt = samenvatting.gestopt || samenvatting.import?.gestopt;
+    if (gestopt) return gestopt;
+
+    const bron = Number.isFinite(samenvatting.gedownload)
+        ? samenvatting
+        : samenvatting.downloads || samenvatting;
     const delen = [];
-    if (Number.isFinite(samenvatting.gedownload)) delen.push(`${samenvatting.gedownload} opgeslagen`);
-    if (Number.isFinite(samenvatting.overgeslagen)) delen.push(`${samenvatting.overgeslagen} al lokaal`);
-    if (Number.isFinite(samenvatting.mislukt) && samenvatting.mislukt) delen.push(`${samenvatting.mislukt} mislukt`);
+    if (Number.isFinite(samenvatting.import?.metTrack)) {
+        delen.push(`${samenvatting.import.metTrack}/${samenvatting.import.verwerkt} titels met een kandidaat`);
+    }
+    if (Number.isFinite(bron.gedownload)) delen.push(`${bron.gedownload} opgeslagen`);
+    if (Number.isFinite(bron.overgeslagen)) delen.push(`${bron.overgeslagen} al lokaal`);
+    if (Number.isFinite(bron.mislukt) && bron.mislukt) delen.push(`${bron.mislukt} mislukt`);
     return delen.length ? `${klaarTekst} ${delen.join(' · ')}.` : klaarTekst;
 }
 
@@ -1540,9 +1553,27 @@ function Vastgelopen({ onMelding }) {
                 Voor deze titels is wel gezocht, maar niets bruikbaars gevonden.
                 De reden staat erbij.
             </p>
-            <button className="knop knop-stil" type="button" onClick={laad}>
-                {geladen ? 'Opnieuw laden' : 'Lijst laden'}
-            </button>
+            <div className="knoprij">
+                <button className="knop knop-stil" type="button" onClick={laad}>
+                    {geladen ? 'Opnieuw laden' : 'Lijst laden'}
+                </button>
+                <button
+                    className="knop knop-stil"
+                    type="button"
+                    title="Titels die door een netwerkstoring zijn afgekeurd, niet door ontbrekende muziek"
+                    onClick={async () => {
+                        try {
+                            const uit = await api.adminZoekwachtrijOpnieuw({ alleen_storingen: true });
+                            onMelding?.(`${uit.hersteld || 0} titels stonden er door een storing in en zijn hersteld.`);
+                            await laad();
+                        } catch (err) {
+                            onMelding?.(err.message);
+                        }
+                    }}
+                >
+                    Storingen herstellen
+                </button>
+            </div>
             {geladen && rijen.length === 0 && (
                 <p className="dim" style={{ marginTop: '0.75rem' }}>
                     Niets vastgelopen.
