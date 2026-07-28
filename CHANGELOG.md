@@ -1,5 +1,19 @@
 # VenTune changelog
 
+## [0.5.4] - 2026-07-28
+
+### Database als bron van waarheid
+
+- Imports zoeken niet meer opnieuw naar een titel zodra er al een werkende
+  YouTube-track of een gezonde lokale track in de database staat.
+- De lokale-aanvulling selecteert alleen titels zonder lokale kopie én zonder
+  opgeslagen YouTube-track. Een bestaande YouTube-track gaat rechtstreeks naar
+  de downloadstap.
+- Admin-imports en automatische aanvulling zijn hervatbare batches van maximaal
+  250 records; de oude standaard van 5.000 is verwijderd.
+- `download_status=available` blijft de database-indicatie voor een bestand dat
+  volgens de media-healthcontrole lokaal aanwezig is.
+
 ## [0.5.3] - 2026-07-28
 
 ### Volledige lokale audio

@@ -4,6 +4,17 @@ Het adminportaal is de centrale plek om de vragenbank, audio en hostaccounts
 te beheren. Het admin-wachtwoord blijft uitsluitend in `.env`; het portaal zet
 dit wachtwoord nooit in de gebruikersdatabase.
 
+## Database als bron van waarheid
+
+De tabel `titels` bepaalt welke films, series en andere spelitems bestaan. De
+tabel `tracks` bewaart de gevonden audio en `download_status` bewaart of de
+lokale kopie aanwezig is: `available` betekent aanwezig en gecontroleerd,
+`failed` of `not_requested` betekent niet speelbaar. Een nieuwe import zoekt
+alleen een titel zonder lokale audio én zonder opgeslagen YouTube-track. Een
+bestaande YouTube-track wordt gedownload; hij wordt niet opnieuw gezocht.
+Onderhoud werkt in batches van maximaal 250 records, zodat een dagelijkse run
+niet duizenden bestaande titels opnieuw ophaalt.
+
 ## Tabs
 
 Gebruik de tabs bovenaan: **Overzicht**, **Kwaliteit**, **Titels & muziek**, **Import &

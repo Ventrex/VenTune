@@ -163,10 +163,11 @@ CREATE INDEX IF NOT EXISTS idx_tracks_keuze
 CREATE INDEX IF NOT EXISTS idx_tracks_verificatie
     ON tracks (titel_id, werkt, verificatie_score DESC, fout_aantal);
 
--- Een betrouwbare match wordt minimaal een week niet opnieuw opgezocht.
+-- Een betrouwbare match blijft de database-kandidaat en wordt niet bij iedere
+-- import opnieuw opgezocht. De datum blijft beschikbaar voor audit, URL-checks
+-- en handmatige reparaties; de lokale beschikbaarheid staat in download_status.
 -- Bestaande gecontroleerde tracks krijgen bij de eerste migratie een
--- controle-datum op basis van hun aanmaakdatum; nieuwe imports schrijven
--- deze kolom altijd expliciet bij.
+-- controle-datum op basis van hun aanmaakdatum.
 UPDATE tracks
    SET laatst_gecontroleerd_op = COALESCE(laatst_gecontroleerd_op, aangemaakt_op)
  WHERE gecontroleerd = true AND laatst_gecontroleerd_op IS NULL;

@@ -1536,7 +1536,7 @@ const trackDownloadStatuses = new Map();
 let actieveAdminTaak = null;
 
 const ADMIN_TAAK_LABELS = {
-    seed: 'YouTube-first muziek vernieuwen',
+    seed: 'Database aanvullen met ontbrekende tracks',
     playlists: 'YouTube-playlists verversen',
     tmdb: 'TMDB-films en series ophalen',
     'tmdb-catalogus': 'Populaire films/series per jaar + NL top 10 + Cult Classics',
@@ -1652,7 +1652,7 @@ function startTrackDownload(trackId, werk) {
     return { gestart: true, bezig: true, klaar: false, taak, track_id: Number(trackId) };
 }
 
-async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, alleenMislukt = false, alleenGecontroleerd = false, alleenYoutube = true, alleenZonderLokaal = false, onProgress = null } = {}) {
+async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, alleenMislukt = false, alleenGecontroleerd = false, alleenYoutube = true, alleenZonderLokaal = false, limiet = null, onProgress = null } = {}) {
     const sleutels = normaliseerCollecties(collecties);
     const params = [];
     let extra = '';
@@ -1672,6 +1672,11 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     const youtubeParam = params.length;
     params.push(alleenZonderLokaal);
     const zonderLokaalParam = params.length;
+    const batchLimiet = limiet !== null && limiet !== undefined && limiet !== '' && Number.isFinite(Number(limiet))
+        ? Math.max(1, Math.floor(Number(limiet)))
+        : null;
+    if (batchLimiet) params.push(batchLimiet);
+    const limietParam = batchLimiet ? params.length : null;
     const { rows } = await pool.query(
         `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
                 tr.start_seconde, tr.download_status, t.naam
@@ -1691,7 +1696,13 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
                    AND lokaal.download_status = 'available'
             ))
             ${extra}
-          ORDER BY tr.id`,
+          ORDER BY CASE tr.download_status
+                     WHEN 'not_requested' THEN 0
+                     WHEN 'failed' THEN 1
+                     ELSE 2
+                   END,
+                   tr.id
+          ${limietParam ? `LIMIT $${limietParam}` : ''}`,
         params,
     );
     let gedownload = 0;
@@ -1736,23 +1747,27 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
 // opslaan. Titels met een beschikbare lokale track worden in beide stappen
 // overgeslagen.
 router.post('/api/admin/ontbrekende-lokale/start', vereisAdmin, (req, res) => {
+    const limiet = Math.min(250, Math.max(1, Number(req.body?.limiet) || 250));
     const antwoord = startAdminScript(
         'lokale-aanvulling',
         lokaleAanvullingStatus,
         (v) => { lokaleAanvullingStatus = v; },
         async () => {
             const importSamenvatting = await importeer({
-                force: true,
+                force: false,
                 alleenDb: true,
                 youtubeAlleen: true,
                 alleenZonderLokaal: true,
-                limiet: Math.min(5000, Math.max(1, Number(req.body?.limiet) || 5000)),
+                // Alleen ontbrekende records aanvullen. Een volgende run
+                // pakt automatisch de volgende batch uit de database.
+                limiet,
                 onProgress: (voortgang) => { lokaleAanvullingStatus = { ...lokaleAanvullingStatus, ...voortgang }; },
             });
             const downloadSamenvatting = await downloadTracksVooruit({
                 alleenYoutube: true,
                 alleenZonderLokaal: true,
                 controleer: true,
+                limiet,
                 onProgress: (voortgang) => { lokaleAanvullingStatus = { ...lokaleAanvullingStatus, ...voortgang }; },
             });
             return { import: importSamenvatting, downloads: downloadSamenvatting };
@@ -1859,6 +1874,10 @@ router.post('/api/admin/seed', vereisAdmin, (req, res) => {
                 force,
                 alleenDb: !!(req.body && req.body.alleenDb),
                 youtubeAlleen: !!(req.body && req.body.youtubeAlleen),
+                // Admin-imports zijn hervatbare batches. De database blijft
+                // leidend; een klik mag nooit duizenden titels opnieuw door
+                // de zoekstroom sturen.
+                limiet: Math.min(250, Math.max(1, Number(req.body?.limiet) || 250)),
                 onProgress: (voortgang) => { seedStatus = { ...seedStatus, ...voortgang }; },
             });
             logger.info('Seed-import klaar.', samenvatting);
@@ -2146,7 +2165,13 @@ function startPlaylistPlanner() {
                     taak: 'seed-auto',
                     status: seedStatus,
                     zetStatus: (v) => { seedStatus = v; },
-                    werk: () => importeer({ force: false, alleenDb: true, youtubeAlleen: true, alleenZonderLokaal: true }),
+                    werk: () => importeer({
+                        force: false,
+                        alleenDb: true,
+                        youtubeAlleen: true,
+                        alleenZonderLokaal: true,
+                        limiet: 250,
+                    }),
                 },
                 {
                     aan: beheer.downloadsAutomatisch === true,
@@ -2161,6 +2186,7 @@ function startPlaylistPlanner() {
                         alleenYoutube: true,
                         alleenZonderLokaal: true,
                         controleer: true,
+                        limiet: 250,
                     }),
                 },
             ];

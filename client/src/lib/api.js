@@ -287,7 +287,7 @@ export async function adminSeed(force = false, alleenDb = false, youtubeAlleen =
         ...jsonBody({ force, alleenDb, youtubeAlleen }),
     });
 }
-export async function adminOntbrekendeLokaleStart(limiet = 5000) {
+export async function adminOntbrekendeLokaleStart(limiet = 250) {
     return adminFetch('/api/admin/ontbrekende-lokale/start', {
         method: 'POST',
         ...jsonBody({ limiet }),

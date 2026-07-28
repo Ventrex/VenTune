@@ -248,10 +248,10 @@ function Beheer({ onUit }) {
         finally { setBezigSuggesties(false); }
     }
 
-    async function seed(alleenDb = false, youtubeAlleen = false, force = true) {
+    async function seed(alleenDb = false, youtubeAlleen = false, force = false) {
         setBezigSeed(true);
         setMelding(alleenDb
-            ? 'YouTube-matches voor alle database-titels opnieuw zoeken… dit draait in de achtergrond.'
+            ? 'Alleen ontbrekende database-tracks aanvullen… dit draait in de achtergrond.'
             : 'Seed importeren… dit draait in de achtergrond (1–3 min).');
         try {
             // Force is veilig: importeer vervangt pas nadat een nieuwe,
@@ -551,13 +551,10 @@ function Beheer({ onUit }) {
                 <section className="admin-panel admin-acties" style={{ marginTop: '1rem' }}>
                     <div className="kaart">
                         <p className="kaart-label">Titels en vragen importeren</p>
-                        <p className="dim">Deze acties vullen de database. Voor MP3’s ga je naar de aparte tab Downloads.</p>
+                        <p className="dim">De database is leidend. Alleen ontbrekende records worden aangevuld; voor MP3’s ga je naar de aparte tab Downloads.</p>
                         <div className="stapel">
-                            <button className="knop knop-stil" onClick={() => seed()} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCatalogus}>
-                                {bezigSeed ? 'Bezig…' : 'YouTube-first muziek vernieuwen'}
-                            </button>
                             <button className="knop knop-stil" onClick={() => seed(true, true, false)} disabled={bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCatalogus}>
-                                {bezigSeed ? 'Bezig…' : 'YouTube zoeken voor titels zonder track'}
+                                {bezigSeed ? 'Bezig…' : 'Database aanvullen · alleen ontbrekende tracks'}
                             </button>
                             <button className="knop knop-stil" onClick={playlistImport} disabled={bezigPlaylist || bezigSeed || bezigTmdb || bezigVragen || bezigCatalogus}>
                                 {bezigPlaylist ? 'Playlists importeren…' : 'YouTube-playlists verversen'}
@@ -690,7 +687,7 @@ function Beheer({ onUit }) {
                             Alleen gecontroleerde YouTube-tracks downloaden
                         </button>
                         <button className="knop knop-stil" style={{ marginTop: '0.75rem' }} onClick={zoekEnDownloadOntbrekendeLokale} disabled={bezigDownloads}>
-                            YouTube zoeken + downloaden voor titels zonder lokale audio
+                            Ontbrekende lokale audio zoeken + downloaden (max. 250)
                         </button>
                         <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
                             <button className="knop knop-stil" onClick={() => api.adminAfgekeurdeTracksExport()}>Afgekeurde tracks exporteren</button>

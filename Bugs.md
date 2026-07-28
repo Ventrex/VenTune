@@ -5,6 +5,7 @@ verwacht gedrag en werkelijk gedrag toe.
 
 | Prioriteit | Status | Datum | Onderwerp | Reproduceerstappen | Verwacht | Werkelijk |
 |---|---|---|---|---|---|---|
+| P0 | Opgelost | 2026-07-28 | Database-aanvulling zocht duizenden bestaande titels opnieuw | Start lokale aanvulling terwijl de database al YouTube-tracks bevat | Alleen ontbrekende database-records worden gezocht; bestaande matches worden overgeslagen en batches zijn maximaal 250 | De route had standaardlimiet 5.000 en selecteerde iedere titel zonder lokale kopie |
 | P0 | Opgelost | 2026-07-27 | Profiel kon niet laden door ontbrekende `gebruikers.voorkeuren` | Open hostprofiel op een bestaande database | Profiel laadt, geboortedatum kan worden opgeslagen en leeftijd wordt berekend | Server gaf `column g.voorkeuren does not exist` |
 | P1 | Opgelost | 2026-07-27 | Admin kon titels/users niet veilig verwijderen | Verwijder vervuilde Duitse titels of een hostaccount | Admin heeft delete/bulk-delete met bevestiging; lokale MP3's worden mee verwijderd | Alleen losse bewerkingen waren mogelijk; MP3-bestanden konden als weesbestand achterblijven |
 | P1 | Opgelost | 2026-07-27 | MP3-bestanden zonder databasekoppeling bleven op disk staan | Verwijder een titel of track met lokale audio | Database cleanup kan wees-MP3's veilig verwijderen uit downloads/uploads | Bestanden bleven bestaan en konden opslag vervuilen |

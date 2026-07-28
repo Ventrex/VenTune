@@ -4,13 +4,13 @@
 // Leest seed/titels.json, zet de titels in de database en zoekt per titel
 // een passende YouTube-intro of titelsong. YouTube wordt uitsluitend als
 // downloadbron geregistreerd; het spel gebruikt later alleen lokale audio.
-// Titels
-// die al een track hebben worden overgeslagen (tenzij --force).
+// Titels die al een werkende YouTube-track of gezonde lokale track hebben
+// worden overgeslagen. Alleen --titel is een bewuste gerichte reparatie.
 //
 // Gebruik (bijv. in de servercontainer, waar iTunes bereikbaar is):
 //   docker compose exec server node /app/seed/import.js
 // of lokaal met een DATABASE_URL:
-//   DATABASE_URL=postgres://... node seed/import.js [--force] [--limit N]
+//   DATABASE_URL=postgres://... node seed/import.js [--db] [--titel Naam] [--limit N]
 //
 // De pg-pool en YouTube-helper komen uit de server, zodat er geen aparte
 // dependencies nodig zijn.
@@ -215,14 +215,20 @@ function tTypeVoorCollectie(sleutel) {
     return 'beide';
 }
 
-async function heeftRecenteWerkendeTrack(titelId) {
+/**
+ * De database is leidend. Een opgeslagen, werkende YouTube-match is al een
+ * bekende kandidaat en wordt niet opnieuw opgezocht.
+ * Alleen een ontbrekende of afgekeurde track komt opnieuw in de zoekstroom.
+ * Een lokale track telt alleen mee als de database zegt dat het bestand
+ * beschikbaar is; de dagelijkse media-health controle houdt die status bij.
+ */
+async function heeftWerkendeTrack(titelId) {
     const { rows } = await pool.query(
         `SELECT 1 FROM tracks
           WHERE titel_id = $1 AND werkt = true
             AND preview_url IS NOT NULL AND preview_url <> ''
             AND ((bron = 'lokaal' AND itunes_track_id IS NULL AND download_status = 'available')
-                 OR (bron = 'youtube'
-                     AND laatst_gecontroleerd_op >= now() - interval '7 days'))
+                 OR bron = 'youtube')
           LIMIT 1`,
         [titelId],
     );
@@ -349,17 +355,33 @@ async function importeer({
         titels = rows.map((r) => ({ ...r, _id: r.id }));
         force = true;
     } else if (alleenDb) {
-        // Alle titels uit de database die nog geen muziek hebben. Zo krijgen
-        // ook de titels die via TMDB zijn toegevoegd een intro/thema.
+        // Alleen de database is hier de bron. Een bestaande YouTube-match is
+        // al een opgeslagen kandidaat en hoort dus niet opnieuw gezocht te
+        // worden. Bij alleenZonderLokaal wordt die bestaande kandidaat later
+        // door de aparte downloadtaak lokaal gemaakt.
+        const databaseLimiet = Number.isFinite(Number(limiet))
+            ? Math.max(1, Math.floor(Number(limiet)))
+            : null;
+        const parameters = databaseLimiet ? [databaseLimiet] : [];
+        const limietSql = databaseLimiet ? `\n              LIMIT $1` : '';
         const { rows } = await pool.query(
             `SELECT id, naam, aliassen, type, taal, jaar, land, genres, tmdb_id
                FROM titels t
               WHERE ${alleenZonderLokaal
                 ? `NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
                                  AND x.bron = 'lokaal' AND x.itunes_track_id IS NULL AND x.werkt = true
-                                 AND x.download_status = 'available')`
-                : (force ? 'TRUE' : 'NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id)')}
-              ORDER BY id`,
+                                 AND x.download_status = 'available')
+                    AND NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
+                                    AND x.bron = 'youtube' AND x.werkt = true
+                                    AND x.preview_url IS NOT NULL AND x.preview_url <> '')`
+                : `NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id
+                               AND x.werkt = true AND x.preview_url IS NOT NULL
+                               AND x.preview_url <> ''
+                               AND (x.bron = 'youtube' OR
+                                    (x.bron = 'lokaal' AND x.itunes_track_id IS NULL
+                                     AND x.download_status = 'available')))`}
+              ORDER BY id${limietSql}`,
+            parameters,
         );
         titels = rows.map((r) => ({ ...r, _id: r.id }));
     } else {
@@ -382,15 +404,15 @@ async function importeer({
         // Titels uit de database hebben al een id; die uit titels.json niet.
         const titelId = t._id || (await upsertTitel(t));
 
-        // Niet opnieuw naar dezelfde bron zoeken zolang er een werkende
-        // match is die minder dan zeven dagen geleden gecontroleerd is.
-        // Een gerichte --titel-opdracht blijft de bewuste uitzondering.
-        if (!titelFilter && (await heeftRecenteWerkendeTrack(titelId))) {
+        // Niet opnieuw naar dezelfde bron zoeken. Een gerichte --titel-
+        // opdracht blijft de bewuste uitzondering voor een reparatie.
+        if (!titelFilter && (await heeftWerkendeTrack(titelId))) {
             metTrack++;
             continue;
         }
-        // Let op: bij --force verwijderen we NIETS. Een oude track is altijd
-        // beter dan geen track en meerdere betrouwbare tracks geven rotatie.
+        // Let op: een oude track is altijd beter dan geen track en meerdere
+        // betrouwbare tracks geven rotatie. Alleen een gerichte titelactie
+        // mag bewust opnieuw zoeken.
 
         // 1) YouTube is de primaire bron: daar staat vrijwel elke intro en
         //    titelsong, ook de Nederlandse. Dit voorkomt handmatig nalopen.
@@ -482,7 +504,14 @@ if (require.main === module) {
             }
             const rest = await pool.query(
                 `SELECT count(*)::int AS n FROM titels t
-                  WHERE NOT EXISTS (SELECT 1 FROM tracks x WHERE x.titel_id = t.id)`,
+                  WHERE NOT EXISTS (
+                      SELECT 1 FROM tracks x
+                       WHERE x.titel_id = t.id AND x.werkt = true
+                         AND x.preview_url IS NOT NULL AND x.preview_url <> ''
+                         AND (x.bron = 'youtube' OR
+                              (x.bron = 'lokaal' AND x.itunes_track_id IS NULL
+                               AND x.download_status = 'available'))
+                  )`,
             );
             if (rest.rows[0].n > 0) {
                 console.log(

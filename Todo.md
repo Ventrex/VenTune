@@ -58,8 +58,12 @@
 
 - [x] **P1** Zoekgeschiedenis opslaan voor iedere YouTube-, iTunes- en
       playlistactie; lege en foutresultaten tellen ook mee.
-- [x] **P1** Werkende gecontroleerde tracks minimaal zeven dagen overslaan;
-      een expliciete titelactie mag gericht opnieuw zoeken.
+- [x] **P1** Database als bron van waarheid gebruiken: bestaande werkende
+      YouTube- en lokale tracks worden blijvend overgeslagen; alleen een
+      ontbrekende of afgekeurde track komt in de zoekstroom.
+- [x] **P1** Imports en lokale aanvulling in hervatbare batches van maximaal
+      250 uitvoeren; een bestaande YouTube-track wordt alleen nog gedownload,
+      niet opnieuw opgezocht.
 - [x] **P1** Lokale beschikbare audio als bron van waarheid gebruiken en de
       oorspronkelijke URL niet meer controleren zolang het bestand gezond is.
 - [x] **P1** iTunes/Apple-previewclips uitsluiten van downloads, lokale

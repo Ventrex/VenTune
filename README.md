@@ -130,10 +130,10 @@ admin-wachtwoord staat uitsluitend in `.env`.
 Bij een verse installatie is de vragenbank leeg. Vullen kan op twee manieren:
 
 **A. Via het beheerportaal (aanbevolen).** Ga naar `/admin`, log in en klik op
-**"Startseed importeren (YouTube eerst)"**. VenTune zet ~290 titels klaar
-(Nederlands en internationaal) en zoekt per titel eerst een betrouwbare
-YouTube-intro. Een gezonde lokale MP3 wordt daarna nooit opnieuw gezocht of
-gecontroleerd.
+**"Database aanvullen · alleen ontbrekende tracks"**. VenTune werkt vanuit de
+bestaande database en zoekt alleen voor titels zonder bruikbare lokale audio én
+zonder opgeslagen YouTube-match. Bestaande YouTube- en lokale records worden
+niet opnieuw opgezocht.
 
 **A2. Duizenden titels via TMDB (aanbevolen).** De handgeschreven lijst van
 ~290 titels is klein. Met een gratis TMDB-key haal je er automatisch duizenden
@@ -148,9 +148,9 @@ docker compose exec server node /app/seed/import.js --db
 ```
 
 Dit kan ook met één klik in `/admin` via **TMDB-titels importeren** en daarna
-**YouTube-first muziek vernieuwen**. Met **Nieuwe films ophalen** en **Nieuwe
-series ophalen** kun je TMDB gericht gebruiken. Bonusvragen kun je daar ook
-genereren.
+**Database aanvullen · alleen ontbrekende tracks**. Met **Nieuwe films ophalen**
+en **Nieuwe series ophalen** kun je TMDB gericht nieuwe titels toevoegen.
+Bonusvragen kun je daar ook genereren.
 
 Voor de volledige jaartalcatalogus gebruik je in **Admin → Imports** de knop
 **Populaire films + series per jaar + NL top 10 opbouwen**. Inclusief tellen
@@ -174,12 +174,16 @@ de achtergrond. In het **Overzicht** zijn de tellingen klikbaar; zo open je
 meteen de lijst of actie waarmee je een probleem kunt bekijken of herstellen.
 YouTube wordt alleen gebruikt om ontbrekende audio te vinden en te downloaden.
 De actie **YouTube zoeken + MP3 downloaden voor titels zonder lokale MP3**
-doet precies die twee stappen. Oude iTunes-rijen blijven alleen als historie
-zichtbaar en worden niet gezocht, gecontroleerd of afgespeeld.
+doet precies die twee stappen. De actie verwerkt maximaal 250 records per run
+en kan veilig opnieuw worden gestart; bestaande database-records worden
+overgeslagen. `download_status=available` betekent dat het lokale bestand
+volgens de laatste media-healthcontrole echt op disk staat. Oude iTunes-rijen
+blijven alleen als historie zichtbaar en worden niet gezocht, gecontroleerd of
+afgespeeld.
 
 Stap 2 kan lang duren (YouTube knijpt af bij te veel verzoeken). Het script is
-hervatbaar: draai het gerust nogmaals, het pakt alleen de titels op die nog geen
-muziek hebben.
+hervatbaar: draai het gerust nogmaals, het pakt alleen de volgende titels op die
+nog geen audiorecord hebben.
 
 **A3. Intro's uit YouTube-playlists (beste kwaliteit).** Playlists als
 "Nederlandse tv-series intro's" bevatten per definitie de échte intro's — geen
@@ -204,12 +208,15 @@ track, omdat ze betrouwbaarder zijn. Je kunt eigen playlists toevoegen aan
 
 ```bash
 docker compose exec server node /app/seed/import.js
-# alles schoon opnieuw opbouwen (verwijdert bestaande tracks per titel):
-docker compose exec server node /app/seed/import.js --force
+# alleen de database aanvullen met titels zonder audiorecord:
+docker compose exec server node /app/seed/import.js --db
+# één verkeerde titel bewust opnieuw zoeken:
+docker compose exec server node /app/seed/import.js --db --titel "Gooische Vrouwen"
 ```
 
-De knop **YouTube-first muziek vernieuwen** in `/admin` zoekt gecontroleerde
-YouTube-kandidaten. Een gezonde lokale track wordt daarbij overgeslagen.
+De knop **Database aanvullen · alleen ontbrekende tracks** in `/admin` zoekt
+alleen ontbrekende YouTube-kandidaten. Een bestaande YouTube-match of gezonde
+lokale track wordt daarbij overgeslagen.
 
 De import zoekt op **YouTube** naar de intro/titelsong (daar staat vrijwel elke
 film- en seriemuziek, ook de Nederlandse). iTunes wordt niet meer automatisch
