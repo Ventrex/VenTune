@@ -332,7 +332,7 @@ async function controleerLokaleBestanden({ onProgress = null, isGeannuleerd = ()
  * kopie wordt audio (mp3), zodat browsers hem snel en zonder iframe kunnen
  * afspelen.
  */
-async function downloadYoutubeTrack(track, droog = false) {
+async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } = {}) {
     const bronUrl = youtubeUrl(track);
     if (!bronUrl) {
         const fout = 'Track heeft geen geldig YouTube-video-id of bron-URL.';
@@ -358,7 +358,10 @@ async function downloadYoutubeTrack(track, droog = false) {
     try {
         const start = Math.max(0, Number(track.start_seconde) || 0);
         const eind = start + MAX_YOUTUBE_SECONDS;
-        await wachtOpYoutubeDownload();
+        // Bulkdownloads hebben al een ingestelde workerlimiet. De optionele
+        // rate gate blijft voor losse downloads en URL-controles behouden,
+        // maar mag geen 50 bulkworkers achter elkaar laten starten.
+        if (rateLimit) await wachtOpYoutubeDownload();
         try {
                 await execFileAsync(
                     'yt-dlp',
@@ -407,7 +410,7 @@ async function downloadYoutubeTrack(track, droog = false) {
     }
 }
 
-async function downloadTrack(track, droog = false) {
+async function downloadTrack(track, droog = false, opties = {}) {
     if (isAppleTrack(track)) {
         throw new Error('iTunes/Apple-preview uitgesloten: dit is geen volledig nummer.');
     }
@@ -416,7 +419,7 @@ async function downloadTrack(track, droog = false) {
         return { ok: true, lokaal: true, preview_url: track.preview_url };
     }
     if (track.bron === 'youtube' || (track.bron === 'lokaal' && youtubeUrl(track))) {
-        return downloadYoutubeTrack({ ...track, bron: 'youtube' }, droog);
+        return downloadYoutubeTrack({ ...track, bron: 'youtube' }, droog, opties);
     }
     throw new Error('Deze track heeft geen herstelbare downloadbron.');
 }
