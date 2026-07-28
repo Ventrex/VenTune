@@ -49,8 +49,15 @@ export default function Host() {
     async function startMetGeluid() {
         if (startBezig || voorbereiding) return;
         setStartBezig(true);
+        // Het ontgrendelen mag het starten nooit tegenhouden. Lukt het niet,
+        // dan verschijnt straks hooguit de "Tik om te starten"-knop; blijft
+        // het hangen, dan zou het spel anders nooit beginnen.
         try {
             if (spelerRef.current) await spelerRef.current.ontgrendel();
+        } catch {
+            /* geluid komt dan via een tik; doorgaan met starten */
+        }
+        try {
             spel.startSpel();
         } catch {
             setStartBezig(false);

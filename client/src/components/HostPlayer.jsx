@@ -86,12 +86,16 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false, on
         if (el) {
             try {
                 el.muted = true;
-                await el.play();
+                // Let op de timeout: play() op een element zonder geladen
+                // bron levert een promise die nóóit afrondt. Zonder deze
+                // grens bleef het hostscherm eeuwig op "Spel voorbereiden"
+                // staan, omdat de startopdracht hier bleef hangen.
+                await metTimeout(el.play(), 1500, 'Ontgrendelen duurt te lang.');
                 el.pause();
                 el.currentTime = 0;
                 el.muted = false;
             } catch {
-                /* niet fataal */
+                /* Niet fataal: hooguit vraagt de browser later om een tik. */
             }
         }
         // Geen dependencies: deze functie gebruikt alleen refs. Hier stond
