@@ -62,6 +62,10 @@ async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
         });
     }
     if (!isActief()) return false;
+    // Zorg dat er écht geluid komt: het element mag niet gedempt staan (bijv.
+    // na de stille ontgrendel-play). Anders speelt het wel af, maar hoor je
+    // niets. Het volume blijft ongemoeid — dat regelt de host met de schuif.
+    element.muted = false;
     element.currentTime = Number(startSeconde) || 0;
     await metTimeout(
         element.play(),
@@ -113,9 +117,13 @@ const HostPlayer = forwardRef(function HostPlayer({
                 await metTimeout(el.play(), 1500, 'Ontgrendelen duurt te lang.');
                 el.pause();
                 el.currentTime = 0;
-                el.muted = false;
             } catch {
                 /* Niet fataal: hooguit vraagt de browser later om een tik. */
+            } finally {
+                // Demping altijd terugzetten — ook als de stille play faalde of
+                // een time-out gaf. Anders bleef het element gemuted en speelde
+                // de host wel af, maar hoorde je niets.
+                el.muted = false;
             }
         }
         // Geen dependencies: deze functie gebruikt alleen refs. Hier stond
