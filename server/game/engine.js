@@ -49,6 +49,13 @@ const SCOREBORD_PAUZE_MS = 7000; // pauze tussen rondes
 const GOK_INTERVAL_MS = 1000; // max 1 gok per seconde per speler
 const AANTAL_MEERKEUZE_OPTIES = 6;
 
+function startSecondeVoorTrack(track) {
+    // YouTube-downloads worden al vanaf start_seconde geknipt. Een lokaal
+    // bestand begint daarom altijd op 0; nogmaals springen maakt het stil.
+    if (track?.bron === 'lokaal') return 0;
+    return Math.max(0, Number(track?.start_seconde) || 0);
+}
+
 function kamer(code) {
     return `lobby:${code}`;
 }
@@ -239,7 +246,7 @@ class SpelBeheer {
             rondeId: h.rondeId,
             bron: h.track.bron,
             url: h.track.preview_url,
-            startSeconde: h.track.start_seconde || 0,
+            startSeconde: startSecondeVoorTrack(h.track),
             durationMs: state.rondeDuurMs,
             herstel: Date.now(),
         };
@@ -691,7 +698,7 @@ class SpelBeheer {
                     rondeId: state.huidige.rondeId,
                     bron: track.bron,
                     url: track.preview_url,
-                    startSeconde: track.start_seconde || 0,
+                    startSeconde: startSecondeVoorTrack(track),
                     durationMs: state.rondeDuurMs,
                 });
 
@@ -1251,7 +1258,7 @@ class SpelBeheer {
             rondeId,
             bron: track.bron,
             url: track.preview_url,
-            startSeconde: track.start_seconde || 0,
+            startSeconde: startSecondeVoorTrack(track),
             durationMs: state.rondeDuurMs,
             herhaling: Date.now(), // maakt het event uniek
         });
