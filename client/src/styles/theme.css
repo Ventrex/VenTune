@@ -1092,7 +1092,8 @@ h1 {
     min-height: 160px;
     margin: 1.5rem 0;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     justify-content: center;
 }
 
@@ -1120,6 +1121,73 @@ h1 {
 .host-speler-visual {
     position: relative;
     z-index: 2;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.host-audio-bediening {
+    position: relative;
+    z-index: 3;
+    width: min(100%, 36rem);
+    margin: 0.75rem auto 0;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.76);
+}
+
+.host-audio-tijd {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.host-audio-tijd input,
+.host-volume input {
+    min-width: 0;
+    accent-color: var(--red-hot);
+}
+
+.host-audio-knoppen {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.65rem;
+}
+
+.host-audio-knoppen .knop {
+    flex: 1 1 0;
+    min-height: 42px;
+}
+
+.host-volume {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 7rem;
+}
+
+.host-volume input {
+    width: 100%;
+}
+
+@media (max-width: 520px) {
+    .host-audio-knoppen {
+        flex-wrap: wrap;
+    }
+
+    .host-audio-knoppen .knop {
+        flex: 1 1 9rem;
+    }
+
+    .host-volume {
+        flex: 1 1 100%;
+    }
 }
 
 .host-raadkaart {
