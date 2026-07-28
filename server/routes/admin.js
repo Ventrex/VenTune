@@ -1609,6 +1609,9 @@ const trackDownloadStatuses = new Map();
 // Imports wijzigen dezelfde vragenbank. Eén gedeelde lock voorkomt dat twee
 // admins (of twee browservensters) tegelijk tracks/titels gaan vervangen.
 let actieveAdminTaak = null;
+// Stoppen gebeurt coöperatief: de huidige netwerkactie mag afronden,
+// daarna verlaten de batch-workers hun taak vóór de volgende actie.
+let stopAangevraagdVoor = null;
 
 const ADMIN_TAAK_LABELS = {
     seed: 'Database aanvullen met ontbrekende tracks',
@@ -1660,6 +1663,24 @@ router.get('/api/admin/taken', vereisAdmin, (_req, res) => {
     res.json({ actieve_taak: actieveAdminTaak, taken: adminTaakLijst() });
 });
 
+function adminStatusVoorTaak(naam) {
+    return adminTaakLijst().find((taak) => taak.naam === naam)?.status || null;
+}
+
+router.post('/api/admin/taken/:taak/stop', vereisAdmin, (req, res) => {
+    const taak = String(req.params.taak || '').trim();
+    if (!taak || actieveAdminTaak !== taak) {
+        return res.status(409).json({ fout: 'Deze admin-taak draait niet meer.' });
+    }
+    stopAangevraagdVoor = taak;
+    const status = adminStatusVoorTaak(taak);
+    if (status) {
+        status.stop_aangevraagd = true;
+        status.stop_melding = 'Stop aangevraagd; de huidige actie wordt afgerond.';
+    }
+    res.json({ ok: true, taak, melding: 'Stop aangevraagd.' });
+});
+
 function startAdminScript(naam, status, setter, werk) {
     if (actieveAdminTaak || status.bezig) {
         return {
@@ -1674,20 +1695,34 @@ function startAdminScript(naam, status, setter, werk) {
         gestart_op: new Date().toISOString(),
         samenvatting: null,
         fout: null,
+        stop_aangevraagd: false,
     };
     actieveAdminTaak = naam;
+    stopAangevraagdVoor = null;
     setter(nieuw);
+    const isGeannuleerd = () => actieveAdminTaak === naam && stopAangevraagdVoor === naam;
     Promise.resolve()
-        .then(werk)
+        .then(() => werk({ isGeannuleerd }))
         .then((samenvatting) => {
-            setter({ ...nieuw, bezig: false, klaar: true, samenvatting });
+            const gestopt = stopAangevraagdVoor === naam
+                || Boolean(samenvatting?.geannuleerd)
+                || Boolean(samenvatting?.gestopt);
+            setter({
+                ...nieuw,
+                bezig: false,
+                klaar: true,
+                gestopt,
+                stop_aangevraagd: false,
+                samenvatting,
+            });
         })
         .catch((err) => {
-            setter({ ...nieuw, bezig: false, klaar: true, fout: err.message });
+            setter({ ...nieuw, bezig: false, klaar: true, fout: err.message, stop_aangevraagd: false });
             logger.fout(`Admin-taak mislukt: ${naam}.`, { melding: err.message });
         })
         .finally(() => {
             if (actieveAdminTaak === naam) actieveAdminTaak = null;
+            if (stopAangevraagdVoor === naam) stopAangevraagdVoor = null;
         });
     return { gestart: true, bezig: true, taak: naam };
 }
@@ -1727,7 +1762,7 @@ function startTrackDownload(trackId, werk) {
     return { gestart: true, bezig: true, klaar: false, taak, track_id: Number(trackId) };
 }
 
-async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, alleenMislukt = false, alleenGecontroleerd = false, alleenYoutube = true, alleenZonderLokaal = false, limiet = null, onProgress = null, batchGrootte: opgegevenBatchGrootte = null } = {}) {
+async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, alleenMislukt = false, alleenGecontroleerd = false, alleenYoutube = true, alleenZonderLokaal = false, limiet = null, onProgress = null, batchGrootte: opgegevenBatchGrootte = null, isGeannuleerd = () => false } = {}) {
     const sleutels = normaliseerCollecties(collecties);
     const params = [];
     let extra = '';
@@ -1800,16 +1835,33 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     }
     const batchGrootte = begrensBatchGrootte(ingesteldeBatch);
     let verwerkt = 0;
+    let geannuleerd = false;
     for (let start = 0; start < rows.length; start += batchGrootte) {
-        const batch = rows.slice(start, start + DOWNLOAD_BATCH_GROOTTE);
+        if (isGeannuleerd()) {
+            geannuleerd = true;
+            break;
+        }
+        const batch = rows.slice(start, start + batchGrootte);
         await Promise.all(batch.map(async (track) => {
+            if (isGeannuleerd()) {
+                geannuleerd = true;
+                return;
+            }
             // Een download is permanent lokaal bezit. Ook bij force=true mag de
             // oorspronkelijke URL dan niet opnieuw worden gecontroleerd.
             if (track.download_status === 'available') {
                 overgeslagen++;
             } else {
                 try {
+                    if (isGeannuleerd()) {
+                        geannuleerd = true;
+                        return;
+                    }
                     if (controleer) await controleerTrackUrl(track);
+                    if (isGeannuleerd()) {
+                        geannuleerd = true;
+                        return;
+                    }
                     await downloadTrack(track);
                     gedownload++;
                 } catch (err) {
@@ -1826,7 +1878,8 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
         }));
     }
     return {
-        verwerkt: rows.length,
+        verwerkt,
+        geannuleerd,
         gedownload,
         overgeslagen,
         mislukt,
@@ -1852,7 +1905,7 @@ router.post('/api/admin/ontbrekende-lokale/start', vereisAdmin, (req, res) => {
         'lokale-aanvulling',
         lokaleAanvullingStatus,
         (v) => { lokaleAanvullingStatus = v; },
-        async () => {
+        async ({ isGeannuleerd = () => false } = {}) => {
             // Stap 1: zoeken. Titels die eerder niets opleverden staan in de
             // wachtrij achteraan, dus elke run pakt nieuwe titels op.
             const importSamenvatting = alleenDownloaden
@@ -1867,9 +1920,12 @@ router.post('/api/admin/ontbrekende-lokale/start', vereisAdmin, (req, res) => {
                     onProgress: (voortgang) => {
                         lokaleAanvullingStatus = { ...lokaleAanvullingStatus, stap: 'zoeken', ...voortgang };
                     },
+                    isGeannuleerd,
                 });
             // Stap 2: alles wat een kandidaat heeft lokaal opslaan.
-            const downloadSamenvatting = await downloadTracksVooruit({
+            const downloadSamenvatting = isGeannuleerd()
+                ? { geannuleerd: true, overgeslagen: true }
+                : await downloadTracksVooruit({
                 alleenYoutube: true,
                 alleenZonderLokaal: true,
                 controleer: true,
@@ -1877,6 +1933,7 @@ router.post('/api/admin/ontbrekende-lokale/start', vereisAdmin, (req, res) => {
                 onProgress: (voortgang) => {
                     lokaleAanvullingStatus = { ...lokaleAanvullingStatus, stap: 'downloaden', ...voortgang };
                 },
+                isGeannuleerd,
             });
             return { import: importSamenvatting, downloads: downloadSamenvatting };
         },
@@ -1893,7 +1950,7 @@ router.post('/api/admin/downloads/start', vereisAdmin, (req, res) => {
         'downloads',
         downloadStatus,
         (v) => { downloadStatus = v; },
-        async () => {
+        async ({ isGeannuleerd = () => false } = {}) => {
             const collecties = Array.isArray(req.body?.collecties) ? req.body.collecties : [];
             logger.info('Vooraf downloaden gestart via admin.', { collecties });
             return downloadTracksVooruit({
@@ -1905,6 +1962,7 @@ router.post('/api/admin/downloads/start', vereisAdmin, (req, res) => {
                 alleenYoutube: req.body?.alleenYoutube !== false,
                 alleenZonderLokaal: req.body?.alleenZonderLokaal === true,
                 onProgress: (voortgang) => { downloadStatus = { ...downloadStatus, ...voortgang }; },
+                isGeannuleerd,
             });
         },
     );
@@ -1999,10 +2057,11 @@ router.post('/api/admin/downloads/retry-mislukt', vereisAdmin, (req, res) => {
         'downloads-retry',
         downloadStatus,
         (v) => { downloadStatus = v; },
-        async () => downloadTracksVooruit({
+        async ({ isGeannuleerd = () => false } = {}) => downloadTracksVooruit({
             alleenMislukt: true,
             controleer: true,
             onProgress: (voortgang) => { downloadStatus = { ...downloadStatus, ...voortgang }; },
+            isGeannuleerd,
         }),
     );
     res.json(antwoord);
@@ -2031,14 +2090,15 @@ router.post('/api/admin/collecties/import', vereisAdmin, (req, res) => {
         'collecties',
         collectieImportStatus,
         (v) => { collectieImportStatus = v; },
-        async () => {
+        async ({ isGeannuleerd = () => false } = {}) => {
             const imports = [];
             for (const collectie of collecties) {
-                imports.push({ collectie, resultaat: await importeer({ collectie, force: true }) });
+                if (isGeannuleerd()) return { geannuleerd: true, imports, downloads: null };
+                imports.push({ collectie, resultaat: await importeer({ collectie, force: true, isGeannuleerd }) });
             }
-            const downloads = req.body?.download === false
-                ? null
-                : await downloadTracksVooruit({ collecties, controleer: true });
+            const downloads = req.body?.download === false || isGeannuleerd()
+                ? (isGeannuleerd() ? { geannuleerd: true } : null)
+                : await downloadTracksVooruit({ collecties, controleer: true, isGeannuleerd });
             return { imports, downloads };
         },
     );
@@ -2055,7 +2115,7 @@ router.post('/api/admin/seed', vereisAdmin, (req, res) => {
         'seed',
         seedStatus,
         (v) => { seedStatus = v; },
-        async () => {
+        async ({ isGeannuleerd = () => false } = {}) => {
             logger.info('Seed-import gestart via admin (YouTube als enige automatische audiobron).');
             const samenvatting = await importeer({
                 force,
@@ -2066,6 +2126,7 @@ router.post('/api/admin/seed', vereisAdmin, (req, res) => {
                 // de zoekstroom sturen.
                 limiet: Math.min(250, Math.max(1, Number(req.body?.limiet) || 250)),
                 onProgress: (voortgang) => { seedStatus = { ...seedStatus, ...voortgang }; },
+                isGeannuleerd,
             });
             logger.info('Seed-import klaar.', samenvatting);
             return samenvatting;
