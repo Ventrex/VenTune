@@ -508,6 +508,7 @@ function Beheer({ onUit }) {
                     <Tegel label="Speelbaar" waarde={overzicht.speelbaar} onClick={() => openTab('titels', { filter: 'speelbaar' })} />
                     <Tegel label="Tracks nodig" waarde={overzicht.ontbrekende_tracks} onClick={() => openTab('downloads')} />
                     <Tegel label="Tracks" waarde={overzicht.tracks} onClick={() => openTab('downloads')} />
+                    <Tegel label="Bevestigd" waarde={overzicht.bevestigd} onClick={() => openTab('titels', { filter: 'speelbaar' })} />
                     <Tegel label="Afgekeurd" waarde={overzicht.afgekeurd} onClick={() => openTab('titels', { filter: 'afgekeurd' })} />
                     <Tegel label="Vragen" waarde={overzicht.vragen} onClick={() => openTab('titels')} />
                     <Tegel label="Open meldingen" waarde={overzicht.open_meldingen} onClick={() => openTab('meldingen')} />
@@ -1542,6 +1543,8 @@ function TitelDetail({ titel, onWijzig }) {
                             </span>
                             <span className="dim">
                                 {tr.artiest} · {trackBronLabel(tr)} · ★{tr.herkenbaarheid}
+                                {tr.bevestigd && ' · bevestigd'}
+                                {tr.songnaam && ` · titelsong: ${tr.songnaam}`}
                                 {Number(tr.verificatie_score) > 0 && ` · controle ${Math.round(Number(tr.verificatie_score) * 100)}%`}
                                 {tr.verificatie_reden && ` · ${tr.verificatie_reden}`}
                                 {` · gespeeld: ${tr.keer_gespeeld || 0}×`}

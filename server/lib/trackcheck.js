@@ -118,6 +118,14 @@ function variantMarkering(titel, tekst) {
  * @returns {{past:boolean, zekerheid:number, reden:string, matchNaam?:string}}
  */
 function beoordeelTrack(titel, track) {
+    // Is de koppeling al langs een andere weg bewezen — Wikipedia noemt dit
+    // nummer als de titelsong van deze film, of een beheerder heeft hem in
+    // /admin goedgekeurd — dan hoeft de titelnaam niet in de tracknaam te
+    // staan. "You Be You" heet nergens "100% Coco" en hoort er tóch bij.
+    if (track?.bevestigd) {
+        return { past: true, zekerheid: 1, reden: 'bevestigde koppeling' };
+    }
+
     const namen = titelNamen(titel);
     // De artiest/YouTube-kanaal is bewust géén titelbewijs: een kanaal kan
     // willekeurig zo heten en mag nooit samen met de tracknaam een valse

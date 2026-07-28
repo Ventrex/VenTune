@@ -218,10 +218,50 @@ De knop **Database aanvullen · alleen ontbrekende tracks** in `/admin` zoekt
 alleen ontbrekende YouTube-kandidaten. Een bestaande YouTube-match of gezonde
 lokale track wordt daarbij overgeslagen.
 
-De import zoekt op **YouTube** naar de intro/titelsong (daar staat vrijwel elke
-film- en seriemuziek, ook de Nederlandse). iTunes wordt niet meer automatisch
-aangeroepen. Per titel wordt de meest waarschijnlijke intro gekozen:
-reaction-video's, trailers en hele afleveringen worden weggefilterd.
+### Hoe de import het juiste nummer vindt
+
+In plaats van botweg "`<titel>` soundtrack" te zoeken en te hopen op het beste,
+zoekt de import eerst uít wélk nummer bij de titel hoort. Pas daarna gaat hij
+zoeken. Drie stappen, in deze volgorde:
+
+1. **Het soundtrack-album.** Er wordt gezocht naar het album dat naar de titel
+   heet ("100% Coco (Original Soundtrack)"). Heet het album naar de film, dan
+   hoort élk nummer erop bij die film. Uit de tracklijst wordt het meest
+   herkenbare nummer gekozen: een nummer dat naar de titel is genoemd, of een
+   "main title"/"intro"/"titelsong". Losse score-fragmenten, suites en
+   instrumentale varianten zakken juist naar onderen.
+2. **De titelsong volgens Wikipedia.** Levert stap 1 niets op, dan wordt de
+   Nederlandse en Engelse Wikipedia gelezen. Zinnen als *"De titelsong is 'You
+   Be You' van Dionne Slagter"* leveren de naam van het nummer op.
+3. **YouTube.** Weet stap 1 of 2 hoe de titelsong heet, dan zoekt YouTube daar
+   gericht op ("You Be You 100% Coco") — die term staat vóór alle andere
+   zoektermen. Anders wordt op de gewone manier naar de intro/titelsong gezocht.
+   Reaction-video's, trailers, live-uitvoeringen en hele afleveringen worden
+   weggefilterd. YouTube blijft de bron waaruit gedownload wordt; het spel speelt
+   alleen de lokale MP3.
+
+Nummers waarvan langs deze weg vaststaat dat ze bij de titel horen, krijgen
+`bevestigd = true` in de database. Zo'n koppeling wordt niet meer automatisch
+afgekeurd omdat de filmnaam ontbreekt: *"You Be You"* heet nergens *"100% Coco"*
+en hoort er tóch bij. Hetzelfde geldt voor een track die je zelf in `/admin`
+goedkeurt of toevoegt. Wat er precies gevonden is, staat per track in `/admin`.
+
+**Controleren vóór je importeert.** Met de diagnose zie je per titel welk nummer
+er gekozen zou worden en langs welke weg — zonder dat er iets wordt opgeslagen:
+
+```bash
+docker compose exec server node /app/seed/diagnose-soundtrack.js "100% Coco"
+docker compose exec server node /app/seed/diagnose-soundtrack.js "Gooische Vrouwen"
+
+# De eerstvolgende titels zonder muziek doorlopen
+docker compose exec server node /app/seed/diagnose-soundtrack.js --db --limit 10
+```
+
+Klopt het? Dan die ene titel opnieuw importeren:
+
+```bash
+docker compose exec server node /app/seed/import.js --db --titel "Gooische Vrouwen"
+```
 
 Als een titel een `tmdb_id` heeft en `TMDB_API_KEY` is ingesteld, controleert
 VenTune daarnaast de officiële TMDB-titel en het jaar. Zonder TMDB-configuratie
@@ -412,9 +452,14 @@ VenTune/
 ├── .env.example
 ├── server/                  # backend (Express + Socket.IO)
 │   ├── db/{schema.sql,migrate.js,pool.js}
-│   ├── lib/{tmdb,match,discord,logger,cookies}.js
-│   ├── game/{engine,lobby,filters,scoring,bonus}.js
-│   ├── routes/{lobby,setup,admin}.js
+│   ├── lib/
+│   │   ├── soundtrack.js    # welk nummer hoort bij deze titel? (album + wiki)
+│   │   ├── ytzoek.js        # YouTube zoeken zonder API-key
+│   │   ├── trackcheck.js    # controle: hoort deze muziek écht bij deze titel?
+│   │   ├── cache.js         # zoekcache in de database
+│   │   └── {tmdb,match,title-match,content-filter,media-health,discord,logger,cookies,auth}.js
+│   ├── game/{engine,lobby,filters,scoring,bonus,vragen}.js
+│   ├── routes/{lobby,setup,admin,audio,muziek,changelog}.js
 │   ├── socket.js
 │   └── index.js
 ├── client/                  # frontend (React + Vite + nginx)
@@ -424,8 +469,19 @@ VenTune/
 │       ├── lib/{api,socket,sessie,useSpel}.js
 │       └── styles/theme.css
 └── seed/
-    ├── import.js            # YouTube-matchimport
-    └── titels.json          # startseed (~290 titels, NL + internationaal)
+    ├── import.js                 # titelsong bepalen + YouTube-match zoeken
+    ├── download-track.js         # MP3 downloaden naar /media/downloads
+    ├── tmdb-import.js            # duizenden titels via TMDB
+    ├── playlist-import.js        # intro's uit YouTube-playlists
+    ├── vragen-import.js          # bonusvragen genereren
+    ├── controleer-tracks.js      # verkeerde koppelingen opsporen/afkeuren
+    ├── diagnose-soundtrack.js    # per titel: welk nummer en waarom
+    ├── diagnose.js               # stand van de vragenbank
+    ├── diagnose-playlist.js      # waarom levert een playlist niets op
+    ├── reset-tracks.js           # tracks wissen om opnieuw te zoeken
+    ├── playlists.json            # YouTube-playlists met intro's
+    ├── collecties.json           # Disney, Pixar, Marvel, Kerst, …
+    └── titels.json               # startseed (~290 titels, NL + internationaal)
 ```
 
 ---
@@ -448,6 +504,27 @@ niets op hun telefoon.
 bruikbare online match. Gebruik in `/admin` de YouTube-zoeker voor de
 **titelsong of themamuziek**, controleer de kandidaat en download hem. Voeg
 alleen met bron- en rechtenregistratie een eigen `lokaal`-track toe.
+
+**Verkeerde muziek bij een titel.** Kijk eerst wat de import zou kiezen en
+waarom:
+
+```bash
+docker compose exec server node /app/seed/diagnose-soundtrack.js "<naam>"
+```
+
+Klopt het nummer in de database niet, dan die titel opnieuw doen met
+`import.js --db --titel "<naam>"`. Wil je alles nalopen op verkeerde
+koppelingen:
+
+```bash
+# rapport (wijzigt niets)
+docker compose exec server node /app/seed/controleer-tracks.js
+# verdachte tracks afkeuren
+docker compose exec server node /app/seed/controleer-tracks.js --ja
+```
+
+Plak je in `/admin` zelf een YouTube-link, dan wordt die meteen als **bevestigd**
+opgeslagen en door het spel niet meer automatisch afgekeurd.
 
 **Tunnel bereikt de app niet.** Wijs de tunnel naar het **host-IP**
 (`http://192.168.0.76:8091`), niet naar `127.0.0.1`. Zorg dat WebSockets

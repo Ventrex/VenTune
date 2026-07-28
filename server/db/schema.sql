@@ -158,6 +158,15 @@ BEGIN
         CHECK (download_status IN ('not_requested', 'pending', 'available', 'failed'));
 END$$;
 
+-- Bevestigde koppeling: er is buiten de tracknaam om vastgesteld dat dit
+-- nummer bij deze titel hoort (Wikipedia noemt het als titelsong, of een
+-- beheerder heeft het goedgekeurd). De titelnaam hoeft dan niet in de
+-- tracknaam voor te komen — "You Be You" hoort nu eenmaal bij "100% Coco".
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS bevestigd BOOLEAN NOT NULL DEFAULT false;
+-- De naam van de titelsong zoals gevonden, zodat je in /admin ziet waaróm
+-- deze track gekozen is.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS songnaam TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_tracks_keuze
     ON tracks (titel_id, werkt, fout_aantal, herkenbaarheid DESC);
 CREATE INDEX IF NOT EXISTS idx_tracks_verificatie

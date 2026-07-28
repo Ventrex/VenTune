@@ -24,7 +24,7 @@ const WISSEN = args.includes('--wis');
 async function main() {
     const { rows } = await pool.query(
         `SELECT tr.id, tr.bron, tr.tracknaam, tr.artiest, tr.album,
-                tr.werkt, tr.herkenbaarheid,
+                tr.werkt, tr.herkenbaarheid, tr.bevestigd, tr.songnaam,
                 t.id AS titel_id, t.naam AS titel_naam, t.aliassen, t.jaar
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
@@ -39,7 +39,12 @@ async function main() {
     for (const r of rows) {
         const uitkomst = pastBijTitel(
             { naam: r.titel_naam, aliassen: r.aliassen, jaar: r.jaar },
-            { tracknaam: r.tracknaam, album: r.album, artiest: r.artiest },
+            {
+                tracknaam: r.tracknaam,
+                album: r.album,
+                artiest: r.artiest,
+                bevestigd: r.bevestigd,
+            },
         );
         if (uitkomst.past) {
             goed++;

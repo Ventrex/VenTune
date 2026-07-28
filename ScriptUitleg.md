@@ -21,6 +21,27 @@ de rest blijft zichtbaar als overgeslagen. Als een titel een `tmdb_id` heeft en
 `TMDB_API_KEY` is ingesteld, moet de kandidaat ook met de officiële TMDB-titel
 en het jaar overeenkomen.
 
+## Welke titelsong hoort bij welke titel?
+
+`import.js` zoekt niet meteen op YouTube. Eerst wordt uitgezocht hóé het
+nummer heet dat bij de titel hoort: via het soundtrack-album dat naar de titel
+is genoemd, anders via de titelsong die Wikipedia noemt. Die naam gaat daarna
+als eerste zoekterm naar YouTube, waardoor de juiste video bovenaan komt.
+
+Controleren zonder iets op te slaan:
+
+    docker compose exec server node /app/seed/diagnose-soundtrack.js "100% Coco"
+    docker compose exec server node /app/seed/diagnose-soundtrack.js --db --limit 10
+
+Je ziet per titel welk album gevonden is, wat Wikipedia zegt, welk nummer
+gekozen wordt en welke YouTube-video daaruit volgt. Klopt het, dan die titel
+gericht importeren met `import.js --db --titel "<naam>"`.
+
+Een track waarvan langs deze weg vaststaat dat hij bij de titel hoort, krijgt
+`bevestigd = true`. Zo'n track wordt niet meer automatisch geweigerd omdat de
+filmnaam niet in de tracknaam staat — "You Be You" heet nergens "100% Coco".
+Hetzelfde geldt voor tracks die je in `/admin` goedkeurt of zelf toevoegt.
+
 ## Lokale audio-downloads
 
 De download start nooit vanzelf:

@@ -2,12 +2,14 @@
 
 | Pad | Verantwoordelijkheid |
 |---|---|
-| `server/lib/trackcheck.js` | Conservatieve controle titel, alias en jaar |
+| `server/lib/trackcheck.js` | Conservatieve controle titel, alias en jaar; bevestigde koppelingen |
+| `server/lib/soundtrack.js` | Zoekt op welke titelsong bij een film of serie hoort |
 | `server/lib/title-match.js` | Koppeling van playlistvideotitels aan database-titels |
 | `server/lib/ytzoek.js` | YouTube-zoeken, playlistlezen en kandidaten rangschikken |
 | `server/lib/tmdb.js` | TMDB-details, caching en tweede titel-/jaarcontrole |
 | `server/lib/auth.js` | Hostregistratie, login en server-side sessies |
-| `seed/import.js` | YouTube/iTunes-vragenbank vullen |
+| `seed/import.js` | Titelsong bepalen en de bijbehorende YouTube-match zoeken |
+| `seed/diagnose-soundtrack.js` | Per titel tonen welk nummer gekozen wordt en waarom |
 | `seed/playlist-import.js` | Betrouwbare playlisttracks importeren |
 | `seed/download-track.js` | Handmatig toegestane YouTube-/iTunes-tracks lokaal cachen |
 | `seed/tmdb-import.js` | Titels en metadata importeren vanuit TMDB |
@@ -21,6 +23,7 @@
 | `server/test/round-flow.test.js` | Regressietest voor dubbele overgangen en ronde-nummering |
 | `server/test/tmdb.test.js` | Test officiële TMDB-titel- en jaarcontrole |
 | `server/test/hints.test.js` | Test variabele hints en beginletters zoals `S.....s` |
+| `server/test/soundtrack.test.js` | Test de titelsong-route en bevestigde koppelingen |
 | `client/src/pages/Changelog.jsx` | Changelog die spelers kunnen openen |
 | `client/src/pages/HostAuth.jsx` | Hostaccount registreren en inloggen |
 | `client/src/components/Brand.jsx` | Logo en VenTune-merkweergave |

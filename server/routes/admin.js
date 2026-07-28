@@ -524,6 +524,10 @@ router.patch('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
     if (typeof b.gecontroleerd === 'boolean') {
         params.push(b.gecontroleerd);
         velden.push(`gecontroleerd = $${params.length}`);
+        // Keur jij een track goed, dan staat de koppeling vast. Het spel gaat
+        // hem daarna niet meer automatisch afkeuren omdat de filmnaam
+        // toevallig niet in de tracknaam staat.
+        velden.push(`bevestigd = $${params.length}`);
     }
     if (Number.isFinite(b.herkenbaarheid)) {
         params.push(Math.max(1, Math.min(5, b.herkenbaarheid)));
@@ -649,6 +653,7 @@ router.get('/api/admin/overzicht', vereisAdmin, async (_req, res) => {
                (SELECT count(*)::int FROM tracks) AS tracks,
                (SELECT count(*)::int FROM tracks WHERE werkt = false) AS afgekeurd,
                (SELECT count(*)::int FROM tracks WHERE gecontroleerd) AS gecontroleerd,
+               (SELECT count(*)::int FROM tracks WHERE bevestigd) AS bevestigd,
                (SELECT count(*)::int FROM titels t
                  WHERE EXISTS (SELECT 1 FROM tracks x
                                 WHERE x.titel_id = t.id AND x.werkt
@@ -1165,11 +1170,15 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
     }
 
     const { rows } = await pool.query(
+        // Zelf toegevoegd via /admin = bewust gekozen, dus meteen bevestigd
+        // én gecontroleerd. Anders zou het spel hem kunnen weigeren.
         `INSERT INTO tracks (titel_id, bron, itunes_track_id, preview_url,
                              start_seconde, tracknaam, artiest, album,
-                             herkenbaarheid, gecontroleerd, verificatie_score,
-                             verificatie_reden, laatst_gecontroleerd_op, bron_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, now(), $12)
+                             herkenbaarheid, gecontroleerd, bevestigd,
+                             verificatie_score, verificatie_reden,
+                             laatst_gecontroleerd_op, bron_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, true, $10, $11,
+                 now(), $12)
          RETURNING *`,
         [
             req.params.id,

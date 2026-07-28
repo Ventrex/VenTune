@@ -1,5 +1,24 @@
 # VenTune changelog
 
+## [0.5.6] - 2026-07-28
+
+### Eerst uitzoeken welk nummer erbij hoort, daarna pas zoeken
+
+- De import zoekt niet meer botweg op "`<titel>` soundtrack". Eerst wordt het
+  soundtrack-album gezocht dat naar de titel is genoemd; uit die tracklijst
+  wordt het meest herkenbare nummer gekozen (titelsong of main title, niet een
+  losse score-suite).
+- Levert dat niets op, dan wordt de titelsong opgezocht in de Nederlandse en
+  Engelse Wikipedia ("De titelsong is 'You Be You' van Dionne Slagter").
+- De gevonden songnaam gaat als eerste zoekterm naar YouTube, waardoor de
+  juiste video bovenaan komt in plaats van een willekeurig soundtracknummer.
+- Nieuwe kolommen `tracks.bevestigd` en `tracks.songnaam`. Een bevestigde
+  koppeling wordt niet meer automatisch geweigerd omdat de filmnaam niet in de
+  tracknaam staat. Tracks die je in `/admin` goedkeurt of zelf toevoegt zijn
+  daarmee ook meteen bevestigd.
+- Nieuw script `seed/diagnose-soundtrack.js`: toont per titel welk nummer
+  gekozen wordt en langs welke weg, zonder iets op te slaan.
+
 ## [0.5.5] - 2026-07-28
 
 ### Spelen en handmatige koppelingen

@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('../server/db/pool');
 const ytzoek = require('../server/lib/ytzoek');
+const soundtrack = require('../server/lib/soundtrack');
 const { pastBijTitel } = require('../server/lib/trackcheck');
 const tmdb = require('../server/lib/tmdb');
 const { veiligeTiteltekst, veiligeMetadata } = require('../server/lib/content-filter');
@@ -272,7 +273,7 @@ async function controleerMetLagen(titel, track, lokaleControle) {
     };
 }
 
-async function voegYoutubeTrackToe(titelId, video, executor = pool) {
+async function voegYoutubeTrackToe(titelId, video, executor = pool, songnaam = null) {
     const bronUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
     const bestaande = await executor.query(
         `SELECT id FROM tracks
@@ -288,8 +289,10 @@ async function voegYoutubeTrackToe(titelId, video, executor = pool) {
         `INSERT INTO tracks (titel_id, bron, preview_url, start_seconde,
                              tracknaam, artiest, herkenbaarheid, gecontroleerd,
                              verificatie_score, verificatie_reden,
-                             laatst_gecontroleerd_op, bron_url)
-         VALUES ($1, 'youtube', $2, $3, $4, $5, 3, true, $6, $7, now(), $8)
+                             laatst_gecontroleerd_op, bron_url,
+                             bevestigd, songnaam)
+         VALUES ($1, 'youtube', $2, $3, $4, $5, 3, true, $6, $7, now(), $8,
+                 $9, $10)
          RETURNING id`,
         [
             titelId,
@@ -300,6 +303,8 @@ async function voegYoutubeTrackToe(titelId, video, executor = pool) {
             verificatieScore(video),
             video.verificatie?.reden || 'YouTube-titelcontrole',
             bronUrl,
+            Boolean(songnaam),
+            songnaam,
         ],
     );
     return rows[0];
@@ -414,16 +419,39 @@ async function importeer({
         // betrouwbare tracks geven rotatie. Alleen een gerichte titelactie
         // mag bewust opnieuw zoeken.
 
-        // 1) YouTube is de primaire bron: daar staat vrijwel elke intro en
-        //    titelsong, ook de Nederlandse. Dit voorkomt handmatig nalopen.
         let gelukt = false;
+
+        // 1) Eerst uitzoeken wélk nummer bij deze titel hoort, in plaats van
+        //    blind te zoeken. Via het soundtrack-album (de albumnaam moet de
+        //    filmnaam bevatten) of via Wikipedia, dat de titelsong noemt.
+        //    Duurt iets langer, maar de zoekopdracht is daarna gericht en de
+        //    koppeling klopt vrijwel altijd.
+        let songnaam = null;
         try {
-            let keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250 });
+            const uitZoek = await soundtrack.zoekVoorTitel(t);
+            if (uitZoek && (uitZoek.songnaam || uitZoek.alleenSongnaam || uitZoek.tracknaam)) {
+                songnaam = uitZoek.alleenSongnaam || uitZoek.songnaam || uitZoek.tracknaam;
+                log({ titel: t.naam, bron: `soundtrack/${uitZoek.via || 'wikipedia'}`, songnaam });
+            }
+        } catch (err) {
+            log({ titel: t.naam, bron: 'soundtrack', fout: err.message });
+        }
+
+        // 2) YouTube is de bron waaruit gedownload wordt: daar staat vrijwel
+        //    elke intro en titelsong, ook de Nederlandse. Kennen we de naam
+        //    van de titelsong, dan zoekt YouTube daar eerst gericht op.
+        try {
+            let keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250, songnaam });
             // Extra slot op de deur: hoort deze video echt bij deze titel?
             if (keuze) {
+                // Staat de titelsong die Wikipedia bij déze titel noemt in de
+                // videotitel, dan is de koppeling al bewezen — de filmnaam
+                // hoeft er dan niet ook nog in te staan.
+                const viaSong = Boolean(keuze._viaSong);
                 const lokaleControle = pastBijTitel(t, {
                     tracknaam: keuze.titel,
                     artiest: keuze.kanaal,
+                    bevestigd: viaSong,
                 });
                 const check = await controleerMetLagen(t, {
                     tracknaam: keuze.titel,
@@ -440,18 +468,19 @@ async function importeer({
                 // Nu er echt een betrouwbare treffer is, voegen we die toe
                 // naast bestaande fallbacks. De engine roteert daarna de
                 // minst gespeelde kandidaat.
+                const bevestigdeSong = keuze._viaSong ? songnaam : null;
                 if (force) {
                     await vervangTracks(titelId, (client) =>
-                        voegYoutubeTrackToe(titelId, keuze, client),
+                        voegYoutubeTrackToe(titelId, keuze, client, bevestigdeSong),
                     );
                 } else {
-                    await voegYoutubeTrackToe(titelId, keuze);
+                    await voegYoutubeTrackToe(titelId, keuze, pool, bevestigdeSong);
                 }
                 metTrack++;
                 gelukt = true;
                 log({
                     titel: t.naam,
-                    bron: 'youtube',
+                    bron: bevestigdeSong ? 'youtube/titelsong' : 'youtube',
                     gevonden: keuze.titel,
                     views: keuze.views ?? null,
                 });

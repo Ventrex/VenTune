@@ -13,7 +13,7 @@
 
 const logger = require('./logger');
 const cache = require('./cache');
-const { pastBijTitel } = require('./trackcheck');
+const { pastBijTitel, bevatWoordreeks } = require('./trackcheck');
 
 const ZOEK_URL = 'https://www.youtube.com/results';
 const API_URL = 'https://www.googleapis.com/youtube/v3/search';
@@ -496,12 +496,18 @@ async function zoek(term, opties = {}) {
  *
  * @returns {string[]}
  */
-function zoektermenVoor(titel) {
+function zoektermenVoor(titel, opties = {}) {
     const expliciet = titel.yt_zoekterm || titel.youtube_zoekterm;
     const naam = titel.naam;
     const jaar = titel.jaar ? ` ${titel.jaar}` : '';
     const namen = [...new Set([naam, ...(titel.aliassen || [])].filter(Boolean))];
     const termen = [];
+
+    // Weten we hoe de titelsong héét (via de soundtrack-route), dan zoeken we
+    // daar eerst gericht op. Dat levert vrijwel altijd het juiste nummer.
+    const vooraf = opties.songnaam
+        ? [`${opties.songnaam} ${naam}`, `${opties.songnaam} official audio`]
+        : [];
 
     if (titel.type === 'serie') {
         // 'intro' levert de herkenbare titelsequentie op; 'soundtrack' geeft
@@ -531,7 +537,9 @@ function zoektermenVoor(titel) {
     // titelgerichte zoektermen niet volledig vervangen.
     if (titel.zoekterm) termen.push(titel.zoekterm);
     if (expliciet) termen.push(expliciet);
-    return [...new Set(termen)];
+    // De bekende titelsong gaat vóór alles: die levert vrijwel altijd het
+    // juiste nummer op.
+    return [...new Set([...vooraf, ...termen])];
 }
 
 /** Eén term (eerste keuze) — handig voor losse aanroepen. */
@@ -547,7 +555,7 @@ function zoektermVoor(titel) {
  * @returns {Promise<object|null>}
  */
 async function zoekVoorTitel(titel, opties = {}) {
-    const termen = zoektermenVoor(titel);
+    const termen = zoektermenVoor(titel, opties);
     let beste = null;
 
     for (const term of termen) {
@@ -559,7 +567,7 @@ async function zoekVoorTitel(titel, opties = {}) {
             if (!beste) throw err;
             break;
         }
-        const keuze = kiesBeste(videos, titel);
+        const keuze = kiesBeste(videos, titel, { songnaam: opties.songnaam });
         if (keuze) {
             // De score is belangrijker dan alleen populariteit. Zo wint een
             // echte intro van een willekeurig soundtracknummer met meer views.
@@ -632,8 +640,13 @@ function isLatijnsSchrift(tekst) {
  *
  * Puur en testbaar.
  */
-function kiesBeste(resultaten, titel) {
+function kiesBeste(resultaten, titel, opties = {}) {
     if (!resultaten || resultaten.length === 0) return null;
+    // Kennen we de naam van de titelsong (via de soundtrack-route), dan telt
+    // die net zo hard als de filmnaam. "You Be You" hoort immers bij
+    // 100% Coco, ook al staat de filmnaam niet in de videotitel.
+    const songNorm = opties.songnaam ? normaliseer(opties.songnaam) : '';
+
     // Basiseisen: naam komt voor, niets ongewensts, duur plausibel.
     const bruikbaar = resultaten.map((r) => {
         const t = normaliseer(r.titel);
@@ -644,20 +657,26 @@ function kiesBeste(resultaten, titel) {
         // niet winnen van een minder populaire studioversie.
         if (LIVE_TITEL.test(t)) return null;
         if (SLECHTE_WOORDEN.some((w) => t.includes(w))) return null;
+        // Staat de titelsong die Wikipedia bij déze titel noemt in de
+        // videotitel, dan is de koppeling al bewezen.
+        const viaSong = songNorm.length >= 3 && bevatWoordreeks(t, songNorm);
         // Een automatische zoekopdracht moet expliciet naar muziek voor de
         // titel wijzen. Een exact klinkende naam zonder theme/intro-signaal
-        // is vaak een willekeurig nummer met dezelfde zoekwoorden.
+        // is vaak een willekeurig nummer met dezelfde zoekwoorden. Bij een
+        // bekende titelsong is dat signaal niet nodig: het nummer heet nu
+        // eenmaal niet "intro".
         const minimumSignaal = titel?.type === 'serie' ? 2 : 1;
-        if (signaalNiveau(r.titel) < minimumSignaal) return null;
+        if (!viaSong && signaalNiveau(r.titel) < minimumSignaal) return null;
         if (r.duurSeconden != null) {
             if (r.duurSeconden < MIN_SECONDEN || r.duurSeconden > MAX_SECONDEN) return null;
         }
         const controle = pastBijTitel(titel, {
             tracknaam: r.titel,
             artiest: r.kanaal,
+            bevestigd: viaSong,
         });
         if (!controle.past) return null;
-        return { ...r, _controle: controle };
+        return { ...r, _controle: controle, _viaSong: viaSong };
     }).filter(Boolean);
 
     if (bruikbaar.length === 0) return null;
