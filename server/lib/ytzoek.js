@@ -24,12 +24,24 @@ const MIN_SECONDEN = 20;
 const MAX_SECONDEN = 45 * 60;
 let youtubeBlokkadeTot = 0;
 let youtubeBlokkadePogingen = 0;
+const YOUTUBE_MIN_INTERVAL_MS = Math.max(
+    100,
+    Number(process.env.YOUTUBE_MIN_INTERVAL_MS) || 250,
+);
+let youtubeVolgendeVerzoek = 0;
+let youtubeRateLimitKeten = Promise.resolve();
 
 async function wachtOpRateLimit() {
-    const resterend = youtubeBlokkadeTot - Date.now();
-    if (resterend > 0) {
-        await new Promise((resolve) => setTimeout(resolve, resterend));
-    }
+    const ticket = youtubeRateLimitKeten.then(async () => {
+        const doel = Math.max(youtubeBlokkadeTot, youtubeVolgendeVerzoek);
+        const resterend = doel - Date.now();
+        if (resterend > 0) {
+            await new Promise((resolve) => setTimeout(resolve, resterend));
+        }
+        youtubeVolgendeVerzoek = Date.now() + YOUTUBE_MIN_INTERVAL_MS;
+    });
+    youtubeRateLimitKeten = ticket.catch(() => {});
+    await ticket;
 }
 
 function markeerRateLimit(status) {
