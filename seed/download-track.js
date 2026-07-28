@@ -269,7 +269,7 @@ async function begrensAudioOpVijfMinuten(bestand) {
 }
 
 /** Controleer alle lokale tracks en synchroniseer status/hash met de disk. */
-async function controleerLokaleBestanden({ onProgress = null } = {}) {
+async function controleerLokaleBestanden({ onProgress = null, isGeannuleerd = () => false } = {}) {
     const { rows } = await pool.query(
         `SELECT tr.id, tr.bron, tr.preview_url, tr.bestand_pad, tr.audio_sha256,
                 tr.download_status, tr.itunes_track_id, tr.bron_url, t.naam
@@ -280,8 +280,13 @@ async function controleerLokaleBestanden({ onProgress = null } = {}) {
     let goed = 0;
     let ontbreekt = 0;
     let gewijzigd = 0;
+    let geannuleerd = false;
     const fouten = [];
     for (const [index, track] of rows.entries()) {
+        if (isGeannuleerd()) {
+            geannuleerd = true;
+            break;
+        }
         if (isAppleTrack(track)) {
             const fout = 'Oude iTunes-preview uitgesloten; vervang deze door een volledige YouTube-download of eigen upload.';
             fouten.push({ id: track.id, naam: track.naam, fout });
@@ -318,7 +323,7 @@ async function controleerLokaleBestanden({ onProgress = null } = {}) {
         }
         onProgress?.({ verwerkt: index + 1, totaal: rows.length, huidige: track.naam, goed, ontbreekt, gewijzigd });
     }
-    return { verwerkt: rows.length, goed, ontbreekt, gewijzigd, fouten: fouten.slice(0, 200) };
+    return { verwerkt: geannuleerd ? goed + ontbreekt + gewijzigd : rows.length, goed, ontbreekt, gewijzigd, geannuleerd, fouten: fouten.slice(0, 200) };
 }
 
 /**
