@@ -191,6 +191,15 @@ function Beheer({ onUit }) {
     async function laadTaken() {
         try { setTaken(await api.adminTaken()); } catch { /* oudere serverversie */ }
     }
+    async function stopTaak(naam) {
+        try {
+            await api.adminTaakStop(naam);
+            setMelding('Stop aangevraagd. De huidige actie wordt nog netjes afgerond.');
+            await laadTaken();
+        } catch (err) {
+            setMelding(err.message);
+        }
+    }
     async function laadGebruikers() {
         try {
             setGebruikers(await api.adminGebruikers());
@@ -567,7 +576,7 @@ function Beheer({ onUit }) {
                 </nav>
             )}
 
-            {taken && <AdminTaken data={taken} />}
+            {taken && <AdminTaken data={taken} onStop={stopTaak} />}
             {melding && <p className="waarschuwing">{melding}</p>}
             {voortgang && (voortgang.totaal || voortgang.indeterminate) && (
                 <div className={'admin-progress' + (voortgang.indeterminate ? ' onbepaald' : '')} role="progressbar" aria-valuenow={voortgang.verwerkt || 0} aria-valuemax={voortgang.totaal || 0}>
@@ -736,10 +745,34 @@ function Beheer({ onUit }) {
                             </button>
                         </div>
                         <p className="dim" style={{ marginBottom: 0, marginTop: '0.75rem' }}>
-                            Zoeken gaat per 250 titels omdat YouTube afknijpt. Elke run pakt
-                            de volgende titels; wat niets oplevert schuift achteraan.
-                            Downloaden pakt altijd alles.
+                            De batchgrootte hieronder bepaalt hoeveel items vooraf worden verwerkt.
+                            YouTube-verzoeken blijven op de ingestelde rate-limit; een hogere waarde
+                            maakt meer werk per batch, maar stuurt geen onbeperkte verzoeken tegelijk.
                         </p>
+                    </div>
+
+                    <div className="kaart" style={{ marginTop: '1rem' }}>
+                        <p className="kaart-label">Zoek- en downloadsnelheid</p>
+                        <p className="dim">
+                            Bepaalt hoeveel nummers tegelijk worden gezocht en gedownload. YouTube-verzoeken
+                            blijven op minimaal 250 ms afstand; bij 403/429 wordt automatisch langer gewacht.
+                        </p>
+                        <label className="kaart-label">
+                            Batchgrootte
+                            <input
+                                className="invoer"
+                                type="number"
+                                min="1"
+                                max="50"
+                                value={planning?.batchGrootte ?? 5}
+                                onChange={(e) => setPlanning((oud) => ({
+                                    ...(oud || {}),
+                                    batchGrootte: Number(e.target.value) || 1,
+                                }))}
+                                style={{ maxWidth: 100, marginLeft: '0.5rem' }}
+                            />
+                            <span className="dim"> tegelijk (1–50)</span>
+                        </label>
                     </div>
 
                     <details className="kaart" style={{ marginTop: '1rem' }}>
@@ -999,29 +1032,6 @@ function Beheer({ onUit }) {
                         <input type="checkbox" checked={planning?.downloadsAutomatisch === true} onChange={(e) => bewaarPlanning({ downloadsAutomatisch: e.target.checked })} />
                         <span><strong>Gecontroleerde YouTube-tracks downloaden</strong><span className="keuze-uitleg">Alleen al gecontroleerde bronnen naar /media/downloads</span></span>
                     </label>
-                    <div className="kaart" style={{ marginTop: '1rem' }}>
-                        <p className="kaart-label">Verwerkingssnelheid</p>
-                        <p className="dim">
-                            Bepaalt hoeveel nummers tegelijk worden gezocht en gedownload. YouTube-verzoeken
-                            blijven op minimaal 250 ms afstand; bij 403/429 wordt automatisch langer gewacht.
-                        </p>
-                        <label className="kaart-label">
-                            Batchgrootte
-                            <input
-                                className="invoer"
-                                type="number"
-                                min="1"
-                                max="50"
-                                value={planning?.batchGrootte ?? 5}
-                                onChange={(e) => setPlanning((oud) => ({
-                                    ...(oud || {}),
-                                    batchGrootte: Number(e.target.value) || 1,
-                                }))}
-                                style={{ maxWidth: 100, marginLeft: '0.5rem' }}
-                            />
-                            <span className="dim"> tegelijk (1–50)</span>
-                        </label>
-                    </div>
                     <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
                         <label className="kaart-label">Playlists elke <input className="invoer" type="number" min="1" max="168" value={planning?.playlistIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), playlistIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
                         <label className="kaart-label">Bestanden elke <input className="invoer" type="number" min="1" max="168" value={planning?.mediaHealthIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), mediaHealthIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
@@ -1111,7 +1121,7 @@ function tekstVoorTaak(klaarTekst, samenvatting) {
     return delen.length ? `${klaarTekst} ${delen.join(' · ')}.` : klaarTekst;
 }
 
-function AdminTaken({ data }) {
+function AdminTaken({ data, onStop }) {
     const lijst = (data.taken || []).filter((taak) => taak.actief || taak.status?.bezig || taak.status?.fout);
     if (!lijst.length) return null;
     return (
@@ -1128,10 +1138,20 @@ function AdminTaken({ data }) {
                         <li key={taak.naam} className="speler-kaart">
                             <span>
                                 <strong>{taak.label}</strong>
-                                <span className="dim"> · {status.fout ? `fout: ${status.fout}` : status.bezig ? 'bezig' : 'afgerond'}</span>
+                                <span className="dim"> · {status.stop_aangevraagd ? 'stop aangevraagd' : status.fout ? `fout: ${status.fout}` : status.bezig ? 'bezig' : 'afgerond'}</span>
                                 {status.huidige && <span className="dim"> · {status.huidige}</span>}
                             </span>
                             {percentage !== null && <span className="dim">{percentage}%</span>}
+                            {data.actieve_taak === taak.naam && (status.bezig || taak.actief) && (
+                                <button
+                                    className="afspeelknop klein gevaar"
+                                    type="button"
+                                    onClick={() => onStop?.(taak.naam)}
+                                    disabled={status.stop_aangevraagd}
+                                >
+                                    {status.stop_aangevraagd ? 'Stop aangevraagd' : 'Stoppen'}
+                                </button>
+                            )}
                         </li>
                     );
                 })}
