@@ -773,6 +773,13 @@ function Beheer({ onUit }) {
                             />
                             <span className="dim"> tegelijk (1–50)</span>
                         </label>
+                        <button
+                            className="knop knop-stil"
+                            type="button"
+                            onClick={() => bewaarPlanning({ batchGrootte: planning?.batchGrootte || 5 })}
+                        >
+                            Snelheid opslaan
+                        </button>
                     </div>
 
                     <details className="kaart" style={{ marginTop: '1rem' }}>
