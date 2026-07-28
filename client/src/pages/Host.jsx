@@ -234,7 +234,7 @@ export default function Host() {
                                 <div className="velden">
                                     <select
                                         className="invoer"
-                                        value={lobbyWijziging?.antwoord_modus || 'typen'}
+                                        value={lobbyWijziging?.antwoord_modus || 'meerkeuze'}
                                         onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, antwoord_modus: e.target.value })}
                                     >
                                         <option value="typen">Typen</option>

@@ -82,7 +82,9 @@ function lifelineAantal(instellingen) {
 }
 
 function antwoordModusUit(instellingen) {
-    return instellingen?.antwoord_modus === 'meerkeuze' ? 'meerkeuze' : 'typen';
+    // Meerkeuze (zes opties) is de standaard; alleen wie bewust 'typen' kiest
+    // krijgt een invulveld.
+    return instellingen?.antwoord_modus === 'typen' ? 'typen' : 'meerkeuze';
 }
 
 function kindmodusUit(instellingen) {
@@ -96,28 +98,49 @@ function maxTitelPogingen(state) {
 
 function bouwMeerkeuzeOpties(titel, pool_) {
     const genres = new Set((titel.genres || []).map((g) => String(g).toLowerCase()));
-    const zelfdeType = pool_.filter((t) => t.id !== titel.id && (!titel.type || t.type === titel.type));
-    const zelfdeGenre = pool_.filter((t) => t.id !== titel.id
-        && (t.genres || []).some((g) => genres.has(String(g).toLowerCase())));
-    const genreKandidaten = genres.size ? zelfdeGenre : zelfdeType;
-    const opJaar = (lijst) => lijst.filter((t) =>
-        !titel.jaar || !t.jaar || Math.abs(Number(t.jaar) - Number(titel.jaar)) <= 12);
-    // Nooit willekeurige genres combineren. Alleen bij oude handmatige
-    // titels zonder genre-metadata gebruiken we dezelfde type/jaar-fallback.
-    const kandidatenTitels = husselArray(opJaar(genreKandidaten)).sort((a, b) =>
-        Number(b.type === titel.type) - Number(a.type === titel.type));
-    const kandidaten = (kandidatenTitels.length >= AANTAL_MEERKEUZE_OPTIES - 1
-        ? kandidatenTitels
-        : husselArray(genreKandidaten)).map((t) => t.naam);
+    const zonderZelf = pool_.filter((t) => t.id !== titel.id);
+
+    const taalOk = (t) => !titel.taal || !t.taal || t.taal === titel.taal;
+    const genreOk = (t) => (t.genres || []).some((g) => genres.has(String(g).toLowerCase()));
+    const typeOk = (t) => !titel.type || t.type === titel.type;
+    const jaarBij = (t, marge) => !!titel.jaar && !!t.jaar
+        && Math.abs(Number(t.jaar) - Number(titel.jaar)) <= marge;
+
+    // Basis: alleen dezelfde taal. Levert dat te weinig op, dan telt alles.
+    const zelfdeTaal = zonderZelf.filter(taalOk);
+    const basis = zelfdeTaal.length >= AANTAL_MEERKEUZE_OPTIES - 1 ? zelfdeTaal : zonderZelf;
+
     const opties = [titel.naam];
     const gezien = new Set([String(titel.naam).toLowerCase()]);
-    for (const naam of kandidaten) {
-        const sleutel = String(naam).toLowerCase();
-        if (gezien.has(sleutel)) continue;
-        gezien.add(sleutel);
-        opties.push(naam);
-        if (opties.length >= AANTAL_MEERKEUZE_OPTIES) break;
-    }
+    // Voeg tot `aantal` titels uit `lijst` toe (gehusseld, zonder dubbele),
+    // maar nooit meer dan zes opties in totaal.
+    const voegToe = (lijst, aantal) => {
+        let over = aantal;
+        for (const t of husselArray(lijst)) {
+            if (over <= 0 || opties.length >= AANTAL_MEERKEUZE_OPTIES) break;
+            const sleutel = String(t.naam).toLowerCase();
+            if (gezien.has(sleutel)) continue;
+            gezien.add(sleutel);
+            opties.push(t.naam);
+            over -= 1;
+        }
+    };
+
+    // Samenstelling van de foute antwoorden. Voorbeeld: een Nederlandse comedy-
+    // serie uit 1990 krijgt ~2 Nederlandse comedy's, ~2 Nederlandse titels van
+    // hetzelfde type uit 1989–1991 en ~1 willekeurige Nederlandse titel. Zo
+    // zijn de afleiders passend én wisselen ze per ronde.
+    if (genres.size) voegToe(basis.filter(genreOk), 2);
+    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 1)), 2);
+    // Jaarvenster stapsgewijs verruimen als 1990±1 te weinig opleverde.
+    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 3)), 2);
+    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 8)), 2);
+    // Eén willekeurige zelfde-taal-titel en, als vangnet, elke resterende titel,
+    // zodat er altijd zes opties zijn en de knoppen nooit verdwijnen.
+    voegToe(basis, AANTAL_MEERKEUZE_OPTIES);
+    voegToe(zonderZelf, AANTAL_MEERKEUZE_OPTIES);
+
+    // Alleen als de hele pool te klein is (minder dan zes titels) lukt het niet.
     if (opties.length < AANTAL_MEERKEUZE_OPTIES) return null;
     const gehusseld = husselArray(opties);
     return {
@@ -591,6 +614,59 @@ class SpelBeheer {
         }
     }
 
+    /**
+     * Haal een diverse steekproef afleider-kandidaten voor de meerkeuzevraag.
+     *
+     * Belangrijk: de afleiders moeten dezelfde inhoudsfilters respecteren als
+     * de speelbare titels. Anders zou een kindvriendelijk spel (of een spel met
+     * een leeftijdsgrens of uitgesloten genres) een titel voor volwassenen of
+     * een niet-gecureerde titel (`curatie_status <> 'goedgekeurd'`) als
+     * antwoordoptie kunnen tonen. Daarom hergebruikt deze query `bouwFilter`
+     * met exact de spelinstellingen — alleen zonder `alleen_lokaal`, want een
+     * afleider hoeft geen speelbare lokale track te hebben.
+     *
+     * Bij voorkeur dezelfde taal als het juiste antwoord; levert dat te weinig,
+     * dan wordt aangevuld met de andere talen binnen dezelfde filters. Zo
+     * wisselen de afleiders per ronde en blijven ze inhoudelijk veilig. Bij een
+     * mislukte query valt de aanroeper terug op de spel-pool.
+     */
+    async haalAfleiderPool(state, titel) {
+        try {
+            const filter = bouwFilter({ ...state.instellingen, alleen_lokaal: false });
+            const idIdx = filter.params.length + 1;
+            const basis = `SELECT t.id, t.naam, t.type, t.taal, t.jaar, t.genres
+                             FROM titels t
+                            ${filter.where} AND t.id <> $${idIdx}`;
+
+            const taalIdx = filter.params.length + 2;
+            const { rows } = await pool.query(
+                `${basis}
+                    AND ($${taalIdx}::titel_taal IS NULL OR t.taal = $${taalIdx})
+                  ORDER BY random() LIMIT 150`,
+                [...filter.params, titel.id, titel.taal || null],
+            );
+            // Genoeg titels in de eigen taal? Klaar. Anders aanvullen met de
+            // andere talen binnen dezelfde filters, zodat er altijd zes
+            // opties zijn.
+            if (rows.length >= 5 * (AANTAL_MEERKEUZE_OPTIES - 1)) return rows;
+            const breed = await pool.query(
+                `${basis} ORDER BY random() LIMIT 150`,
+                [...filter.params, titel.id],
+            );
+            const gezien = new Set(rows.map((r) => r.id));
+            for (const r of breed.rows) {
+                if (!gezien.has(r.id)) rows.push(r);
+            }
+            return rows;
+        } catch (err) {
+            logger.waarschuwing('Afleiderpool ophalen mislukt.', {
+                titel: titel.naam,
+                melding: err.message,
+            });
+            return [];
+        }
+    }
+
     // ---- Volgende ronde ----
     async volgendeRonde(state) {
         if (
@@ -652,6 +728,20 @@ class SpelBeheer {
                     [state.lobbyId, state.rondenummer, titel.id, track.id, state.rondeDuurMs],
                 );
 
+                // Afleiders uit de héle titeldatabase (zelfde taal + genre,
+                // jaar in de buurt), zodat ze per ronde variëren in plaats van
+                // steeds dezelfde paar titels uit de quiz-pool. Terugval op de
+                // spel-pool als de database niets bruikbaars geeft.
+                let antwoordOpties = null;
+                if (state.antwoordModus === 'meerkeuze') {
+                    const afleiderPool = await this.haalAfleiderPool(state, titel);
+                    const bron = afleiderPool.length >= AANTAL_MEERKEUZE_OPTIES - 1
+                        ? afleiderPool
+                        : state.pool;
+                    antwoordOpties = bouwMeerkeuzeOpties(titel, bron)
+                        || bouwMeerkeuzeOpties(titel, state.pool);
+                }
+
                 const nieuweHuidige = {
                     rondeId: rondeRij.rows[0].id,
                     titel,
@@ -663,9 +753,7 @@ class SpelBeheer {
                     ingediend: new Set(), // geen pogingen meer toegestaan
                     gokPogingen: new Map(), // solo mag twee titelgokken doen
                     laatsteGok: new Map(), // spelerId -> timestamp (rate limit)
-                    antwoordOpties: state.antwoordModus === 'meerkeuze'
-                        ? bouwMeerkeuzeOpties(titel, state.pool)
-                        : null,
+                    antwoordOpties,
                     verwijderdeOpties: new Map(), // spelerId -> indexen
                     timer: null,
                 };

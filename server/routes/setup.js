@@ -264,7 +264,7 @@ router.post('/api/presets', async (req, res) => {
                 Array.isArray(b.zonder_genres) ? b.zonder_genres : [],
                 Number.isFinite(b.leeftijd_max) ? b.leeftijd_max : 0,
                 b.alleen_nl_tv !== false,
-                b.antwoord_modus === 'meerkeuze' ? 'meerkeuze' : 'typen',
+                b.antwoord_modus === 'typen' ? 'typen' : 'meerkeuze',
                 Array.isArray(b.collecties) ? b.collecties : [],
                 Number.isInteger(b.leeftijd_deelnemer_min) ? b.leeftijd_deelnemer_min : 4,
                 Number.isInteger(b.leeftijd_deelnemer_max) ? b.leeftijd_deelnemer_max : 99,
