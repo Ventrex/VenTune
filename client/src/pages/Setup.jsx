@@ -158,7 +158,10 @@ export default function Setup() {
             leeftijd_max: f.leeftijd_max ?? 0,
             zonder_genres: f.zonder_genres || [],
         }));
-        setStap(2);
+        // De editie bepaalt al type, taal, periode en collectie. Alleen het
+        // aantal rondes staat nog open, dus daar gaan we meteen heen. Met
+        // Terug kom je alsnog bij de losse filters.
+        setStap(4);
     }
 
     // Live telling ophalen wanneer de filters veranderen.
@@ -179,7 +182,19 @@ export default function Setup() {
         ververTelling();
     }, [ververTelling]);
 
+    const gekozenQuiz = quizzen.find((q) => q.sleutel === quizSleutel) || null;
+
+    // Filters die bepálen wát er gespeeld wordt. Pas je daar één van aan, dan
+    // klopt de naam van de gekozen editie niet meer. Rondes, speeltijd en
+    // antwoordwijze veranderen de inhoud niet en laten de naam dus staan.
+    const INHOUDSFILTERS = new Set([
+        'categorie', 'categorieen', 'collecties', 'met_genres', 'studios',
+        'taal', 'periode_start', 'periode_eind', 'zonder_genres',
+        'kindvriendelijk', 'leeftijd_max',
+    ]);
+
     function zet(sleutel, waarde) {
+        if (INHOUDSFILTERS.has(sleutel)) setQuizSleutel(null);
         setFilters((f) => ({ ...f, [sleutel]: waarde }));
     }
 
@@ -395,7 +410,7 @@ export default function Setup() {
                                 <span className="quiz-aantal">
                                     {q.speelbaar === 0
                                         ? 'nog geen muziek'
-                                        : `${q.speelbaar} titels`}
+                                        : `${q.speelbaar} ${q.speelbaar === 1 ? 'titel' : 'titels'}`}
                                 </span>
                             </button>
                         ))}
@@ -810,7 +825,13 @@ export default function Setup() {
                     <div className="kaart setup-samenvatting" style={{ marginTop: '1rem', textAlign: 'left' }}>
                         <p className="kaart-label">Jouw spel</p>
                         <p style={{ margin: 0 }}>
-                            <strong>{filters.categorie === 'beide' ? 'Films & Series' : filters.categorie === 'films' ? 'Films' : filters.categorie === 'series' ? 'Series' : 'Muziek'}</strong>
+                            {/* Is er een editie gekozen, dan is dát de naam van
+                                het spel; de losse filters staan eronder. */}
+                            <strong>
+                                {gekozenQuiz
+                                    ? `${gekozenQuiz.emoji || ''} ${gekozenQuiz.naam}`.trim()
+                                    : (filters.categorie === 'beide' ? 'Films & Series' : filters.categorie === 'films' ? 'Films' : filters.categorie === 'series' ? 'Series' : 'Muziek')}
+                            </strong>
                             {' · '}{filters.periode_start}–{filters.periode_eind}
                             {' · '}{filters.rondes === 0 ? 'eindeloos' : `${filters.rondes} rondes`}
                         </p>

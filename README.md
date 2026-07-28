@@ -14,6 +14,7 @@ alleen de zoek- en downloadbron; het spel speelt uitsluitend lokale MP3’s.
 ## Inhoud
 
 - [Hoe het werkt](#hoe-het-werkt)
+- [Quiz-edities](#quiz-edities)
 - [Techstack](#techstack)
 - [Snel starten](#snel-starten)
 - [Hostaccount](#hostaccount)
@@ -31,9 +32,11 @@ alleen de zoek- en downloadbron; het spel speelt uitsluitend lokale MP3’s.
 
 ## Hoe het werkt
 
-1. **Host maakt een spel** en doorloopt het filtermenu (inhoudstype, collectie, taal, periode,
-   aantal rondes). Er verschijnt een 4-letterige code en een QR-code. De host
-   speelt standaard ook zelf mee vanaf het hostscherm.
+1. **Host kiest een quiz** — een kant-en-klare editie zoals *80s Quiz*,
+   *Kinder Quiz* of *Nederland Quiz* (zie hieronder) — of stelt de filters zelf
+   in (inhoudstype, collectie, taal, periode, aantal rondes). Er verschijnt een
+   4-letterige code en een QR-code. De host speelt standaard ook zelf mee vanaf
+   het hostscherm.
 2. **Spelers joinen** door de QR te scannen (`/join/ABCD`) of de code te typen,
    en kiezen een naam.
 3. **Ronde start.** De host speelt de muziek (30 sec tot het hele nummer,
@@ -54,6 +57,38 @@ per hint −25; bonus goed +50 (halveert naar 25 bij de tweede poging).
 
 Sluit je de app en kom je terug, dan val je met je sessie terug in de lobby
 zonder punten te verliezen.
+
+---
+
+## Quiz-edities
+
+Een quiz is niets meer dan een opgeslagen filter in de tabel `quizzen`. Een
+nieuwe editie is dus één regel in de database en geen code. Ingebouwd zijn:
+
+| Groep | Edities |
+|---|---|
+| Breed | Film & Serie · Film · Serie · Alles Door Elkaar |
+| Tijdvak | 70s · 80s · 90s · 00s · 10s · Nu |
+| Nederland | Nederland · Nederlandse Films · Nederlandse Series · 100% NL Muziek |
+| Genre | Comedy · Actie · Fantasy & Sci-Fi · Tekenfilm · Musical |
+| Collectie | Kinder · Disney · Pixar · Disney & Pixar · Superhelden · Star Wars · Cult · Streaming · James Bond · Sport |
+| Seizoen | Kerst · Summer |
+| Muziek | Rock · Smartlappen |
+
+Bij elke editie staat hoeveel titels er **werkelijk speelbaar** zijn: een
+lokale MP3 op de server. Een editie zonder muziek blijft zichtbaar maar is niet
+te kiezen, zodat meteen duidelijk is wat er nog gevuld moet worden. Kies je een
+editie, dan spring je meteen naar het aantal rondes; alles blijft daarna
+aanpasbaar.
+
+Een eigen editie toevoegen kan met een regel SQL. De filterwaarden zijn
+dezelfde als die van `server/game/filters.js`:
+
+```sql
+INSERT INTO quizzen (sleutel, naam, emoji, beschrijving, volgorde, filter)
+VALUES ('ghibli', 'Studio Ghibli', '🌿', 'De films van Studio Ghibli', 60,
+        '{"categorieen":["film"],"studios":["studio ghibli"]}');
+```
 
 ---
 
@@ -173,10 +208,11 @@ titels zonder track. Een losse download geeft direct status terug en draait op
 de achtergrond. In het **Overzicht** zijn de tellingen klikbaar; zo open je
 meteen de lijst of actie waarmee je een probleem kunt bekijken of herstellen.
 YouTube wordt alleen gebruikt om ontbrekende audio te vinden en te downloaden.
-De actie **YouTube zoeken + MP3 downloaden voor titels zonder lokale MP3**
-doet precies die twee stappen. De actie verwerkt maximaal 250 records per run
-en kan veilig opnieuw worden gestart; bestaande database-records worden
-overgeslagen. `download_status=available` betekent dat het lokale bestand
+De actie **Zoeken + downloaden** doet precies die twee stappen. Het zoeken gaat
+per 250 titels omdat YouTube afknijpt; downloaden pakt altijd alles waarvoor al
+een kandidaat klaarstaat. Elke run schuift door naar de vólgende titels: wat
+niets oplevert krijgt een wachttijd en zakt naar achteren, zodat de vragenbank
+blijft groeien in plaats van op dezelfde 250 titels vast te lopen. `download_status=available` betekent dat het lokale bestand
 volgens de laatste media-healthcontrole echt op disk staat. Oude iTunes-rijen
 blijven alleen als historie zichtbaar en worden niet gezocht, gecontroleerd of
 afgespeeld.

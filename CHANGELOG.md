@@ -1,5 +1,40 @@
 # VenTune changelog
 
+## [0.5.7] - 2026-07-28
+
+### De import loopt niet meer vast
+
+- Elke titel houdt bij wanneer er voor het laatst naar muziek is gezocht en
+  hoe vaak dat niets opleverde. Daardoor pakt elke run de vólgende titels in
+  plaats van steeds dezelfde 250.
+- Een mislukte poging wacht 6, 24, 72 en dan 168 uur. Daarna komt de titel op
+  *opgegeven* en blokkeert hij de wachtrij niet meer.
+- Terughalen kan per titel (**Muziek → Vastgelopen**), allemaal tegelijk (knop
+  op de pijplijn) of met `import.js --db --opnieuw`.
+- Downloaden is niet langer op 250 begrensd. Dat is puur je eigen server, dus
+  die stap pakt alles waarvoor al een kandidaat klaarstaat.
+
+### Quiz-edities
+
+- 33 kant-en-klare edities: 80s, 90s, Kinder, Nederland, Comedy, Kerst,
+  Streaming, Disney, Cult, 100% NL Muziek en meer.
+- Een editie is een opgeslagen filter, dus een nieuwe quiz is een regel in de
+  database en geen code.
+- Bij elke editie staat hoeveel titels er echt speelbaar zijn. Een lege editie
+  is zichtbaar maar niet te kiezen.
+- Het filter kan nu ook op genre en studio selecteren.
+
+### Overzichtelijker beheer
+
+- Elf tabs teruggebracht naar vijf, gegroepeerd langs de weg van een titel:
+  Overzicht → Catalogus → Muziek → Kwaliteit → Systeem.
+- Nieuw startscherm: de pijplijn in vier stappen, met per stap hoeveel er te
+  doen is, één knop, en bovenaan in één zin wat er nu moet gebeuren.
+- De muziektab heeft nog één hoofdactie; de rest zit onder *Meer acties*.
+- Knoppen met tekst liepen buiten hun kaart en lieten de pagina zijwaarts
+  scrollen op een telefoon. Opgelost voor het hele portaal.
+- Een uitgeschakelde knop ziet er nu ook uitgeschakeld uit.
+
 ## [0.5.6] - 2026-07-28
 
 ### Eerst uitzoeken welk nummer erbij hoort, daarna pas zoeken

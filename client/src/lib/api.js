@@ -300,10 +300,25 @@ export async function adminSeed(force = false, alleenDb = false, youtubeAlleen =
         ...jsonBody({ force, alleenDb, youtubeAlleen }),
     });
 }
-export async function adminOntbrekendeLokaleStart(limiet = 250) {
+export async function adminOntbrekendeLokaleStart(opties = {}) {
+    // Achterwaarts compatibel: een los getal blijft de zoeklimiet.
+    const body = typeof opties === 'number' ? { limiet: opties } : opties;
     return adminFetch('/api/admin/ontbrekende-lokale/start', {
         method: 'POST',
-        ...jsonBody({ limiet }),
+        ...jsonBody({ limiet: 250, ...body }),
+    });
+}
+
+/** Titels die vastlopen in de zoekwachtrij, met de reden erbij. */
+export async function adminZoekwachtrij(limiet = 50) {
+    return adminFetch(`/api/admin/zoekwachtrij?limiet=${limiet}`);
+}
+
+/** Opgegeven titels terugzetten in de wachtrij. */
+export async function adminZoekwachtrijOpnieuw(opties = {}) {
+    return adminFetch('/api/admin/zoekwachtrij/opnieuw', {
+        method: 'POST',
+        ...jsonBody(opties),
     });
 }
 export async function adminOntbrekendeLokaleStatus() {

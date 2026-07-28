@@ -12,8 +12,33 @@ lokale kopie aanwezig is: `available` betekent aanwezig en gecontroleerd,
 `failed` of `not_requested` betekent niet speelbaar. Een nieuwe import zoekt
 alleen een titel zonder lokale audio én zonder opgeslagen YouTube-track. Een
 bestaande YouTube-track wordt gedownload; hij wordt niet opnieuw gezocht.
-Onderhoud werkt in batches van maximaal 250 records, zodat een dagelijkse run
-niet duizenden bestaande titels opnieuw ophaalt.
+Zoeken werkt in batches van maximaal 250 titels, omdat YouTube afknijpt bij te
+veel verzoeken. **Downloaden** kent die grens niet: dat is puur je eigen
+server, dus die stap pakt alles waarvoor al een kandidaat klaarstaat.
+
+## De zoekwachtrij
+
+Elke titel houdt bij wanneer er voor het laatst naar muziek is gezocht en hoe
+vaak dat niets opleverde. Zonder die administratie pakte elke run weer dezelfde
+kop van de lijst en kwam de vragenbank nooit verder.
+
+| Kolom | Betekenis |
+|---|---|
+| `zoek_status` | `nieuw`, `gevonden`, `geen_kandidaat` of `opgegeven` |
+| `zoek_pogingen` | hoe vaak er al gezocht is |
+| `volgende_poging` | vóór dit moment wordt er niet opnieuw gezocht |
+| `zoek_melding` | waarom de laatste poging niets opleverde |
+
+De rij zet titels die nog nooit geprobeerd zijn vooraan, daarna wat het langst
+wacht. Een mislukking wacht achtereenvolgens 6, 24, 72 en 168 uur. Daarna komt
+de titel op `opgegeven` en blokkeert hij de rij niet meer.
+
+Opgegeven titels haal je terug via **Muziek → Vastgelopen** (per titel) of de
+knop op de pijplijn (allemaal tegelijk). Vanaf de opdrachtregel:
+
+```bash
+docker compose exec server node /app/seed/import.js --db --opnieuw
+```
 
 Een handmatige YouTube-link is een expliciete adminkeuze. VenTune controleert
 dan niet of de videotitel op de film- of serienaam lijkt. Alleen de geldigheid
@@ -23,14 +48,23 @@ Bij het starten van een spel wordt uitsluitend de database gebruikt: alleen
 lokale tracks met `download_status=available` komen in de pool. Er wordt dan
 geen YouTube-, TMDB- of bestandcontrole meer uitgevoerd.
 
-## Tabs
+## Indeling van het portaal
 
-Gebruik de tabs bovenaan: **Overzicht**, **Kwaliteit**, **Titels & muziek**, **Import &
-downloads**, **Spelcollecties**, **Meldingen**, **Users**, **Database** en **Uiterlijk**. Zo staan
-lopende imports, meldingen en gevaarlijke opschoonacties niet meer tussen de
-dagelijkse titelbewerking.
+De tabs volgen de weg die een titel aflegt, van links naar rechts:
 
-De tab **Kwaliteit** toont hoeveel tracks gecontroleerd, onzeker, lokaal
+| Tab | Onderdelen | Waarvoor |
+|---|---|---|
+| **Overzicht** | Pijplijn, Alle cijfers | Wat is de stand en wat moet er nu gebeuren |
+| **Catalogus** | Titels, Titels ophalen, Collecties | Welke films, series en muziek bestaan er |
+| **Muziek** | Zoeken & downloaden, Vastgelopen | Van titel naar lokale MP3 |
+| **Kwaliteit** | Meldingen, Controle, Bonusvragen | Klopt wat er in staat |
+| **Systeem** | Hosts, Database, Automatisch, Uiterlijk | Beheer dat je zelden nodig hebt |
+
+De **Pijplijn** is het startscherm. Die toont de vier stappen — titels,
+zoeken, downloaden, speelbaar — met per stap hoeveel er nog te doen is en één
+knop. Bovenaan staat in één zin wat de eerstvolgende zinnige handeling is.
+
+De sectie **Controle** toont hoeveel tracks gecontroleerd, onzeker, lokaal
 beschikbaar of mislukt zijn. Gebruik **Lokale bestanden controleren** om de
 Docker-volume met de database te vergelijken. De controle berekent SHA-256,
 maar downloadt niets vanzelf. Ontbrekende audio kun je daarna opnieuw

@@ -131,6 +131,120 @@ body {
     background: rgba(196, 18, 48, 0.18);
 }
 
+/* Een rij knoppen die netjes doorloopt op een telefoon. Zonder wrap en
+   min-width duwen lange labels de knoppen buiten de kaart. */
+.knoprij {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+}
+
+.knoprij > .knop {
+    flex: 1 1 12rem;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+}
+
+/* Een uitgeschakelde knop moet er ook uitgeschakeld uitzien, anders lijkt
+   het alsof de app niet reageert. */
+.knop:disabled,
+.knop[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: none;
+}
+
+/* Tweede niveau in het beheer: de secties binnen een groep. Bewust
+   rustiger dan de hoofdtabs, zodat de hiërarchie zichtbaar blijft. */
+.admin-subtabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: -0.5rem 0 1rem;
+}
+
+.admin-subtab {
+    min-height: 38px;
+    padding: 0.35rem 0.7rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--text-dim);
+    font: inherit;
+    cursor: pointer;
+}
+
+.admin-subtab.actief {
+    color: var(--text);
+    border-bottom-color: var(--red-hot);
+}
+
+/* De pijplijn: vier stappen onder elkaar, elk met één duidelijke actie. */
+.pijplijn {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.pijplijn-stap {
+    display: flex;
+    gap: 0.9rem;
+    align-items: flex-start;
+    padding: 1rem;
+}
+
+.pijplijn-nummer {
+    flex: 0 0 2rem;
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(196, 18, 48, 0.2);
+    border: 1px solid var(--red-hot);
+    font-weight: 700;
+}
+
+.pijplijn-inhoud {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.pijplijn-inhoud .knop {
+    align-self: flex-start;
+    min-height: 48px;
+    font-size: 1rem;
+}
+
+.pijplijn-groot {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.pijplijn-balk {
+    height: 10px;
+    margin-top: 0.6rem;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.pijplijn-balk > span {
+    display: block;
+    height: 100%;
+    background: var(--red-hot);
+    transition: width 0.3s ease;
+}
+
 .setup-logo-grid {
     grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
 }
@@ -439,6 +553,9 @@ h1 {
 /* --- Zoekbalk --- */
 .zoekbalk {
     display: flex;
+    /* Wrappen, anders duwen lange knoplabels de rij buiten de kaart en
+       scrollt de hele pagina zijwaarts op een telefoon. */
+    flex-wrap: wrap;
     gap: 0.5rem;
     margin: 1rem 0 0.75rem;
 }
@@ -623,6 +740,8 @@ h1 {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    /* Wrappen zodat een lange titel plus knop niet buiten de kaart valt. */
+    flex-wrap: wrap;
     gap: 0.75rem;
     min-height: 56px;
     padding: 0.5rem 1rem;
@@ -880,9 +999,18 @@ h1 {
     border-color: var(--red);
 }
 
+/* Deze knop wordt zowel voor een los icoon als voor korte tekst gebruikt
+   ("Opnieuw", "Herstellen"). Een vaste breedte van 44px liet die tekst
+   buiten de knop en buiten de kaart lopen; nu groeit hij mee. */
 .afspeelknop.klein {
-    width: 44px;
+    width: auto;
+    min-width: 44px;
+    max-width: 100%;
     height: 44px;
+    padding: 0 0.85rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    white-space: nowrap;
     align-self: center;
     font-size: 1rem;
     background: var(--surface);

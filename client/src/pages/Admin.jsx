@@ -5,6 +5,52 @@ import { audioBron } from '../lib/api.js';
 import { haalVideoId } from '../lib/youtube.js';
 import Brand from '../components/Brand.jsx';
 
+// ---------------------------------------------------------------------
+// Indeling van het beheerportaal.
+//
+// Eerder stonden alle elf secties naast elkaar als losse tabs, waardoor de
+// volgorde van het werk niet zichtbaar was. Nu zijn ze gegroepeerd langs de
+// weg die een titel aflegt: overzicht → catalogus → muziek → kwaliteit, met
+// het systeembeheer apart.
+// ---------------------------------------------------------------------
+const SUBTABS = {
+    overzicht: [['overzicht', 'Pijplijn'], ['cijfers', 'Alle cijfers']],
+    catalogus: [
+        ['titels', 'Titels'],
+        ['import', 'Titels ophalen'],
+        ['collecties', 'Collecties'],
+    ],
+    muziek: [
+        ['muziek', 'Zoeken & downloaden'],
+        ['vastgelopen', 'Vastgelopen'],
+    ],
+    kwaliteit: [
+        ['meldingen', 'Meldingen'],
+        ['controle', 'Controle'],
+        ['vragen', 'Bonusvragen'],
+    ],
+    systeem: [
+        ['users', 'Hosts'],
+        ['database', 'Database'],
+        ['planning', 'Automatisch'],
+        ['uiterlijk', 'Uiterlijk'],
+    ],
+};
+
+// Bij welke groep hoort een sectie?
+const HOOFDTAB_VAN = Object.fromEntries(
+    Object.entries(SUBTABS).flatMap(([groep, secties]) =>
+        secties.map(([sectie]) => [sectie, groep]),
+    ),
+);
+const EERSTE_SUBTAB = Object.fromEntries(
+    Object.entries(SUBTABS).map(([groep, secties]) => [groep, secties[0][0]]),
+);
+
+function hoofdtabVan(sectie) {
+    return HOOFDTAB_VAN[sectie] || 'overzicht';
+}
+
 // Beheerportaal (/admin). Wachtwoord uit ADMIN_PASSWORD op de server.
 export default function Admin() {
     const [ingelogd, setIngelogd] = useState(null); // null=laden
@@ -311,6 +357,20 @@ function Beheer({ onUit }) {
         );
     }
 
+    /**
+     * Titels die te vaak niets opleverden weer in de wachtrij zetten. Zonder
+     * deze knop blijven ze voorgoed buiten beeld.
+     */
+    async function herstelZoekwachtrij() {
+        try {
+            const uit = await api.adminZoekwachtrijOpnieuw({});
+            setMelding(`${uit.hersteld || 0} titels staan weer in de wachtrij.`);
+            await laadOverzicht();
+        } catch (err) {
+            setMelding('Wachtrij herstellen mislukt: ' + err.message);
+        }
+    }
+
     async function zoekEnDownloadOntbrekendeLokale() {
         await achtergrondTaak(
             () => api.adminOntbrekendeLokaleStart(),
@@ -466,30 +526,46 @@ function Beheer({ onUit }) {
                 <button className="terug als-link" onClick={uitloggen}>Uitloggen</button>
             </div>
 
+            {/* De tabs volgen de weg van een titel: eerst wat er te doen is,
+                dan de catalogus, dan de muziek, dan de kwaliteit, en pas
+                daarna het systeembeheer. */}
             <nav className="admin-tabs" aria-label="Adminsecties">
                 {[
                     ['overzicht', 'Overzicht'],
-                    ['kwaliteit', 'Onderhoud'],
-                    ['titels', 'Titels & muziek'],
-                    ['import', 'Imports'],
-                    ['downloads', 'Downloads'],
-                    ['collecties', 'Spelcollecties'],
-                    ['vragen', `Bonusvragen${vraagSuggesties.length ? ` (${vraagSuggesties.length})` : ''}`],
-                    ['meldingen', `Meldingen${meldingen.length ? ` (${meldingen.length})` : ''}`],
-                    ['users', `Users (${gebruikers.length})`],
-                    ['database', 'Database'],
-                    ['uiterlijk', 'Uiterlijk'],
+                    ['catalogus', 'Catalogus'],
+                    ['muziek', 'Muziek'],
+                    ['kwaliteit', `Kwaliteit${meldingen.length ? ` (${meldingen.length})` : ''}`],
+                    ['systeem', 'Systeem'],
                 ].map(([waarde, label]) => (
                     <button
                         key={waarde}
                         type="button"
-                        className={'admin-tab' + (tab === waarde ? ' actief' : '')}
-                        onClick={() => setTab(waarde)}
+                        className={'admin-tab' + (hoofdtabVan(tab) === waarde ? ' actief' : '')}
+                        onClick={() => setTab(EERSTE_SUBTAB[waarde])}
                     >
                         {label}
                     </button>
                 ))}
             </nav>
+
+            {/* Binnen een groep de losse secties. */}
+            {(SUBTABS[hoofdtabVan(tab)] || []).length > 1 && (
+                <nav className="admin-subtabs" aria-label="Onderdelen">
+                    {SUBTABS[hoofdtabVan(tab)].map(([waarde, label]) => (
+                        <button
+                            key={waarde}
+                            type="button"
+                            className={'admin-subtab' + (tab === waarde ? ' actief' : '')}
+                            onClick={() => setTab(waarde)}
+                        >
+                            {label}
+                            {waarde === 'meldingen' && meldingen.length > 0 && ` (${meldingen.length})`}
+                            {waarde === 'vragen' && vraagSuggesties.length > 0 && ` (${vraagSuggesties.length})`}
+                            {waarde === 'users' && ` (${gebruikers.length})`}
+                        </button>
+                    ))}
+                </nav>
+            )}
 
             {taken && <AdminTaken data={taken} />}
             {melding && <p className="waarschuwing">{melding}</p>}
@@ -499,15 +575,26 @@ function Beheer({ onUit }) {
                 </div>
             )}
 
-            {tab === 'overzicht' && overzicht && (
+            {tab === 'overzicht' && (
+                <Pijplijn
+                    overzicht={overzicht}
+                    bezig={bezigDownloads || bezigSeed}
+                    onZoekEnDownload={zoekEnDownloadOntbrekendeLokale}
+                    onDownloadAlles={() => downloadVooraf([])}
+                    onOpnieuw={herstelZoekwachtrij}
+                    onOpenTab={(groep) => setTab(EERSTE_SUBTAB[groep])}
+                />
+            )}
+
+            {tab === 'cijfers' && overzicht && (
                 <div className="overzicht">
                     <Tegel label="Titels" waarde={overzicht.titels} onClick={() => openTab('titels', { filter: '' })} />
                     <Tegel label="Films" waarde={overzicht.films} onClick={() => openTab('titels', { filter: 'film' })} />
                     <Tegel label="Series" waarde={overzicht.series} onClick={() => openTab('titels', { filter: 'serie' })} />
                     <Tegel label="Bekend/gecureerd" waarde={overzicht.bekende_titels} onClick={() => openTab('titels', { filter: 'gecurateerd' })} />
                     <Tegel label="Speelbaar" waarde={overzicht.speelbaar} onClick={() => openTab('titels', { filter: 'speelbaar' })} />
-                    <Tegel label="Tracks nodig" waarde={overzicht.ontbrekende_tracks} onClick={() => openTab('downloads')} />
-                    <Tegel label="Tracks" waarde={overzicht.tracks} onClick={() => openTab('downloads')} />
+                    <Tegel label="Tracks nodig" waarde={overzicht.ontbrekende_tracks} onClick={() => openTab('muziek')} />
+                    <Tegel label="Tracks" waarde={overzicht.tracks} onClick={() => openTab('muziek')} />
                     <Tegel label="Bevestigd" waarde={overzicht.bevestigd} onClick={() => openTab('titels', { filter: 'speelbaar' })} />
                     <Tegel label="Afgekeurd" waarde={overzicht.afgekeurd} onClick={() => openTab('titels', { filter: 'afgekeurd' })} />
                     <Tegel label="Vragen" waarde={overzicht.vragen} onClick={() => openTab('titels')} />
@@ -516,15 +603,15 @@ function Beheer({ onUit }) {
                     <Tegel label="Zoeklog" waarde={overzicht.zoek_log_regels} onClick={() => openTab('database')} />
                 </div>
             )}
-            {tab === 'overzicht' && overzicht?.fout && <p className="waarschuwing">{overzicht.fout}</p>}
-            {tab === 'overzicht' && overzicht?.per_bron?.length > 0 && (
+            {tab === 'cijfers' && overzicht?.fout && <p className="waarschuwing">{overzicht.fout}</p>}
+            {tab === 'cijfers' && overzicht?.per_bron?.length > 0 && (
                 <p className="dim admin-bronnen">
                     Audiobronnen:{' '}
                     {overzicht.per_bron.map((bron) => `${bron.bron}: ${bron.n}`).join(' · ')}
                 </p>
             )}
 
-            {tab === 'kwaliteit' && (
+            {tab === 'controle' && (
                 <Kwaliteitsdashboard
                     data={kwaliteit}
                     onRefresh={laadKwaliteit}
@@ -608,95 +695,79 @@ function Beheer({ onUit }) {
                             <button className="knop knop-stil" type="button" onClick={laadPreview}>Preview laden</button>
                             {importPreview && <p className="dim">{importPreview.totaal} items · {importPreview.nieuw} nieuw · {importPreview.bijwerken} bijwerken · {importPreview.behouden} behouden</p>}
                         </div>
-                        <div className="kaart" style={{ marginTop: '1rem' }}>
-                            <p className="kaart-label">Automatische playlist-refresh</p>
-                            <p className="dim">Ververs de ingestelde YouTube-playlists periodiek. Standaard staat dit uit; bestaande veilige matches blijven leidend.</p>
-                            <label className="keuze klein keuze-schakelaar">
-                                <input
-                                    type="checkbox"
-                                    checked={planning?.playlistAutomatisch === true}
-                                    onChange={(e) => bewaarPlanning({ playlistAutomatisch: e.target.checked, playlistIntervalUren: planning?.playlistIntervalUren || 24 })}
-                                />
-                                <span><strong>Automatisch verversen</strong><span className="keuze-uitleg">Laatste run: {planning?.playlistLaatsteRun ? new Date(planning.playlistLaatsteRun).toLocaleString() : 'nog niet uitgevoerd'}</span></span>
-                            </label>
-                            <label className="keuze klein keuze-schakelaar" style={{ marginTop: '0.5rem' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={planning?.mediaHealthAutomatisch !== false}
-                                    onChange={(e) => bewaarPlanning({
-                                        playlistAutomatisch: planning?.playlistAutomatisch === true,
-                                        playlistIntervalUren: planning?.playlistIntervalUren || 24,
-                                        mediaHealthAutomatisch: e.target.checked,
-                                        mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24,
-                                    })}
-                                />
-                                <span><strong>Dagelijkse MP3-bestandscontrole</strong><span className="keuze-uitleg">Controleert hash en aanwezigheid, maar downloadt niets onverwacht</span></span>
-                            </label>
-                            <p className="kaart-label" style={{ marginTop: '1rem' }}>Dagelijkse gegevensupdates</p>
-                            <p className="dim">Nieuwe data komt eerst als <em>te beoordelen</em> binnen. Je kunt elke taak apart aanzetten; standaard staat netwerk-intensieve aanvulling uit.</p>
-                            <label className="keuze klein keuze-schakelaar">
-                                <input type="checkbox" checked={planning?.tmdbAutomatisch === true} onChange={(e) => bewaarPlanning({ tmdbAutomatisch: e.target.checked })} />
-                                <span><strong>Films en series via TMDB bijwerken</strong><span className="keuze-uitleg">Nieuwe titels worden niet automatisch speelbaar</span></span>
-                            </label>
-                            <label className="keuze klein keuze-schakelaar">
-                                <input type="checkbox" checked={planning?.youtubeAutomatisch === true} onChange={(e) => bewaarPlanning({ youtubeAutomatisch: e.target.checked })} />
-                                <span><strong>Ontbrekende YouTube-tracks aanvullen</strong><span className="keuze-uitleg">Alleen titels zonder track; onzekere matches worden geweigerd</span></span>
-                            </label>
-                            <label className="keuze klein keuze-schakelaar">
-                                <input type="checkbox" checked={planning?.downloadsAutomatisch === true} onChange={(e) => bewaarPlanning({ downloadsAutomatisch: e.target.checked })} />
-                                <span><strong>Gecontroleerde YouTube-tracks downloaden</strong><span className="keuze-uitleg">Alleen al gecontroleerde bronnen naar /media/downloads</span></span>
-                            </label>
-                            <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
-                                <label className="kaart-label">Playlists elke <input className="invoer" type="number" min="1" max="168" value={planning?.playlistIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), playlistIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
-                                <label className="kaart-label">Bestanden elke <input className="invoer" type="number" min="1" max="168" value={planning?.mediaHealthIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), mediaHealthIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
-                                <label className="kaart-label">Data elke <input className="invoer" type="number" min="1" max="168" value={planning?.tmdbIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), tmdbIntervalUren: Number(e.target.value) || 24, youtubeIntervalUren: Number(e.target.value) || 24, downloadsIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
-                                <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({
-                                    playlistAutomatisch: true,
-                                    mediaHealthAutomatisch: true,
-                                    tmdbAutomatisch: true,
-                                    youtubeAutomatisch: true,
-                                    downloadsAutomatisch: true,
-                                    playlistIntervalUren: 24,
-                                    mediaHealthIntervalUren: 24,
-                                    tmdbIntervalUren: 24,
-                                    youtubeIntervalUren: 24,
-                                    downloadsIntervalUren: 24,
-                                })}>Alles dagelijks aanzetten</button>
-                                <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({ playlistIntervalUren: planning?.playlistIntervalUren || 24, mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24, tmdbIntervalUren: planning?.tmdbIntervalUren || 24, youtubeIntervalUren: planning?.youtubeIntervalUren || 24, downloadsIntervalUren: planning?.downloadsIntervalUren || 24 })}>Planning opslaan</button>
-                            </div>
-                        </div>
                     </div>
                 </section>
             )}
 
-            {tab === 'downloads' && (
+            {tab === 'muziek' && (
                 <section className="admin-panel admin-acties" style={{ marginTop: '1rem' }}>
+                    {/* Eén hoofdactie bovenaan; de rest zit in 'meer'. Eerder
+                        stonden hier vijf even grote knoppen naast elkaar,
+                        waardoor niet te zien was welke je normaal nodig hebt. */}
                     <div className="kaart">
-                        <p className="kaart-label">Lokale audio-downloadcentrum</p>
+                        <p className="kaart-label">Muziek ophalen</p>
                         <p className="dim">
-                            Controleert de YouTube-URL en slaat de volledige audio blijvend op in <code>/media/downloads</code>.
-                            Korte iTunes-fragmenten worden geweigerd; eigen m4a-uploads blijven toegestaan.
+                            Zoekt op YouTube naar de intro of titelsong en slaat die
+                            blijvend op als MP3 in <code>/media/downloads</code>, maximaal
+                            vijf minuten per nummer. Het spel gebruikt alleen die lokale
+                            bestanden.
                         </p>
-                        <button className="knop" onClick={() => downloadVooraf()} disabled={bezigDownloads || bezigSeed || bezigPlaylist || bezigTmdb || bezigVragen || bezigCollecties}>
-                            {bezigDownloads ? 'Lokale audio controleren/downloaden…' : 'Alle YouTube-audio vooraf downloaden + URL controleren'}
-                        </button>
-                        <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
-                            <button className="knop knop-stil" onClick={retryDownloads} disabled={bezigDownloads}>Mislukte downloads opnieuw proberen</button>
-                            <button className="knop knop-stil" onClick={healthcheck} disabled={bezigHealth}>{bezigHealth ? 'Bestanden controleren…' : 'Lokale bestanden controleren'}</button>
+                        {overzicht && (
+                            <p className="dim">
+                                <strong>{overzicht.zoek_direct || 0}</strong> titels klaar om te zoeken ·{' '}
+                                <strong>{overzicht.te_downloaden || 0}</strong> tracks te downloaden ·{' '}
+                                <strong>{overzicht.speelbaar || 0}</strong> speelbaar
+                            </p>
+                        )}
+                        <div className="knoprij">
+                            <button
+                                className="knop"
+                                onClick={zoekEnDownloadOntbrekendeLokale}
+                                disabled={bezigDownloads || bezigSeed}
+                            >
+                                {bezigDownloads ? 'Bezig…' : 'Zoeken + downloaden'}
+                            </button>
+                            <button
+                                className="knop knop-stil"
+                                onClick={() => downloadVooraf()}
+                                disabled={bezigDownloads || bezigSeed}
+                            >
+                                Alleen downloaden
+                            </button>
                         </div>
-                        <button className="knop knop-stil" style={{ marginTop: '0.75rem' }} onClick={() => achtergrondTaak(() => api.adminDownloadStart({ controleer: true, alleenGecontroleerd: true, alleenYoutube: true }), api.adminDownloadStatus, setBezigDownloads, 'Gecontroleerde YouTube-tracks vooraf downloaden…', 'Gecontroleerde YouTube-tracks klaar.') } disabled={bezigDownloads}>
-                            Alleen gecontroleerde YouTube-tracks downloaden
-                        </button>
-                        <button className="knop knop-stil" style={{ marginTop: '0.75rem' }} onClick={zoekEnDownloadOntbrekendeLokale} disabled={bezigDownloads}>
-                            Ontbrekende lokale audio zoeken + downloaden (max. 250)
-                        </button>
-                        <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
-                            <button className="knop knop-stil" onClick={() => api.adminAfgekeurdeTracksExport()}>Afgekeurde tracks exporteren</button>
-                        </div>
-                        {overzicht && <p className="dim" style={{ marginBottom: 0 }}>
-                            {overzicht.tracks} tracks · {overzicht.ontbrekende_tracks} titels zonder bruikbare track
-                        </p>}
+                        <p className="dim" style={{ marginBottom: 0, marginTop: '0.75rem' }}>
+                            Zoeken gaat per 250 titels omdat YouTube afknijpt. Elke run pakt
+                            de volgende titels; wat niets oplevert schuift achteraan.
+                            Downloaden pakt altijd alles.
+                        </p>
                     </div>
+
+                    <details className="kaart" style={{ marginTop: '1rem' }}>
+                        <summary className="kaart-label">Meer acties</summary>
+                        <div className="knoprij" style={{ marginTop: '0.75rem' }}>
+                            <button className="knop knop-stil" onClick={retryDownloads} disabled={bezigDownloads}>
+                                Mislukte downloads opnieuw
+                            </button>
+                            <button className="knop knop-stil" onClick={healthcheck} disabled={bezigHealth}>
+                                {bezigHealth ? 'Bezig…' : 'Bestanden controleren'}
+                            </button>
+                            <button
+                                className="knop knop-stil"
+                                onClick={() => achtergrondTaak(() => api.adminDownloadStart({ controleer: true, alleenGecontroleerd: true, alleenYoutube: true }), api.adminDownloadStatus, setBezigDownloads, 'Gecontroleerde YouTube-tracks vooraf downloaden…', 'Gecontroleerde YouTube-tracks klaar.')}
+                                disabled={bezigDownloads}
+                            >
+                                Alleen gecontroleerde
+                            </button>
+                            <button className="knop knop-stil" onClick={() => api.adminAfgekeurdeTracksExport()}>
+                                Afgekeurde exporteren
+                            </button>
+                        </div>
+                        {overzicht && (
+                            <p className="dim" style={{ marginBottom: 0, marginTop: '0.75rem' }}>
+                                {overzicht.tracks} tracks · {overzicht.ontbrekende_tracks} titels zonder bruikbare track
+                            </p>
+                        )}
+                    </details>
                     <details className="kaart" style={{ marginTop: '1rem' }}>
                         <summary className="kaart-label">Tracks nodig bekijken ({ontbrekend.length})</summary>
                         <p className="dim">Deze titels worden pas speelbaar nadat je een gecontroleerde YouTube-match opslaat of eigen audio uploadt.</p>
@@ -885,6 +956,70 @@ function Beheer({ onUit }) {
                 ))}
             </ul>
             </>}
+
+            {tab === 'vastgelopen' && <Vastgelopen onMelding={setMelding} />}
+
+            {tab === 'planning' && (
+                <section className="admin-panel admin-acties" style={{ marginTop: '1rem' }}>
+                <div className="kaart" style={{ marginTop: '1rem' }}>
+                    <p className="kaart-label">Automatische playlist-refresh</p>
+                    <p className="dim">Ververs de ingestelde YouTube-playlists periodiek. Standaard staat dit uit; bestaande veilige matches blijven leidend.</p>
+                    <label className="keuze klein keuze-schakelaar">
+                        <input
+                            type="checkbox"
+                            checked={planning?.playlistAutomatisch === true}
+                            onChange={(e) => bewaarPlanning({ playlistAutomatisch: e.target.checked, playlistIntervalUren: planning?.playlistIntervalUren || 24 })}
+                        />
+                        <span><strong>Automatisch verversen</strong><span className="keuze-uitleg">Laatste run: {planning?.playlistLaatsteRun ? new Date(planning.playlistLaatsteRun).toLocaleString() : 'nog niet uitgevoerd'}</span></span>
+                    </label>
+                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '0.5rem' }}>
+                        <input
+                            type="checkbox"
+                            checked={planning?.mediaHealthAutomatisch !== false}
+                            onChange={(e) => bewaarPlanning({
+                                playlistAutomatisch: planning?.playlistAutomatisch === true,
+                                playlistIntervalUren: planning?.playlistIntervalUren || 24,
+                                mediaHealthAutomatisch: e.target.checked,
+                                mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24,
+                            })}
+                        />
+                        <span><strong>Dagelijkse MP3-bestandscontrole</strong><span className="keuze-uitleg">Controleert hash en aanwezigheid, maar downloadt niets onverwacht</span></span>
+                    </label>
+                    <p className="kaart-label" style={{ marginTop: '1rem' }}>Dagelijkse gegevensupdates</p>
+                    <p className="dim">Nieuwe data komt eerst als <em>te beoordelen</em> binnen. Je kunt elke taak apart aanzetten; standaard staat netwerk-intensieve aanvulling uit.</p>
+                    <label className="keuze klein keuze-schakelaar">
+                        <input type="checkbox" checked={planning?.tmdbAutomatisch === true} onChange={(e) => bewaarPlanning({ tmdbAutomatisch: e.target.checked })} />
+                        <span><strong>Films en series via TMDB bijwerken</strong><span className="keuze-uitleg">Nieuwe titels worden niet automatisch speelbaar</span></span>
+                    </label>
+                    <label className="keuze klein keuze-schakelaar">
+                        <input type="checkbox" checked={planning?.youtubeAutomatisch === true} onChange={(e) => bewaarPlanning({ youtubeAutomatisch: e.target.checked })} />
+                        <span><strong>Ontbrekende YouTube-tracks aanvullen</strong><span className="keuze-uitleg">Alleen titels zonder track; onzekere matches worden geweigerd</span></span>
+                    </label>
+                    <label className="keuze klein keuze-schakelaar">
+                        <input type="checkbox" checked={planning?.downloadsAutomatisch === true} onChange={(e) => bewaarPlanning({ downloadsAutomatisch: e.target.checked })} />
+                        <span><strong>Gecontroleerde YouTube-tracks downloaden</strong><span className="keuze-uitleg">Alleen al gecontroleerde bronnen naar /media/downloads</span></span>
+                    </label>
+                    <div className="zoekbalk" style={{ marginTop: '0.75rem' }}>
+                        <label className="kaart-label">Playlists elke <input className="invoer" type="number" min="1" max="168" value={planning?.playlistIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), playlistIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
+                        <label className="kaart-label">Bestanden elke <input className="invoer" type="number" min="1" max="168" value={planning?.mediaHealthIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), mediaHealthIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
+                        <label className="kaart-label">Data elke <input className="invoer" type="number" min="1" max="168" value={planning?.tmdbIntervalUren || 24} onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), tmdbIntervalUren: Number(e.target.value) || 24, youtubeIntervalUren: Number(e.target.value) || 24, downloadsIntervalUren: Number(e.target.value) || 24 }))} /> uur</label>
+                        <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({
+                            playlistAutomatisch: true,
+                            mediaHealthAutomatisch: true,
+                            tmdbAutomatisch: true,
+                            youtubeAutomatisch: true,
+                            downloadsAutomatisch: true,
+                            playlistIntervalUren: 24,
+                            mediaHealthIntervalUren: 24,
+                            tmdbIntervalUren: 24,
+                            youtubeIntervalUren: 24,
+                            downloadsIntervalUren: 24,
+                        })}>Alles dagelijks aanzetten</button>
+                        <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({ playlistIntervalUren: planning?.playlistIntervalUren || 24, mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24, tmdbIntervalUren: planning?.tmdbIntervalUren || 24, youtubeIntervalUren: planning?.youtubeIntervalUren || 24, downloadsIntervalUren: planning?.downloadsIntervalUren || 24 })}>Planning opslaan</button>
+                    </div>
+                </div>
+                </section>
+            )}
 
             {tab === 'database' && <Databasebeheer onMelding={setMelding} />}
             {tab === 'uiterlijk' && <Uiterlijk onMelding={setMelding} />}
@@ -1234,6 +1369,208 @@ function Uiterlijk({ onMelding }) {
                 <button className="knop knop-stil" disabled={bezig || !logo} onClick={upload}>Logo uploaden</button>
             </div>
         </section>
+    );
+}
+
+/**
+ * De pijplijn in vier stappen. Dit is het startscherm van het beheer.
+ *
+ * Waarom zo: er waren elf tabs met knoppen die op elkaar leken, waardoor
+ * niet te zien was wát er nu moest gebeuren. De weg naar een speelbare
+ * titel is echter altijd dezelfde volgorde:
+ *
+ *   titel in de database → kandidaat op YouTube → MP3 op de server → speelbaar
+ *
+ * Elke stap toont hoeveel er nog te doen is en heeft precies één knop.
+ */
+function Pijplijn({ overzicht, bezig, onZoekEnDownload, onDownloadAlles, onOpnieuw, onOpenTab }) {
+    const o = overzicht || {};
+    const totaal = o.titels || 0;
+    const speelbaar = o.speelbaar || 0;
+    const teZoeken = o.zoek_direct || 0;
+    const teDownloaden = o.te_downloaden || 0;
+    const wachtend = o.zoek_wachtend || 0;
+    const opgegeven = o.zoek_opgegeven || 0;
+    const percentage = totaal > 0 ? Math.round((speelbaar / totaal) * 100) : 0;
+
+    // Wat is de eerstvolgende zinnige handeling? Eén advies is duidelijker
+    // dan tien knoppen die er even belangrijk uitzien.
+    let advies;
+    if (totaal === 0) {
+        advies = 'Begin met titels ophalen via TMDB — zonder titels valt er niets te zoeken.';
+    } else if (teZoeken > 0) {
+        advies = `${teZoeken} titels wachten op een zoekopdracht. Start stap 2.`;
+    } else if (teDownloaden > 0) {
+        advies = `${teDownloaden} tracks hebben een kandidaat maar nog geen MP3. Start stap 3.`;
+    } else if (opgegeven > 0) {
+        advies = `Alles is geprobeerd. ${opgegeven} titels leverden niets op; die kun je opnieuw in de rij zetten.`;
+    } else if (wachtend > 0) {
+        advies = `${wachtend} titels wachten op hun volgende poging. Er is nu niets te doen.`;
+    } else {
+        advies = 'Alles wat kan, is gevonden en gedownload.';
+    }
+
+    return (
+        <section className="admin-panel" style={{ marginTop: '1rem' }}>
+            <div className="kaart">
+                <p className="kaart-label">Zo staat het ervoor</p>
+                <p className="pijplijn-groot">
+                    <strong>{speelbaar}</strong> van {totaal} titels speelbaar
+                    <span className="dim"> · {percentage}%</span>
+                </p>
+                <div className="pijplijn-balk" role="progressbar" aria-valuenow={percentage} aria-valuemax={100}>
+                    <span style={{ width: `${percentage}%` }} />
+                </div>
+                <p className="dim" style={{ marginTop: '0.75rem' }}>{advies}</p>
+            </div>
+
+            <ol className="pijplijn">
+                <li className="kaart pijplijn-stap">
+                    <span className="pijplijn-nummer">1</span>
+                    <div className="pijplijn-inhoud">
+                        <p className="kaart-naam">Titels in de database</p>
+                        <p className="dim">
+                            {totaal} titels · {o.films || 0} films · {o.series || 0} series
+                        </p>
+                        <button className="knop knop-stil" type="button" onClick={() => onOpenTab('catalogus')}>
+                            Titels ophalen en beheren
+                        </button>
+                    </div>
+                </li>
+
+                <li className="kaart pijplijn-stap">
+                    <span className="pijplijn-nummer">2</span>
+                    <div className="pijplijn-inhoud">
+                        <p className="kaart-naam">Muziek zoeken op YouTube</p>
+                        <p className="dim">
+                            {teZoeken} klaar om te zoeken
+                            {wachtend > 0 && ` · ${wachtend} wachten op een nieuwe poging`}
+                            {opgegeven > 0 && ` · ${opgegeven} opgegeven`}
+                        </p>
+                        <button
+                            className="knop"
+                            type="button"
+                            onClick={onZoekEnDownload}
+                            disabled={bezig || teZoeken === 0}
+                        >
+                            {bezig ? 'Bezig…' : 'Zoeken + downloaden starten'}
+                        </button>
+                        {opgegeven > 0 && (
+                            <button
+                                className="knop knop-stil"
+                                type="button"
+                                onClick={onOpnieuw}
+                                disabled={bezig}
+                            >
+                                {opgegeven} opgegeven titels opnieuw proberen
+                            </button>
+                        )}
+                    </div>
+                </li>
+
+                <li className="kaart pijplijn-stap">
+                    <span className="pijplijn-nummer">3</span>
+                    <div className="pijplijn-inhoud">
+                        <p className="kaart-naam">MP3&apos;s lokaal opslaan</p>
+                        <p className="dim">
+                            {teDownloaden} tracks met kandidaat, nog geen bestand
+                        </p>
+                        <button
+                            className="knop"
+                            type="button"
+                            onClick={onDownloadAlles}
+                            disabled={bezig || teDownloaden === 0}
+                        >
+                            {bezig ? 'Bezig…' : 'Alles downloaden'}
+                        </button>
+                    </div>
+                </li>
+
+                <li className="kaart pijplijn-stap">
+                    <span className="pijplijn-nummer">4</span>
+                    <div className="pijplijn-inhoud">
+                        <p className="kaart-naam">Speelbaar</p>
+                        <p className="dim">
+                            {speelbaar} titels met een lokale MP3
+                            {o.open_meldingen > 0 && ` · ${o.open_meldingen} meldingen van spelers`}
+                        </p>
+                        <button className="knop knop-stil" type="button" onClick={() => onOpenTab('kwaliteit')}>
+                            Kwaliteit en meldingen
+                        </button>
+                    </div>
+                </li>
+            </ol>
+
+            {o.fout && <p className="waarschuwing">{o.fout}</p>}
+        </section>
+    );
+}
+
+/**
+ * De titels die blijven hangen: geen bruikbare video gevonden, of de
+ * kandidaat werd geweigerd. Met de reden erbij, zodat te zien is of het aan
+ * de titel ligt of aan de controle.
+ */
+function Vastgelopen({ onMelding }) {
+    const [rijen, setRijen] = React.useState([]);
+    const [geladen, setGeladen] = React.useState(false);
+
+    async function laad() {
+        try {
+            setRijen(await api.adminZoekwachtrij(100));
+            setGeladen(true);
+        } catch (err) {
+            onMelding?.(err.message);
+        }
+    }
+
+    async function opnieuw(titelId) {
+        try {
+            await api.adminZoekwachtrijOpnieuw({ titel_id: titelId });
+            await laad();
+        } catch (err) {
+            onMelding?.(err.message);
+        }
+    }
+
+    return (
+        <div className="kaart" style={{ marginTop: '1rem' }}>
+            <p className="kaart-label">Vastgelopen titels</p>
+            <p className="dim">
+                Voor deze titels is wel gezocht, maar niets bruikbaars gevonden.
+                De reden staat erbij.
+            </p>
+            <button className="knop knop-stil" type="button" onClick={laad}>
+                {geladen ? 'Opnieuw laden' : 'Lijst laden'}
+            </button>
+            {geladen && rijen.length === 0 && (
+                <p className="dim" style={{ marginTop: '0.75rem' }}>
+                    Niets vastgelopen.
+                </p>
+            )}
+            {rijen.length > 0 && (
+                <ul className="spelerlijst" style={{ marginTop: '0.75rem' }}>
+                    {rijen.map((r) => (
+                        <li key={r.id} className="speler-kaart">
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <span className="speler-naam" style={{ fontSize: '1rem' }}>
+                                    {r.naam}
+                                    <span className="dim"> · {r.type}{r.jaar ? ` · ${r.jaar}` : ''}</span>
+                                </span>
+                                <span className="dim" style={{ display: 'block' }}>
+                                    {r.zoek_pogingen}× geprobeerd
+                                    {r.zoek_status === 'opgegeven' ? ' · opgegeven' : ''}
+                                    {r.zoek_melding ? ` · ${r.zoek_melding}` : ''}
+                                </span>
+                            </div>
+                            <button className="afspeelknop klein" onClick={() => opnieuw(r.id)}>
+                                Opnieuw
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
     );
 }
 
