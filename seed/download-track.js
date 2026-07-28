@@ -396,7 +396,7 @@ async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } =
         await pool.query(
             `UPDATE tracks
                 SET bron = 'lokaal', preview_url = $2, bestand_pad = $2,
-                    bron_url = $3, download_status = 'available',
+                    bron_url = $3, start_seconde = 0, download_status = 'available',
                     download_melding = NULL, audio_sha256 = $4,
                     gedownload_op = now(), verificatie_score = GREATEST(verificatie_score, 0.95),
                     verificatie_reden = COALESCE(verificatie_reden, 'lokale admin-download van YouTube-track')
