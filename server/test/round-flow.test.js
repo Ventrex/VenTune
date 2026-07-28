@@ -73,6 +73,26 @@ assert.equal(genreMeerkeuze.opties.length, 6);
 assert(genreMeerkeuze.opties.every((naam) => [
     'Star Trek', 'Star Trek: Voyager', 'The Expanse', 'Star Wars', 'Alien', 'The Matrix', 'Dune',
 ].includes(naam)));
+
+// Afleiders blijven in dezelfde taal zolang er genoeg zijn: een Nederlandse
+// komedie krijgt geen Engelstalige titels als foute antwoorden.
+const taalMeerkeuze = bouwMeerkeuzeOpties(
+    { id: 20, naam: 'Flodder', type: 'film', taal: 'nl', jaar: 1986, genres: ['Komedie'] },
+    [
+        { id: 20, naam: 'Flodder', type: 'film', taal: 'nl', jaar: 1986, genres: ['Komedie'] },
+        { id: 21, naam: 'Costa!', type: 'film', taal: 'nl', jaar: 2001, genres: ['Komedie'] },
+        { id: 22, naam: 'New Kids Turbo', type: 'film', taal: 'nl', jaar: 2010, genres: ['Komedie'] },
+        { id: 23, naam: 'Alles is Liefde', type: 'film', taal: 'nl', jaar: 2007, genres: ['Komedie'] },
+        { id: 24, naam: 'Volle Maan', type: 'film', taal: 'nl', jaar: 2002, genres: ['Komedie'] },
+        { id: 25, naam: 'Filmpje!', type: 'film', taal: 'nl', jaar: 1995, genres: ['Komedie'] },
+        { id: 26, naam: 'The Hangover', type: 'film', taal: 'en', jaar: 2009, genres: ['Komedie'] },
+        { id: 27, naam: 'Superbad', type: 'film', taal: 'en', jaar: 2007, genres: ['Komedie'] },
+    ],
+);
+assert.equal(taalMeerkeuze.opties.length, 6);
+assert.equal(taalMeerkeuze.opties[taalMeerkeuze.correctIndex], 'Flodder');
+assert(!taalMeerkeuze.opties.includes('The Hangover'));
+assert(!taalMeerkeuze.opties.includes('Superbad'));
 assert.equal(leeftijdsFactor(5, { leeftijdspunten_aan: true }), 2);
 assert.equal(leeftijdsFactor(8, { leeftijdspunten_aan: true }), 1.75);
 assert.equal(leeftijdsFactor(12, { leeftijdspunten_aan: true }), 1.5);

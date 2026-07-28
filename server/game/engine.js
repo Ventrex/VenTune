@@ -96,9 +96,14 @@ function maxTitelPogingen(state) {
 
 function bouwMeerkeuzeOpties(titel, pool_) {
     const genres = new Set((titel.genres || []).map((g) => String(g).toLowerCase()));
-    const zelfdeType = pool_.filter((t) => t.id !== titel.id && (!titel.type || t.type === titel.type));
-    const zelfdeGenre = pool_.filter((t) => t.id !== titel.id
-        && (t.genres || []).some((g) => genres.has(String(g).toLowerCase())));
+    // Afleiders bij voorkeur in dezelfde taal. Levert dat te weinig titels op
+    // (of ontbreekt de taal), dan valt het terug op de hele pool.
+    const zonderZelf = pool_.filter((t) => t.id !== titel.id);
+    const zelfdeTaal = zonderZelf.filter((t) => !titel.taal || !t.taal || t.taal === titel.taal);
+    const basis = zelfdeTaal.length >= AANTAL_MEERKEUZE_OPTIES - 1 ? zelfdeTaal : zonderZelf;
+    const zelfdeType = basis.filter((t) => (!titel.type || t.type === titel.type));
+    const zelfdeGenre = basis.filter((t) =>
+        (t.genres || []).some((g) => genres.has(String(g).toLowerCase())));
     const genreKandidaten = genres.size ? zelfdeGenre : zelfdeType;
     const opJaar = (lijst) => lijst.filter((t) =>
         !titel.jaar || !t.jaar || Math.abs(Number(t.jaar) - Number(titel.jaar)) <= 12);
@@ -591,6 +596,52 @@ class SpelBeheer {
         }
     }
 
+    /**
+     * Haal afleider-kandidaten voor de meerkeuzevraag uit de héle
+     * titeldatabase: dezelfde taal en een overlappend genre, met het jaar in
+     * de buurt. Zo variëren de foute antwoorden per ronde in plaats van steeds
+     * dezelfde paar titels uit de quiz-pool. Willekeurig geordend en begrensd;
+     * afleiders hoeven geen speelbare track te hebben. Bij een lege of mislukte
+     * query valt de aanroeper terug op de spel-pool.
+     */
+    async haalAfleiderPool(titel) {
+        try {
+            const genres = Array.isArray(titel.genres) ? titel.genres : [];
+            const { rows } = await pool.query(
+                `SELECT id, naam, type, taal, jaar, genres
+                   FROM titels
+                  WHERE id <> $1
+                    AND ($2::titel_taal IS NULL OR taal = $2)
+                    AND (cardinality($3::text[]) = 0 OR genres && $3::text[])
+                    AND ($4::int IS NULL OR jaar IS NULL
+                         OR abs(jaar - $4) <= 12)
+                  ORDER BY random()
+                  LIMIT 60`,
+                [titel.id, titel.taal || null, genres, titel.jaar ?? null],
+            );
+            // Genoeg titels in hetzelfde jaar-venster? Gebruik die. Anders nog
+            // een ronde zonder jaargrens, zodat er altijd variatie is.
+            if (rows.length >= AANTAL_MEERKEUZE_OPTIES - 1) return rows;
+            const ruimer = await pool.query(
+                `SELECT id, naam, type, taal, jaar, genres
+                   FROM titels
+                  WHERE id <> $1
+                    AND ($2::titel_taal IS NULL OR taal = $2)
+                    AND (cardinality($3::text[]) = 0 OR genres && $3::text[])
+                  ORDER BY random()
+                  LIMIT 60`,
+                [titel.id, titel.taal || null, genres],
+            );
+            return ruimer.rows;
+        } catch (err) {
+            logger.waarschuwing('Afleiderpool ophalen mislukt.', {
+                titel: titel.naam,
+                melding: err.message,
+            });
+            return [];
+        }
+    }
+
     // ---- Volgende ronde ----
     async volgendeRonde(state) {
         if (
@@ -652,6 +703,20 @@ class SpelBeheer {
                     [state.lobbyId, state.rondenummer, titel.id, track.id, state.rondeDuurMs],
                 );
 
+                // Afleiders uit de héle titeldatabase (zelfde taal + genre,
+                // jaar in de buurt), zodat ze per ronde variëren in plaats van
+                // steeds dezelfde paar titels uit de quiz-pool. Terugval op de
+                // spel-pool als de database niets bruikbaars geeft.
+                let antwoordOpties = null;
+                if (state.antwoordModus === 'meerkeuze') {
+                    const afleiderPool = await this.haalAfleiderPool(titel);
+                    const bron = afleiderPool.length >= AANTAL_MEERKEUZE_OPTIES - 1
+                        ? afleiderPool
+                        : state.pool;
+                    antwoordOpties = bouwMeerkeuzeOpties(titel, bron)
+                        || bouwMeerkeuzeOpties(titel, state.pool);
+                }
+
                 const nieuweHuidige = {
                     rondeId: rondeRij.rows[0].id,
                     titel,
@@ -663,9 +728,7 @@ class SpelBeheer {
                     ingediend: new Set(), // geen pogingen meer toegestaan
                     gokPogingen: new Map(), // solo mag twee titelgokken doen
                     laatsteGok: new Map(), // spelerId -> timestamp (rate limit)
-                    antwoordOpties: state.antwoordModus === 'meerkeuze'
-                        ? bouwMeerkeuzeOpties(titel, state.pool)
-                        : null,
+                    antwoordOpties,
                     verwijderdeOpties: new Map(), // spelerId -> indexen
                     timer: null,
                 };
