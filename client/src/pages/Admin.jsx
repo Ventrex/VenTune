@@ -748,17 +748,18 @@ function Beheer({ onUit }) {
                             </button>
                         </div>
                         <p className="dim" style={{ marginBottom: 0, marginTop: '0.75rem' }}>
-                            De batchgrootte hieronder bepaalt hoeveel items vooraf worden verwerkt.
-                            YouTube-verzoeken blijven op de ingestelde rate-limit; een hogere waarde
-                            maakt meer werk per batch, maar stuurt geen onbeperkte verzoeken tegelijk.
+                            De batchgrootte hieronder bepaalt het maximum aantal gelijktijdige workers.
+                            Zoeken en losse URL-controles blijven rate-limited; bij bulkdownload starten
+                            maximaal zoveel downloadworkers parallel.
                         </p>
                     </div>
 
                     <div className="kaart" style={{ marginTop: '1rem' }}>
                         <p className="kaart-label">Zoek- en downloadsnelheid</p>
                         <p className="dim">
-                            Bepaalt hoeveel nummers tegelijk worden gezocht en gedownload. YouTube-verzoeken
-                            blijven op minimaal 250 ms afstand; bij 403/429 wordt automatisch langer gewacht.
+                            Bepaalt hoeveel nummers tegelijk worden gezocht en gedownload. Zoekacties en losse
+                            URL-controles blijven op minimaal 250 ms afstand; bulkdownloads gebruiken echte
+                            parallelle workers. Bij 403/429 wordt automatisch langer gewacht.
                         </p>
                         <label className="kaart-label">
                             Batchgrootte
