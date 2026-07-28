@@ -132,7 +132,16 @@ export default function Host() {
             <Brand compact />
             {/* Al vóór de start gemonteerd: de klik op "Start spel" kan de
                 browser zo echt ontgrendelen voor latere lokale audio. */}
-            <HostPlayer ref={spelerRef} audio={audio} verborgen={fase !== 'raden'} onStatus={setAudioStatus} />
+            <HostPlayer
+                ref={spelerRef}
+                audio={audio}
+                verborgen={fase !== 'raden'}
+                onStatus={setAudioStatus}
+                gepauzeerd={spel.gepauzeerd}
+                onPauze={spel.pauzeer}
+                onHervat={spel.hervat}
+                onHerhaal={spel.herhaal}
+            />
             {fase === 'raden' && ronde && !audio && (
                 <p className="dim host-audio-status" role="status">Audio wordt klaargezet…</p>
             )}
@@ -334,26 +343,6 @@ export default function Host() {
                         <p className="ronde-teller">Kennersmodus — raad maar raak</p>
                     )}
 
-                    {/* Bediening van de muziek staat bovenaan, direct onder de
-                        teller. Stond eerst onder de raadkaart, waardoor je op
-                        een telefoon moest scrollen om te kunnen pauzeren. */}
-                    <div className="muziekbalk">
-                        <button
-                            className="knop knop-stil"
-                            type="button"
-                            onClick={spel.gepauzeerd ? spel.hervat : spel.pauzeer}
-                        >
-                            {spel.gepauzeerd ? '▶ Hervat' : '⏸ Pauze'}
-                        </button>
-                        <button
-                            className="knop knop-stil"
-                            type="button"
-                            onClick={spel.herhaal}
-                            title="Het nummer opnieuw vanaf het begin"
-                        >
-                            ↻ Vanaf begin
-                        </button>
-                    </div>
                     {spel.gepauzeerd && (
                         <p className="feedback neutraal">Gepauzeerd</p>
                     )}
