@@ -94,7 +94,11 @@ const HostPlayer = forwardRef(function HostPlayer({ audio, verborgen = false, on
                 /* niet fataal */
             }
         }
-    }, [haalYtSpeler]);
+        // Geen dependencies: deze functie gebruikt alleen refs. Hier stond
+        // nog haalYtSpeler uit de tijd dat de host YouTube afspeelde. Die
+        // functie bestaat niet meer, en React leest de dependency-array bij
+        // elke render — dus crashte het hele hostscherm op zwart.
+    }, []);
 
     useImperativeHandle(ref, () => ({ ontgrendel }), [ontgrendel]);
 
