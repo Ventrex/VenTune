@@ -57,7 +57,14 @@ const HTTPS = (process.env.APP_URL || '').startsWith('https');
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(MEDIA_DIR, 'uploads');
 const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(MEDIA_DIR, 'downloads');
-const DOWNLOAD_BATCH_GROOTTE = 5;
+const DEFAULT_BATCH_GROOTTE = 5;
+const MAX_BATCH_GROOTTE = 50;
+
+function begrensBatchGrootte(waarde) {
+    const getal = Number(waarde);
+    if (!Number.isFinite(getal)) return DEFAULT_BATCH_GROOTTE;
+    return Math.min(MAX_BATCH_GROOTTE, Math.max(1, Math.floor(getal)));
+}
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 },
@@ -1720,7 +1727,7 @@ function startTrackDownload(trackId, werk) {
     return { gestart: true, bezig: true, klaar: false, taak, track_id: Number(trackId) };
 }
 
-async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, alleenMislukt = false, alleenGecontroleerd = false, alleenYoutube = true, alleenZonderLokaal = false, limiet = null, onProgress = null } = {}) {
+async function downloadTracksVooruit({ collecties = [], force = false, controleer = true, alleenMislukt = false, alleenGecontroleerd = false, alleenYoutube = true, alleenZonderLokaal = false, limiet = null, onProgress = null, batchGrootte: opgegevenBatchGrootte = null } = {}) {
     const sleutels = normaliseerCollecties(collecties);
     const params = [];
     let extra = '';
@@ -1783,8 +1790,17 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     let overgeslagen = 0;
     let mislukt = 0;
     const fouten = [];
+    let ingesteldeBatch = Number(opgegevenBatchGrootte);
+    if (!Number.isFinite(ingesteldeBatch) || ingesteldeBatch < 1) {
+        try {
+            ingesteldeBatch = Number((await haalBeheerInstellingen()).batchGrootte);
+        } catch {
+            ingesteldeBatch = DEFAULT_BATCH_GROOTTE;
+        }
+    }
+    const batchGrootte = begrensBatchGrootte(ingesteldeBatch);
     let verwerkt = 0;
-    for (let start = 0; start < rows.length; start += DOWNLOAD_BATCH_GROOTTE) {
+    for (let start = 0; start < rows.length; start += batchGrootte) {
         const batch = rows.slice(start, start + DOWNLOAD_BATCH_GROOTTE);
         await Promise.all(batch.map(async (track) => {
             // Een download is permanent lokaal bezit. Ook bij force=true mag de
@@ -2103,11 +2119,13 @@ async function haalBeheerInstellingen() {
         downloadsIntervalUren: 24,
         downloadsLaatsteRun: null,
         downloadsVolgendeRun: null,
+        batchGrootte: DEFAULT_BATCH_GROOTTE,
     };
     const { rows } = await pool.query(
         `SELECT waarde FROM app_instellingen WHERE sleutel = 'beheer' LIMIT 1`,
     );
-    return { ...standaard, ...(rows[0]?.waarde || {}) };
+    const waarde = rows[0]?.waarde || {};
+    return { ...standaard, ...waarde, batchGrootte: begrensBatchGrootte(waarde.batchGrootte) };
 }
 
 router.get('/api/admin/planning', vereisAdmin, async (_req, res) => {
@@ -2132,6 +2150,7 @@ router.patch('/api/admin/planning', vereisAdmin, async (req, res) => {
     const downloadsAan = req.body?.downloadsAutomatisch === undefined
         ? oud.downloadsAutomatisch === true : req.body.downloadsAutomatisch === true;
     const downloadsInterval = Math.min(168, Math.max(1, Number(req.body?.downloadsIntervalUren ?? oud.downloadsIntervalUren) || 24));
+    const batchGrootte = begrensBatchGrootte(req.body?.batchGrootte ?? oud.batchGrootte);
     const volgende = aan
         ? new Date(Date.now() + interval * 60 * 60 * 1000).toISOString()
         : null;
@@ -2160,6 +2179,7 @@ router.patch('/api/admin/planning', vereisAdmin, async (req, res) => {
         downloadsVolgendeRun: downloadsAan
             ? new Date(Date.now() + downloadsInterval * 60 * 60 * 1000).toISOString()
             : null,
+        batchGrootte,
     };
     await pool.query(
         `INSERT INTO app_instellingen (sleutel, waarde, bijgewerkt_op)
