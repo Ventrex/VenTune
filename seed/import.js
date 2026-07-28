@@ -26,6 +26,7 @@ const tmdb = require('../server/lib/tmdb');
 const { veiligeTiteltekst, veiligeMetadata } = require('../server/lib/content-filter');
 
 const args = process.argv.slice(2);
+const ZOEK_BATCH_GROOTTE = 5;
 
 function leesSeedCatalogus(collectie = null) {
     const bestanden = [path.join(__dirname, 'titels.json'), path.join(__dirname, 'titels-extra.json')];
@@ -468,131 +469,138 @@ async function importeer({
     let netwerkfouten = 0;
     let gestopt = null;
 
-    for (const t of titels) {
-        if (verwerkt >= limiet) break;
-        if (!veiligeTiteltekst(t.naam)) {
-            log({ titel: t.naam, gevonden: null, overgeslagen: 'onveilige tekens' });
-            continue;
-        }
-        verwerkt++;
-        onProgress?.({ verwerkt, totaal: Math.min(titels.length, limiet), huidige: t.naam });
-
-        // Titels uit de database hebben al een id; die uit titels.json niet.
-        const titelId = t._id || (await upsertTitel(t));
-
-        // Niet opnieuw naar dezelfde bron zoeken. Een gerichte --titel-
-        // opdracht blijft de bewuste uitzondering voor een reparatie.
-        if (!titelFilter && (await heeftWerkendeTrack(titelId))) {
-            metTrack++;
-            continue;
-        }
-        // Let op: een oude track is altijd beter dan geen track en meerdere
-        // betrouwbare tracks geven rotatie. Alleen een gerichte titelactie
-        // mag bewust opnieuw zoeken.
-
-        let gelukt = false;
-
-        // 1) Eerst uitzoeken wélk nummer bij deze titel hoort, in plaats van
-        //    blind te zoeken. Via het soundtrack-album (de albumnaam moet de
-        //    filmnaam bevatten) of via Wikipedia, dat de titelsong noemt.
-        //    Duurt iets langer, maar de zoekopdracht is daarna gericht en de
-        //    koppeling klopt vrijwel altijd.
-        let songnaam = null;
-        try {
-            const uitZoek = await soundtrack.zoekVoorTitel(t);
-            if (uitZoek && (uitZoek.songnaam || uitZoek.alleenSongnaam || uitZoek.tracknaam)) {
-                songnaam = uitZoek.alleenSongnaam || uitZoek.songnaam || uitZoek.tracknaam;
-                log({ titel: t.naam, bron: `soundtrack/${uitZoek.via || 'wikipedia'}`, songnaam });
-            }
-        } catch (err) {
-            log({ titel: t.naam, bron: 'soundtrack', fout: err.message });
-        }
-
-        // 2) YouTube is de bron waaruit gedownload wordt: daar staat vrijwel
-        //    elke intro en titelsong, ook de Nederlandse. Kennen we de naam
-        //    van de titelsong, dan zoekt YouTube daar eerst gericht op.
-        let reden = 'geen bruikbare video gevonden';
-        try {
-            let keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250, songnaam });
-            // Extra slot op de deur: hoort deze video echt bij deze titel?
-            if (keuze) {
-                // Staat de titelsong die Wikipedia bij déze titel noemt in de
-                // videotitel, dan is de koppeling al bewezen — de filmnaam
-                // hoeft er dan niet ook nog in te staan.
-                const viaSong = Boolean(keuze._viaSong);
-                const lokaleControle = pastBijTitel(t, {
-                    tracknaam: keuze.titel,
-                    artiest: keuze.kanaal,
-                    bevestigd: viaSong,
-                });
-                const check = await controleerMetLagen(t, {
-                    tracknaam: keuze.titel,
-                    artiest: keuze.kanaal,
-                }, lokaleControle);
-                if (!check) {
-                    reden = `kandidaat geweigerd: ${keuze.titel}`;
-                    log({ titel: t.naam, bron: 'youtube', geweigerd: keuze.titel });
-                    keuze = null;
-                } else {
-                    keuze.verificatie = check;
-                }
-            }
-            if (keuze) {
-                // Nu er echt een betrouwbare treffer is, voegen we die toe
-                // naast bestaande fallbacks. De engine roteert daarna de
-                // minst gespeelde kandidaat.
-                const bevestigdeSong = keuze._viaSong ? songnaam : null;
-                if (force) {
-                    await vervangTracks(titelId, (client) =>
-                        voegYoutubeTrackToe(titelId, keuze, client, bevestigdeSong),
-                    );
-                } else {
-                    await voegYoutubeTrackToe(titelId, keuze, pool, bevestigdeSong);
-                }
-                metTrack++;
-                gelukt = true;
-                log({
-                    titel: t.naam,
-                    bron: bevestigdeSong ? 'youtube/titelsong' : 'youtube',
-                    gevonden: keuze.titel,
-                    views: keuze.views ?? null,
-                });
-            }
-        } catch (err) {
-            reden = err.message;
-            // Een onbereikbaar of afknijpend YouTube zegt niets over déze
-            // titel. Zulke fouten mogen geen poging kosten, anders raakt een
-            // half uur netwerkstoring honderden goede titels kwijt.
-            if (err.netwerk) netwerkfouten++;
-            else netwerkfouten = 0;
-            log({ titel: t.naam, bron: 'youtube', fout: err.message, netwerk: Boolean(err.netwerk) });
-            if (netwerkfouten >= MAX_NETWERKFOUTEN) {
-                gestopt = 'YouTube is niet bereikbaar. De import is gestopt zodat er geen titels onterecht worden afgekeurd.';
-                log({ gestopt });
-                break;
-            }
-            if (err.netwerk) {
-                // Titel onaangeroerd laten: hij komt bij de volgende run
-                // gewoon weer bovenaan de wachtrij.
-                await slaap(400);
+    let titelIndex = 0;
+    while (titelIndex < titels.length && verwerkt < limiet && !gestopt) {
+        const batch = [];
+        while (titelIndex < titels.length
+            && batch.length < ZOEK_BATCH_GROOTTE
+            && verwerkt < limiet) {
+            const t = titels[titelIndex++];
+            if (!veiligeTiteltekst(t.naam)) {
+                log({ titel: t.naam, gevonden: null, overgeslagen: 'onveilige tekens' });
                 continue;
             }
+            verwerkt++;
+            batch.push(t);
         }
+        await Promise.all(batch.map(async (t) => {
+            onProgress?.({ verwerkt, totaal: Math.min(titels.length, limiet), huidige: t.naam });
 
-        // Altijd vastleggen wat deze poging opleverde. Zonder dit pakt de
-        // volgende run precies dezelfde titels en komt er nooit beweging in.
-        if (gelukt) netwerkfouten = 0;
-        await noteerZoekpoging(titelId, gelukt, gelukt ? null : reden);
+            // Titels uit de database hebben al een id; die uit titels.json niet.
+            const titelId = t._id || (await upsertTitel(t));
 
-        if (!gelukt) {
-            zonder.push(t.naam);
-            await meldOntbrekendeTrack(titelId).catch((err) =>
-                log({ titel: t.naam, bron: 'database', fout: err.message }),
-            );
-            log({ titel: t.naam, gevonden: null });
-        }
+            // Niet opnieuw naar dezelfde bron zoeken. Een gerichte --titel-
+            // opdracht blijft de bewuste uitzondering voor een reparatie.
+            if (!titelFilter && (await heeftWerkendeTrack(titelId))) {
+                metTrack++;
+                return;
+            }
+            // Let op: een oude track is altijd beter dan geen track en meerdere
+            // betrouwbare tracks geven rotatie. Alleen een gerichte titelactie
+            // mag bewust opnieuw zoeken.
 
-        await slaap(400); // Vriendelijk voor YouTube.
+            let gelukt = false;
+
+            // 1) Eerst uitzoeken wélk nummer bij deze titel hoort, in plaats van
+            //    blind te zoeken. Via het soundtrack-album (de albumnaam moet de
+            //    filmnaam bevatten) of via Wikipedia, dat de titelsong noemt.
+            //    Duurt iets langer, maar de zoekopdracht is daarna gericht en de
+            //    koppeling klopt vrijwel altijd.
+            let songnaam = null;
+            try {
+                const uitZoek = await soundtrack.zoekVoorTitel(t);
+                if (uitZoek && (uitZoek.songnaam || uitZoek.alleenSongnaam || uitZoek.tracknaam)) {
+                    songnaam = uitZoek.alleenSongnaam || uitZoek.songnaam || uitZoek.tracknaam;
+                    log({ titel: t.naam, bron: 'soundtrack/' + (uitZoek.via || 'wikipedia'), songnaam });
+                }
+            } catch (err) {
+                log({ titel: t.naam, bron: 'soundtrack', fout: err.message });
+            }
+
+            // 2) YouTube is de bron waaruit gedownload wordt: daar staat vrijwel
+            //    elke intro en titelsong, ook de Nederlandse. Kennen we de naam
+            //    van de titelsong, dan zoekt YouTube daar eerst gericht op.
+            let reden = 'geen bruikbare video gevonden';
+            try {
+                let keuze = await ytzoek.zoekVoorTitel(t, { pauzeMs: 250, songnaam });
+                // Extra slot op de deur: hoort deze video echt bij deze titel?
+                if (keuze) {
+                    // Staat de titelsong die Wikipedia bij déze titel noemt in de
+                    // videotitel, dan is de koppeling al bewezen — de filmnaam
+                    // hoeft er dan niet ook nog in te staan.
+                    const viaSong = Boolean(keuze._viaSong);
+                    const lokaleControle = pastBijTitel(t, {
+                        tracknaam: keuze.titel,
+                        artiest: keuze.kanaal,
+                        bevestigd: viaSong,
+                    });
+                    const check = await controleerMetLagen(t, {
+                        tracknaam: keuze.titel,
+                        artiest: keuze.kanaal,
+                    }, lokaleControle);
+                    if (!check) {
+                        reden = 'kandidaat geweigerd: ' + keuze.titel;
+                        log({ titel: t.naam, bron: 'youtube', geweigerd: keuze.titel });
+                        keuze = null;
+                    } else {
+                        keuze.verificatie = check;
+                    }
+                }
+                if (keuze) {
+                    // Nu er echt een betrouwbare treffer is, voegen we die toe
+                    // naast bestaande fallbacks. De engine roteert daarna de
+                    // minst gespeelde kandidaat.
+                    const bevestigdeSong = keuze._viaSong ? songnaam : null;
+                    if (force) {
+                        await vervangTracks(titelId, (client) =>
+                            voegYoutubeTrackToe(titelId, keuze, client, bevestigdeSong),
+                        );
+                    } else {
+                        await voegYoutubeTrackToe(titelId, keuze, pool, bevestigdeSong);
+                    }
+                    metTrack++;
+                    gelukt = true;
+                    log({
+                        titel: t.naam,
+                        bron: bevestigdeSong ? 'youtube/titelsong' : 'youtube',
+                        gevonden: keuze.titel,
+                        views: keuze.views ?? null,
+                    });
+                }
+            } catch (err) {
+                reden = err.message;
+                // Een onbereikbaar of afknijpend YouTube zegt niets over déze
+                // titel. Zulke fouten mogen geen poging kosten, anders raakt een
+                // half uur netwerkstoring honderden goede titels kwijt.
+                if (err.netwerk) netwerkfouten++;
+                else netwerkfouten = 0;
+                log({ titel: t.naam, bron: 'youtube', fout: err.message, netwerk: Boolean(err.netwerk) });
+                if (netwerkfouten >= MAX_NETWERKFOUTEN) {
+                    gestopt = 'YouTube is niet bereikbaar. De import is gestopt zodat er geen titels onterecht worden afgekeurd.';
+                }
+                if (err.netwerk) {
+                    // Titel onaangeroerd laten: hij komt bij de volgende run
+                    // gewoon weer bovenaan de wachtrij.
+                    await slaap(400);
+                    return;
+                }
+            }
+
+            // Altijd vastleggen wat deze poging opleverde. Zonder dit pakt de
+            // volgende run precies dezelfde titels en komt er nooit beweging in.
+            if (gelukt) netwerkfouten = 0;
+            await noteerZoekpoging(titelId, gelukt, gelukt ? null : reden);
+
+            if (!gelukt) {
+                zonder.push(t.naam);
+                await meldOntbrekendeTrack(titelId).catch((err) =>
+                    log({ titel: t.naam, bron: 'database', fout: err.message }),
+                );
+                log({ titel: t.naam, gevonden: null });
+            }
+
+            await slaap(400); // Vriendelijk voor YouTube; volgende batch daarna.
+        }));
     }
 
     return { verwerkt, metTrack, zonder, gestopt };
