@@ -15,6 +15,14 @@ bestaande YouTube-track wordt gedownload; hij wordt niet opnieuw gezocht.
 Onderhoud werkt in batches van maximaal 250 records, zodat een dagelijkse run
 niet duizenden bestaande titels opnieuw ophaalt.
 
+Een handmatige YouTube-link is een expliciete adminkeuze. VenTune controleert
+dan niet of de videotitel op de film- of serienaam lijkt. Alleen de geldigheid
+van de URL wordt nog gecontroleerd voordat `yt-dlp` de volledige audio opslaat.
+
+Bij het starten van een spel wordt uitsluitend de database gebruikt: alleen
+lokale tracks met `download_status=available` komen in de pool. Er wordt dan
+geen YouTube-, TMDB- of bestandcontrole meer uitgevoerd.
+
 ## Tabs
 
 Gebruik de tabs bovenaan: **Overzicht**, **Kwaliteit**, **Titels & muziek**, **Import &

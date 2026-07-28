@@ -1,5 +1,18 @@
 # VenTune changelog
 
+## [0.5.5] - 2026-07-28
+
+### Spelen en handmatige koppelingen
+
+- De spelengine gebruikt uitsluitend lokale tracks met
+  `download_status=available`; spelstart voert geen YouTube-, TMDB- of
+  diskcontrole meer uit.
+- De hostspeler bevat geen YouTube-fallback meer. YouTube wordt alleen door
+  Admin gebruikt om audio vooraf te downloaden.
+- Een handmatig ingevoerde YouTube-link wordt door de admin vertrouwd en niet
+  meer afgewezen omdat de videotitel geen film- of serienaam bevat. De URL
+  wordt nog wel gecontroleerd voordat hij wordt gedownload.
+
 ## [0.5.4] - 2026-07-28
 
 ### Database als bron van waarheid

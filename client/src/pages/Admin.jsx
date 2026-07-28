@@ -1715,10 +1715,10 @@ function YoutubeToevoegen({ titelId, onToegevoegd }) {
         e.preventDefault();
         const id = haalVideoId(url);
         if (!id) { setFout('Geen geldige YouTube-link.'); return; }
-        if (!naam.trim()) { setFout('Vul de volledige videotitel in, zodat VenTune kan controleren of dit nummer klopt.'); return; }
         try {
             await api.adminVoegTrack(titelId, {
                 bron: 'youtube',
+                handmatig: true,
                 preview_url: id,
                 start_seconde: start ? Number(start) : 0,
                 tracknaam: naam.trim(),
@@ -1734,11 +1734,12 @@ function YoutubeToevoegen({ titelId, onToegevoegd }) {
     return (
         <form onSubmit={toevoegen} style={{ marginTop: '0.75rem' }}>
             <p className="kaart-label">Handmatige YouTube-link</p>
+            <p className="dim">Een handmatige link is een expliciete adminkeuze. VenTune controleert hier niet of de videotitel op de filmtitel lijkt; alleen de YouTube-link wordt gebruikt voor de download.</p>
             {fout && <p className="waarschuwing">{fout}</p>}
             <div className="velden">
                 <input className="invoer" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="YouTube-URL of video-id" />
                 <div className="zoekbalk">
-                <input className="invoer" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Volledige videotitel (verplicht)" required />
+                    <input className="invoer" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Tracknaam (optioneel)" />
                     <input className="invoer" value={start} onChange={(e) => setStart(e.target.value)} placeholder="Start (sec)" style={{ maxWidth: 110 }} />
                 </div>
                 <button className="knop knop-stil" type="submit">YouTube-track toevoegen</button>

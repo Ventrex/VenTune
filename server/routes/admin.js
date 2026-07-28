@@ -1116,8 +1116,8 @@ router.post('/api/admin/titels/:id/youtube-zoek', vereisAdmin, async (req, res) 
 
 router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
     const b = req.body || {};
-    if (!b.preview_url || !b.tracknaam) {
-        return res.status(400).json({ fout: 'preview_url en tracknaam verplicht.' });
+    if (!b.preview_url) {
+        return res.status(400).json({ fout: 'preview_url verplicht.' });
     }
     const geldigeBron = ['youtube', 'lokaal'].includes(b.bron) ? b.bron : null;
     if (!geldigeBron) return res.status(400).json({ fout: 'Kies expliciet YouTube of lokaal.' });
@@ -1131,10 +1131,17 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
     if (!titelRij.rows[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
 
     const titel = titelRij.rows[0];
-    let controle = geldigeBron === 'lokaal'
-        ? { past: true, zekerheid: 1, reden: 'handmatig lokaal bestand door admin' }
+    const tracknaam = String(b.tracknaam || titel.naam || 'Handmatige YouTube-track').trim().slice(0, 300);
+    // Een handmatige URL is een expliciete adminbeslissing. De admin heeft
+    // het nummer zelf gecontroleerd; automatische titel-/album-/TMDB-
+    // matching mag deze invoer dus niet blokkeren.
+    const handmatig = b.handmatig === true;
+    let controle = geldigeBron === 'lokaal' || handmatig
+        ? { past: true, zekerheid: 1, reden: geldigeBron === 'lokaal'
+            ? 'handmatig lokaal bestand door admin'
+            : 'handmatig door admin gekoppelde YouTube-link' }
         : pastBijTitel(titel, {
-            tracknaam: b.tracknaam,
+            tracknaam,
             album: b.album,
             artiest: b.artiest,
         });
@@ -1143,9 +1150,9 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
             fout: `Track afgewezen: ${controle.reden}. Voeg de volledige titel/alias toe aan de tracknaam of het album.`,
         });
     }
-    if (geldigeBron !== 'lokaal') {
+    if (geldigeBron !== 'lokaal' && !handmatig) {
         const tmdbControle = await tmdb.controleerTrackMetTmdb(titel, {
-            tracknaam: b.tracknaam,
+            tracknaam,
             album: b.album,
             artiest: b.artiest,
         });
@@ -1170,7 +1177,7 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
             b.itunes_track_id ?? null,
             b.preview_url,
             Number.isFinite(b.start_seconde) ? b.start_seconde : 0,
-            b.tracknaam,
+            tracknaam,
             b.artiest || '',
             b.album || null,
             Number.isFinite(b.herkenbaarheid) ? b.herkenbaarheid : 3,
@@ -1682,11 +1689,17 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
                 tr.start_seconde, tr.download_status, t.naam
            FROM tracks tr JOIN titels t ON t.id = tr.titel_id
           WHERE tr.werkt = true
-            AND tr.bron = 'youtube'
+            AND (
+                tr.bron = 'youtube'
+                OR (tr.bron = 'lokaal'
+                    AND tr.download_status = 'failed'
+                    AND lower(COALESCE(tr.bron_url, '')) LIKE '%youtube%')
+            )
             AND tr.preview_url IS NOT NULL AND tr.preview_url <> ''
             AND ($${mislukteParam}::boolean = false OR tr.download_status = 'failed')
             AND ($${gecontroleerdeParam}::boolean = false OR (tr.gecontroleerd = true AND tr.verificatie_score >= 0.85))
-            AND ($${youtubeParam}::boolean = false OR tr.bron = 'youtube')
+            AND ($${youtubeParam}::boolean = false OR tr.bron = 'youtube'
+                 OR (tr.bron = 'lokaal' AND lower(COALESCE(tr.bron_url, '')) LIKE '%youtube%'))
             AND ($${zonderLokaalParam}::boolean = false OR NOT EXISTS (
                 SELECT 1 FROM tracks lokaal
                  WHERE lokaal.titel_id = tr.titel_id

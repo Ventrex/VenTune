@@ -241,8 +241,8 @@ De brondata staat in `seed/titels.json` en kun je uitbreiden.
 VenTune probeert niet koste wat kost een nummer te vinden. Een resultaat wordt
 alleen opgeslagen als de volledige titel of een alias overtuigend in de
 tracknaam of het album voorkomt. Een expliciet ander jaartal
-wordt geweigerd. Tijdens het spel controleert de engine de track nogmaals; een
-verkeerde track wordt dan uitgeschakeld.
+wordt geweigerd. Een handmatige YouTube-link is de expliciete beslissing van de
+admin en wordt daarom niet nogmaals door deze titelmatch geblokkeerd.
 
 Dat betekent bewust: bij twijfel liever geen ronde dan muziek van een andere
 film of serie onder de verkeerde naam. Zoekresultaten van YouTube kunnen immers
@@ -259,10 +259,11 @@ eigen/gelicentieerd audiobestand uploaden:
     docker compose exec server node /app/seed/download-track.js --all
 
 YouTube wordt met `yt-dlp` en `ffmpeg` als mp3-audio opgeslagen in
-`./media/downloads`. Lokale audio krijgt voorrang bij het spelen, zodat een
-later verwijderde YouTube-video geen probleem meer is. Bij spelstart worden
-alle geplande tracks vooraf volledig gedownload en gecontroleerd; als één
-download mislukt start het spel niet en valt het nooit terug op live YouTube.
+`./media/downloads`. Lokale audio is de enige speelbron, zodat een later
+verwijderde YouTube-video geen probleem meer is. De admin-downloadtaak zet
+`download_status=available` in de database. Bij spelstart worden alleen die
+lokale records gebruikt; er wordt dan niets gedownload, gezocht of opnieuw op
+disk gecontroleerd en er is geen live YouTube-fallback.
 De game zoekt geen willekeurige video's. De admin controleert vóór een download
 of de URL nog bestaat. Gebruik alleen bronnen/bestanden die je mag gebruiken.
 

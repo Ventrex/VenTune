@@ -12,14 +12,8 @@ const { vergelijk } = require('../lib/match');
 const { titelPunten, bonusPunten, leeftijdsFactor } = require('./scoring');
 const { genereerBonus } = require('./bonus');
 const vragenbank = require('./vragen');
-const { pastBijTitel } = require('../lib/trackcheck');
 const logger = require('../lib/logger');
 const tmdb = require('../lib/tmdb');
-const {
-    lokaalBestandBeschikbaar,
-    isAppleTrack,
-    isSpeelbareLokaleTrack,
-} = require('../../seed/download-track');
 
 const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
 // 'Heel nummer': ruime bovengrens; de ronde eindigt zodra iedereen geraden
@@ -373,8 +367,6 @@ class SpelBeheer {
             alleen_lokaal: true,
         };
 
-        const basisFilter = { ...spelInstellingen, alleen_lokaal: false };
-        const { where: basisWhere, params: basisParams } = bouwFilter(basisFilter);
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
@@ -382,19 +374,9 @@ class SpelBeheer {
                     t.hoofdrollen, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
-               ${where ? where + ' AND' : 'WHERE'}
-                    EXISTS (SELECT 1 FROM tracks tr
-                              WHERE tr.titel_id = t.id
-                                AND tr.werkt = true
-                                AND tr.bron = 'lokaal'
-                                AND tr.itunes_track_id IS NULL
-                                AND tr.download_status = 'available'
-                                AND tr.preview_url IS NOT NULL
-                                AND tr.preview_url <> '')`,
+               ${where}`,
             params,
         );
-
-        await this.registreerOntbrekendeTitels(basisWhere, basisParams);
 
         if (titels.length === 0) {
             this.io.to(kamer(code)).emit('spel:fout', {
@@ -431,7 +413,6 @@ class SpelBeheer {
             gebruikteTrackIds: new Set(),
             leeftijden: new Map(spelers.map((s) => [s.id, Number(s.leeftijd)])),
             solo: spelers.filter((speler) => speler.verbonden !== false).length === 1,
-            alleenLokaal: true,
             // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
             // titel niet twee keer dezelfde bonusvraag geeft.
             gebruikteVragen: new Set(),
@@ -451,7 +432,7 @@ class SpelBeheer {
             logger.info('Spel gestart.', { code, totaal });
 
             this.io.to(kamer(code)).emit('spel:voorbereiden', {
-                melding: 'Lokale audio controleren…',
+                melding: 'Lokale tracks klaarzetten…',
                 verwerkt: 0,
                 totaal,
             });
@@ -473,8 +454,6 @@ class SpelBeheer {
                 });
                 return;
             }
-            state.alleenLokaal = true;
-
             await this.volgendeRonde(state);
         } catch (err) {
             this.spellen.delete(lobbyId);
@@ -497,44 +476,28 @@ class SpelBeheer {
         let verwerkt = 0;
         for (const titel of kandidaten) {
             if (geplandeTitels.length >= gevraagd) break;
-            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen, true);
+            const track = await this.kiesTrackVoorTitel(titel, state.gebruikteTrackIds, state.instellingen);
             if (!track) {
-                mislukt.push({ titel: titel.naam, melding: 'Geen volledig lokaal audiobestand gekoppeld.' });
+                mislukt.push({ titel: titel.naam, melding: 'Geen lokale track met status available.' });
                 await this.registreerOntbrekendeTitel(titel.id);
                 verwerkt += 1;
                 this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                    melding: `Lokale audio controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
+                    melding: `Lokale tracks klaarzetten… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
                     verwerkt,
                     totaal: gevraagd,
                     huidige: titel.naam,
                 });
                 continue;
             }
-            const lokaleKopie = isSpeelbareLokaleTrack(track)
-                && await lokaalBestandBeschikbaar(track);
-            if (lokaleKopie) {
-                state.voorbereideTracks.set(titel.id, track);
-                geplandeTitels.push(titel);
-                verwerkt += 1;
-                this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                    melding: `Lokale audio controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
-                    verwerkt,
-                    totaal: gevraagd,
-                    huidige: titel.naam,
-                });
-                continue;
-            }
-            // Het spel downloadt nooit tijdens de start. De admin moet
-            // vooraf een volledig lokaal audiobestand klaarzetten; hier controleren we
-            // alleen het lokale bestand en starten daarna onmiddellijk.
-            if (!isSpeelbareLokaleTrack(track)
-                || !(await lokaalBestandBeschikbaar(track))) {
-                mislukt.push({ titel: titel.naam, melding: 'Lokale audio ontbreekt, is kort, of is niet volledig beschikbaar.' });
-                await this.registreerOntbrekendeTitel(titel.id);
-            }
+            // De database-status is leidend. De admin/media-healthtaak zet
+            // download_status op available zodra de lokale kopie klaar is.
+            // Spelstart leest hier alleen de database en controleert nooit
+            // opnieuw bestand, YouTube of TMDB.
+            state.voorbereideTracks.set(titel.id, track);
+            geplandeTitels.push(titel);
             verwerkt += 1;
             this.io.to(kamer(state.code)).emit('spel:voorbereiden', {
-                melding: `Lokale audio controleren… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
+                melding: `Lokale tracks klaarzetten… ${Math.min(geplandeTitels.length, gevraagd)}/${gevraagd}`,
                 verwerkt,
                 totaal: gevraagd,
                 huidige: titel.naam,
@@ -551,7 +514,7 @@ class SpelBeheer {
         };
     }
 
-    async kiesTrackVoorTitel(titel, uitgesloten = new Set(), instellingen = {}, alleenLokaal = false) {
+    async kiesTrackVoorTitel(titel, uitgesloten = new Set(), instellingen = {}) {
         const { rows } = await pool.query(
             `SELECT tr.id, tr.bron, tr.preview_url, tr.bestand_pad, tr.start_seconde,
                     tr.tracknaam, tr.artiest, tr.album,
@@ -560,20 +523,18 @@ class SpelBeheer {
                FROM tracks tr
               WHERE tr.titel_id = $1
                 AND tr.werkt = true
-                AND tr.bron <> 'itunes'
-                AND (tr.bron <> 'lokaal' OR tr.itunes_track_id IS NULL)
+                AND tr.bron = 'lokaal'
+                AND tr.itunes_track_id IS NULL
+                AND tr.download_status = 'available'
                 AND tr.preview_url IS NOT NULL
                 AND tr.preview_url <> ''
                 AND ($2::boolean = false
                      OR (tr.gecontroleerd = true AND tr.verificatie_score >= 0.85))
-                AND ($3::boolean = false
-                     OR (tr.bron = 'lokaal' AND tr.download_status = 'available'))
               ORDER BY CASE
                            -- Alleen lokale bestanden mogen het spel in.
                            WHEN tr.bron = 'lokaal' THEN 5
                            ELSE 1
                        END DESC,
-                       tr.fout_aantal ASC,
                        tr.keer_gespeeld ASC,
                        tr.laatst_gespeeld ASC NULLS FIRST,
                        tr.verificatie_score DESC,
@@ -581,86 +542,20 @@ class SpelBeheer {
                        random(),
                        tr.id DESC
               LIMIT 20`,
-            [titel.id, instellingen?.alleen_gecontroleerd === true, alleenLokaal],
+            [titel.id, instellingen?.alleen_gecontroleerd === true],
         );
 
         let eersteGeldige = null;
         for (const kandidaat of rows) {
-            if (isAppleTrack(kandidaat)) {
-                await pool.query(
-                    `UPDATE tracks SET werkt = false, download_status = 'failed',
-                            download_melding = 'Oude iTunes-preview uitgesloten; vervang door volledige lokale audio.'
-                      WHERE id = $1`,
-                    [kandidaat.id],
-                ).catch(() => {});
-                continue;
-            }
-            if (kandidaat.bron === 'lokaal' && !(await lokaalBestandBeschikbaar(kandidaat))) {
-                await pool.query(
-                    `UPDATE tracks SET werkt = false, download_status = 'failed',
-                            download_melding = 'Lokaal bestand ontbreekt op disk; opnieuw downloaden via admin.'
-                      WHERE id = $1`,
-                    [kandidaat.id],
-                ).catch(() => {});
-                continue;
-            }
-            if (pastBijTitel(titel, kandidaat).past) {
-                if (!eersteGeldige) eersteGeldige = kandidaat;
-                if (!uitgesloten.has(kandidaat.id)) return kandidaat;
-                continue;
-            }
-            logger.waarschuwing('Track past niet bij de titel, afgekeurd.', {
-                titel: titel.naam,
-                tracknaam: kandidaat.tracknaam,
-            });
-            await pool
-                .query(
-                    `UPDATE tracks SET werkt = false, gecontroleerd = false,
-                            verificatie_score = 0,
-                            verificatie_reden = $2,
-                            laatst_gecontroleerd_op = now()
-                      WHERE id = $1`,
-                    [kandidaat.id, 'afgekeurd tijdens speelcontrole'],
-                )
-                .catch(() => {});
+            // Een speltrack is door de admin/import al opgeslagen en lokaal
+            // beschikbaar verklaard. Vertrouw die databasekeuze; voer tijdens
+            // spelstart geen extra titel-, bestand-, YouTube- of TMDB-check uit.
+            if (!eersteGeldige) eersteGeldige = kandidaat;
+            if (!uitgesloten.has(kandidaat.id)) return kandidaat;
         }
         // Als één titel werkelijk maar één goedgekeurde track heeft, is
         // herhalen beter dan de ronde zonder muziek starten.
         return eersteGeldige;
-    }
-
-    async registreerOntbrekendeTitels(where, params) {
-        const voorwaarde = where ? `${where} AND` : 'WHERE';
-        try {
-            await pool.query(
-                `INSERT INTO meldingen (titel_id, soort, toelichting)
-                 SELECT t.id, 'geen_track',
-                        'Geen bruikbare track gekoppeld; voeg audio toe via het adminportaal.'
-                   FROM titels t
-                  ${voorwaarde}
-                    NOT EXISTS (
-                        SELECT 1 FROM tracks tr
-                         WHERE tr.titel_id = t.id
-                           AND tr.werkt = true
-                           AND tr.bron = 'lokaal'
-                           AND tr.itunes_track_id IS NULL
-                           AND tr.download_status = 'available'
-                           AND tr.preview_url IS NOT NULL
-                           AND tr.preview_url <> ''
-                    )
-                    AND NOT EXISTS (
-                        SELECT 1 FROM meldingen m
-                         WHERE m.titel_id = t.id
-                           AND m.soort = 'geen_track'
-                           AND m.afgehandeld = false
-                    )`,
-                params,
-            );
-        } catch (err) {
-            logger.waarschuwing('Ontbrekende tracks konden niet worden geregistreerd.', {
-                melding: err.message,
-            });
-        }
     }
 
     async registreerOntbrekendeTitel(titelId) {
@@ -728,21 +623,10 @@ class SpelBeheer {
                     titel,
                     state.gebruikteTrackIds,
                     state.instellingen,
-                    state.alleenLokaal,
                 );
 
                 if (!track) {
-                    if (state.alleenLokaal) {
-                        throw new Error(`Lokaal audiobestand ontbreekt voor "${titel.naam}". Herstel de download via het adminportaal.`);
-                    }
-                    logger.waarschuwing('Titel zonder werkende track, overgeslagen.', {
-                        titel: titel.naam,
-                    });
-                    await this.registreerOntbrekendeTitel(titel.id);
-                    if (!verwijderOnspeelbareTitel(state)) {
-                        return await this.eindigSpel(state);
-                    }
-                    continue;
+                    throw new Error(`Lokale track ontbreekt voor "${titel.naam}". Herstel de download via het adminportaal.`);
                 }
 
                 state.gebruikteTrackIds.add(track.id);

@@ -61,6 +61,11 @@
 - [x] **P1** Database als bron van waarheid gebruiken: bestaande werkende
       YouTube- en lokale tracks worden blijvend overgeslagen; alleen een
       ontbrekende of afgekeurde track komt in de zoekstroom.
+- [x] **P0** Spelspeler volledig lokaal maken: geen YouTube-iframe, externe
+      fallback, titelmatch of bestandcontrole tijdens spelstart.
+- [x] **P1** Handmatige YouTube-link als expliciete adminkeuze accepteren;
+      automatische titel- en TMDB-matchcontrole alleen voor automatische
+      zoekresultaten gebruiken.
 - [x] **P1** Imports en lokale aanvulling in hervatbare batches van maximaal
       250 uitvoeren; een bestaande YouTube-track wordt alleen nog gedownload,
       niet opnieuw opgezocht.
