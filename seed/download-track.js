@@ -27,6 +27,36 @@ const MAX_YOUTUBE_SECONDS = 5 * 60;
 const MAX_AUDIO_TOLERANCE_SECONDS = 1;
 const execFileAsync = promisify(execFile);
 
+const YOUTUBE_MIN_INTERVAL_MS = Math.max(
+    100,
+    Number(process.env.YOUTUBE_MIN_INTERVAL_MS) || 250,
+);
+let youtubeVolgendeDownload = 0;
+let youtubeDownloadKeten = Promise.resolve();
+let youtubeDownloadBlokkadeTot = 0;
+let youtubeDownloadBlokkadePogingen = 0;
+
+async function wachtOpYoutubeDownload() {
+    const ticket = youtubeDownloadKeten.then(async () => {
+        const doel = Math.max(youtubeDownloadBlokkadeTot, youtubeVolgendeDownload);
+        const resterend = doel - Date.now();
+        if (resterend > 0) {
+            await new Promise((resolve) => setTimeout(resolve, resterend));
+        }
+        youtubeVolgendeDownload = Date.now() + YOUTUBE_MIN_INTERVAL_MS;
+    });
+    youtubeDownloadKeten = ticket.catch(() => {});
+    await ticket;
+}
+
+function markeerYoutubeDownloadRateLimit(err) {
+    const melding = String(err?.stderr || err?.message || '');
+    if (!/\b(403|429)\b|rate limit|too many requests/i.test(melding)) return;
+    youtubeDownloadBlokkadePogingen = Math.min(6, youtubeDownloadBlokkadePogingen + 1);
+    const wacht = Math.min(5 * 60 * 1000, 4000 * (2 ** (youtubeDownloadBlokkadePogingen - 1)));
+    youtubeDownloadBlokkadeTot = Date.now() + wacht + Math.floor(Math.random() * 1500);
+}
+
 function optie(naam) {
     const index = args.indexOf(`--${naam}`);
     return index >= 0 ? args[index + 1] : null;
@@ -133,11 +163,17 @@ function youtubeUrl(track) {
 async function controleerYoutubeUrl(track) {
     const url = youtubeUrl(track);
     if (!url) throw new Error('Geen geldige YouTube-bron-URL.');
-    await execFileAsync(
-        'yt-dlp',
-        ['--no-playlist', '--simulate', '--skip-download', '--print', 'id', url],
-        { timeout: 45000, maxBuffer: 512 * 1024 },
-    );
+    await wachtOpYoutubeDownload();
+    try {
+        await execFileAsync(
+            'yt-dlp',
+            ['--no-playlist', '--simulate', '--skip-download', '--print', 'id', url],
+            { timeout: 45000, maxBuffer: 512 * 1024 },
+        );
+    } catch (err) {
+        markeerYoutubeDownloadRateLimit(err);
+        throw err;
+    }
     return { bestaat: true, url };
 }
 
@@ -317,21 +353,27 @@ async function downloadYoutubeTrack(track, droog = false) {
     try {
         const start = Math.max(0, Number(track.start_seconde) || 0);
         const eind = start + MAX_YOUTUBE_SECONDS;
-        await execFileAsync(
-            'yt-dlp',
-            [
-                '--no-playlist',
-                '--download-sections', `*${start}-${eind}`,
-                '--force-keyframes-at-cuts',
-                '--extract-audio',
-                '--audio-format', 'mp3',
-                '--audio-quality', '5',
-                '--no-part',
-                '--output', bestand,
-                bronUrl,
-            ],
-            { timeout: 180000, maxBuffer: 2 * 1024 * 1024 },
-        );
+        await wachtOpYoutubeDownload();
+        try {
+                await execFileAsync(
+                    'yt-dlp',
+                    [
+                        '--no-playlist',
+                        '--download-sections', `*${start}-${eind}`,
+                        '--force-keyframes-at-cuts',
+                        '--extract-audio',
+                        '--audio-format', 'mp3',
+                        '--audio-quality', '5',
+                        '--no-part',
+                        '--output', bestand,
+                        bronUrl,
+                    ],
+                    { timeout: 180000, maxBuffer: 2 * 1024 * 1024 },
+                );
+        } catch (err) {
+            markeerYoutubeDownloadRateLimit(err);
+            throw err;
+        }
         const info = await fs.stat(bestand);
         if (!info.size || info.size > MAX_BYTES) {
             throw new Error(`Gedownload bestand is leeg of groter dan ${MAX_BYTES} bytes.`);
