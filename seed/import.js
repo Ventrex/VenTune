@@ -26,7 +26,27 @@ const tmdb = require('../server/lib/tmdb');
 const { veiligeTiteltekst, veiligeMetadata } = require('../server/lib/content-filter');
 
 const args = process.argv.slice(2);
-const ZOEK_BATCH_GROOTTE = 5;
+const DEFAULT_BATCH_GROOTTE = 5;
+const MAX_BATCH_GROOTTE = 50;
+
+function begrensBatchGrootte(waarde) {
+    const getal = Number(waarde);
+    if (!Number.isFinite(getal)) return DEFAULT_BATCH_GROOTTE;
+    return Math.min(MAX_BATCH_GROOTTE, Math.max(1, Math.floor(getal)));
+}
+
+async function haalBatchGrootte(opgegeven = null) {
+    const expliciet = Number(opgegeven);
+    if (Number.isFinite(expliciet) && expliciet > 0) return begrensBatchGrootte(expliciet);
+    try {
+        const { rows } = await pool.query(
+            `SELECT waarde FROM app_instellingen WHERE sleutel = 'beheer' LIMIT 1`,
+        );
+        return begrensBatchGrootte(rows[0]?.waarde?.batchGrootte);
+    } catch {
+        return DEFAULT_BATCH_GROOTTE;
+    }
+}
 
 function leesSeedCatalogus(collectie = null) {
     const bestanden = [path.join(__dirname, 'titels.json'), path.join(__dirname, 'titels-extra.json')];
@@ -396,6 +416,7 @@ async function importeer({
     titelFilter = null,
     collectie = null,
     opnieuwProberen = false,
+    batchGrootte = null,
     onProgress,
 } = {}) {
     const log = onLog || (() => {});
@@ -469,11 +490,13 @@ async function importeer({
     let netwerkfouten = 0;
     let gestopt = null;
 
+    const zoekBatchGrootte = await haalBatchGrootte(batchGrootte);
+
     let titelIndex = 0;
     while (titelIndex < titels.length && verwerkt < limiet && !gestopt) {
         const batch = [];
         while (titelIndex < titels.length
-            && batch.length < ZOEK_BATCH_GROOTTE
+            && batch.length < zoekBatchGrootte
             && verwerkt < limiet) {
             const t = titels[titelIndex++];
             if (!veiligeTiteltekst(t.naam)) {
