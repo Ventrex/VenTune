@@ -242,6 +242,8 @@ export function useSpel() {
         [],
     );
     const bonusOpgeven = useCallback(() => haalSocket().emit('ronde:bonus-opgeven'), []);
+    /** Foutmelding wegklikken, zodat een nieuwe poging schoon begint. */
+    const wisFout = useCallback(() => setFout(''), []);
     const herstelSpel = useCallback(() => {
         const socket = haalSocket();
         setHerstelBezig(true);
@@ -290,6 +292,7 @@ export function useSpel() {
         herstelNodig,
         herstelBezig,
         voorbereiding,
+        wisFout,
         startSpel,
         wijzigTeam,
         bewaarLobbyInstellingen,

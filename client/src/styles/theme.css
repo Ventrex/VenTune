@@ -131,6 +131,31 @@ body {
     background: rgba(196, 18, 48, 0.18);
 }
 
+/* Foutmelding met een weg eruit: opnieuw, andere quiz, of naar start. */
+.foutkaart {
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid var(--red);
+    border-radius: 14px;
+    background: var(--surface);
+    text-align: left;
+}
+
+/* Muziekbediening bovenin de ronde: altijd bereikbaar zonder scrollen. */
+.muziekbalk {
+    display: flex;
+    gap: 0.6rem;
+    margin: 0.5rem 0 1rem;
+}
+
+.muziekbalk > .knop {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 52px;
+    padding: 0 0.75rem;
+    font-size: 1.05rem;
+}
+
 /* Een rij knoppen die netjes doorloopt op een telefoon. Zonder wrap en
    min-width duwen lange labels de knoppen buiten de kaart. */
 .knoprij {
@@ -561,7 +586,9 @@ h1 {
 }
 
 .invoer {
-    flex: 1;
+    /* Basis van 12rem: past die niet naast de knop, dan wipt de invoer naar
+       een eigen regel in plaats van te krimpen tot een paar tekens breed. */
+    flex: 1 1 12rem;
     /* Zonder min-width:0 krimpt een flex-invoer niet en duwt hij de knop
        ernaast buiten beeld. */
     min-width: 0;

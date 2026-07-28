@@ -142,7 +142,36 @@ export default function Host() {
             {fase === 'raden' && audioStatus?.status === 'fout' && (
                 <p className="waarschuwing host-audio-status" role="alert">{audioStatus.fout}</p>
             )}
-            {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
+            {spel.fout && (
+                <div className="foutkaart" role="alert">
+                    <p className="waarschuwing" style={{ margin: 0 }}>{spel.fout}</p>
+                    {/* Zonder deze knoppen zit je vast op de foutmelding: het
+                        spel start niet en er is geen weg terug. */}
+                    <div className="knoprij">
+                        <button
+                            className="knop"
+                            type="button"
+                            onClick={() => { spel.wisFout?.(); startMetGeluid(); }}
+                        >
+                            Opnieuw proberen
+                        </button>
+                        <button
+                            className="knop knop-stil"
+                            type="button"
+                            onClick={() => navigate('/setup')}
+                        >
+                            Andere quiz kiezen
+                        </button>
+                        <button
+                            className="knop knop-stil"
+                            type="button"
+                            onClick={() => navigate('/')}
+                        >
+                            Naar start
+                        </button>
+                    </div>
+                </div>
+            )}
             {((!verbonden && fase !== 'wachten') || herstelNodig) && (
                 <div className="herstelkaart" role="status">
                     <strong>
@@ -304,6 +333,31 @@ export default function Host() {
                     ) : (
                         <p className="ronde-teller">Kennersmodus — raad maar raak</p>
                     )}
+
+                    {/* Bediening van de muziek staat bovenaan, direct onder de
+                        teller. Stond eerst onder de raadkaart, waardoor je op
+                        een telefoon moest scrollen om te kunnen pauzeren. */}
+                    <div className="muziekbalk">
+                        <button
+                            className="knop knop-stil"
+                            type="button"
+                            onClick={spel.gepauzeerd ? spel.hervat : spel.pauzeer}
+                        >
+                            {spel.gepauzeerd ? '▶ Hervat' : '⏸ Pauze'}
+                        </button>
+                        <button
+                            className="knop knop-stil"
+                            type="button"
+                            onClick={spel.herhaal}
+                            title="Het nummer opnieuw vanaf het begin"
+                        >
+                            ↻ Vanaf begin
+                        </button>
+                    </div>
+                    {spel.gepauzeerd && (
+                        <p className="feedback neutraal">Gepauzeerd</p>
+                    )}
+
                     <div className="kaart host-raadkaart">
                         <p className="kaart-label">Jij speelt mee</p>
                         {goedGeraden ? (
@@ -378,22 +432,10 @@ export default function Host() {
                         )}
                     </div>
                     <div className="host-knoppen">
-                        <button className="knop knop-stil" onClick={spel.herhaal}>
-                            ↻ Opnieuw
-                        </button>
-                        <button
-                            className="knop knop-stil"
-                            onClick={spel.gepauzeerd ? spel.hervat : spel.pauzeer}
-                        >
-                            {spel.gepauzeerd ? '▶ Hervat' : '⏸ Pauze'}
-                        </button>
                         <button className="knop" onClick={spel.volgende}>
                             Volgende →
                         </button>
                     </div>
-                    {spel.gepauzeerd && (
-                        <p className="feedback neutraal">Gepauzeerd</p>
-                    )}
                     <button
                         className="terug als-link"
                         style={{ marginTop: '0.75rem' }}

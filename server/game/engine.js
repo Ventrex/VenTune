@@ -425,6 +425,12 @@ class SpelBeheer {
         this.spellen.set(lobbyId, state);
 
         try {
+            // Rondes van een vorig spel in deze lobby opruimen. De tabel heeft
+            // UNIQUE (lobby_id, rondenummer), dus zonder dit botst een tweede
+            // spel meteen op ronde 1 en start het helemaal niet meer.
+            // Antwoorden hangen aan de ronde en verdwijnen mee.
+            await pool.query(`DELETE FROM rondes WHERE lobby_id = $1`, [lobbyId]);
+
             await pool.query(
                 `UPDATE lobbies SET status = 'bezig', huidige_ronde = 0 WHERE id = $1`,
                 [lobbyId],

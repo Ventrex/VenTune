@@ -8,7 +8,9 @@
 // (iTunes-previews, YouTube) en range-verzoeken laten we volledig met rust.
 // =====================================================================
 
-const CACHE = 'ventune-v2';
+// Ophogen bij elke wijziging hier: oude caches worden bij 'activate'
+// weggegooid. v3 ruimt de MP3's op die v2 ten onrechte had opgeslagen.
+const CACHE = 'ventune-v3';
 
 self.addEventListener('install', () => {
     self.skipWaiting();
@@ -41,8 +43,13 @@ self.addEventListener('fetch', (e) => {
         return;
     }
 
-    // Media/range-verzoeken nooit onderscheppen (iOS Safari eist 206).
+    // Media nooit onderscheppen. Niet alleen range-verzoeken: het éérste
+    // verzoek van een <audio>-element heeft vaak nog geen Range-header, en
+    // een uit de cache geserveerd 200-antwoord kan niet gescrubd worden.
+    // De speler bleef dan op "bezig" staan zonder ooit geluid te geven.
     if (req.headers.has('range')) return;
+    if (req.destination === 'audio' || req.destination === 'video') return;
+    if (url.pathname.startsWith('/media/')) return;
 
     // Navigatie: netwerk eerst, cache als terugval (offline).
     if (req.mode === 'navigate') {

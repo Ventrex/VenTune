@@ -8,7 +8,7 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "migrate": "node db/migrate.js",
-    "test": "node test/trackcheck.test.js && node test/soundtrack.test.js && node test/filters.test.js && node test/import.test.js && node test/auth.test.js && node test/host-play.test.js && node test/hints.test.js && node test/download.test.js && node test/round-flow.test.js && node test/tmdb.test.js && node test/database.test.js && node test/wachtrij.test.js && node test/quizzen.test.js"
+    "test": "node test/trackcheck.test.js && node test/soundtrack.test.js && node test/filters.test.js && node test/import.test.js && node test/auth.test.js && node test/host-play.test.js && node test/hints.test.js && node test/download.test.js && node test/round-flow.test.js && node test/tmdb.test.js && node test/database.test.js && node test/wachtrij.test.js && node test/quizzen.test.js && node test/herstart.test.js"
   },
   "engines": {
     "node": ">=20"
