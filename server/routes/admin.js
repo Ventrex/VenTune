@@ -2162,10 +2162,13 @@ router.post('/api/admin/seed', vereisAdmin, (req, res) => {
                 force,
                 alleenDb: !!(req.body && req.body.alleenDb),
                 youtubeAlleen: !!(req.body && req.body.youtubeAlleen),
-                // Admin-imports zijn hervatbare batches. De database blijft
-                // leidend; een klik mag nooit duizenden titels opnieuw door
-                // de zoekstroom sturen.
-                limiet: Math.min(250, Math.max(1, Number(req.body?.limiet) || 250)),
+                // De database blijft leidend: zonder expliciete limiet
+                // wordt de volledige resterende wachtrij verwerkt. De
+                // batchgrootte bepaalt alleen hoeveel zoekacties tegelijk lopen.
+                limiet: Number.isFinite(Number(req.body?.limiet))
+                    && Number(req.body?.limiet) > 0
+                    ? Math.floor(Number(req.body.limiet))
+                    : Infinity,
                 onProgress: (voortgang) => { seedStatus = { ...seedStatus, ...voortgang }; },
                 isGeannuleerd,
             });
