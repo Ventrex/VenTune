@@ -111,7 +111,7 @@ function Beheer({ onUit }) {
     const [bezigPlaylist, setBezigPlaylist] = useState(false);
     const [bezigTmdb, setBezigTmdb] = useState(false);
     const [bezigCatalogus, setBezigCatalogus] = useState(false);
-    const [bezigNlCuratie, setBezigNlCuratie] = useState(false);
+    const [, setBezigNlCuratie] = useState(false);
     const [bezigStudio, setBezigStudio] = useState(false);
     const [bezigVragen, setBezigVragen] = useState(false);
     const [bezigDownloads, setBezigDownloads] = useState(false);
