@@ -353,7 +353,14 @@ async function voegYoutubeTrackToe(titelId, video, executor = pool, songnaam = n
         [titelId, video.videoId, bronUrl],
     );
     if (bestaande.rows[0]) {
-        await executor.query(`UPDATE tracks SET laatst_gecontroleerd_op = now() WHERE id = $1`, [bestaande.rows[0].id]);
+        await executor.query(
+            `UPDATE tracks
+                SET laatst_gecontroleerd_op = now(),
+                    youtube_views = COALESCE($2, youtube_views),
+                    youtube_statistieken_melding = NULL
+              WHERE id = $1`,
+            [bestaande.rows[0].id, Number.isFinite(Number(video.views)) ? Number(video.views) : null],
+        );
         return bestaande.rows[0];
     }
     const { rows } = await executor.query(
@@ -361,9 +368,9 @@ async function voegYoutubeTrackToe(titelId, video, executor = pool, songnaam = n
                              tracknaam, artiest, herkenbaarheid, gecontroleerd,
                              verificatie_score, verificatie_reden,
                              laatst_gecontroleerd_op, bron_url,
-                             bevestigd, songnaam)
+                             bevestigd, songnaam, youtube_views, review_status)
          VALUES ($1, 'youtube', $2, $3, $4, $5, 3, true, $6, $7, now(), $8,
-                 $9, $10)
+                 $9, $10, $11, 'open')
          RETURNING id`,
         [
             titelId,
@@ -376,6 +383,7 @@ async function voegYoutubeTrackToe(titelId, video, executor = pool, songnaam = n
             bronUrl,
             Boolean(songnaam),
             songnaam,
+            Number.isFinite(Number(video.views)) ? Number(video.views) : null,
         ],
     );
     return rows[0];
