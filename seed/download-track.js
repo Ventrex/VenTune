@@ -388,7 +388,7 @@ async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } =
         // download nooit blokkeren als YouTube ze tijdelijk niet teruggeeft.
         let youtubeStatistieken = null;
         try {
-            youtubeStatistieken = await haalYouTubeStatistieken(track, { rateLimit });
+            youtubeStatistieken = await haalYouTubeStatistieken(track, { rateLimit: true });
         } catch (err) {
             await pool.query(
                 'UPDATE tracks SET youtube_statistieken_melding = $2 WHERE id = $1',
