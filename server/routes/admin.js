@@ -1438,9 +1438,11 @@ router.post(
                 `INSERT INTO tracks
                     (titel_id, bron, preview_url, bestand_pad, tracknaam, artiest,
                      herkenbaarheid, gecontroleerd, verificatie_score,
-                     verificatie_reden, bron_url, download_status, audio_sha256, gedownload_op)
+                     verificatie_reden, bron_url, download_status, audio_sha256, gedownload_op,
+                     review_status, review_handmatig, review_reden)
                  VALUES ($1, 'lokaal', $2, $2, $3, $4, 5, true, 1,
-                         'handmatig audiobestand door admin', $5, 'available', $6, now())
+                         'handmatig audiobestand door admin', $5, 'available', $6, now(),
+                         'goedgekeurd', true, 'Eigen audiobestand gecontroleerd door admin')
                  RETURNING *`,
                 [req.params.id, lokaal, titelNaam, artiest, req.file.originalname, hash],
             );
