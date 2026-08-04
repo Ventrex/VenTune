@@ -86,7 +86,7 @@ async function verversOntbrekendeYoutubeStatistieken({
     const { rows } = await pool.query(
         'SELECT tr.id, tr.titel_id, tr.bron, tr.preview_url, tr.bron_url ' +
         'FROM tracks tr JOIN titels t ON t.id = tr.titel_id ' +
-        'WHERE t.type = ANY($1::text[]) ' +
+        'WHERE t.type::text = ANY($1::text[]) ' +
         'AND (tr.bron_url ILIKE \'%youtube%\' OR (tr.bron = \'youtube\' AND tr.preview_url IS NOT NULL)) ' +
         'AND (tr.youtube_statistieken_op IS NULL OR tr.youtube_statistieken_op < now() - interval \'7 days\') ' +
         'ORDER BY tr.youtube_statistieken_op NULLS FIRST, tr.verificatie_score DESC, tr.id',
@@ -218,7 +218,7 @@ async function haalReviewVolgende({ types = ['film', 'serie'] } = {}) {
         't.genres AS titel_genres, t.youtube_max_views, t.youtube_max_likes, t.bekendheidsniveau, ' +
         't.tmdb_score, t.populariteit, t.stemmen ' +
         'FROM tracks tr JOIN titels t ON t.id = tr.titel_id ' +
-        'WHERE t.type = ANY($1::text[]) AND tr.bron = \'lokaal\' AND tr.download_status = \'available\' ' +
+        'WHERE t.type::text = ANY($1::text[]) AND tr.bron = \'lokaal\' AND tr.download_status = \'available\' ' +
         'AND tr.werkt = true AND COALESCE(tr.review_status, \'open\') = \'open\' ' +
         'AND COALESCE(tr.review_fouten, 0) < $2 ' +
         'ORDER BY FLOOR(COALESCE(tr.verificatie_score, 0) * 20) DESC, random() LIMIT 1',
@@ -229,7 +229,7 @@ async function haalReviewVolgende({ types = ['film', 'serie'] } = {}) {
         'AND tr.bron = \'lokaal\' AND tr.download_status = \'available\')::int AS open, ' +
         'COUNT(*) FILTER (WHERE tr.review_status = \'handmatig\')::int AS handmatig, ' +
         'COUNT(*) FILTER (WHERE tr.review_status = \'goedgekeurd\')::int AS goedgekeurd ' +
-        'FROM tracks tr JOIN titels t ON t.id = tr.titel_id WHERE t.type = ANY($1::text[])',
+        'FROM tracks tr JOIN titels t ON t.id = tr.titel_id WHERE t.type::text = ANY($1::text[])',
         [veiligeTypes],
     );
     return {
