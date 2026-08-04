@@ -120,21 +120,21 @@ function bouwBasisVragen(titel) {
 
     // 1. Jaar: echte, gevarieerde jaartallen zonder toekomstige opties.
     if (Number.isFinite(titel.jaar)) {
-        const jaarAfleiders = jaarAfleiders(titel.jaar);
+        const jaarOpties = jaarAfleiders(titel.jaar);
         const v = maakVraag(
             'jaar',
             `In welk jaar kwam ${naam} uit?`,
             String(titel.jaar),
-            jaarAfleiders,
+            jaarOpties,
         );
         if (v) vragen.push(v);
 
-        const jaarAfleiders2 = jaarAfleiders(titel.jaar);
+        const jaarOpties2 = jaarAfleiders(titel.jaar);
         const v2 = maakVraag(
             'releasejaar',
             `Welk jaar hoort bij de eerste release van ${naam}?`,
             String(titel.jaar),
-            jaarAfleiders2,
+            jaarOpties2,
         );
         if (v2) vragen.push(v2);
     }
@@ -265,6 +265,7 @@ async function haalVraag(titelId, alGebruikt = new Set(), geldig = null) {
            FROM vragen
           WHERE titel_id = $1
             AND jsonb_array_length(opties) >= 6
+            AND soort <> 'type'
           ORDER BY keer_gebruikt ASC, random()
           LIMIT 10`,
         [titelId],
@@ -297,6 +298,8 @@ async function haalVraag(titelId, alGebruikt = new Set(), geldig = null) {
 
 module.exports = {
     bouwBasisVragen,
+    jaarAfleiders,
+    landNaam,
     bouwTmdbVragen,
     bewaarVragen,
     vulAan,
