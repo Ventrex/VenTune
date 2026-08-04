@@ -161,8 +161,7 @@ function bouwFilter(f = {}) {
                                    AND vc.bron = 'lokaal'
                                    AND vc.itunes_track_id IS NULL
                                    AND (COALESCE(vc.review_status, 'open') = 'goedgekeurd'
-                                        OR vc.review_handmatig = true
-                                        OR (vc.gecontroleerd = true AND vc.verificatie_score >= 0.85))
+                                        OR vc.review_handmatig = true)
                                    AND vc.preview_url IS NOT NULL
                                    AND vc.preview_url <> '')`);
     }
