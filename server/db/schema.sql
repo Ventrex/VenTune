@@ -207,14 +207,14 @@ BEGIN
     ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_download_status_check;
     ALTER TABLE tracks ADD CONSTRAINT tracks_download_status_check
         CHECK (download_status IN ('not_requested', 'pending', 'available', 'failed'));
-END$;
+END$$;
 
-DO $
+DO $$
 BEGIN
     ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_review_status_check;
     ALTER TABLE tracks ADD CONSTRAINT tracks_review_status_check
         CHECK (review_status IN ('open', 'goedgekeurd', 'afgekeurd', 'handmatig'));
-END$;
+END$$;
 
 CREATE INDEX IF NOT EXISTS idx_tracks_review
     ON tracks (review_status, verificatie_score DESC, review_fouten, id);
