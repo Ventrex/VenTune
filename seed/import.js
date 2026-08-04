@@ -24,6 +24,7 @@ const soundtrack = require('../server/lib/soundtrack');
 const { pastBijTitel } = require('../server/lib/trackcheck');
 const tmdb = require('../server/lib/tmdb');
 const { veiligeTiteltekst, veiligeMetadata } = require('../server/lib/content-filter');
+const { werkTitelBekendheid } = require('../server/lib/track-review');
 
 const args = process.argv.slice(2);
 const DEFAULT_BATCH_GROOTTE = 5;
@@ -386,6 +387,7 @@ async function voegYoutubeTrackToe(titelId, video, executor = pool, songnaam = n
             Number.isFinite(Number(video.views)) ? Number(video.views) : null,
         ],
     );
+    await werkTitelBekendheid(titelId).catch(() => {});
     return rows[0];
 }
 
