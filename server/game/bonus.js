@@ -20,6 +20,27 @@ const GENRE_AFLEIDERS = [
     'Musical', 'Superhelden', 'Sport',
 ];
 
+const NU_JAAR = new Date().getFullYear();
+const JAAR_AFSTANDEN = [-1, 1, -2, 2, -3, 3, -5, 5, -8, 8, -12, 12];
+
+function jaarAfleiders(jaar, aantal = 5) {
+    const doel = Number(jaar);
+    if (!Number.isFinite(doel)) return [];
+    const kandidaten = [];
+    for (const afstand of JAAR_AFSTANDEN) {
+        const kandidaat = doel + afstand;
+        if (kandidaat >= 1950 && kandidaat <= NU_JAAR
+            && kandidaat !== doel && !kandidaten.includes(kandidaat)) {
+            kandidaten.push(kandidaat);
+        }
+    }
+    for (let afstand = 13; kandidaten.length < aantal && doel - afstand >= 1950; afstand++) {
+        const kandidaat = doel - afstand;
+        if (kandidaat !== doel && !kandidaten.includes(kandidaat)) kandidaten.push(kandidaat);
+    }
+    return hussel(kandidaten).slice(0, aantal).map(String);
+}
+
 function hussel(arr) {
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -90,8 +111,7 @@ function bouwVraag(details, pool = {}, instellingen = {}) {
         && (!Number.isFinite(Number(instellingen.jaarMax)) || details.jaar <= Number(instellingen.jaarMax));
     if (jaarBinnenKeuze) {
         mogelijk.push(() => {
-            const offsets = hussel([-6, -4, -3, -2, -1, 1, 2, 3, 4, 6]).slice(0, 5);
-            const afl = offsets.map((o) => String(details.jaar + o));
+            const afl = jaarAfleiders(details.jaar);
             return {
                 type: 'jaar',
                 vraag: `In welk jaar kwam ${details.naam} uit?`,
@@ -162,4 +182,4 @@ async function genereerBonus(titel, instellingen = {}) {
     }
 }
 
-module.exports = { bouwVraag, genereerBonus, GENRE_AFLEIDERS };
+module.exports = { bouwVraag, genereerBonus, GENRE_AFLEIDERS, jaarAfleiders };
