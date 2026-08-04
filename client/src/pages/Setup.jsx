@@ -36,6 +36,7 @@ const LEEFTIJDEN = [
     { waarde: 16, label: '16+', uitleg: 'Geschikt vanaf 16 jaar' },
     { waarde: 18, label: '18+', uitleg: 'Volledige leeftijdsgrens' },
 ];
+const DEELNEMER_LEEFTIJDEN = Array.from({ length: 96 }, (_, index) => index + 4);
 const RONDES = [
     { waarde: 10, label: '10' },
     { waarde: 20, label: '20' },
@@ -685,6 +686,36 @@ export default function Setup() {
                     <select className="invoer compact-select" value={filters.leeftijd_max} onChange={(e) => zet('leeftijd_max', Number(e.target.value))} aria-label="Leeftijdscategorie">
                         {LEEFTIJDEN.map((l) => <option key={l.waarde} value={l.waarde}>{l.label}</option>)}
                     </select>
+
+                    <div className="setup-leeftijdsbereik">
+                        <label className="setup-veld">
+                            Jongste deelnemer
+                            <select
+                                className="invoer compact-select"
+                                value={filters.leeftijd_deelnemer_min}
+                                onChange={(e) => {
+                                    const waarde = Number(e.target.value);
+                                    setFilters((f) => ({
+                                        ...f,
+                                        leeftijd_deelnemer_min: waarde,
+                                        leeftijd_deelnemer_max: Math.max(waarde, Number(f.leeftijd_deelnemer_max) || 99),
+                                    }));
+                                }}
+                            >
+                                {DEELNEMER_LEEFTIJDEN.map((leeftijd) => <option key={leeftijd} value={leeftijd}>{leeftijd} jaar</option>)}
+                            </select>
+                        </label>
+                        <label className="setup-veld">
+                            Oudste deelnemer
+                            <select
+                                className="invoer compact-select"
+                                value={filters.leeftijd_deelnemer_max}
+                                onChange={(e) => wijzigDeelnemerLeeftijd('leeftijd_deelnemer_max', Number(e.target.value))}
+                            >
+                                {DEELNEMER_LEEFTIJDEN.filter((leeftijd) => leeftijd >= Number(filters.leeftijd_deelnemer_min || 4)).map((leeftijd) => <option key={leeftijd} value={leeftijd}>{leeftijd} jaar</option>)}
+                            </select>
+                        </label>
+                    </div>
 
                     <label className="setup-veld" style={{ marginTop: '1rem' }}>
                         <span className="kaart-label">Vraagprofiel <InfoTip tekst="Speler krijgt alleen geteste vragen. Beta Tester kan nieuwe vragen krijgen en fouten melden." /></span>
