@@ -1793,3 +1793,15 @@ select.invoer {
     color: var(--text-dim);
     text-align: left;
 }
+
+.lobby-instellingen {
+    padding: 1rem;
+}
+.lobby-instellingen .invoer {
+    min-height: 44px;
+    font-size: 1rem;
+}
+.lobby-instellingen .knop {
+    min-height: 44px;
+    font-size: 1rem;
+}
