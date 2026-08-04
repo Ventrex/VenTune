@@ -1937,6 +1937,7 @@ const LEEG = {
     naam: '', type: 'film', taal: 'nl', jaar: '', land: '', aliassen: '', genres: '',
     hoofdrollen: '', speelplek: '', studio: '', tmdb_id: '', toevoeg_reden: '',
     collecties: '', nl_tv_bekend: true, curatie_status: 'goedgekeurd', leeftijdsgrens: 16,
+    populariteit: 0, stemmen: 0, tmdb_score: '', bekendheidsniveau: 'onbekend',
 };
 
 function NieuweTitel({ onKlaar }) {
@@ -2106,6 +2107,9 @@ function TitelDetail({ titel, onWijzig }) {
                                 {tr.verificatie_reden && ` · ${tr.verificatie_reden}`}
                                 {` · gespeeld: ${tr.keer_gespeeld || 0}×`}
                                 {tr.download_status && ` · lokaal: ${tr.download_status}`}
+                                {tr.youtube_views ? ` · YouTube: ${Number(tr.youtube_views).toLocaleString('nl-NL')} views` : ''}
+                                {tr.youtube_likes ? ` · ${Number(tr.youtube_likes).toLocaleString('nl-NL')} likes` : ''}
+                                {tr.review_status && ` · review: ${tr.review_status} (${tr.review_fouten || 0}×)`}
                                 {tr.fout_aantal > 0 && ` · ${tr.fout_aantal}× gemeld`}
                                 {!tr.werkt && ' · afgekeurd'}
                             </span>
@@ -2333,6 +2337,17 @@ function TitelVelden({ f, setF }) {
             <input className="invoer" value={f.hoofdrollen} onChange={zet('hoofdrollen')} placeholder="Hoofdrollen (komma-gescheiden, optioneel)" />
             <input className="invoer" value={f.tmdb_id} onChange={zet('tmdb_id')} placeholder="TMDB-id (optioneel, voor bonus)" />
             <input className="invoer" value={f.toevoeg_reden} onChange={zet('toevoeg_reden')} placeholder="Waarom staat deze titel in de database?" />
+            <div className="zoekbalk">
+                <input className="invoer" type="number" step="0.1" value={f.tmdb_score} onChange={zet('tmdb_score')} placeholder="TMDB-rating" />
+                <input className="invoer" type="number" value={f.stemmen} onChange={zet('stemmen')} placeholder="TMDB-stemmen" />
+                <input className="invoer" type="number" step="0.1" value={f.populariteit} onChange={zet('populariteit')} placeholder="TMDB-populariteit" />
+            </div>
+            <select className="invoer" value={f.bekendheidsniveau} onChange={zet('bekendheidsniveau')}>
+                <option value="onbekend">Onbekend</option>
+                <option value="bekend">Bekend</option>
+                <option value="heel_bekend">Heel bekend</option>
+                <option value="iconisch">Iconisch (&gt;5M YouTube-views)</option>
+            </select>
             <input className="invoer" value={f.collecties} onChange={zet('collecties')} placeholder="Spelcollecties (komma-gescheiden: disney, pixar, marvel)" />
             <div className="zoekbalk">
                 <select className="invoer" value={f.curatie_status} onChange={zet('curatie_status')}>
@@ -2371,6 +2386,10 @@ function naarForm(t) {
         nl_tv_bekend: t.nl_tv_bekend !== false,
         curatie_status: t.curatie_status || 'goedgekeurd',
         leeftijdsgrens: t.leeftijdsgrens ?? 16,
+        populariteit: t.populariteit ?? 0,
+        stemmen: t.stemmen ?? 0,
+        tmdb_score: t.tmdb_score ?? '',
+        bekendheidsniveau: t.bekendheidsniveau || 'onbekend',
     };
 }
 function naarPayload(f) {
@@ -2392,5 +2411,9 @@ function naarPayload(f) {
         nl_tv_bekend: !!f.nl_tv_bekend,
         curatie_status: f.curatie_status,
         leeftijdsgrens: Number(f.leeftijdsgrens),
+        populariteit: Number(f.populariteit) || 0,
+        stemmen: Number(f.stemmen) || 0,
+        tmdb_score: f.tmdb_score === '' ? null : Number(f.tmdb_score),
+        bekendheidsniveau: f.bekendheidsniveau,
     };
 }
