@@ -33,6 +33,7 @@ export function useSpel() {
     const [winnaarId, setWinnaarId] = useState(null);
     const [gepauzeerd, setGepauzeerd] = useState(false);
     const [melded, setMelded] = useState(false);
+    const [trackBeoordeling, setTrackBeoordeling] = useState(null);
     const [fout, setFout] = useState('');
     const [voorbereiding, setVoorbereiding] = useState(null);
     const [herstelNodig, setHerstelNodig] = useState(false);
@@ -87,6 +88,7 @@ export function useSpel() {
             setWinnaarId(null);
             setGepauzeerd(false);
             setMelded(false);
+            setTrackBeoordeling(null);
             setAntwoordOpties(d.opties || null);
             setVerwijderdeOpties([]);
             setRonde({ ...d, startTs: d.startTs || Date.now() });
@@ -111,6 +113,7 @@ export function useSpel() {
             }
         };
         const bijMeldingOk = () => setMelded(true);
+        const bijTrackBeoordelingOk = (resultaat) => setTrackBeoordeling(resultaat);
         const bijAudioPauze = () => setAudio((a) => (a ? { ...a, pauze: true } : a));
         const bijAudioHervat = () =>
             setAudio((a) => (a ? { ...a, pauze: false, hervat: Date.now() } : a));
@@ -167,6 +170,7 @@ export function useSpel() {
         socket.on('ronde:gewonnen', bijGewonnen);
         socket.on('ronde:pauze', bijPauze);
         socket.on('ronde:melding-ok', bijMeldingOk);
+        socket.on('ronde:track-beoordeling-ok', bijTrackBeoordelingOk);
         socket.on('ronde:audio-pauze', bijAudioPauze);
         socket.on('ronde:audio-hervat', bijAudioHervat);
         socket.on('ronde:hint', bijHint);
@@ -196,6 +200,7 @@ export function useSpel() {
             socket.off('ronde:gewonnen', bijGewonnen);
             socket.off('ronde:pauze', bijPauze);
             socket.off('ronde:melding-ok', bijMeldingOk);
+            socket.off('ronde:track-beoordeling-ok', bijTrackBeoordelingOk);
             socket.off('ronde:audio-pauze', bijAudioPauze);
             socket.off('ronde:audio-hervat', bijAudioHervat);
             socket.off('ronde:hint', bijHint);
@@ -235,6 +240,11 @@ export function useSpel() {
     const meldFout = useCallback(
         (soort = 'fout', toelichting = null) =>
             haalSocket().emit('ronde:melden', { soort, toelichting }),
+        [],
+    );
+    const beoordeelTrack = useCallback(
+        (beoordeling, toelichting = null) =>
+            haalSocket().emit('ronde:track-beoordeling', { beoordeling, toelichting }),
         [],
     );
     const bonusAntwoord = useCallback(
@@ -288,6 +298,7 @@ export function useSpel() {
         winnaarId,
         gepauzeerd,
         melded,
+        trackBeoordeling,
         fout,
         herstelNodig,
         herstelBezig,
@@ -301,6 +312,7 @@ export function useSpel() {
         pauzeer,
         hervat,
         meldFout,
+        beoordeelTrack,
         gok,
         vraagHint,
         verwijder3,
