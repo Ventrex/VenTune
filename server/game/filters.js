@@ -160,8 +160,9 @@ function bouwFilter(f = {}) {
                                    AND vc.werkt = true
                                    AND vc.bron = 'lokaal'
                                    AND vc.itunes_track_id IS NULL
-                                   AND vc.gecontroleerd = true
-                                   AND vc.verificatie_score >= 0.85
+                                   AND (COALESCE(vc.review_status, 'open') = 'goedgekeurd'
+                                        OR vc.review_handmatig = true
+                                        OR (vc.gecontroleerd = true AND vc.verificatie_score >= 0.85))
                                    AND vc.preview_url IS NOT NULL
                                    AND vc.preview_url <> '')`);
     }
