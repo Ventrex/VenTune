@@ -402,48 +402,67 @@ export default function Setup() {
 
             {fout && <p className="waarschuwing">{fout}</p>}
 
-            {/* Stap 0: welke quiz spelen we? */}
+            {/* Stap 0: eerst de soort quiz, daarna pas de lange editie-lijst */}
             {stap === 0 && (
                 <section>
                     <h1>Welke quiz?</h1>
                     <p className="dim">
-                        Kies een kant-en-klare editie. Je kunt daarna nog alles
-                        aanpassen.
+                        Kies eerst Films &amp; Series, Muziek of stel zelf een quiz samen.
                     </p>
-                    {quizzen.length === 0 && (
-                        <p className="dim">Edities worden geladen…</p>
-                    )}
-                    <div className="quiz-grid">
-                        {quizzen.map((q) => (
-                            <button
-                                key={q.sleutel}
-                                type="button"
-                                className={
-                                    'quiz-kaart' +
-                                    (quizSleutel === q.sleutel ? ' gekozen' : '') +
-                                    (q.klaar ? '' : ' leeg')
-                                }
-                                onClick={() => kiesQuiz(q)}
-                                disabled={q.speelbaar === 0}
-                            >
-                                <span className="quiz-emoji" aria-hidden="true">{q.emoji || '🎵'}</span>
-                                <span className="quiz-naam">{q.naam}</span>
-                                <span className="quiz-aantal">
-                                    {q.speelbaar === 0
-                                        ? 'nog geen muziek'
-                                        : `${q.speelbaar} ${q.speelbaar === 1 ? 'titel' : 'titels'}`}
-                                </span>
+                    {!quizGroep ? (
+                        <div className="keuzes setup-hoofdkeuze">
+                            <button className="keuze" type="button" onClick={() => setQuizGroep('filmserie')}>
+                                <span className="keuze-logo">🎬</span>
+                                <strong>Films &amp; Series</strong>
+                                <span className="keuze-uitleg">Intro&apos;s, themes en soundtracks</span>
                             </button>
-                        ))}
-                    </div>
-                    <button
-                        className="knop knop-stil"
-                        type="button"
-                        style={{ marginTop: '1rem' }}
-                        onClick={() => { setQuizSleutel(null); setStap(1); }}
-                    >
-                        Zelf instellen
-                    </button>
+                            <button className="keuze" type="button" onClick={() => setQuizGroep('muziek')}>
+                                <span className="keuze-logo">🎵</span>
+                                <strong>Muziek</strong>
+                                <span className="keuze-uitleg">Muziekedities en collecties</span>
+                            </button>
+                            <button className="keuze" type="button" onClick={() => { setQuizSleutel(null); setStap(1); }}>
+                                <span className="keuze-logo">⚙️</span>
+                                <strong>Custom</strong>
+                                <span className="keuze-uitleg">Zelf alle filters instellen</span>
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <button className="terug als-link" type="button" onClick={() => setQuizGroep(null)}>
+                                ← Andere quizsoort
+                            </button>
+                            {zichtbareQuizzen.length === 0 ? (
+                                <p className="dim">Edities worden geladen…</p>
+                            ) : (
+                                <div className="quiz-grid quiz-grid-enkel">
+                                    {zichtbareQuizzen.map((q) => (
+                                        <button
+                                            key={q.sleutel}
+                                            type="button"
+                                            className={'quiz-kaart' + (quizSleutel === q.sleutel ? ' gekozen' : '') + (q.klaar ? '' : ' leeg')}
+                                            onClick={() => kiesQuiz(q)}
+                                            disabled={q.speelbaar === 0}
+                                        >
+                                            <span className="quiz-emoji" aria-hidden="true">{q.emoji || '🎵'}</span>
+                                            <span className="quiz-naam">{q.naam}</span>
+                                            <span className="quiz-aantal">
+                                                {q.speelbaar === 0 ? 'nog geen lokale muziek' : `${q.speelbaar} ${q.speelbaar === 1 ? 'titel' : 'titels'}`}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            <button
+                                className="knop knop-stil"
+                                type="button"
+                                style={{ marginTop: '1rem' }}
+                                onClick={() => { setQuizSleutel(null); setStap(1); }}
+                            >
+                                Zelf instellen
+                            </button>
+                        </>
+                    )}
                 </section>
             )}
 
