@@ -49,6 +49,7 @@ const {
     valideerDisplayNaam,
 } = require('../lib/auth');
 const { veiligeTiteltekst, veiligeMetadata } = require('../lib/content-filter');
+const trackReview = require('../lib/track-review');
 
 const router = express.Router();
 
@@ -362,6 +363,11 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
                 COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'youtube')::int AS youtube_tracks,
                 COUNT(DISTINCT tr.id) FILTER (WHERE tr.werkt = true AND tr.bron = 'itunes')::int AS itunes_tracks,
                 COUNT(DISTINCT tr.id) FILTER (WHERE tr.download_status = 'failed')::int AS download_fouten,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.review_status = 'open')::int AS review_open_tracks,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.review_status = 'goedgekeurd')::int AS review_goedgekeurd_tracks,
+                COUNT(DISTINCT tr.id) FILTER (WHERE tr.review_status = 'handmatig')::int AS review_handmatig_tracks,
+                COALESCE(MAX(tr.youtube_views), 0)::bigint AS youtube_views,
+                COALESCE(MAX(tr.youtube_likes), 0)::bigint AS youtube_likes,
                 COUNT(DISTINCT m.id) FILTER (WHERE m.afgehandeld = false)::int AS open_meldingen,
                 MAX(tr.laatst_gecontroleerd_op) AS laatste_controle,
                 COALESCE(array_agg(DISTINCT c.sleutel) FILTER (WHERE c.sleutel IS NOT NULL), '{}') AS collecties
@@ -423,7 +429,12 @@ router.put('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
         `UPDATE titels SET naam = $2, aliassen = $3, type = $4, taal = $5,
                 jaar = $6, land = $7, genres = $8, tmdb_id = $9,
                 hoofdrollen = $10, speelplek = $11, studio = $12, toevoeg_reden = $13,
-                nl_tv_bekend = $14, curatie_status = $15, leeftijdsgrens = $16
+                nl_tv_bekend = $14, curatie_status = $15, leeftijdsgrens = $16,
+                populariteit = $17, stemmen = $18, tmdb_score = $19,
+                bekendheidsniveau = $20,
+                bekendheid_score = CASE $20
+                    WHEN 'iconisch' THEN 3 WHEN 'heel_bekend' THEN 2
+                    WHEN 'bekend' THEN 1 ELSE 0 END
           WHERE id = $1 RETURNING *`,
         [
             req.params.id,
@@ -444,6 +455,11 @@ router.put('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
                 ? b.curatie_status : 'goedgekeurd',
             [0, 6, 9, 10, 12, 16, 18].includes(Number(b.leeftijdsgrens))
                 ? Number(b.leeftijdsgrens) : 16,
+            Number.isFinite(Number(b.populariteit)) ? Number(b.populariteit) : 0,
+            Number.isFinite(Number(b.stemmen)) ? Number(b.stemmen) : 0,
+            Number.isFinite(Number(b.tmdb_score)) ? Number(b.tmdb_score) : null,
+            ['onbekend', 'bekend', 'heel_bekend', 'iconisch'].includes(b.bekendheidsniveau)
+                ? b.bekendheidsniveau : 'onbekend',
         ],
     );
     if (!rows[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
@@ -560,6 +576,42 @@ router.patch('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
     );
     if (!rows[0]) return res.status(404).json({ fout: 'Track niet gevonden.' });
     res.json(rows[0]);
+});
+
+// ---- Trackcontrole ----
+router.get('/api/admin/track-review/volgende', vereisAdmin, async (req, res) => {
+    try {
+        const types = String(req.query.type || 'films-series') === 'muziek'
+            ? ['muziek'] : ['film', 'serie'];
+        res.json(await trackReview.haalReviewVolgende({ types }));
+    } catch (err) {
+        res.status(500).json({ fout: 'Volgende track kon niet worden geladen: ' + err.message });
+    }
+});
+
+router.post('/api/admin/track-review/:id', vereisAdmin, async (req, res) => {
+    try {
+        const resultaat = await trackReview.beoordeelTrack(
+            Number(req.params.id),
+            req.body?.beoordeling,
+            req.body?.toelichting || null,
+            { actor: 'admin' },
+        );
+        res.json(resultaat);
+    } catch (err) {
+        res.status(400).json({ fout: 'Beoordeling mislukt: ' + err.message });
+    }
+});
+
+router.get('/api/admin/track-review/handmatig', vereisAdmin, async (_req, res) => {
+    const { rows } = await pool.query(
+        'SELECT tr.id, tr.tracknaam, tr.review_fouten, tr.review_reden, ' +
+        't.id AS titel_id, t.naam AS titel_naam, t.type, t.jaar ' +
+        'FROM tracks tr JOIN titels t ON t.id = tr.titel_id ' +
+        'WHERE tr.review_status = \\'handmatig\\' ' +
+        'ORDER BY tr.review_laatste_op DESC NULLS LAST, t.naam',
+    );
+    res.json(rows);
 });
 
 // Vragen per titel bekijken en verwijderen.
@@ -1620,6 +1672,7 @@ let downloadStatus = { bezig: false, klaar: false, samenvatting: null, fout: nul
 let lokaleAanvullingStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let dagelijkseKetenStatus = { bezig: false, klaar: false, stap: null, samenvatting: null, fout: null };
 let mediaHealthStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let youtubeStatsStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let collectieImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 const trackDownloadStatuses = new Map();
 // Imports wijzigen dezelfde vragenbank. Eén gedeelde lock voorkomt dat twee
@@ -1641,6 +1694,7 @@ const ADMIN_TAAK_LABELS = {
     'lokale-aanvulling': 'Ontbrekende lokale MP3’s zoeken en downloaden',
     'downloads-retry': 'Mislukte downloads opnieuw proberen',
     'media-health': 'Lokale bestanden controleren',
+    'youtube-statistieken': 'YouTube views en likes bijwerken',
     collecties: 'Spelcollecties importeren',
     'media-health-auto': 'Dagelijkse bestandscontrole',
     'playlists-auto': 'Dagelijkse playlist-refresh',
@@ -1663,6 +1717,7 @@ function adminTaakLijst() {
         'lokale-aanvulling': lokaleAanvullingStatus,
         'downloads-retry': downloadStatus,
         'media-health': mediaHealthStatus,
+        'youtube-statistieken': youtubeStatsStatus,
         collecties: collectieImportStatus,
         'media-health-auto': mediaHealthStatus,
         'playlists-auto': playlistImportStatus,
@@ -2123,6 +2178,49 @@ router.post('/api/admin/media-health/start', vereisAdmin, (req, res) => {
 router.get('/api/admin/media-health/status', vereisAdmin, (_req, res) => {
     res.json(mediaHealthStatus);
 });
+router.post('/api/admin/youtube-statistieken/start', vereisAdmin, (req, res) => {
+    const antwoord = startAdminScript(
+        'youtube-statistieken',
+        youtubeStatsStatus,
+        (v) => { youtubeStatsStatus = v; },
+        async ({ isGeannuleerd = () => false } = {}) => {
+            const { rows } = await pool.query(
+                'SELECT tr.id, tr.titel_id, tr.bron, tr.preview_url, tr.bron_url ' +
+                'FROM tracks tr JOIN titels t ON t.id = tr.titel_id ' +
+                'WHERE t.type IN (\\'film\\', \\'serie\\') ' +
+                'AND (tr.bron_url ILIKE \\'%youtube%\\' OR (tr.bron = \\'youtube\\' AND tr.preview_url IS NOT NULL)) ' +
+                'AND (tr.youtube_statistieken_op IS NULL OR tr.youtube_statistieken_op < now() - interval \\'7 days\\') ' +
+                'ORDER BY tr.youtube_statistieken_op NULLS FIRST, tr.verificatie_score DESC, tr.id',
+            );
+            let verwerkt = 0;
+            let bijgewerkt = 0;
+            let mislukt = 0;
+            for (const track of rows) {
+                if (isGeannuleerd()) return { verwerkt, bijgewerkt, mislukt, geannuleerd: true };
+                youtubeStatsStatus = { ...youtubeStatsStatus, verwerkt, totaal: rows.length, huidige: track.titel_id };
+                try {
+                    await trackReview.verversYoutubeStatistieken(track, { rateLimit: true });
+                    bijgewerkt++;
+                } catch (err) {
+                    mislukt++;
+                    await pool.query(
+                        'UPDATE tracks SET youtube_statistieken_op = now(), youtube_statistieken_melding = $2 WHERE id = $1',
+                        [track.id, String(err.message).slice(0, 500)],
+                    ).catch(() => {});
+                }
+                verwerkt++;
+                youtubeStatsStatus = { ...youtubeStatsStatus, verwerkt, totaal: rows.length };
+            }
+            return { verwerkt, bijgewerkt, mislukt };
+        },
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/youtube-statistieken/status', vereisAdmin, (_req, res) => {
+    res.json(youtubeStatsStatus);
+});
+
 
 router.post('/api/admin/collecties/import', vereisAdmin, (req, res) => {
     const collecties = normaliseerCollecties(req.body?.collecties);
