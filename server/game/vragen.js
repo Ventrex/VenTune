@@ -222,7 +222,8 @@ async function bewaarVragen(titelId, vragen) {
              ON CONFLICT (titel_id, soort, vraag) DO UPDATE SET
                opties = EXCLUDED.opties,
                correct_index = EXCLUDED.correct_index
-             WHERE jsonb_array_length(vragen.opties) < 6`,
+             WHERE vragen.soort IN ('jaar', 'releasejaar')
+                OR jsonb_array_length(vragen.opties) < 6`,
             [titelId, v.soort, v.vraag, JSON.stringify(v.opties), v.correct_index],
         );
         if (res.rowCount > 0) nieuw++;
@@ -242,7 +243,13 @@ async function vulAan(titel, minimaal = 3, metTmdb = false) {
             AND jsonb_array_length(opties) >= 6`,
         [titel.id],
     );
-    if (rows[0].n >= minimaal) return 0;
+    if (rows[0].n >= minimaal) {
+        // Jaarvragen worden bewust opnieuw opgebouwd: oude databaseversies
+        // konden toekomstige jaartallen als afleider hebben opgeslagen.
+        const actueleJaren = bouwBasisVragen(titel)
+            .filter((vraag) => ['jaar', 'releasejaar'].includes(vraag.soort));
+        return bewaarVragen(titel.id, actueleJaren);
+    }
 
     let vragen = bouwBasisVragen(titel);
     if (metTmdb && vragen.length < minimaal + 1) {
