@@ -608,7 +608,7 @@ router.get('/api/admin/track-review/handmatig', vereisAdmin, async (_req, res) =
         'SELECT tr.id, tr.tracknaam, tr.review_fouten, tr.review_reden, ' +
         't.id AS titel_id, t.naam AS titel_naam, t.type, t.jaar ' +
         'FROM tracks tr JOIN titels t ON t.id = tr.titel_id ' +
-        'WHERE tr.review_status = \\'handmatig\\' ' +
+        'WHERE tr.review_status = \'handmatig\' ' +
         'ORDER BY tr.review_laatste_op DESC NULLS LAST, t.naam',
     );
     res.json(rows);
@@ -2187,9 +2187,9 @@ router.post('/api/admin/youtube-statistieken/start', vereisAdmin, (req, res) => 
             const { rows } = await pool.query(
                 'SELECT tr.id, tr.titel_id, tr.bron, tr.preview_url, tr.bron_url ' +
                 'FROM tracks tr JOIN titels t ON t.id = tr.titel_id ' +
-                'WHERE t.type IN (\\'film\\', \\'serie\\') ' +
-                'AND (tr.bron_url ILIKE \\'%youtube%\\' OR (tr.bron = \\'youtube\\' AND tr.preview_url IS NOT NULL)) ' +
-                'AND (tr.youtube_statistieken_op IS NULL OR tr.youtube_statistieken_op < now() - interval \\'7 days\\') ' +
+                'WHERE t.type IN (\'film\', \'serie\') ' +
+                'AND (tr.bron_url ILIKE \'%youtube%\' OR (tr.bron = \'youtube\' AND tr.preview_url IS NOT NULL)) ' +
+                'AND (tr.youtube_statistieken_op IS NULL OR tr.youtube_statistieken_op < now() - interval \'7 days\') ' +
                 'ORDER BY tr.youtube_statistieken_op NULLS FIRST, tr.verificatie_score DESC, tr.id',
             );
             let verwerkt = 0;
