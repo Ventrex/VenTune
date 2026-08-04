@@ -423,6 +423,25 @@ export async function adminResetWachtwoord(id, wachtwoord) {
 export async function adminTrackStatus(id, data) {
     return adminFetch(`/api/admin/tracks/${id}`, { method: 'PATCH', ...jsonBody(data) });
 }
+
+export async function adminReviewVolgende(type = 'films-series') {
+    return adminFetch(`/api/admin/track-review/volgende?type=${encodeURIComponent(type)}`);
+}
+export async function adminReviewBeoordelen(id, beoordeling, toelichting = null) {
+    return adminFetch(`/api/admin/track-review/${id}`, {
+        method: 'POST',
+        ...jsonBody({ beoordeling, toelichting }),
+    });
+}
+export async function adminReviewHandmatig() {
+    return adminFetch('/api/admin/track-review/handmatig');
+}
+export async function adminYoutubeStatistiekenStart() {
+    return adminFetch('/api/admin/youtube-statistieken/start', { method: 'POST', ...jsonBody({}) });
+}
+export async function adminYoutubeStatistiekenStatus() {
+    return adminFetch('/api/admin/youtube-statistieken/status');
+}
 export async function adminVragen(titelId) {
     return adminFetch(`/api/admin/titels/${titelId}/vragen`);
 }
