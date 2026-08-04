@@ -1573,7 +1573,10 @@ router.post('/api/admin/meldingen/:id/koppel', vereisAdmin, async (req, res) => 
             `UPDATE tracks SET werkt = true, fout_aantal = 0, gecontroleerd = true,
                     verificatie_score = 1, verificatie_reden = $2,
                     laatst_gecontroleerd_op = now(), tracknaam = $3, artiest = $4,
-                    bron_url = $5, start_seconde = $6
+                    bron_url = $5, start_seconde = $6,
+                    review_status = 'goedgekeurd', review_handmatig = true,
+                    review_fouten = 0, review_laatste_op = now(),
+                    review_reden = 'Handmatig gekoppeld vanuit melding'
               WHERE id = $1 RETURNING *`,
             [bestaande.rows[0].id, reden, tracknaam, trackGegevens.artiest,
                 kandidaat.bron_url || `https://www.youtube.com/watch?v=${videoId}`,
@@ -1584,8 +1587,9 @@ router.post('/api/admin/meldingen/:id/koppel', vereisAdmin, async (req, res) => 
             `INSERT INTO tracks
                 (titel_id, bron, preview_url, start_seconde, tracknaam, artiest,
                  herkenbaarheid, gecontroleerd, verificatie_score, verificatie_reden,
-                 laatst_gecontroleerd_op, bron_url)
-             VALUES ($1, 'youtube', $2, $3, $4, $5, 5, true, 1, $6, now(), $7)
+                 laatst_gecontroleerd_op, bron_url, review_status, review_handmatig, review_reden)
+             VALUES ($1, 'youtube', $2, $3, $4, $5, 5, true, 1, $6, now(), $7,
+                     'goedgekeurd', true, 'Handmatig gekoppeld vanuit melding')
              RETURNING *`,
             [melding.titel_id, videoId, Math.max(0, Number(kandidaat.start_seconde) || 0),
                 tracknaam, trackGegevens.artiest, reden,
@@ -1623,7 +1627,9 @@ router.post('/api/admin/meldingen/:id/goedkeuren', vereisAdmin, async (req, res)
     const trackRij = await pool.query(
         `UPDATE tracks SET werkt = true, fout_aantal = 0, gecontroleerd = true,
                 verificatie_score = 1, verificatie_reden = 'handmatig goedgekeurd vanuit melding',
-                laatst_gecontroleerd_op = now()
+                laatst_gecontroleerd_op = now(), review_status = 'goedgekeurd',
+                review_handmatig = true, review_fouten = 0,
+                review_laatste_op = now(), review_reden = 'Handmatig goedgekeurd vanuit melding'
           WHERE id = $1 AND titel_id = $2 RETURNING *`,
         [trackId, rows[0].titel_id],
     );
