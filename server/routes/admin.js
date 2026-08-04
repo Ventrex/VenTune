@@ -2521,9 +2521,9 @@ function startPlaylistPlanner() {
                     zetStatus: (v) => { dagelijkseKetenStatus = v; },
                     werk: async ({ isGeannuleerd = () => false } = {}) => {
                         dagelijkseKetenStatus = { ...dagelijkseKetenStatus, stap: 'database', melding: 'Stap 1: database bijwerken…' };
-                        const stap1 = process.env.TMDB_API_KEY
+                        const stap1 = (process.env.TMDB_API_KEY || process.env.TMDB_ACCESS_TOKEN)
                             ? await importeerTmdb({ type: 'beide' })
-                            : { overgeslagen: 'TMDB_API_KEY ontbreekt' };
+                            : { overgeslagen: 'TMDB-sleutel ontbreekt' };
                         if (isGeannuleerd()) return { geannuleerd: true, stap1 };
                         dagelijkseKetenStatus = { ...dagelijkseKetenStatus, stap: 'youtube', melding: 'Stap 2: ontbrekende YouTube-matches zoeken…' };
                         const stap2 = await importeer({
