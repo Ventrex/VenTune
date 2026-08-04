@@ -137,7 +137,7 @@ async function maakAlternatief(titel, huidigTrackId) {
             '(titel_id, bron, preview_url, bron_url, start_seconde, tracknaam, artiest, album, ' +
             ' herkenbaarheid, gecontroleerd, bevestigd, verificatie_score, verificatie_reden, ' +
             ' laatst_gecontroleerd_op, youtube_views, review_status, review_fouten, review_reden) ' +
-            'VALUES ($1, \\'youtube\\', $2, $3, 0, $4, $5, $6, 3, false, $7, $8, $9, now(), $10, \\'open\\', 0, $11) ' +
+            'VALUES ($1, \'youtube\', $2, $3, 0, $4, $5, $6, 3, false, $7, $8, $9, now(), $10, \'open\', 0, $11) ' +
             'RETURNING id, bron, preview_url, bron_url, download_status',
             [
                 titel.id,
@@ -183,17 +183,17 @@ async function haalReviewVolgende({ types = ['film', 'serie'] } = {}) {
         't.genres AS titel_genres, t.youtube_max_views, t.youtube_max_likes, t.bekendheidsniveau, ' +
         't.tmdb_score, t.populariteit, t.stemmen ' +
         'FROM tracks tr JOIN titels t ON t.id = tr.titel_id ' +
-        'WHERE t.type = ANY($1::text[]) AND tr.bron = \\'lokaal\\' AND tr.download_status = \\'available\\' ' +
-        'AND tr.werkt = true AND COALESCE(tr.review_status, \\'open\\') = \\'open\\' ' +
+        'WHERE t.type = ANY($1::text[]) AND tr.bron = \'lokaal\' AND tr.download_status = \'available\' ' +
+        'AND tr.werkt = true AND COALESCE(tr.review_status, \'open\') = \'open\' ' +
         'AND COALESCE(tr.review_fouten, 0) < $2 ' +
         'ORDER BY FLOOR(COALESCE(tr.verificatie_score, 0) * 20) DESC, random() LIMIT 1',
         [veiligeTypes, MAX_FOUTE_KANDIDATEN],
     );
     const { rows: telling } = await pool.query(
-        'SELECT COUNT(*) FILTER (WHERE tr.review_status = \\'open\\' AND tr.werkt = true ' +
-        'AND tr.bron = \\'lokaal\\' AND tr.download_status = \\'available\\')::int AS open, ' +
-        'COUNT(*) FILTER (WHERE tr.review_status = \\'handmatig\\')::int AS handmatig, ' +
-        'COUNT(*) FILTER (WHERE tr.review_status = \\'goedgekeurd\\')::int AS goedgekeurd ' +
+        'SELECT COUNT(*) FILTER (WHERE tr.review_status = \'open\' AND tr.werkt = true ' +
+        'AND tr.bron = \'lokaal\' AND tr.download_status = \'available\')::int AS open, ' +
+        'COUNT(*) FILTER (WHERE tr.review_status = \'handmatig\')::int AS handmatig, ' +
+        'COUNT(*) FILTER (WHERE tr.review_status = \'goedgekeurd\')::int AS goedgekeurd ' +
         'FROM tracks tr JOIN titels t ON t.id = tr.titel_id WHERE t.type = ANY($1::text[])',
         [veiligeTypes],
     );
@@ -229,10 +229,10 @@ async function beoordeelTrack(trackId, beoordeling, toelichting = null, { actor 
 
     if (goed) {
         const { rows: goedRows } = await pool.query(
-            'UPDATE tracks SET review_status = \\'goedgekeurd\\', review_handmatig = true, ' +
+            'UPDATE tracks SET review_status = \'goedgekeurd\', review_handmatig = true, ' +
             'review_fouten = 0, review_laatste_op = now(), review_reden = $2, gecontroleerd = true, ' +
             'bevestigd = true, werkt = true, fout_aantal = 0, verificatie_score = 1, ' +
-            'verificatie_reden = \\'handmatig goedgekeurd via trackcontrole\\', ' +
+            'verificatie_reden = \'handmatig goedgekeurd via trackcontrole\', ' +
             'laatst_gecontroleerd_op = now() WHERE id = $1 RETURNING *',
             [trackId, 'Goedgekeurd door ' + actor + '.' + (toelichting ? ' ' + String(toelichting).slice(0, 400) : '')],
         );
@@ -242,7 +242,7 @@ async function beoordeelTrack(trackId, beoordeling, toelichting = null, { actor 
     const { rows: foutRows } = await pool.query(
         'UPDATE tracks SET review_fouten = COALESCE(review_fouten, 0) + 1, review_laatste_op = now(), ' +
         'review_reden = $2, review_status = CASE WHEN COALESCE(review_fouten, 0) + 1 >= $3 ' +
-        'THEN \\'handmatig\\' ELSE \\'afgekeurd\\' END, werkt = false, gecontroleerd = false, ' +
+        'THEN \'handmatig\' ELSE \'afgekeurd\' END, werkt = false, gecontroleerd = false, ' +
         'bevestigd = false, fout_aantal = COALESCE(fout_aantal, 0) + 1 WHERE id = $1 RETURNING *',
         [
             trackId,
@@ -252,7 +252,7 @@ async function beoordeelTrack(trackId, beoordeling, toelichting = null, { actor 
     );
     const afgekeurd = foutRows[0];
     await pool.query(
-        'INSERT INTO meldingen (track_id, titel_id, soort, toelichting) VALUES ($1, $2, \\'verkeerd_nummer\\', $3)',
+        'INSERT INTO meldingen (track_id, titel_id, soort, toelichting) VALUES ($1, $2, \'verkeerd_nummer\', $3)',
         [
             trackId,
             track.titel_id,
