@@ -1091,7 +1091,7 @@ function Beheer({ onUit }) {
                             youtubeIntervalUren: 24,
                             downloadsIntervalUren: 24,
                         })}>Alles dagelijks aanzetten</button>
-                        <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({ playlistIntervalUren: planning?.playlistIntervalUren || 24, mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24, tmdbIntervalUren: planning?.tmdbIntervalUren || 24, youtubeIntervalUren: planning?.youtubeIntervalUren || 24, downloadsIntervalUren: planning?.downloadsIntervalUren || 24, batchGrootte: planning?.batchGrootte || 5 })}>Planning opslaan</button>
+                        <button className="knop knop-stil" type="button" onClick={() => bewaarPlanning({ playlistIntervalUren: planning?.playlistIntervalUren || 24, mediaHealthIntervalUren: planning?.mediaHealthIntervalUren || 24, tmdbIntervalUren: planning?.tmdbIntervalUren || 24, youtubeIntervalUren: planning?.youtubeIntervalUren || 24, downloadsIntervalUren: planning?.downloadsIntervalUren || 24, dagelijkseKetenAan: planning?.dagelijkseKetenAan !== false, dagelijkseKetenIntervalUren: planning?.dagelijkseKetenIntervalUren || 24, batchGrootte: planning?.batchGrootte || 5 })}>Planning opslaan</button>
                     </div>
                 </div>
                 </section>
