@@ -227,6 +227,16 @@ function setupSockets(io) {
             }
         });
 
+        // Beta Tester: goede/foute lokale track beoordelen. Dit gebruikt exact
+        // dezelfde admin-workflow met maximaal drie alternatieve YouTube-kandidaten.
+        socket.on('ronde:track-beoordeling', async ({ beoordeling, toelichting } = {}) => {
+            try {
+                await spel.beoordeelTrack(socket, beoordeling, toelichting);
+            } catch (err) {
+                logger.waarschuwing('Trackbeoordeling mislukt.', { melding: err.message });
+            }
+        });
+
         // Bonusvraag beantwoorden.
         socket.on('ronde:bonus-antwoord', async ({ keuze } = {}) => {
             try {
