@@ -617,20 +617,28 @@ export default function Setup() {
             {/* Stap 4: Rondes + telling + presets + start */}
             {stap === 4 && (
                 <section>
-                    <h1>Rondes</h1>
-                    <div className="keuzes">
-                        {RONDES.map((r) => (
-                            <button
-                                key={r.waarde}
-                                className={
-                                    'keuze' +
-                                    (filters.rondes === r.waarde ? ' gekozen' : '')
-                                }
-                                onClick={() => zet('rondes', r.waarde)}
-                            >
-                                {r.label}
-                            </button>
-                        ))}
+                    <div className="setup-bovenbalk kaart">
+                        <label className="kaart-label">Preset</label>
+                        <select
+                            className="invoer compact-select"
+                            value={presetKeuze}
+                            onChange={(e) => {
+                                const waarde = e.target.value;
+                                setPresetKeuze(waarde);
+                                const gekozen = presets.find((p) => String(p.id) === waarde);
+                                if (gekozen) pasPresetToe(gekozen);
+                            }}
+                        >
+                            <option value="">Kies een preset…</option>
+                            {presets.map((p) => <option key={p.id} value={p.id}>{p.naam}</option>)}
+                        </select>
+                    </div>
+                    <h1>Spelinstellingen</h1>
+                    <div className="setup-veld">
+                        <label className="kaart-label" htmlFor="rondes">Rondes</label>
+                        <select id="rondes" className="invoer compact-select" value={filters.rondes} onChange={(e) => zet('rondes', Number(e.target.value))}>
+                            {RONDES.map((r) => <option key={r.waarde} value={r.waarde}>{r.label}</option>)}
+                        </select>
                     </div>
 
                     {/* Bekendheid */}
@@ -640,20 +648,9 @@ export default function Setup() {
                     >
                         Hoe bekend moeten de titels zijn?
                     </p>
-                    <div className="chips">
-                        {BEKENDHEID.map((b) => (
-                            <button
-                                key={b.waarde}
-                                className={
-                                    'chip' +
-                                    (filters.min_bekendheid === b.waarde ? ' gekozen' : '')
-                                }
-                                onClick={() => zet('min_bekendheid', b.waarde)}
-                            >
-                                {b.label}
-                            </button>
-                        ))}
-                    </div>
+                    <select className="invoer compact-select" value={filters.min_bekendheid} onChange={(e) => zet('min_bekendheid', Number(e.target.value))} aria-label="Bekendheid">
+                        {BEKENDHEID.map((b) => <option key={b.waarde} value={b.waarde}>{b.label}</option>)}
+                    </select>
 
                     {/* Genres uitklikken */}
                     <p
@@ -685,18 +682,24 @@ export default function Setup() {
                     >
                         Leeftijd
                     </p>
-                    <div className="keuzes">
-                        {LEEFTIJDEN.map((l) => (
-                            <button
-                                key={l.waarde}
-                                className={'keuze klein' + (filters.leeftijd_max === l.waarde ? ' gekozen' : '')}
-                                onClick={() => zet('leeftijd_max', l.waarde)}
-                            >
-                                <span>{l.label}</span>
-                                <span className="keuze-uitleg">{l.uitleg}</span>
-                            </button>
-                        ))}
-                    </div>
+                    <select className="invoer compact-select" value={filters.leeftijd_max} onChange={(e) => zet('leeftijd_max', Number(e.target.value))} aria-label="Leeftijdscategorie">
+                        {LEEFTIJDEN.map((l) => <option key={l.waarde} value={l.waarde}>{l.label}</option>)}
+                    </select>
+
+                    <label className="setup-veld" style={{ marginTop: '1rem' }}>
+                        <span className="kaart-label">Vraagprofiel <InfoTip tekst="Speler krijgt alleen geteste vragen. Beta Tester kan nieuwe vragen krijgen en fouten melden." /></span>
+                        <select
+                            className="invoer compact-select"
+                            value={filters.vraag_profiel || (filters.alleen_gecontroleerd ? 'speler' : 'beta')}
+                            onChange={(e) => {
+                                const profiel = e.target.value;
+                                zet('vraag_profiel', profiel);
+                                zet('alleen_gecontroleerd', profiel === 'speler');
+                            }}
+                        >
+                            {VRAAG_PROFIELEN.map((p) => <option key={p.waarde} value={p.waarde}>{p.label}</option>)}
+                        </select>
+                    </label>
 
                     <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
                         <input
@@ -706,7 +709,7 @@ export default function Setup() {
                         />
                         <span>
                             <strong>Alleen titels die op Nederlandse tv te zien waren</strong>
-                            <span className="keuze-uitleg">Nieuwe/importtitels blijven verborgen tot de admin ze goedkeurt</span>
+                            <InfoTip tekst="Laat alleen films en series toe die in Nederland zijn uitgebracht of uitgezonden en door de admin zijn gecureerd." />
                         </span>
                     </label>
 
@@ -718,7 +721,7 @@ export default function Setup() {
                         />
                         <span>
                             <strong>Alleen gecontroleerde nummers</strong>
-                            <span className="keuze-uitleg">Gebruik alleen tracks met een betrouwbare controle of admin-goedkeuring</span>
+                            <InfoTip tekst="Gebruik alleen betrouwbare, door de admin gecontroleerde lokale audiobestanden." />
                         </span>
                     </label>
 
@@ -730,7 +733,7 @@ export default function Setup() {
                         />
                         <span>
                             <strong>Leeftijdsbonus aan</strong>
-                            <span className="keuze-uitleg">Kinderen krijgen meer punten: t/m 6 ×2, t/m 9 ×1,75, t/m 12 ×1,5</span>
+                            <InfoTip tekst="Kinderen krijgen extra punten volgens het gekozen schema." />
                         </span>
                     </label>
                     {filters.leeftijdspunten_aan === true && (
@@ -764,7 +767,7 @@ export default function Setup() {
                         />
                         <span>
                             <strong>Kindvriendelijke editie</strong>
-                            <span className="keuze-uitleg">Alleen kindvriendelijke familie-, animatie-, avontuur- en comedy-inhoud tot en met 12+; 200 punten en 20 seconden leestijd.</span>
+                            <InfoTip tekst="Beperkt de selectie tot kindvriendelijke inhoud en geeft kinderen meer leestijd." />
                         </span>
                     </label>
 
@@ -821,19 +824,9 @@ export default function Setup() {
                     >
                         Speeltijd per ronde
                     </p>
-                    <div className="chips">
-                        {SPEELTIJDEN.map((s) => (
-                            <button
-                                key={s.waarde}
-                                className={
-                                    'chip' + (filters.speeltijd === s.waarde ? ' gekozen' : '')
-                                }
-                                onClick={() => zet('speeltijd', s.waarde)}
-                            >
-                                {s.label}
-                            </button>
-                        ))}
-                    </div>
+                    <select className="invoer compact-select" value={filters.speeltijd} onChange={(e) => zet('speeltijd', Number(e.target.value))} aria-label="Speeltijd per ronde">
+                        {SPEELTIJDEN.map((s) => <option key={s.waarde} value={s.waarde}>{s.label}</option>)}
+                    </select>
 
                     {/* Live telling */}
                     <div className="telling">
