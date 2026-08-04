@@ -834,16 +834,30 @@ router.patch('/api/admin/instellingen', vereisAdmin, async (req, res) => {
 router.post('/api/admin/instellingen/logo', vereisAdmin, upload.single('logo'), async (req, res) => {
     if (!req.file) return res.status(400).json({ fout: 'Kies een logo-afbeelding.' });
     const mime = String(req.file.mimetype || '').toLowerCase();
-    const ext = path.extname(req.file.originalname || '').toLowerCase();
-    const toegestaan = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']);
-    if (!toegestaan.has(mime) || !['.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(ext)) {
+    const origineleExtensie = path.extname(req.file.originalname || '').toLowerCase();
+    const extensiePerMime = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/webp': '.webp',
+        'image/svg+xml': '.svg',
+    };
+    const toegestaneExtensies = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg']);
+    // Mobiele uploaders geven soms een lege of verkeerde bestandsextensie.
+    // De MIME-header is dan leidend; alleen echte afbeeldingsformaten worden
+    // opgeslagen zodat de admin geen stille mislukking krijgt.
+    const ext = toegestaneExtensies.has(origineleExtensie)
+        ? origineleExtensie
+        : extensiePerMime[mime];
+    if (!ext || !extensiePerMime[mime]) {
         return res.status(415).json({ fout: 'Gebruik een PNG, JPG, WebP of SVG-logo.' });
     }
     const naam = `logo-${crypto.randomUUID()}${ext}`;
     const absoluut = path.join(UPLOAD_DIR, naam);
     await fs.mkdir(UPLOAD_DIR, { recursive: true });
     await fs.writeFile(absoluut, req.file.buffer, { flag: 'wx' });
-    const pad = `/media/uploads/${naam}`;
+    // Cache-busting voorkomt dat browser of service worker het vorige logo
+    // blijft tonen na een geslaagde upload.
+    const pad = `/media/uploads/${naam}?v=${Date.now()}`;
     const bestaand = await pool.query(
         `SELECT waarde FROM app_instellingen WHERE sleutel = 'thema' LIMIT 1`,
     );
