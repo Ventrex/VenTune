@@ -306,11 +306,12 @@ export async function adminSeed(force = false, alleenDb = false, youtubeAlleen =
     });
 }
 export async function adminOntbrekendeLokaleStart(opties = {}) {
-    // Achterwaarts compatibel: een los getal blijft de zoeklimiet.
-    const body = typeof opties === 'number' ? { limiet: opties } : opties;
+    // Zonder expliciete limiet verwerkt de server alle resterende titels.
+    // De batchgrootte bepaalt alleen hoeveel downloads tegelijk lopen.
+    const body = typeof opties === 'number' ? { limiet: opties } : (opties || {});
     return adminFetch('/api/admin/ontbrekende-lokale/start', {
         method: 'POST',
-        ...jsonBody({ limiet: 250, ...body }),
+        ...jsonBody(body),
     });
 }
 
