@@ -38,6 +38,9 @@ export default function Host() {
     const [gokIngediend, setGokIngediend] = useState(false);
     const [bonusKeuze, setBonusKeuze] = useState(null);
     const [bonusWachtTot, setBonusWachtTot] = useState(0);
+    const [meldingOpen, setMeldingOpen] = useState(false);
+    const [meldingSoort, setMeldingSoort] = useState('geen_geluid');
+    const [meldingToelichting, setMeldingToelichting] = useState('');
     const [, setBonusTik] = useState(0);
     const [nieuwTeam, setNieuwTeam] = useState('');
     const [lobbyWijziging, setLobbyWijziging] = useState(null);
@@ -425,13 +428,33 @@ export default function Host() {
                             Volgende →
                         </button>
                     </div>
-                    <button
-                        className="terug als-link"
-                        style={{ marginTop: '0.75rem' }}
-                        onClick={() => spel.meldFout('fout')}
-                    >
-                        {spel.melded ? '✓ Fout gemeld' : 'Fout melden (verkeerd nummer / geen geluid)'}
-                    </button>
+                    <div className="melding-formulier" style={{ marginTop: '0.75rem' }}>
+                        {spel.melded ? (
+                            <p className="goed-tekst">✓ Bedankt, je melding is ontvangen.</p>
+                        ) : (
+                            <>
+                                <div className="zoekbalk melding-keuze">
+                                    <select className="invoer compact-select" value={meldingSoort} onChange={(e) => setMeldingSoort(e.target.value)} aria-label="Wat is er mis?">
+                                        <option value="geen_geluid">Geen geluid</option>
+                                        <option value="verkeerd_nummer">Verkeerd nummer</option>
+                                        <option value="fout">Anders</option>
+                                    </select>
+                                    <button className="knop knop-stil" type="button" onClick={() => setMeldingOpen((waarde) => !waarde)}>
+                                        {meldingOpen ? 'Sluiten' : 'Melding maken'}
+                                    </button>
+                                </div>
+                                {meldingOpen && (
+                                    <div className="stapel melding-details" style={{ marginTop: '0.5rem' }}>
+                                        <input className="invoer" value={meldingToelichting} onChange={(e) => setMeldingToelichting(e.target.value)} placeholder="Wat ging er mis? (optioneel)" maxLength={500} />
+                                        <button className="knop" type="button" onClick={() => {
+                                            spel.meldFout(meldingSoort, meldingToelichting.trim() || null);
+                                            setMeldingOpen(false);
+                                        }}>Melding versturen</button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
                     <p className="dim" style={{ marginTop: '1rem' }}>
                         Spelers raden op hun telefoon; jij speelt hier mee…
                     </p>
