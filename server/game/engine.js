@@ -1393,6 +1393,9 @@ class SpelBeheer {
     async meldFout(socket, soort, toelichting) {
         const state = this.spellen.get(socket.data.lobbyId);
         if (!state || !state.huidige) return;
+        if (state.instellingen?.vraag_profiel === 'beta' && soort === 'verkeerd_nummer') {
+            return this.beoordeelTrack(socket, 'fout', toelichting);
+        }
         const geldig = ['fout', 'geen_geluid', 'verkeerd_nummer', 'anders'];
         const soortSchoon = geldig.includes(soort) ? soort : 'fout';
 
