@@ -353,6 +353,12 @@ export async function adminTmdbCatalogus() {
 export async function adminTmdbCatalogusStatus() {
     return adminFetch('/api/admin/tmdb/catalogus/status');
 }
+export async function adminNlCuratie() {
+    return adminFetch('/api/admin/nl-curatie/start', { method: 'POST', body: JSON.stringify({}), headers: { 'Content-Type': 'application/json' } });
+}
+export async function adminNlCuratieStatus() {
+    return adminFetch('/api/admin/nl-curatie/status');
+}
 export async function adminStudioImport(limiet = 250) {
     return adminFetch('/api/admin/studio/import', { method: 'POST', ...jsonBody({ limiet }) });
 }
