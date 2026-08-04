@@ -119,6 +119,7 @@ function bouwVraag(details, pool = {}, instellingen = {}) {
                 instellingen.jaarMin,
                 instellingen.jaarMax,
             );
+            if (afl.length < 5) return null;
             return {
                 type: 'jaar',
                 vraag: `In welk jaar kwam ${details.naam} uit?`,
