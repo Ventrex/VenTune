@@ -26,6 +26,7 @@ const SUBTABS = {
     ],
     kwaliteit: [
         ['meldingen', 'Meldingen'],
+        ['review', 'Trackcontrole'],
         ['controle', 'Controle'],
         ['vragen', 'Bonusvragen'],
     ],
