@@ -1005,6 +1005,36 @@ function Beheer({ onUit }) {
 
             {tab === 'planning' && (
                 <section className="admin-panel admin-acties" style={{ marginTop: '1rem' }}>
+                <div className="kaart dagelijkse-keten" style={{ marginTop: '1rem' }}>
+                    <p className="kaart-label">Dagelijkse downloadketen</p>
+                    <p className="dim">Elke dag in vaste volgorde: <strong>1 database</strong> → <strong>2 YouTube zoeken</strong> → <strong>3 lokaal downloaden</strong>. Tijdens het spel wordt nooit gezocht of gedownload.</p>
+                    <label className="keuze klein keuze-schakelaar">
+                        <input
+                            type="checkbox"
+                            checked={planning?.dagelijkseKetenAan !== false}
+                            onChange={(e) => bewaarPlanning({
+                                dagelijkseKetenAan: e.target.checked,
+                                dagelijkseKetenIntervalUren: planning?.dagelijkseKetenIntervalUren || 24,
+                                batchGrootte: planning?.batchGrootte || 5,
+                            })}
+                        />
+                        <span><strong>Dagelijkse keten inschakelen</strong><span className="keuze-uitleg">{planning?.dagelijkseKetenLaatsteRun ? 'Laatste run: ' + new Date(planning.dagelijkseKetenLaatsteRun).toLocaleString() : 'Nog niet uitgevoerd'}</span></span>
+                    </label>
+                    <label className="kaart-label" style={{ display: 'block', marginTop: '0.75rem' }}>
+                        Elke
+                        <input
+                            className="invoer"
+                            type="number"
+                            min="1"
+                            max="168"
+                            value={planning?.dagelijkseKetenIntervalUren || 24}
+                            onChange={(e) => setPlanning((oud) => ({ ...(oud || {}), dagelijkseKetenIntervalUren: Number(e.target.value) || 24 }))}
+                            style={{ maxWidth: 90, display: 'inline-block', margin: '0 0.5rem' }}
+                        />
+                        uur
+                    </label>
+                    {planning?.dagelijkseKetenVolgendeRun && <p className="dim" style={{ marginBottom: 0 }}>Volgende run: {new Date(planning.dagelijkseKetenVolgendeRun).toLocaleString()}</p>}
+                </div>
                 <div className="kaart" style={{ marginTop: '1rem' }}>
                     <p className="kaart-label">Automatische playlist-refresh</p>
                     <p className="dim">Ververs de ingestelde YouTube-playlists periodiek. Standaard staat dit uit; bestaande veilige matches blijven leidend.</p>
