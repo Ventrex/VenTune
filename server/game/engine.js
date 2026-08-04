@@ -182,7 +182,16 @@ function bonusVraagPastPeriode(vraag, titel, instellingen = {}) {
     if (jaar !== titelJaar) return false;
     if (Number.isInteger(start) && jaar < start) return false;
     if (Number.isInteger(eind) && jaar > eind) return false;
-    return true;
+    // Een bonusvraag mag geen jaartallen tonen buiten de gekozen periode;
+    // anders kreeg een spel 2020–2026 bijvoorbeeld 2028 of 2019.
+    const opties = Array.isArray(vraag?.opties) ? vraag.opties : [];
+    return opties.every((optie) => {
+        const optieJaar = Number(optie);
+        return Number.isInteger(optieJaar)
+            && (!Number.isInteger(start) || optieJaar >= start)
+            && (!Number.isInteger(eind) || optieJaar <= eind)
+            && optieJaar <= new Date().getFullYear();
+    });
 }
 
 /**
