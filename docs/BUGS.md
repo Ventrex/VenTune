@@ -14,6 +14,7 @@
 - Melding zonder reden.
 - Downloaden en zoeken stoppen bij een standaardlimiet van 250.
 - Logo blijft door browsercache zichtbaar na upload.
+- PostgreSQL-enumfout bij Trackcontrole en YouTube-statistieken (`titel_type = text`).
 
 
 ## Prioriteiten voor de nieuwe kwaliteitsworkflow
