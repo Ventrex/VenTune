@@ -1700,6 +1700,7 @@ const ADMIN_TAAK_LABELS = {
     'playlists-auto': 'Dagelijkse playlist-refresh',
     'tmdb-auto': 'Dagelijkse TMDB-update',
     'seed-auto': 'Dagelijkse YouTube-aanvulling',
+    'youtube-statistieken-auto': 'Dagelijkse YouTube views/likes',
     'downloads-auto': 'Dagelijkse goedgekeurde downloads',
     'dagelijkse-keten': 'Dagelijkse keten: database → YouTube → lokaal',
 };
@@ -1723,6 +1724,7 @@ function adminTaakLijst() {
         'playlists-auto': playlistImportStatus,
         'tmdb-auto': tmdbImportStatus,
         'seed-auto': seedStatus,
+        'youtube-statistieken-auto': youtubeStatsStatus,
         'downloads-auto': downloadStatus,
         'dagelijkse-keten': dagelijkseKetenStatus,
     };
@@ -2318,6 +2320,10 @@ async function haalBeheerInstellingen() {
         youtubeIntervalUren: 24,
         youtubeLaatsteRun: null,
         youtubeVolgendeRun: null,
+        youtubeStatsAutomatisch: true,
+        youtubeStatsIntervalUren: 24,
+        youtubeStatsLaatsteRun: null,
+        youtubeStatsVolgendeRun: null,
         downloadsAutomatisch: true,
         downloadsIntervalUren: 24,
         downloadsLaatsteRun: null,
@@ -2354,6 +2360,9 @@ router.patch('/api/admin/planning', vereisAdmin, async (req, res) => {
     const youtubeAan = req.body?.youtubeAutomatisch === undefined
         ? oud.youtubeAutomatisch === true : req.body.youtubeAutomatisch === true;
     const youtubeInterval = Math.min(168, Math.max(1, Number(req.body?.youtubeIntervalUren ?? oud.youtubeIntervalUren) || 24));
+    const youtubeStatsAan = req.body?.youtubeStatsAutomatisch === undefined
+        ? oud.youtubeStatsAutomatisch !== false : req.body.youtubeStatsAutomatisch === true;
+    const youtubeStatsInterval = Math.min(168, Math.max(1, Number(req.body?.youtubeStatsIntervalUren ?? oud.youtubeStatsIntervalUren) || 24));
     const downloadsAan = req.body?.downloadsAutomatisch === undefined
         ? oud.downloadsAutomatisch === true : req.body.downloadsAutomatisch === true;
     const downloadsInterval = Math.min(168, Math.max(1, Number(req.body?.downloadsIntervalUren ?? oud.downloadsIntervalUren) || 24));
@@ -2384,6 +2393,11 @@ router.patch('/api/admin/planning', vereisAdmin, async (req, res) => {
         youtubeIntervalUren: youtubeInterval,
         youtubeVolgendeRun: youtubeAan
             ? new Date(Date.now() + youtubeInterval * 60 * 60 * 1000).toISOString()
+            : null,
+        youtubeStatsAutomatisch: youtubeStatsAan,
+        youtubeStatsIntervalUren: youtubeStatsInterval,
+        youtubeStatsVolgendeRun: youtubeStatsAan
+            ? new Date(Date.now() + youtubeStatsInterval * 60 * 60 * 1000).toISOString()
             : null,
         downloadsAutomatisch: downloadsAan,
         downloadsIntervalUren: downloadsInterval,
@@ -2702,6 +2716,20 @@ function startPlaylistPlanner() {
                         youtubeAlleen: true,
                         alleenZonderLokaal: true,
                         limiet: Infinity,
+                    }),
+                },
+                {
+                    aan: beheer.youtubeStatsAutomatisch === true,
+                    interval: 'youtubeStatsIntervalUren',
+                    volgende: 'youtubeStatsVolgendeRun',
+                    laatste: 'youtubeStatsLaatsteRun',
+                    taak: 'youtube-statistieken-auto',
+                    status: youtubeStatsStatus,
+                    zetStatus: (v) => { youtubeStatsStatus = v; },
+                    werk: ({ isGeannuleerd = () => false } = {}) => trackReview.verversOntbrekendeYoutubeStatistieken({
+                        types: ['film', 'serie'],
+                        isGeannuleerd,
+                        onProgress: (v) => { youtubeStatsStatus = { ...youtubeStatsStatus, ...v }; },
                     }),
                 },
                 {
