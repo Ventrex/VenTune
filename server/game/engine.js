@@ -14,6 +14,7 @@ const { genereerBonus } = require('./bonus');
 const vragenbank = require('./vragen');
 const logger = require('../lib/logger');
 const tmdb = require('../lib/tmdb');
+const trackReview = require('../lib/track-review');
 
 const RONDE_DUUR_MS = 30000; // standaard: 30 seconden raden
 // 'Heel nummer': ruime bovengrens; de ronde eindigt zodra iedereen geraden
@@ -574,7 +575,8 @@ class SpelBeheer {
                 AND tr.preview_url IS NOT NULL
                 AND tr.preview_url <> ''
                 AND ($2::boolean = false
-                     OR (tr.gecontroleerd = true AND tr.verificatie_score >= 0.85))
+                     OR COALESCE(tr.review_status, 'open') = 'goedgekeurd'
+                     OR tr.review_handmatig = true)
               ORDER BY CASE
                            -- Alleen lokale bestanden mogen het spel in.
                            WHEN tr.bron = 'lokaal' THEN 5
@@ -1359,6 +1361,28 @@ class SpelBeheer {
             durationMs: state.rondeDuurMs,
             herhaling: Date.now(), // maakt het event uniek
         });
+    }
+
+    /** Beta Tester/admin-beoordeling: dezelfde herstelworkflow als in /admin. */
+    async beoordeelTrack(socket, beoordeling, toelichting = null) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || !state.huidige) return;
+        if (state.instellingen?.vraag_profiel !== 'beta') {
+            throw new Error('Trackbeoordeling is alleen beschikbaar in de Beta Tester-modus.');
+        }
+        const resultaat = await trackReview.beoordeelTrack(
+            state.huidige.track.id,
+            beoordeling,
+            toelichting,
+            { actor: 'beta tester' },
+        );
+        this.io.to(spelerKamer(socket.data.spelerId)).emit('ronde:track-beoordeling-ok', resultaat);
+        if (resultaat.alternatief?.gedownload) {
+            this.io.to(kamer(state.code)).emit('spel:track-review', {
+                melding: 'Een nieuwe kandidaat is voor de beheercontrole gedownload.',
+            });
+        }
+        return resultaat;
     }
 
     /**
