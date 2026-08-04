@@ -89,9 +89,20 @@ function bouwFilter(f = {}) {
     // handmatig of via playlists toegevoegde) blijven altijd meedoen.
     const drempel = Number(f.min_bekendheid);
     if (Number.isFinite(drempel) && drempel > 0) {
+        const bekendheidsniveau = drempel >= 4000 ? 3 : drempel >= 1000 ? 2 : 1;
+        const viewsDrempel = bekendheidsniveau === 3 ? 5000000
+            : bekendheidsniveau === 2 ? 1000000 : 250000;
         params.push(drempel);
+        const stemmenParam = params.length;
+        params.push(viewsDrempel);
+        const viewsParam = params.length;
+        params.push(bekendheidsniveau);
+        const niveauParam = params.length;
         condities.push(
-            `(t.stemmen >= $${params.length} OR t.tmdb_id IS NULL)`,
+            `(t.bekendheid_score >= ${niveauParam}
+              OR t.stemmen >= ${stemmenParam}
+              OR t.youtube_max_views >= ${viewsParam}
+              OR t.tmdb_id IS NULL)`,
         );
     }
 
