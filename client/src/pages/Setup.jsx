@@ -363,7 +363,7 @@ export default function Setup() {
     const verder = () => setStap(Math.min(stap + 1, 4));
 
     return (
-        <main className="scherm">
+        <main className="scherm setup-scherm">
             <Brand compact />
             {host && (
                 <div className="account-balk">
