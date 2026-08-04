@@ -2,7 +2,7 @@
 
 ## [0.5.8] - 2026-08-04
 
-### Betrouwbaarder spelen en beheren
+### Betrouwbaarder spelen
 
 - De dagelijkse beheerketen werkt nu in vaste volgorde: database bijwerken, ontbrekende YouTube-matches zoeken en daarna alle kandidaten lokaal downloaden.
 - De knop voor ontbrekende lokale audio verwerkt niet meer standaard slechts 250 titels; bestaande lokale bestanden worden overgeslagen.
