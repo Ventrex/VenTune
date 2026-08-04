@@ -1,5 +1,17 @@
 # VenTune changelog
 
+## [0.5.9] - 2026-08-04
+
+### Trackkwaliteit en YouTube-bekendheid
+
+- Tracks bewaren YouTube-views, likes, rating, duur en de datum van de laatste statistiekcontrole.
+- Titels krijgen automatisch het niveau Onbekend, Bekend, Heel bekend of Iconisch; 5 miljoen YouTube-views is de iconische drempel.
+- Admin → Kwaliteit → Trackcontrole speelt uitsluitend lokale audio af en sorteert van 95% zekerheid naar lager, willekeurig binnen een zekerheidsniveau.
+- Een foutgekeurde kandidaat wordt maximaal drie keer vervangen door een andere YouTube-video. Daarna gaat de titel naar de handmatige stapel.
+- Beta Tester krijgt naast de rondeknoppen Goed/Fout; Fout gebruikt dezelfde vervangingsworkflow als de admin.
+- Trailers, live-uitvoeringen, reacties, compilaties en niet-Latijnse zoekresultaten worden niet als automatische kandidaat geaccepteerd.
+- YouTube views/likes worden dagelijks bijgewerkt voor Films & Series. Een lokale kopie blijft leidend voor het spel.
+
 ## [0.5.8] - 2026-08-04
 
 ### Betrouwbaarder spelen
