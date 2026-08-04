@@ -21,8 +21,58 @@ const GENRE_POOL = [
 const LAND_POOL = [
     'Nederland', 'België', 'VS', 'VK', 'Duitsland', 'Frankrijk', 'Spanje',
     'Italië', 'Zweden', 'Denemarken', 'Japan', 'Zuid-Korea', 'Canada',
-    'Australië', 'Ierland', 'Noorwegen', 'Mexico', 'Brazilië',
+    'Australië', 'Ierland', 'Noorwegen', 'Mexico', 'Brazilië', 'Filipijnen',
 ];
+
+const LAND_NAMEN = {
+    NL: 'Nederland', NLD: 'Nederland', Nederland: 'Nederland',
+    BE: 'België', BEL: 'België', België: 'België',
+    US: 'VS', USA: 'VS', VerenigdeStaten: 'VS',
+    GB: 'VK', UK: 'VK', GBR: 'VK',
+    DE: 'Duitsland', Duitsland: 'Duitsland',
+    FR: 'Frankrijk', Frankrijk: 'Frankrijk',
+    ES: 'Spanje', Spanje: 'Spanje',
+    IT: 'Italië', Italië: 'Italië',
+    JP: 'Japan', Japan: 'Japan',
+    KR: 'Zuid-Korea', ZuidKorea: 'Zuid-Korea',
+    CA: 'Canada', Canada: 'Canada',
+    AU: 'Australië', Australië: 'Australië',
+    IE: 'Ierland', Ierland: 'Ierland',
+    NO: 'Noorwegen', Noorwegen: 'Noorwegen',
+    MX: 'Mexico', Mexico: 'Mexico',
+    BR: 'Brazilië', Brazilië: 'Brazilië',
+    PH: 'Filipijnen', PHL: 'Filipijnen', Philippines: 'Filipijnen',
+    IN: 'India', IND: 'India', India: 'India',
+    RU: 'Rusland', RUS: 'Rusland', Russia: 'Rusland',
+};
+
+function landNaam(land) {
+    const schoon = String(land || '').trim();
+    return LAND_NAMEN[schoon] || schoon || 'Onbekend';
+}
+
+const NU_JAAR = new Date().getFullYear();
+const JAAR_AFSTANDEN = [-1, 1, -2, 2, -3, 3, -5, 5, -8, 8, -12, 12];
+
+function jaarAfleiders(jaar, aantal = 5) {
+    const doel = Number(jaar);
+    if (!Number.isFinite(doel)) return [];
+    const kandidaten = [];
+    for (const afstand of JAAR_AFSTANDEN) {
+        const kandidaat = doel + afstand;
+        // Nooit een toekomstig antwoord aanbieden; dat was vooral zichtbaar
+        // bij recente titels zoals Companion.
+        if (kandidaat >= 1950 && kandidaat <= NU_JAAR
+            && kandidaat !== doel && !kandidaten.includes(kandidaat)) {
+            kandidaten.push(kandidaat);
+        }
+    }
+    for (let afstand = 13; kandidaten.length < aantal && doel - afstand >= 1950; afstand++) {
+        const kandidaat = doel - afstand;
+        if (kandidaat !== doel && !kandidaten.includes(kandidaat)) kandidaten.push(kandidaat);
+    }
+    return hussel(kandidaten).slice(0, aantal).map(String);
+}
 
 function hussel(arr) {
     const a = arr.slice();
