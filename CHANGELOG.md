@@ -11,6 +11,7 @@
 - Beta Tester krijgt naast de rondeknoppen Goed/Fout; Fout gebruikt dezelfde vervangingsworkflow als de admin.
 - Trailers, live-uitvoeringen, reacties, compilaties en niet-Latijnse zoekresultaten worden niet als automatische kandidaat geaccepteerd.
 - YouTube views/likes worden dagelijks bijgewerkt voor Films & Series. Een lokale kopie blijft leidend voor het spel.
+- De PostgreSQL-migratie voor reviewstatus en YouTube-statistieken is hersteld, zodat bestaande installaties de nieuwe velden ook veilig kunnen aanmaken.
 
 ## [0.5.8] - 2026-08-04
 
