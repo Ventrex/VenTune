@@ -118,11 +118,9 @@ function bouwBasisVragen(titel) {
     const vragen = [];
     const naam = titel.naam;
 
-    // 1. Jaar
+    // 1. Jaar: echte, gevarieerde jaartallen zonder toekomstige opties.
     if (Number.isFinite(titel.jaar)) {
-        const jaarAfleiders = hussel([-8, -6, -4, -3, -2, 2, 3, 4, 6, 8])
-            .slice(0, 5)
-            .map((o) => String(titel.jaar + o));
+        const jaarAfleiders = jaarAfleiders(titel.jaar);
         const v = maakVraag(
             'jaar',
             `In welk jaar kwam ${naam} uit?`,
@@ -131,11 +129,7 @@ function bouwBasisVragen(titel) {
         );
         if (v) vragen.push(v);
 
-        // 2. Nogmaals een echt jaar. Een decennium maakt de bonusvraag te
-        // eenvoudig (en geeft vooral bij jaren 90 weinig informatie).
-        const jaarAfleiders2 = hussel([-12, -9, -6, -3, 3, 6, 9, 12])
-            .slice(0, 5)
-            .map((o) => String(titel.jaar + o));
+        const jaarAfleiders2 = jaarAfleiders(titel.jaar);
         const v2 = maakVraag(
             'releasejaar',
             `Welk jaar hoort bij de eerste release van ${naam}?`,
