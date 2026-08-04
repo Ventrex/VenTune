@@ -165,18 +165,7 @@ function bouwBasisVragen(titel) {
         if (v) vragen.push(v);
     }
 
-    // 5. Film of serie — als meerkeuze met plausibele alternatieven.
-    const typeJuist = titel.type === 'serie' ? 'Serie' : 'Film';
-    const v5 = maakVraag(
-        'type',
-        `Is ${naam} een film of een serie?`,
-        typeJuist,
-        typeJuist === 'Film'
-            ? ['Serie', 'Documentaire', 'Korte film', 'Miniserie', 'Realityshow']
-            : ['Film', 'Documentaire', 'Realityshow', 'Korte film', 'Televisiefilm'],
-    );
-    if (v5) vragen.push(v5);
-
+    // Het type is al zichtbaar in de gekozen quiz en is daarom geen bonusvraag.
     return vragen;
 }
 
