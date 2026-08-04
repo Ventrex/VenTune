@@ -2220,7 +2220,7 @@ router.post('/api/admin/youtube-statistieken/start', vereisAdmin, (req, res) => 
                 } catch (err) {
                     mislukt++;
                     await pool.query(
-                        'UPDATE tracks SET youtube_statistieken_op = now(), youtube_statistieken_melding = $2 WHERE id = $1',
+                        'UPDATE tracks SET youtube_statistieken_op = NULL, youtube_statistieken_melding = $2 WHERE id = $1',
                         [track.id, String(err.message).slice(0, 500)],
                     ).catch(() => {});
                 }
