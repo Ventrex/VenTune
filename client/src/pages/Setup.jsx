@@ -934,34 +934,9 @@ export default function Setup() {
                         </button>
                     </div>
 
-                    {/* Opgeslagen presets */}
-                    {presets.length > 0 && (
-                        <div className="stapel" style={{ marginTop: '1rem' }}>
-                            <p className="kaart-label" style={{ textAlign: 'left' }}>
-                                Opgeslagen presets
-                            </p>
-                            {presets.map((p) => (
-                                <div key={p.id} className="preset-rij">
-                                    <button
-                                        className="preset-knop"
-                                        onClick={() => pasPresetToe(p)}
-                                    >
-                                        <span className="speler-naam">{p.naam}</span>
-                                        <span className="dim">
-                                            {labelVoor(p)}
-                                        </span>
-                                    </button>
-                                    <button
-                                        className="afspeelknop klein"
-                                        onClick={() => verwijder(p.id)}
-                                        aria-label="Verwijderen"
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <p className="dim setup-preset-hint">
+                        Preset gekozen? Gebruik het menu bovenaan om een andere preset te laden.
+                    </p>
                 </section>
             )}
 
