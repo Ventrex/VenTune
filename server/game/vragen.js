@@ -154,12 +154,13 @@ function bouwBasisVragen(titel) {
 
     // 4. Land
     if (titel.land) {
-        const pool_ = LAND_POOL.filter((l) => l !== titel.land);
+        const juistLand = landNaam(titel.land);
+        const pool_ = LAND_POOL.filter((l) => l !== juistLand);
         const v = maakVraag(
             'land',
             `Uit welk land komt ${naam}?`,
-            titel.land,
-            afleiders(pool_, titel.land),
+            juistLand,
+            afleiders(pool_, juistLand),
         );
         if (v) vragen.push(v);
     }
