@@ -78,6 +78,41 @@ async function verversYoutubeStatistieken(track, { rateLimit = true } = {}) {
     return stats;
 }
 
+async function verversOntbrekendeYoutubeStatistieken({
+    types = ['film', 'serie'],
+    onProgress = null,
+    isGeannuleerd = () => false,
+} = {}) {
+    const { rows } = await pool.query(
+        'SELECT tr.id, tr.titel_id, tr.bron, tr.preview_url, tr.bron_url ' +
+        'FROM tracks tr JOIN titels t ON t.id = tr.titel_id ' +
+        'WHERE t.type = ANY($1::text[]) ' +
+        'AND (tr.bron_url ILIKE \'%youtube%\' OR (tr.bron = \'youtube\' AND tr.preview_url IS NOT NULL)) ' +
+        'AND (tr.youtube_statistieken_op IS NULL OR tr.youtube_statistieken_op < now() - interval \'7 days\') ' +
+        'ORDER BY tr.youtube_statistieken_op NULLS FIRST, tr.verificatie_score DESC, tr.id',
+        [types],
+    );
+    let verwerkt = 0;
+    let bijgewerkt = 0;
+    let mislukt = 0;
+    for (const track of rows) {
+        if (isGeannuleerd()) return { verwerkt, bijgewerkt, mislukt, geannuleerd: true };
+        try {
+            await verversYoutubeStatistieken(track, { rateLimit: true });
+            bijgewerkt++;
+        } catch (err) {
+            mislukt++;
+            await pool.query(
+                'UPDATE tracks SET youtube_statistieken_op = now(), youtube_statistieken_melding = $2 WHERE id = $1',
+                [track.id, String(err.message).slice(0, 500)],
+            ).catch(() => {});
+        }
+        verwerkt++;
+        onProgress?.({ verwerkt, totaal: rows.length, bijgewerkt, mislukt, huidige: track.titel_id });
+    }
+    return { verwerkt, bijgewerkt, mislukt };
+}
+
 function videoIdUitBron(waarde) {
     const tekst = String(waarde || '');
     if (/^[A-Za-z0-9_-]{11}$/.test(tekst)) return tekst;
@@ -298,6 +333,7 @@ module.exports = {
     werkTitelBekendheid,
     slaYoutubeStatistiekenOp,
     verversYoutubeStatistieken,
+    verversOntbrekendeYoutubeStatistieken,
     haalReviewVolgende,
     beoordeelTrack,
 };
