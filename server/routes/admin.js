@@ -1306,9 +1306,10 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
                              start_seconde, tracknaam, artiest, album,
                              herkenbaarheid, gecontroleerd, bevestigd,
                              verificatie_score, verificatie_reden,
-                             laatst_gecontroleerd_op, bron_url)
+                             laatst_gecontroleerd_op, bron_url,
+                             review_status, review_handmatig, review_reden)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, true, $10, $11,
-                 now(), $12)
+                 now(), $12, 'goedgekeurd', true, 'Bewust gekoppeld door admin')
          RETURNING *`,
         [
             req.params.id,
