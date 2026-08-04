@@ -151,6 +151,7 @@ function naarTitel(r, type) {
         tmdb_id: r.id,
         stemmen: r.vote_count || 0,
         populariteit: r.popularity || 0,
+        tmdb_score: Number.isFinite(Number(r.vote_average)) ? Number(r.vote_average) : null,
         poster_pad: r.poster_path || null,
         omschrijving: r.overview || null,
         nl_tv_bekend: false,
@@ -179,6 +180,7 @@ async function bewaarTitel(t, { forceerCuratie = false } = {}) {
                                         ELSE genres END,
                     populariteit = GREATEST(populariteit, $5),
                     stemmen      = GREATEST(stemmen, $6),
+                    tmdb_score   = GREATEST(COALESCE(tmdb_score, 0), COALESCE($14, 0)),
                     poster_pad   = COALESCE(poster_pad, $7),
                     omschrijving = COALESCE(omschrijving, $8),
                     toevoeg_reden = CASE
@@ -206,21 +208,21 @@ async function bewaarTitel(t, { forceerCuratie = false } = {}) {
                 t.populariteit, t.stemmen, t.poster_pad, t.omschrijving,
                 t.toevoeg_reden || null, t.curatie_status || null,
                 typeof t.nl_tv_bekend === 'boolean' ? t.nl_tv_bekend : null,
-                t.leeftijdsgrens ?? null, forceerCuratie,
+                t.leeftijdsgrens ?? null, forceerCuratie, t.tmdb_score,
             ],
         );
         return false; // niet nieuw
     }
     await pool.query(
         `INSERT INTO titels (naam, aliassen, type, taal, jaar, land, genres,
-                             tmdb_id, populariteit, stemmen, poster_pad,
+                             tmdb_id, populariteit, stemmen, tmdb_score, poster_pad,
                              omschrijving, nl_tv_bekend, curatie_status,
                              leeftijdsgrens, toevoeg_reden)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-                 $13, $14, $15, $16)`,
+                 $13, $14, $15, $16, $17)`,
         [
             t.naam, t.aliassen, t.type, t.taal, t.jaar, t.land, t.genres,
-            t.tmdb_id, t.populariteit, t.stemmen, t.poster_pad, t.omschrijving,
+            t.tmdb_id, t.populariteit, t.stemmen, t.tmdb_score, t.poster_pad, t.omschrijving,
             t.nl_tv_bekend, t.curatie_status, t.leeftijdsgrens, t.toevoeg_reden,
         ],
     );
