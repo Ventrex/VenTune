@@ -56,6 +56,15 @@ CREATE TABLE IF NOT EXISTS titels (
 -- zodat het spel bij bekende films en series blijft.
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS populariteit REAL NOT NULL DEFAULT 0;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS stemmen INTEGER NOT NULL DEFAULT 0;
+-- TMDB-rating en YouTube-bekendheid. De waarden worden bewaard naast de
+-- bron-track, zodat filters en admin-overzichten niet telkens opnieuw hoeven
+-- te zoeken.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS tmdb_score REAL;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS youtube_max_views BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS youtube_max_likes BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS youtube_statistieken_op TIMESTAMPTZ;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS bekendheidsniveau TEXT NOT NULL DEFAULT 'onbekend';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS bekendheid_score SMALLINT NOT NULL DEFAULT 0;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS poster_pad TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS omschrijving TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS hoofdrollen TEXT[] NOT NULL DEFAULT '{}';
@@ -110,6 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_titels_jaar    ON titels (jaar);
 CREATE INDEX IF NOT EXISTS idx_titels_genres  ON titels USING GIN (genres);
 CREATE INDEX IF NOT EXISTS idx_titels_curatie ON titels (nl_tv_bekend, curatie_status, leeftijdsgrens);
 CREATE INDEX IF NOT EXISTS idx_titels_studio ON titels (studio);
+CREATE INDEX IF NOT EXISTS idx_titels_bekendheid ON titels (bekendheid_score DESC, youtube_max_views DESC);
 
 -- ---------------------------------------------------------------------
 -- Vragenbank: tracks (per titel één of meer nummers)
@@ -175,13 +185,50 @@ ALTER TABLE tracks ADD COLUMN IF NOT EXISTS audio_sha256 TEXT;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS gedownload_op TIMESTAMPTZ;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS media_controle_op TIMESTAMPTZ;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS media_melding TEXT;
+-- YouTube-telemetrie wordt uit yt-dlp opgeslagen. Zo kunnen we populariteit
+-- tonen en later alleen ontbrekende/verouderde statistieken ophalen.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_views BIGINT;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_likes BIGINT;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_rating REAL;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_duur_seconden INTEGER;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_statistieken_op TIMESTAMPTZ;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_statistieken_melding TEXT;
+-- Menselijke reviewstatus. 'goedgekeurd' betekent dat de koppeling bewust
+-- is beluisterd; 'afgekeurd' is een kandidaat die niet mag terugkomen;
+-- 'handmatig' is de stapel na drie foute automatische vervangingen.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'open';
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_handmatig BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_fouten INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_laatste_op TIMESTAMPTZ;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_reden TEXT;
 
 DO $$
 BEGIN
     ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_download_status_check;
     ALTER TABLE tracks ADD CONSTRAINT tracks_download_status_check
         CHECK (download_status IN ('not_requested', 'pending', 'available', 'failed'));
-END$$;
+END$;
+
+DO $
+BEGIN
+    ALTER TABLE tracks DROP CONSTRAINT IF EXISTS tracks_review_status_check;
+    ALTER TABLE tracks ADD CONSTRAINT tracks_review_status_check
+        CHECK (review_status IN ('open', 'goedgekeurd', 'afgekeurd', 'handmatig'));
+END$;
+
+CREATE INDEX IF NOT EXISTS idx_tracks_review
+    ON tracks (review_status, verificatie_score DESC, review_fouten, id);
+CREATE INDEX IF NOT EXISTS idx_tracks_youtube_stats
+    ON tracks (youtube_statistieken_op NULLS FIRST, youtube_views DESC);
+
+UPDATE tracks
+   SET review_status = 'goedgekeurd',
+       review_handmatig = true
+ WHERE review_status = 'open'
+   AND (
+       lower(COALESCE(verificatie_reden, '')) LIKE '%handmatig goedgekeurd%'
+       OR lower(COALESCE(verificatie_reden, '')) LIKE '%handmatig audiobestand%'
+   );
 
 -- Bevestigde koppeling: er is buiten de tracknaam om vastgesteld dat dit
 -- nummer bij deze titel hoort (Wikipedia noemt het als titelsong, of een
