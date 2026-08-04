@@ -604,7 +604,10 @@ async function zoekVoorTitel(titel, opties = {}) {
             if (!beste) throw err;
             break;
         }
-        const keuze = kiesBeste(videos, titel, { songnaam: opties.songnaam });
+        const keuze = kiesBeste(videos, titel, {
+            songnaam: opties.songnaam,
+            uitgeslotenVideoIds: opties.uitgeslotenVideoIds,
+        });
         if (keuze) {
             // De score is belangrijker dan alleen populariteit. Zo wint een
             // echte intro van een willekeurig soundtracknummer met meer views.
@@ -683,9 +686,13 @@ function kiesBeste(resultaten, titel, opties = {}) {
     // die net zo hard als de filmnaam. "You Be You" hoort immers bij
     // 100% Coco, ook al staat de filmnaam niet in de videotitel.
     const songNorm = opties.songnaam ? normaliseer(opties.songnaam) : '';
+    const uitgeslotenVideoIds = new Set((opties.uitgeslotenVideoIds || []).map(String));
 
-    // Basiseisen: naam komt voor, niets ongewensts, duur plausibel.
+    // Basiseisen: naam komt voor, niets ongewensts, duur plausibel. Een
+    // afgekeurde YouTube-video mag nooit opnieuw als "alternatief" terugkomen.
+
     const bruikbaar = resultaten.map((r) => {
+        if (uitgeslotenVideoIds.has(String(r.videoId))) return null;
         const t = normaliseer(r.titel);
         // Nooit resultaten met Arabisch/Cyrillisch/CJK e.d.
         if (!isLatijnsSchrift(r.titel)) return null;
