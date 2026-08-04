@@ -1,5 +1,18 @@
 # VenTune changelog
 
+## [0.5.8] - 2026-08-04
+
+### Betrouwbaarder spelen en beheren
+
+- De dagelijkse beheerketen werkt nu in vaste volgorde: database bijwerken, ontbrekende YouTube-matches zoeken en daarna alle kandidaten lokaal downloaden.
+- De knop voor ontbrekende lokale audio verwerkt niet meer standaard slechts 250 titels; bestaande lokale bestanden worden overgeslagen.
+- Spelers en hosts kunnen bij een melding kiezen tussen geen geluid, verkeerd nummer en anders, met een toelichting.
+- Bonusjaarvragen tonen geen toekomstige jaartallen of jaartallen buiten de gekozen spelperiode. Landcodes zoals PH worden als Filipijnen getoond.
+- De quizkeuze begint met Films & Series, Muziek of Custom. Rondes, bekendheid, leeftijd, speeltijd en presets zijn compacter gemaakt.
+- De admin kan de volledige database op Nederlandse bekendheid controleren. Verdachte talkshows en evidente niet-Nederlandse/vervuilde records worden uitgesloten; twijfelgevallen blijven te beoordelen.
+- Logo-uploads krijgen een nieuwe cacheversie zodat spelers direct het nieuwe logo zien.
+- Topscores hebben drie duidelijke categorieën: beste gemiddelde per spel, meeste spellen en meeste punten gemiddeld.
+
 ## [0.5.7] - 2026-07-28
 
 ### De import loopt niet meer vast
