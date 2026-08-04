@@ -565,6 +565,11 @@ router.patch('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
         velden.push('verificatie_score = 1');
         velden.push("verificatie_reden = 'handmatig goedgekeurd door admin'");
         velden.push('laatst_gecontroleerd_op = now()');
+        velden.push("review_status = 'goedgekeurd'");
+        velden.push('review_handmatig = true');
+        velden.push('review_fouten = 0');
+        velden.push('review_laatste_op = now()');
+        velden.push("review_reden = 'Handmatig goedgekeurd door admin.'");
     }
     if (velden.length === 0) {
         return res.status(400).json({ fout: 'Niets om bij te werken.' });
