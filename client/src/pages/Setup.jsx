@@ -44,12 +44,23 @@ const RONDES = [
 ];
 // Bekendheid: hoeveel TMDB-stemmen een titel minimaal moet hebben.
 const BEKENDHEID = [
-    { waarde: 0, label: 'Bekend / gecureerd' },
-    { waarde: 25, label: 'Bekend' },
+    { waarde: 0, label: 'Onbekend / gecureerd' },
     { waarde: 200, label: 'Bekend' },
     { waarde: 1000, label: 'Heel bekend' },
     { waarde: 4000, label: 'Iconisch' },
 ];
+const VRAAG_PROFIELEN = [
+    { waarde: 'speler', label: 'Speler', uitleg: 'Alleen gecontroleerde vragen en nummers.' },
+    { waarde: 'beta', label: 'Beta Tester', uitleg: 'Kan nieuwe of nog niet volledig geteste vragen krijgen en fouten melden.' },
+];
+
+function InfoTip({ tekst }) {
+    return (
+        <span className="info-tip" tabIndex="0" role="button" aria-label={tekst} data-tip={tekst}>
+            i
+        </span>
+    );
+}
 // Genres die je kunt uitzetten (standaard staat alles aan).
 const GENRES = [
     'Actie', 'Avontuur', 'Animatie', 'Komedie', 'Misdaad', 'Documentaire',
@@ -87,6 +98,8 @@ export default function Setup() {
     const [stap, setStap] = useState(0);
     const [quizzen, setQuizzen] = useState([]);
     const [quizSleutel, setQuizSleutel] = useState(null);
+    const [quizGroep, setQuizGroep] = useState(null);
+    const [presetKeuze, setPresetKeuze] = useState('');
     const [filters, setFilters] = useState({
         categorie: 'beide',
         categorieen: ['film', 'serie'],
@@ -98,6 +111,7 @@ export default function Setup() {
         speeltijd: 0,
         modus: 'snelste',
         antwoord_modus: 'meerkeuze',
+        vraag_profiel: 'speler',
         min_bekendheid: 0,
         zonder_genres: [],
         leeftijd_max: 0,
@@ -183,6 +197,12 @@ export default function Setup() {
     }, [ververTelling]);
 
     const gekozenQuiz = quizzen.find((q) => q.sleutel === quizSleutel) || null;
+    const zichtbareQuizzen = quizzen.filter((q) => {
+        const categorieen = q.filter?.categorieen || [];
+        if (quizGroep === 'muziek') return categorieen.includes('muziek');
+        if (quizGroep === 'filmserie') return categorieen.includes('film') || categorieen.includes('serie');
+        return false;
+    });
 
     // Filters die bepálen wát er gespeeld wordt. Pas je daar één van aan, dan
     // klopt de naam van de gekozen editie niet meer. Rondes, speeltijd en
@@ -300,6 +320,7 @@ export default function Setup() {
             speeltijd: p.speeltijd ?? 0,
             modus: p.modus || 'snelste',
             antwoord_modus: p.antwoord_modus || 'meerkeuze',
+            vraag_profiel: p.vraag_profiel || (p.alleen_gecontroleerd === true ? 'speler' : 'beta'),
             min_bekendheid: p.min_bekendheid ?? 0,
             zonder_genres: p.zonder_genres || [],
             leeftijd_max: p.leeftijd_max ?? 0,
