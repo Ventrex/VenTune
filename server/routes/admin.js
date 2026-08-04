@@ -1613,6 +1613,7 @@ let playlistImportStatus = {
 };
 let tmdbImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let catalogusImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let nlCuratieStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let studioImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let vragenImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let downloadStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
@@ -1633,6 +1634,7 @@ const ADMIN_TAAK_LABELS = {
     playlists: 'YouTube-playlists verversen',
     tmdb: 'TMDB-films en series ophalen',
     'tmdb-catalogus': 'Populaire films/series per jaar + NL top 10 + Cult Classics',
+    'nl-curatie': 'Nederlandse bekendheid controleren',
     studio: 'Ontbrekende studio’s via TMDB aanvullen',
     vragen: 'Bonusvragen genereren',
     downloads: 'MP3’s vooraf downloaden',
@@ -1654,6 +1656,7 @@ function adminTaakLijst() {
         playlists: playlistImportStatus,
         tmdb: tmdbImportStatus,
         'tmdb-catalogus': catalogusImportStatus,
+        'nl-curatie': nlCuratieStatus,
         studio: studioImportStatus,
         vragen: vragenImportStatus,
         downloads: downloadStatus,
@@ -2359,6 +2362,84 @@ router.post('/api/admin/tmdb/catalogus', vereisAdmin, (req, res) => {
 
 router.get('/api/admin/tmdb/catalogus/status', vereisAdmin, (_req, res) => {
     res.json(catalogusImportStatus);
+});
+
+/*
+ * NL-cataloguscontrole. TMDB kan niet betrouwbaar bewijzen dat een titel ooit
+ * op Nederlandse televisie stond, daarom gebruiken we de Nederlandse
+ * release/watch-regio en de expliciete NL-cataloguscollecties als bron. Niet
+ * zekere titels blijven te beoordelen; evidente niet-NL-vervuiling wordt
+ * uitgesloten en kan altijd handmatig via Titels worden teruggezet.
+ */
+router.post('/api/admin/nl-curatie/start', vereisAdmin, (req, res) => {
+    const antwoord = startAdminScript(
+        'nl-curatie',
+        nlCuratieStatus,
+        (v) => { nlCuratieStatus = v; },
+        async ({ isGeannuleerd = () => false } = {}) => {
+            const { rows } = await pool.query(
+                `SELECT t.id, t.naam, t.type, t.taal, t.land, t.populariteit, t.stemmen,
+                        t.nl_tv_bekend, t.curatie_status,
+                        EXISTS (
+                            SELECT 1 FROM titel_collecties tc
+                            JOIN collecties c ON c.id = tc.collectie_id
+                            WHERE tc.titel_id = t.id
+                              AND c.sleutel = ANY($1::text[])
+                        ) AS in_nl_selectie
+                   FROM titels t
+                  ORDER BY t.id`,
+                [['top100-per-jaar', 'top100-films', 'top100-series', 'top10-per-jaar-nl', 'cult-classics']],
+            );
+            const verdachteLanden = new Set([
+                'india', 'indie', 'rusland', 'russia', 'china', 'turkije',
+                'turkey', 'brazilië', 'brazil', 'filipijnen', 'philippines',
+            ]);
+            let goedgekeurd = 0;
+            let uitgesloten = 0;
+            let teBeoordelen = 0;
+            for (const [index, titel] of rows.entries()) {
+                if (isGeannuleerd()) return { geannuleerd: true, verwerkt: index, goedgekeurd, uitgesloten, teBeoordelen };
+                nlCuratieStatus = { ...nlCuratieStatus, stap: 'controleren', verwerkt: index, totaal: rows.length, huidige: titel.naam };
+                const land = String(titel.land || '').trim().toLowerCase();
+                const duidelijkBuitenland = verdachteLanden.has(land)
+                    || (!titel.in_nl_selectie && Number(titel.populariteit || 0) < 10 && Number(titel.stemmen || 0) < 250);
+                if (duidelijkBuitenland && titel.curatie_status !== 'goedgekeurd') {
+                    await pool.query(
+                        `UPDATE titels
+                            SET nl_tv_bekend = false,
+                                curatie_status = 'uitgesloten',
+                                toevoeg_reden = LEFT(COALESCE(toevoeg_reden, '') || ' NL-cataloguscheck: niet overtuigend bekend of uitgebracht in Nederland.', 1000)
+                          WHERE id = $1`,
+                        [titel.id],
+                    );
+                    uitgesloten++;
+                } else if (titel.nl_tv_bekend === true || titel.in_nl_selectie) {
+                    await pool.query(
+                        `UPDATE titels
+                            SET nl_tv_bekend = true,
+                                curatie_status = 'goedgekeurd',
+                                taal = CASE
+                                    WHEN lower(COALESCE(land, '')) IN ('nederland', 'belgië', 'belgie')
+                                      OR taal = 'nl' THEN 'nl'
+                                    ELSE 'en'
+                                END,
+                                toevoeg_reden = LEFT(COALESCE(toevoeg_reden, '') || ' NL-cataloguscheck: geselecteerd voor Nederlandse release/watch-regio of NL-catalogus.', 1000)
+                          WHERE id = $1`,
+                        [titel.id],
+                    );
+                    goedgekeurd++;
+                } else {
+                    teBeoordelen++;
+                }
+            }
+            return { verwerkt: rows.length, goedgekeurd, uitgesloten, teBeoordelen };
+        },
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/nl-curatie/status', vereisAdmin, (_req, res) => {
+    res.json(nlCuratieStatus);
 });
 
 // Studio/producent is een apart verrijkingsproces. Zo kun je later Disney,
