@@ -116,6 +116,7 @@ function Beheer({ onUit }) {
     const [bezigVragen, setBezigVragen] = useState(false);
     const [bezigDownloads, setBezigDownloads] = useState(false);
     const [bezigHealth, setBezigHealth] = useState(false);
+    const [bezigYoutubeStats, setBezigYoutubeStats] = useState(false);
     const [bezigCollecties, setBezigCollecties] = useState(false);
     const [open, setOpen] = useState(null); // uitgeklapte titel-id
     const [meldingen, setMeldingen] = useState([]);
@@ -624,6 +625,8 @@ function Beheer({ onUit }) {
                 </p>
             )}
 
+            {tab === 'review' && <TrackReview />}
+
             {tab === 'controle' && (
                 <Kwaliteitsdashboard
                     data={kwaliteit}
@@ -634,6 +637,7 @@ function Beheer({ onUit }) {
                     onStudio={() => achtergrondTaak(() => api.adminStudioImport(), api.adminStudioStatus, setBezigStudio, 'Studio’s controleren…', 'Studio-check klaar.')}
                     onLeeftijd={() => achtergrondTaak(() => api.adminTmdbCatalogus(), api.adminTmdbCatalogusStatus, setBezigCatalogus, 'Leeftijd en catalogus controleren…', 'Leeftijd/catalogus klaar.')}
                     onNlCuratie={() => achtergrondTaak(() => api.adminNlCuratie(), api.adminNlCuratieStatus, setBezigNlCuratie, 'Hele database op Nederlandse bekendheid controleren…', 'Nederlandse cataloguscontrole klaar.')}
+                    onYoutubeStats={() => achtergrondTaak(() => api.adminYoutubeStatistiekenStart(), api.adminYoutubeStatistiekenStatus, setBezigYoutubeStats, 'YouTube views en likes bijwerken…', 'YouTube-statistieken klaar.')}
                     onOpschonen={(actie) => api.adminDatabaseOpschonen(actie).then((r) => setMelding(`${r.verwijderd || 0} verwijderd / opgeschoond.`)).then(() => Promise.all([laadKwaliteit(), laadOverzicht()])).catch((err) => setMelding(err.message))}
                 />
             )}
@@ -1284,7 +1288,103 @@ function Collectiebeheer({ collecties, bezig, onImport, onDownload, onWijzig, on
     );
 }
 
-function Kwaliteitsdashboard({ data, onRefresh, onHealth, onOntbrekend, onVragen, onStudio, onLeeftijd, onNlCuratie, onOpschonen }) {
+function TrackReview() {
+    const [data, setData] = useState(null);
+    const [bezig, setBezig] = useState(false);
+    const [melding, setMelding] = useState('');
+    const [fout, setFout] = useState('');
+
+    async function laad() {
+        setFout('');
+        try {
+            setData(await api.adminReviewVolgende('films-series'));
+        } catch (err) {
+            setFout(err.message);
+        }
+    }
+    useEffect(() => { laad(); }, []);
+
+    async function beoordeel(beoordeling) {
+        if (!data?.track || bezig) return;
+        let toelichting = null;
+        if (beoordeling === 'fout') {
+            toelichting = window.prompt('Wat is er fout aan dit nummer? (optioneel)', '') || null;
+        }
+        setBezig(true);
+        setMelding(beoordeling === 'goed' ? 'Track wordt goedgekeurd…' : 'Track afkeuren; andere kandidaat zoeken en downloaden…');
+        try {
+            const resultaat = await api.adminReviewBeoordelen(data.track.id, beoordeling, toelichting);
+            setMelding(resultaat.melding || (beoordeling === 'goed' ? 'Goed opgeslagen.' : 'Afgekeurd.'));
+            await laad();
+        } catch (err) {
+            setFout(err.message);
+        } finally {
+            setBezig(false);
+        }
+    }
+
+    const track = data?.track;
+    const views = Number(track?.youtube_views || 0);
+    const likes = Number(track?.youtube_likes || 0);
+    const percentage = Math.round((Number(track?.verificatie_score) || 0) * 100);
+
+    return (
+        <section className="admin-panel" style={{ marginTop: '1rem' }}>
+            <div className="kaart">
+                <p className="kaart-label">Trackcontrole · Films & Series</p>
+                <p className="dim">Luister lokaal. Begin bij de betrouwbaarste automatische koppelingen; binnen dezelfde zekerheid staat de volgorde willekeurig.</p>
+                {fout && <p className="waarschuwing">{fout}</p>}
+                {melding && <p className="dim">{melding}</p>}
+                {track ? (
+                    <>
+                        <div className="raden-kop">
+                            <div>
+                                <h2 style={{ margin: 0 }}>{track.titel_naam}</h2>
+                                <p className="dim">{track.titel_type} · {track.titel_jaar || 'jaar onbekend'} · zekerheid {percentage}%</p>
+                            </div>
+                            <div className="dim">pogingen: {track.review_fouten || 0}/3</div>
+                        </div>
+                        <audio
+                            key={track.id}
+                            src={audioBron(track.preview_url)}
+                            controls
+                            autoPlay
+                            preload="auto"
+                            style={{ width: '100%', margin: '1rem 0' }}
+                        />
+                        <p className="dim">
+                            {track.tracknaam} · {track.artiest || 'YouTube'}
+                            {views ? ' · ' + views.toLocaleString('nl-NL') + ' views' : ''}
+                            {likes ? ' · ' + likes.toLocaleString('nl-NL') + ' likes' : ''}
+                            {track.bekendheidsniveau ? ' · ' + track.bekendheidsniveau : ''}
+                        </p>
+                        <div className="zoekbalk">
+                            <button className="knop" type="button" disabled={bezig} onClick={() => beoordeel('goed')}>
+                                ✓ Goed · volgende
+                            </button>
+                            <button className="knop knop-stil" type="button" disabled={bezig} onClick={() => beoordeel('fout')}>
+                                {bezig ? 'Andere kandidaat zoeken…' : '✗ Fout · andere zoeken'}
+                            </button>
+                            <button className="knop knop-stil" type="button" disabled={bezig} onClick={laad}>
+                                Volgende
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <p className="dim">Geen open lokale Films & Series-track meer in de stapel.</p>
+                        <button className="knop knop-stil" type="button" onClick={laad}>Opnieuw controleren</button>
+                    </>
+                )}
+                <p className="dim" style={{ marginTop: '1rem' }}>
+                    Open: {data?.telling?.open || 0} · goedgekeurd: {data?.telling?.goedgekeurd || 0} · handmatige stapel: {data?.telling?.handmatig || 0}
+                </p>
+            </div>
+        </section>
+    );
+}
+
+function Kwaliteitsdashboard({ data, onRefresh, onHealth, onOntbrekend, onVragen, onStudio, onLeeftijd, onNlCuratie, onOpschonen, onYoutubeStats }) {
     const verificatie = data?.verificatie || {};
     const downloadMap = Object.fromEntries((data?.downloads || []).map((r) => [r.download_status || 'onbekend', r.aantal]));
     return (
@@ -1305,6 +1405,7 @@ function Kwaliteitsdashboard({ data, onRefresh, onHealth, onOntbrekend, onVragen
                     <button className="knop knop-stil" type="button" onClick={onStudio}>Studio check</button>
                     <button className="knop knop-stil" type="button" onClick={onLeeftijd}>Leeftijd/catalogus check</button>
                     <button className="knop knop-stil" type="button" onClick={onNlCuratie}>Hele database: NL-bekendheid controleren</button>
+                    <button className="knop knop-stil" type="button" onClick={onYoutubeStats}>YouTube views/likes bijwerken</button>
                     <button className="knop knop-stil gevaar" type="button" onClick={() => onOpschonen('wees_media')}>MP3 zonder database verwijderen</button>
                     <button className="knop knop-stil" type="button" onClick={onRefresh}>Cijfers vernieuwen</button>
                 </div>
