@@ -27,6 +27,7 @@ export default function Host() {
         spelers,
         teams,
         lobbyInstellingen,
+        trackBeoordeling,
         audio,
         verbonden,
         herstelNodig,
@@ -428,6 +429,34 @@ export default function Host() {
                             Volgende →
                         </button>
                     </div>
+                    {lobbyInstellingen?.vraag_profiel === 'beta' && (
+                        <div className="kaart beta-review" style={{ marginTop: '0.75rem', textAlign: 'left' }}>
+                            <p className="kaart-label">Beta Tester · klopt dit nummer?</p>
+                            {trackBeoordeling ? (
+                                <p className="goed-tekst">
+                                    {trackBeoordeling.beoordeling === 'goed'
+                                        ? '✓ Als goed gemarkeerd.'
+                                        : trackBeoordeling.alternatief?.gedownload
+                                            ? '↻ Fout gemeld; een andere kandidaat wordt klaargezet.'
+                                            : '✗ Als fout gemarkeerd; beheer controleert de kandidaat.'}
+                                </p>
+                            ) : (
+                                <div className="zoekbalk">
+                                    <button className="knop" type="button" onClick={() => spel.beoordeelTrack('goed')}>
+                                        ✓ Nummer klopt
+                                    </button>
+                                    <button
+                                        className="knop knop-stil"
+                                        type="button"
+                                        onClick={() => spel.beoordeelTrack('fout', window.prompt('Wat klopt er niet? (optioneel)', '') || null)}
+                                    >
+                                        ✗ Nummer klopt niet
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div className="melding-formulier" style={{ marginTop: '0.75rem' }}>
                         {spel.melded ? (
                             <p className="goed-tekst">✓ Bedankt, je melding is ontvangen.</p>
