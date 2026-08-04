@@ -2379,7 +2379,7 @@ router.post('/api/admin/nl-curatie/start', vereisAdmin, (req, res) => {
         async ({ isGeannuleerd = () => false } = {}) => {
             const { rows } = await pool.query(
                 `SELECT t.id, t.naam, t.type, t.taal, t.land, t.populariteit, t.stemmen,
-                        t.nl_tv_bekend, t.curatie_status,
+                        t.nl_tv_bekend, t.curatie_status, t.genres,
                         EXISTS (
                             SELECT 1 FROM titel_collecties tc
                             JOIN collecties c ON c.id = tc.collectie_id
@@ -2401,7 +2401,14 @@ router.post('/api/admin/nl-curatie/start', vereisAdmin, (req, res) => {
                 if (isGeannuleerd()) return { geannuleerd: true, verwerkt: index, goedgekeurd, uitgesloten, teBeoordelen };
                 nlCuratieStatus = { ...nlCuratieStatus, stap: 'controleren', verwerkt: index, totaal: rows.length, huidige: titel.naam };
                 const land = String(titel.land || '').trim().toLowerCase();
+                const genres = Array.isArray(titel.genres)
+                    ? titel.genres.map((genre) => String(genre).toLowerCase())
+                    : [];
+                const duidelijkTalkshow = genres.some((genre) =>
+                    ['talk', 'talkshow', 'news', 'nieuws', 'realityshow'].includes(genre))
+                    && !titel.in_nl_selectie;
                 const duidelijkBuitenland = verdachteLanden.has(land)
+                    || duidelijkTalkshow
                     || (!titel.in_nl_selectie && Number(titel.populariteit || 0) < 10 && Number(titel.stemmen || 0) < 250);
                 if (duidelijkBuitenland && titel.curatie_status !== 'goedgekeurd') {
                     await pool.query(
