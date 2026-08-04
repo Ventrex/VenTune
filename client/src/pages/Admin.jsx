@@ -111,6 +111,7 @@ function Beheer({ onUit }) {
     const [bezigPlaylist, setBezigPlaylist] = useState(false);
     const [bezigTmdb, setBezigTmdb] = useState(false);
     const [bezigCatalogus, setBezigCatalogus] = useState(false);
+    const [bezigNlCuratie, setBezigNlCuratie] = useState(false);
     const [bezigStudio, setBezigStudio] = useState(false);
     const [bezigVragen, setBezigVragen] = useState(false);
     const [bezigDownloads, setBezigDownloads] = useState(false);
@@ -632,6 +633,7 @@ function Beheer({ onUit }) {
                     onVragen={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Bonusvragen controleren en aanvullen…', 'Bonusvragen klaar.')}
                     onStudio={() => achtergrondTaak(() => api.adminStudioImport(), api.adminStudioStatus, setBezigStudio, 'Studio’s controleren…', 'Studio-check klaar.')}
                     onLeeftijd={() => achtergrondTaak(() => api.adminTmdbCatalogus(), api.adminTmdbCatalogusStatus, setBezigCatalogus, 'Leeftijd en catalogus controleren…', 'Leeftijd/catalogus klaar.')}
+                    onNlCuratie={() => achtergrondTaak(() => api.adminNlCuratie(), api.adminNlCuratieStatus, setBezigNlCuratie, 'Hele database op Nederlandse bekendheid controleren…', 'Nederlandse cataloguscontrole klaar.')}
                     onOpschonen={(actie) => api.adminDatabaseOpschonen(actie).then((r) => setMelding(`${r.verwijderd || 0} verwijderd / opgeschoond.`)).then(() => Promise.all([laadKwaliteit(), laadOverzicht()])).catch((err) => setMelding(err.message))}
                 />
             )}
@@ -1282,7 +1284,7 @@ function Collectiebeheer({ collecties, bezig, onImport, onDownload, onWijzig, on
     );
 }
 
-function Kwaliteitsdashboard({ data, onRefresh, onHealth, onOntbrekend, onVragen, onStudio, onLeeftijd, onOpschonen }) {
+function Kwaliteitsdashboard({ data, onRefresh, onHealth, onOntbrekend, onVragen, onStudio, onLeeftijd, onNlCuratie, onOpschonen }) {
     const verificatie = data?.verificatie || {};
     const downloadMap = Object.fromEntries((data?.downloads || []).map((r) => [r.download_status || 'onbekend', r.aantal]));
     return (
@@ -1302,6 +1304,7 @@ function Kwaliteitsdashboard({ data, onRefresh, onHealth, onOntbrekend, onVragen
                     <button className="knop knop-stil" type="button" onClick={onVragen}>Check bonusvragen</button>
                     <button className="knop knop-stil" type="button" onClick={onStudio}>Studio check</button>
                     <button className="knop knop-stil" type="button" onClick={onLeeftijd}>Leeftijd/catalogus check</button>
+                    <button className="knop knop-stil" type="button" onClick={onNlCuratie}>Hele database: NL-bekendheid controleren</button>
                     <button className="knop knop-stil gevaar" type="button" onClick={() => onOpschonen('wees_media')}>MP3 zonder database verwijderen</button>
                     <button className="knop knop-stil" type="button" onClick={onRefresh}>Cijfers vernieuwen</button>
                 </div>
