@@ -23,19 +23,21 @@ const GENRE_AFLEIDERS = [
 const NU_JAAR = new Date().getFullYear();
 const JAAR_AFSTANDEN = [-1, 1, -2, 2, -3, 3, -5, 5, -8, 8, -12, 12];
 
-function jaarAfleiders(jaar, aantal = 5) {
+function jaarAfleiders(jaar, aantal = 5, minimum = 1950, maximum = NU_JAAR) {
     const doel = Number(jaar);
-    if (!Number.isFinite(doel)) return [];
+    const ondergrens = Math.max(1950, Number.isInteger(Number(minimum)) ? Number(minimum) : 1950);
+    const bovengrens = Math.min(NU_JAAR, Number.isInteger(Number(maximum)) ? Number(maximum) : NU_JAAR);
+    if (!Number.isFinite(doel) || ondergrens > bovengrens) return [];
     const kandidaten = [];
     for (const afstand of JAAR_AFSTANDEN) {
         const kandidaat = doel + afstand;
-        if (kandidaat >= 1950 && kandidaat <= NU_JAAR
+        if (kandidaat >= ondergrens && kandidaat <= bovengrens
             && kandidaat !== doel && !kandidaten.includes(kandidaat)) {
             kandidaten.push(kandidaat);
         }
     }
-    for (let afstand = 13; kandidaten.length < aantal && doel - afstand >= 1950; afstand++) {
-        const kandidaat = doel - afstand;
+    // Vul bij een smalle periode aan met andere jaren binnen die periode.
+    for (let kandidaat = ondergrens; kandidaten.length < aantal && kandidaat <= bovengrens; kandidaat++) {
         if (kandidaat !== doel && !kandidaten.includes(kandidaat)) kandidaten.push(kandidaat);
     }
     return hussel(kandidaten).slice(0, aantal).map(String);
@@ -111,7 +113,12 @@ function bouwVraag(details, pool = {}, instellingen = {}) {
         && (!Number.isFinite(Number(instellingen.jaarMax)) || details.jaar <= Number(instellingen.jaarMax));
     if (jaarBinnenKeuze) {
         mogelijk.push(() => {
-            const afl = jaarAfleiders(details.jaar);
+            const afl = jaarAfleiders(
+                details.jaar,
+                5,
+                instellingen.jaarMin,
+                instellingen.jaarMax,
+            );
             return {
                 type: 'jaar',
                 vraag: `In welk jaar kwam ${details.naam} uit?`,
