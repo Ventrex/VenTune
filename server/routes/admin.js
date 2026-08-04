@@ -1603,6 +1603,7 @@ let studioImportStatus = { bezig: false, klaar: false, samenvatting: null, fout:
 let vragenImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let downloadStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let lokaleAanvullingStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let dagelijkseKetenStatus = { bezig: false, klaar: false, stap: null, samenvatting: null, fout: null };
 let mediaHealthStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let collectieImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 const trackDownloadStatuses = new Map();
@@ -1630,6 +1631,7 @@ const ADMIN_TAAK_LABELS = {
     'tmdb-auto': 'Dagelijkse TMDB-update',
     'seed-auto': 'Dagelijkse YouTube-aanvulling',
     'downloads-auto': 'Dagelijkse goedgekeurde downloads',
+    'dagelijkse-keten': 'Dagelijkse keten: database → YouTube → lokaal',
 };
 
 function adminTaakLijst() {
@@ -1650,6 +1652,7 @@ function adminTaakLijst() {
         'tmdb-auto': tmdbImportStatus,
         'seed-auto': seedStatus,
         'downloads-auto': downloadStatus,
+        'dagelijkse-keten': dagelijkseKetenStatus,
     };
     return Object.entries(statussen).map(([naam, status]) => ({
         naam,
@@ -1914,7 +1917,9 @@ router.post('/api/admin/ontbrekende-lokale/start', vereisAdmin, (req, res) => {
     // Zoeken blijft een batch: YouTube knijpt af bij te veel verzoeken.
     // Downloaden hoeft dat niet — dat is puur je eigen server. Standaard
     // wordt daarom álles gedownload waarvoor al een kandidaat klaarstaat.
-    const zoekLimiet = Math.min(1000, Math.max(1, Number(req.body?.limiet) || 250));
+    const zoekLimiet = Number.isFinite(Number(req.body?.limiet)) && Number(req.body?.limiet) > 0
+        ? Math.floor(Number(req.body.limiet))
+        : Infinity;
     const alleenDownloaden = req.body?.alleen_downloaden === true;
     const downloadLimiet = Number(req.body?.download_limiet) > 0
         ? Math.floor(Number(req.body.download_limiet))
@@ -2199,6 +2204,10 @@ async function haalBeheerInstellingen() {
         downloadsIntervalUren: 24,
         downloadsLaatsteRun: null,
         downloadsVolgendeRun: null,
+        dagelijkseKetenAan: true,
+        dagelijkseKetenIntervalUren: 24,
+        dagelijkseKetenLaatsteRun: null,
+        dagelijkseKetenVolgendeRun: null,
         batchGrootte: DEFAULT_BATCH_GROOTTE,
     };
     const { rows } = await pool.query(
@@ -2230,6 +2239,10 @@ router.patch('/api/admin/planning', vereisAdmin, async (req, res) => {
     const downloadsAan = req.body?.downloadsAutomatisch === undefined
         ? oud.downloadsAutomatisch === true : req.body.downloadsAutomatisch === true;
     const downloadsInterval = Math.min(168, Math.max(1, Number(req.body?.downloadsIntervalUren ?? oud.downloadsIntervalUren) || 24));
+    const ketenAan = req.body?.dagelijkseKetenAan === undefined
+        ? oud.dagelijkseKetenAan !== false
+        : req.body.dagelijkseKetenAan === true;
+    const ketenInterval = Math.min(168, Math.max(1, Number(req.body?.dagelijkseKetenIntervalUren ?? oud.dagelijkseKetenIntervalUren) || 24));
     const batchGrootte = begrensBatchGrootte(req.body?.batchGrootte ?? oud.batchGrootte);
     const volgende = aan
         ? new Date(Date.now() + interval * 60 * 60 * 1000).toISOString()
@@ -2258,6 +2271,11 @@ router.patch('/api/admin/planning', vereisAdmin, async (req, res) => {
         downloadsIntervalUren: downloadsInterval,
         downloadsVolgendeRun: downloadsAan
             ? new Date(Date.now() + downloadsInterval * 60 * 60 * 1000).toISOString()
+            : null,
+        dagelijkseKetenAan: ketenAan,
+        dagelijkseKetenIntervalUren: ketenInterval,
+        dagelijkseKetenVolgendeRun: ketenAan
+            ? new Date(Date.now() + ketenInterval * 60 * 60 * 1000).toISOString()
             : null,
         batchGrootte,
     };
@@ -2399,6 +2417,45 @@ function startPlaylistPlanner() {
             const nu = Date.now();
             const plannen = [
                 {
+                    aan: beheer.dagelijkseKetenAan !== false,
+                    interval: 'dagelijkseKetenIntervalUren',
+                    volgende: 'dagelijkseKetenVolgendeRun',
+                    laatste: 'dagelijkseKetenLaatsteRun',
+                    taak: 'dagelijkse-keten',
+                    status: dagelijkseKetenStatus,
+                    zetStatus: (v) => { dagelijkseKetenStatus = v; },
+                    werk: async ({ isGeannuleerd = () => false } = {}) => {
+                        dagelijkseKetenStatus = { ...dagelijkseKetenStatus, stap: 'database', melding: 'Stap 1: database bijwerken…' };
+                        const stap1 = process.env.TMDB_API_KEY
+                            ? await importeerTmdb({ type: 'beide' })
+                            : { overgeslagen: 'TMDB_API_KEY ontbreekt' };
+                        if (isGeannuleerd()) return { geannuleerd: true, stap1 };
+                        dagelijkseKetenStatus = { ...dagelijkseKetenStatus, stap: 'youtube', melding: 'Stap 2: ontbrekende YouTube-matches zoeken…' };
+                        const stap2 = await importeer({
+                            force: false,
+                            alleenDb: true,
+                            youtubeAlleen: true,
+                            alleenZonderLokaal: true,
+                            limiet: Infinity,
+                            batchGrootte: beheer.batchGrootte,
+                            onProgress: (v) => { dagelijkseKetenStatus = { ...dagelijkseKetenStatus, stap: 'youtube', ...v }; },
+                            isGeannuleerd,
+                        });
+                        if (isGeannuleerd()) return { geannuleerd: true, stap1, stap2 };
+                        dagelijkseKetenStatus = { ...dagelijkseKetenStatus, stap: 'download', melding: 'Stap 3: alle kandidaten lokaal downloaden…' };
+                        const stap3 = await downloadTracksVooruit({
+                            alleenGecontroleerd: true,
+                            alleenYoutube: true,
+                            alleenZonderLokaal: true,
+                            controleer: false,
+                            batchGrootte: beheer.batchGrootte,
+                            onProgress: (v) => { dagelijkseKetenStatus = { ...dagelijkseKetenStatus, stap: 'download', ...v }; },
+                            isGeannuleerd,
+                        });
+                        return { stap1, stap2, stap3 };
+                    },
+                },
+                {
                     aan: beheer.mediaHealthAutomatisch !== false,
                     interval: 'mediaHealthIntervalUren',
                     volgende: 'mediaHealthVolgendeRun',
@@ -2419,7 +2476,7 @@ function startPlaylistPlanner() {
                     werk: () => importeerPlaylists({}),
                 },
                 {
-                    aan: beheer.tmdbAutomatisch === true,
+                    aan: beheer.tmdbAutomatisch === true && beheer.dagelijkseKetenAan === false,
                     interval: 'tmdbIntervalUren',
                     volgende: 'tmdbVolgendeRun',
                     laatste: 'tmdbLaatsteRun',
@@ -2429,7 +2486,7 @@ function startPlaylistPlanner() {
                     werk: () => importeerTmdb({ type: 'beide' }),
                 },
                 {
-                    aan: beheer.youtubeAutomatisch === true,
+                    aan: beheer.youtubeAutomatisch === true && beheer.dagelijkseKetenAan === false,
                     interval: 'youtubeIntervalUren',
                     volgende: 'youtubeVolgendeRun',
                     laatste: 'youtubeLaatsteRun',
@@ -2441,11 +2498,11 @@ function startPlaylistPlanner() {
                         alleenDb: true,
                         youtubeAlleen: true,
                         alleenZonderLokaal: true,
-                        limiet: 250,
+                        limiet: Infinity,
                     }),
                 },
                 {
-                    aan: beheer.downloadsAutomatisch === true,
+                    aan: beheer.downloadsAutomatisch === true && beheer.dagelijkseKetenAan === false,
                     interval: 'downloadsIntervalUren',
                     volgende: 'downloadsVolgendeRun',
                     laatste: 'downloadsLaatsteRun',
@@ -2457,7 +2514,7 @@ function startPlaylistPlanner() {
                         alleenYoutube: true,
                         alleenZonderLokaal: true,
                         controleer: true,
-                        limiet: 250,
+                        limiet: Infinity,
                     }),
                 },
             ];
