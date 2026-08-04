@@ -159,6 +159,32 @@ function youtubeUrl(track) {
     return null;
 }
 
+/** Haal views, likes, rating en duur op zonder het audiobestand te downloaden. */
+async function haalYouTubeStatistieken(track, { rateLimit = true } = {}) {
+    const url = youtubeUrl(track);
+    if (!url) throw new Error('Geen geldige YouTube-bron voor statistieken.');
+    if (rateLimit) await wachtOpYoutubeDownload();
+    try {
+        const { stdout } = await execFileAsync(
+            'yt-dlp',
+            ['--no-playlist', '--skip-download', '--dump-single-json', '--no-warnings', url],
+            { timeout: 60000, maxBuffer: 2 * 1024 * 1024 },
+        );
+        const gegevens = JSON.parse(String(stdout).trim());
+        return {
+            views: Number.isFinite(Number(gegevens.view_count)) ? Number(gegevens.view_count) : null,
+            likes: Number.isFinite(Number(gegevens.like_count)) ? Number(gegevens.like_count) : null,
+            rating: Number.isFinite(Number(gegevens.average_rating)) ? Number(gegevens.average_rating) : null,
+            duration: Number.isFinite(Number(gegevens.duration)) ? Math.round(Number(gegevens.duration)) : null,
+            titel: gegevens.title || null,
+            kanaal: gegevens.uploader || gegevens.channel || null,
+        };
+    } catch (err) {
+        markeerYoutubeDownloadRateLimit(err);
+        throw err;
+    }
+}
+
 /** Controleer vooraf of de bron nog bestaat, zonder audio te downloaden. */
 async function controleerYoutubeUrl(track) {
     const url = youtubeUrl(track);
@@ -358,6 +384,17 @@ async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } =
     try {
         const start = Math.max(0, Number(track.start_seconde) || 0);
         const eind = start + MAX_YOUTUBE_SECONDS;
+        // Stats zijn nuttig voor bekendheid, maar mogen een verder geldige
+        // download nooit blokkeren als YouTube ze tijdelijk niet teruggeeft.
+        let youtubeStatistieken = null;
+        try {
+            youtubeStatistieken = await haalYouTubeStatistieken(track, { rateLimit });
+        } catch (err) {
+            await pool.query(
+                'UPDATE tracks SET youtube_statistieken_melding = $2 WHERE id = $1',
+                [track.id, String(err.message).slice(0, 500)],
+            ).catch(() => {});
+        }
         // Bulkdownloads hebben al een ingestelde workerlimiet. De optionele
         // rate gate blijft voor losse downloads en URL-controles behouden,
         // maar mag geen 50 bulkworkers achter elkaar laten starten.
@@ -399,9 +436,20 @@ async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } =
                     bron_url = $3, start_seconde = 0, download_status = 'available',
                     download_melding = NULL, audio_sha256 = $4,
                     gedownload_op = now(), verificatie_score = GREATEST(verificatie_score, 0.95),
-                    verificatie_reden = COALESCE(verificatie_reden, 'lokale admin-download van YouTube-track')
+                    verificatie_reden = COALESCE(verificatie_reden, 'lokale admin-download van YouTube-track'),
+                    youtube_views = COALESCE($5, youtube_views),
+                    youtube_likes = COALESCE($6, youtube_likes),
+                    youtube_rating = COALESCE($7, youtube_rating),
+                    youtube_duur_seconden = COALESCE($8, youtube_duur_seconden),
+                    youtube_statistieken_op = CASE WHEN $5 IS NOT NULL OR $6 IS NOT NULL OR $7 IS NOT NULL
+                        THEN now() ELSE youtube_statistieken_op END,
+                    youtube_statistieken_melding = NULL
               WHERE id = $1`,
-            [track.id, lokaal, bronUrl, hash],
+            [track.id, lokaal, bronUrl, hash,
+                youtubeStatistieken?.views ?? null,
+                youtubeStatistieken?.likes ?? null,
+                youtubeStatistieken?.rating ?? null,
+                youtubeStatistieken?.duration ?? null],
         );
         console.log(`OK   ${track.id}: ${naam} → ${bestand} (${naBegrenzen.size} bytes, ${duur.toFixed(1)} s)`);
     } catch (err) {
@@ -472,6 +520,7 @@ if (require.main === module) {
 module.exports = {
     downloadTrack,
     downloadYoutubeTrack,
+    haalYouTubeStatistieken,
     isToegestanePreview,
     youtubeUrl,
     controleerYoutubeUrl,
