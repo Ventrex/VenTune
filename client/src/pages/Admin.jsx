@@ -992,7 +992,7 @@ function Beheer({ onUit }) {
                             />
                             <span className="speler-naam">
                                 {t.naam}
-                                <span className="dim"> · {t.type} · {t.taal} · {t.jaar || '—'} · {t.curatie_status || '—'} · {t.leeftijdsgrens ?? 16}+{t.studio ? ` · ${t.studio}` : ' · studio ontbreekt'}{t.collecties?.length ? ` · ${t.collecties.join(', ')}` : ''}</span>
+                                <span className="dim"> · {t.type} · {t.taal} · {t.jaar || '—'} · {t.curatie_status || '—'} · {t.leeftijdsgrens ?? 16}+{t.bekendheidsniveau ? ' · ' + t.bekendheidsniveau : ''}{t.youtube_max_views ? ' · ' + Number(t.youtube_max_views).toLocaleString('nl-NL') + ' views' : ''}{t.tmdb_score ? ' · TMDB ' + Number(t.tmdb_score).toFixed(1) : ''}{t.studio ? ` · ${t.studio}` : ' · studio ontbreekt'}{t.collecties?.length ? ` · ${t.collecties.join(', ')}` : ''}</span>
                             </span>
                             <span className="admin-titel-status" aria-label="Audiobronnen">
                                 <span className={'bron-pill lokaal' + (!t.lokale_tracks ? ' leeg' : '')}>MP3 {t.lokale_tracks || 0}</span>
