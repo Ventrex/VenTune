@@ -232,7 +232,7 @@ async function upsertTitel(collectieId, titel) {
     const gevonden = await pool.query(
         `SELECT id FROM titels
           WHERE collectie_id = $1 AND lower(naam) = lower($2)
-            AND COALESCE(jaar, -1) = COALESCE($6, -1) AND type = $4`,
+            AND COALESCE(jaar, -1) = COALESCE($6, -1) AND type = $4::titel_type`,
         waarden,
     );
     if (gevonden.rows[0]) {
