@@ -29,6 +29,7 @@ const { pool } = require('../db/pool');
 const cookies = require('../lib/cookies');
 const logger = require('../lib/logger');
 const { importeer } = require('../../seed/import');
+const { importeerCollectie, COLLECTIE } = require('../../seed/import-collectie');
 const { importeerPlaylists } = require('../../seed/playlist-import');
 const { importeerTmdb, importeerJaarCatalogus } = require('../../seed/tmdb-import');
 const { importeerVragen } = require('../../seed/vragen-import');
@@ -42,6 +43,9 @@ const {
     isAppleTrack,
 } = require('../../seed/download-track');
 const { absoluutPad } = require('../lib/media-health');
+const { verwijderLokaalBestand, verwijderCollectie } = require('../lib/media-files');
+const { voerOpschoningUit } = require('../lib/media-cleanup');
+const { mediaWebpad } = require('../lib/media-naming');
 const {
     hashWachtwoord,
     valideerWachtwoord,
@@ -116,16 +120,8 @@ function isVeiligMediaPad(absoluut) {
 }
 
 async function verwijderMediaBestand(track) {
-    if (!track || track.bron !== 'lokaal') return { verwijderd: false };
-    const absoluut = absoluutPad(track.bestand_pad || track.preview_url, MEDIA_DIR);
-    if (!isVeiligMediaPad(absoluut)) return { verwijderd: false, overgeslagen: true };
-    try {
-        await fs.unlink(absoluut);
-        return { verwijderd: true, pad: track.bestand_pad || track.preview_url };
-    } catch (err) {
-        if (err.code === 'ENOENT') return { verwijderd: false, ontbreekt: true };
-        throw err;
-    }
+    if (!track) return { verwijderd: false };
+    return verwijderLokaalBestand(track.bestand_pad || track.preview_url);
 }
 
 async function lokaleTracksVoorTitel(titelId) {
@@ -1688,6 +1684,7 @@ let dagelijkseKetenStatus = { bezig: false, klaar: false, stap: null, samenvatti
 let mediaHealthStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let youtubeStatsStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let collectieImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let top1000ImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 const trackDownloadStatuses = new Map();
 // Imports wijzigen dezelfde vragenbank. Eén gedeelde lock voorkomt dat twee
 // admins (of twee browservensters) tegelijk tracks/titels gaan vervangen.
@@ -1710,6 +1707,7 @@ const ADMIN_TAAK_LABELS = {
     'media-health': 'Lokale bestanden controleren',
     'youtube-statistieken': 'YouTube views en likes bijwerken',
     collecties: 'Spelcollecties importeren',
+    'collectie:top1000-films-series': 'Top 1000 films en series importeren',
     'media-health-auto': 'Dagelijkse bestandscontrole',
     'playlists-auto': 'Dagelijkse playlist-refresh',
     'tmdb-auto': 'Dagelijkse TMDB-update',
@@ -1734,6 +1732,7 @@ function adminTaakLijst() {
         'media-health': mediaHealthStatus,
         'youtube-statistieken': youtubeStatsStatus,
         collecties: collectieImportStatus,
+        'collectie:top1000-films-series': top1000ImportStatus,
         'media-health-auto': mediaHealthStatus,
         'playlists-auto': playlistImportStatus,
         'tmdb-auto': tmdbImportStatus,
