@@ -18,6 +18,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const { pool } = require('../server/db/pool');
 const { bestandGezondheid } = require('../server/lib/media-health');
+const { mediaWebpad } = require('../server/lib/media-naming');
 
 const args = process.argv.slice(2);
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
@@ -122,6 +123,10 @@ function veiligeNaam(tekst) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
         .slice(0, 60) || 'track';
+}
+
+function mediaPad(track, extensie) {
+    return mediaWebpad(MEDIA_DIR, track, track.media_map || '', extensie);
 }
 
 async function markeerMislukt(id, melding) {
@@ -367,15 +372,14 @@ async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } =
     }
 
     const naam = String(track.naam || track.tracknaam || 'track');
-    const bestandsnaam = `${veiligeNaam(naam)}-${track.id}.mp3`;
-    const bestand = path.join(DOWNLOAD_DIR, bestandsnaam);
-    const lokaal = `/media/downloads/${bestandsnaam}`;
+    const media = mediaPad(track, '.mp3');
+    const { bestand, lokaal } = media;
     if (droog) {
         console.log(`DRY  ${track.id}: ${naam} → ${bestand}`);
         return;
     }
 
-    await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
+    await fs.mkdir(media.basis, { recursive: true });
     await pool.query(
         `UPDATE tracks SET download_status = 'pending', download_melding = NULL WHERE id = $1`,
         [track.id],
@@ -487,9 +491,12 @@ async function main() {
         where += ` AND tr.id = $${params.length}`;
     }
     const { rows } = await pool.query(
-        `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.start_seconde, t.naam
+        `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.start_seconde,
+                t.naam, t.type, t.jaar, t.genres, t.taal, t.land, t.talen,
+                mc.media_map
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
+           LEFT JOIN media_collecties mc ON mc.id = tr.collectie_id
           WHERE ${where}
           ORDER BY tr.id`,
         params,
