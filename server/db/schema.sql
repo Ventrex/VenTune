@@ -35,6 +35,21 @@ END$$;
 -- muziekspecials zoals Rock en Smartlappen. De enum-migratie houdt bestaande
 -- databases compatibel.
 ALTER TYPE titel_type ADD VALUE IF NOT EXISTS 'muziek';
+-- Afgescheiden mediacollectie voor de grote film-/serielijsten.
+CREATE TABLE IF NOT EXISTS media_collecties (
+    id SERIAL PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    naam TEXT NOT NULL,
+    omschrijving TEXT,
+    bron TEXT,
+    bron_url TEXT,
+    seed_map TEXT NOT NULL,
+    media_map TEXT NOT NULL,
+    actief BOOLEAN NOT NULL DEFAULT true,
+    aangemaakt_op TIMESTAMPTZ NOT NULL DEFAULT now(),
+    bijgewerkt_op TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 
 -- ---------------------------------------------------------------------
 -- Vragenbank: titels
@@ -77,6 +92,25 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS toevoeg_reden TEXT NOT NULL
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_tv_bekend BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS curatie_status TEXT NOT NULL DEFAULT 'goedgekeurd';
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS leeftijdsgrens SMALLINT NOT NULL DEFAULT 16;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS collectie_id INTEGER;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS originele_naam TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS eind_jaar INTEGER;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS talen TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS studio_of_netwerk TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS leeftijd TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS leeftijd_bron TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS imdb_id TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS imdb_score REAL;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS imdb_stemmen INTEGER;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ranking_nummer INTEGER;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS trakt_id INTEGER;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS trakt_rank INTEGER;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS trakt_lijst_rank INTEGER;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS bron_trakt TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS bron_imdb TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS bron_nl TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS inclusion_reason TEXT;
+
 DO $$
 BEGIN
     ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_curatie_status_check;
@@ -120,6 +154,15 @@ CREATE INDEX IF NOT EXISTS idx_titels_genres  ON titels USING GIN (genres);
 CREATE INDEX IF NOT EXISTS idx_titels_curatie ON titels (nl_tv_bekend, curatie_status, leeftijdsgrens);
 CREATE INDEX IF NOT EXISTS idx_titels_studio ON titels (studio);
 CREATE INDEX IF NOT EXISTS idx_titels_bekendheid ON titels (bekendheid_score DESC, youtube_max_views DESC);
+CREATE INDEX IF NOT EXISTS idx_titels_media_collectie ON titels (collectie_id, type, jaar);
+DO $
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_titels_media_collectie') THEN
+        ALTER TABLE titels ADD CONSTRAINT fk_titels_media_collectie
+            FOREIGN KEY (collectie_id) REFERENCES media_collecties(id) ON DELETE CASCADE;
+    END IF;
+END$;
+
 
 -- ---------------------------------------------------------------------
 -- Vragenbank: tracks (per titel één of meer nummers)
@@ -193,6 +236,9 @@ ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_rating REAL;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_duur_seconden INTEGER;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_statistieken_op TIMESTAMPTZ;
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_statistieken_melding TEXT;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS collectie_id INTEGER;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS yt_iconisch BOOLEAN NOT NULL DEFAULT false;
+
 -- Menselijke reviewstatus. 'goedgekeurd' betekent dat de koppeling bewust
 -- is beluisterd; 'afgekeurd' is een kandidaat die niet mag terugkomen;
 -- 'handmatig' is de stapel na drie foute automatische vervangingen.
@@ -220,6 +266,16 @@ CREATE INDEX IF NOT EXISTS idx_tracks_review
     ON tracks (review_status, verificatie_score DESC, review_fouten, id);
 CREATE INDEX IF NOT EXISTS idx_tracks_youtube_stats
     ON tracks (youtube_statistieken_op NULLS FIRST, youtube_views DESC);
+CREATE INDEX IF NOT EXISTS idx_tracks_media_collectie ON tracks (collectie_id, titel_id);
+CREATE INDEX IF NOT EXISTS idx_tracks_yt_iconisch ON tracks (collectie_id, yt_iconisch, youtube_views DESC);
+DO $
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_tracks_media_collectie') THEN
+        ALTER TABLE tracks ADD CONSTRAINT fk_tracks_media_collectie
+            FOREIGN KEY (collectie_id) REFERENCES media_collecties(id) ON DELETE CASCADE;
+    END IF;
+END$;
+
 
 UPDATE tracks
    SET review_status = 'goedgekeurd',
@@ -841,3 +897,14 @@ CREATE INDEX IF NOT EXISTS idx_vraag_suggesties_status
 -- =====================================================================
 -- Einde schema
 -- =====================================================================
+
+INSERT INTO collecties (sleutel, naam, beschrijving, standaard_type, toevoeg_reden)
+VALUES ('top1000-films-series',
+        'Top 1000 bekende films en series in Nederland',
+        'Bekende films en tv-programma’s die in Nederland via bioscoop, videotheek, televisie of streaming bekendheid kregen.',
+        'beide',
+        'Aparte top-1000 collectie; handmatig beheerd via de admin-import.')
+ON CONFLICT (sleutel) DO UPDATE SET
+    naam = EXCLUDED.naam,
+    beschrijving = EXCLUDED.beschrijving,
+    standaard_type = EXCLUDED.standaard_type;

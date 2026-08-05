@@ -29,6 +29,7 @@ const { pool } = require('../db/pool');
 const cookies = require('../lib/cookies');
 const logger = require('../lib/logger');
 const { importeer } = require('../../seed/import');
+const { importeerCollectie, COLLECTIE } = require('../../seed/import-collectie');
 const { importeerPlaylists } = require('../../seed/playlist-import');
 const { importeerTmdb, importeerJaarCatalogus } = require('../../seed/tmdb-import');
 const { importeerVragen } = require('../../seed/vragen-import');
@@ -42,6 +43,9 @@ const {
     isAppleTrack,
 } = require('../../seed/download-track');
 const { absoluutPad } = require('../lib/media-health');
+const { verwijderLokaalBestand, verwijderCollectie } = require('../lib/media-files');
+const { voerOpschoningUit } = require('../lib/media-cleanup');
+const { mediaWebpad } = require('../lib/media-naming');
 const {
     hashWachtwoord,
     valideerWachtwoord,
@@ -116,22 +120,15 @@ function isVeiligMediaPad(absoluut) {
 }
 
 async function verwijderMediaBestand(track) {
-    if (!track || track.bron !== 'lokaal') return { verwijderd: false };
-    const absoluut = absoluutPad(track.bestand_pad || track.preview_url, MEDIA_DIR);
-    if (!isVeiligMediaPad(absoluut)) return { verwijderd: false, overgeslagen: true };
-    try {
-        await fs.unlink(absoluut);
-        return { verwijderd: true, pad: track.bestand_pad || track.preview_url };
-    } catch (err) {
-        if (err.code === 'ENOENT') return { verwijderd: false, ontbreekt: true };
-        throw err;
-    }
+    if (!track) return { verwijderd: false };
+    return verwijderLokaalBestand(track.bestand_pad || track.preview_url);
 }
 
 async function lokaleTracksVoorTitel(titelId) {
     const { rows } = await pool.query(
         `SELECT id, bron, preview_url, bestand_pad FROM tracks
-          WHERE titel_id = $1 AND bron = 'lokaal'`,
+          WHERE titel_id = $1
+            AND (bestand_pad IS NOT NULL OR preview_url LIKE '/media/%')`,
         [titelId],
     );
     return rows;
@@ -486,7 +483,8 @@ router.post('/api/admin/titels/bulk-delete', vereisAdmin, async (req, res) => {
     if (!ids.length) return res.status(400).json({ fout: 'Kies minimaal één titel.' });
     const tracks = await pool.query(
         `SELECT id, titel_id, bron, preview_url, bestand_pad FROM tracks
-          WHERE titel_id = ANY($1::int[]) AND bron = 'lokaal'`,
+          WHERE titel_id = ANY($1::int[])
+            AND (bestand_pad IS NOT NULL OR preview_url LIKE '/media/%')`,
         [ids],
     );
     const { rowCount } = await pool.query(`DELETE FROM titels WHERE id = ANY($1::int[])`, [ids]);
@@ -1337,7 +1335,7 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
         ? startTrackDownload(rows[0].id, async () => {
             await controleerTrackUrl({ ...rows[0], naam: titel.naam });
             await downloadTrack({ ...rows[0], naam: titel.naam });
-            return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+            return { ok: true, opgeslagen: true, map: '/media/Film of Serie' };
         })
         : null;
     res.json({ ...rows[0], download });
@@ -1374,9 +1372,11 @@ router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
         `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
                 tr.start_seconde, tr.download_status, tr.itunes_track_id,
-                t.naam
+                t.naam, t.type, t.jaar, t.genres, t.taal, t.land, t.talen,
+                mc.media_map
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
+           LEFT JOIN media_collecties mc ON mc.id = tr.collectie_id
           WHERE tr.id = $1`,
         [req.params.id],
     );
@@ -1390,7 +1390,7 @@ router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
     const antwoord = startTrackDownload(rows[0].id, async () => {
         await controleerTrackUrl(rows[0]);
         await downloadTrack({ ...rows[0], naam: rows[0].tracknaam || rows[0].naam });
-        return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+        return { ok: true, opgeslagen: true, map: '/media/Film of Serie' };
     });
     res.status(antwoord.gestart ? 202 : 409).json(antwoord);
 });
@@ -1410,7 +1410,7 @@ router.post(
     async (req, res) => {
         if (!req.file) return res.status(400).json({ fout: 'Kies een audiobestand.' });
         const { rows: titels } = await pool.query(
-            `SELECT id, naam FROM titels WHERE id = $1`,
+            `SELECT id, naam, collectie_id, type, jaar, genres, taal, land, talen FROM titels WHERE id = $1`,
             [req.params.id],
         );
         if (!titels[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
@@ -1424,27 +1424,41 @@ router.post(
         const veiligeExtensie = audioExtensies.includes(extensie)
             ? extensie
             : '.audio';
-        const bestandsnaam = `upload-${req.params.id}-${crypto.randomUUID()}${veiligeExtensie}`;
-        const absoluut = path.join(UPLOAD_DIR, bestandsnaam);
-        const lokaal = `/media/uploads/${bestandsnaam}`;
+        let mediaMap = '';
+        if (titels[0].collectie_id) {
+            const { rows: collecties } = await pool.query(
+                `SELECT media_map FROM media_collecties WHERE id = $1`,
+                [titels[0].collectie_id],
+            );
+            mediaMap = collecties[0]?.media_map || '';
+        }
+        const media = mediaWebpad(
+            MEDIA_DIR,
+            titels[0],
+            mediaMap,
+            veiligeExtensie,
+            ` - upload-${crypto.randomUUID().slice(0, 8)}`,
+        );
+        const absoluut = media.bestand;
+        const lokaal = media.lokaal;
         const hash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
 
         try {
-            await fs.mkdir(UPLOAD_DIR, { recursive: true });
+            await fs.mkdir(media.basis, { recursive: true });
             await fs.writeFile(absoluut, req.file.buffer, { flag: 'wx' });
             const titelNaam = String(req.body?.tracknaam || titels[0].naam).trim().slice(0, 200);
             const artiest = String(req.body?.artiest || 'Eigen upload').trim().slice(0, 200);
             const { rows } = await pool.query(
                 `INSERT INTO tracks
-                    (titel_id, bron, preview_url, bestand_pad, tracknaam, artiest,
+                    (titel_id, collectie_id, bron, preview_url, bestand_pad, tracknaam, artiest,
                      herkenbaarheid, gecontroleerd, verificatie_score,
                      verificatie_reden, bron_url, download_status, audio_sha256, gedownload_op,
                      review_status, review_handmatig, review_reden)
-                 VALUES ($1, 'lokaal', $2, $2, $3, $4, 5, true, 1,
-                         'handmatig audiobestand door admin', $5, 'available', $6, now(),
+                 VALUES ($1, $2, 'lokaal', $3, $3, $4, $5, 5, true, 1,
+                         'handmatig audiobestand door admin', $6, 'available', $7, now(),
                          'goedgekeurd', true, 'Eigen audiobestand gecontroleerd door admin')
                  RETURNING *`,
-                [req.params.id, lokaal, titelNaam, artiest, req.file.originalname, hash],
+                [req.params.id, titels[0].collectie_id || null, lokaal, titelNaam, artiest, req.file.originalname, hash],
             );
             await pool.query(
                 `UPDATE meldingen SET afgehandeld = true
@@ -1609,7 +1623,7 @@ router.post('/api/admin/meldingen/:id/koppel', vereisAdmin, async (req, res) => 
     const download = startTrackDownload(track.id, async () => {
         await controleerTrackUrl({ ...track, naam: tracknaam });
         await downloadTrack({ ...track, naam: tracknaam });
-        return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+        return { ok: true, opgeslagen: true, map: '/media/Film of Serie' };
     });
     res.json({ ok: true, track, download, melding_id: Number(req.params.id) });
 });
@@ -1688,6 +1702,7 @@ let dagelijkseKetenStatus = { bezig: false, klaar: false, stap: null, samenvatti
 let mediaHealthStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let youtubeStatsStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 let collectieImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
+let top1000ImportStatus = { bezig: false, klaar: false, samenvatting: null, fout: null };
 const trackDownloadStatuses = new Map();
 // Imports wijzigen dezelfde vragenbank. Eén gedeelde lock voorkomt dat twee
 // admins (of twee browservensters) tegelijk tracks/titels gaan vervangen.
@@ -1710,6 +1725,7 @@ const ADMIN_TAAK_LABELS = {
     'media-health': 'Lokale bestanden controleren',
     'youtube-statistieken': 'YouTube views en likes bijwerken',
     collecties: 'Spelcollecties importeren',
+    'collectie:top1000-films-series': 'Top 1000 films en series importeren',
     'media-health-auto': 'Dagelijkse bestandscontrole',
     'playlists-auto': 'Dagelijkse playlist-refresh',
     'tmdb-auto': 'Dagelijkse TMDB-update',
@@ -1734,6 +1750,7 @@ function adminTaakLijst() {
         'media-health': mediaHealthStatus,
         'youtube-statistieken': youtubeStatsStatus,
         collecties: collectieImportStatus,
+        'collectie:top1000-films-series': top1000ImportStatus,
         'media-health-auto': mediaHealthStatus,
         'playlists-auto': playlistImportStatus,
         'tmdb-auto': tmdbImportStatus,
@@ -1880,8 +1897,12 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     const limietParam = batchLimiet ? params.length : null;
     const { rows } = await pool.query(
         `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
-                tr.start_seconde, tr.download_status, t.naam
-           FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+                tr.start_seconde, tr.download_status,
+                t.naam, t.type, t.jaar, t.genres, t.taal, t.land, t.talen,
+                mc.media_map
+           FROM tracks tr
+           JOIN titels t ON t.id = tr.titel_id
+           LEFT JOIN media_collecties mc ON mc.id = tr.collectie_id
           WHERE tr.werkt = true
             AND (
                 tr.bron = 'youtube'
@@ -1993,7 +2014,7 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
         overgeslagen,
         mislukt,
         fouten: fouten.slice(0, 100),
-        map: process.env.DOWNLOAD_DIR || '/media/downloads',
+        map: '/media/Film of Serie',
     };
 }
 
@@ -2262,6 +2283,54 @@ router.post('/api/admin/collecties/import', vereisAdmin, (req, res) => {
 
 router.get('/api/admin/collecties/import/status', vereisAdmin, (_req, res) => {
     res.json(collectieImportStatus);
+});
+
+router.post('/api/admin/collecties/top1000-films-series/import', vereisAdmin, (req, res) => {
+    const titelsOnly = req.body?.titels_only === true;
+    const limiet = Number.isFinite(Number(req.body?.limiet)) && Number(req.body?.limiet) > 0
+        ? Math.floor(Number(req.body.limiet))
+        : Infinity;
+    const antwoord = startAdminScript(
+        'collectie:top1000-films-series',
+        top1000ImportStatus,
+        (v) => { top1000ImportStatus = v; },
+        async () => importeerCollectie({
+            force: true,
+            titelsOnly,
+            limiet,
+            onLog: (regel) => logger.info('Top 1000-collectie-import', regel),
+        }),
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/collecties/top1000-films-series/import/status', vereisAdmin, (_req, res) => {
+    res.json(top1000ImportStatus);
+});
+
+router.delete('/api/admin/media/collecties/:slug', vereisAdmin, async (req, res) => {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+        return res.status(400).json({ fout: 'Ongeldige collectie.' });
+    }
+    const resultaat = await verwijderCollectie(slug);
+    if (!resultaat.verwijderd) return res.status(404).json({ fout: 'Collectie niet gevonden.' });
+    await pool.query(`DELETE FROM collecties WHERE sleutel = $1`, [slug]);
+    res.json({ ok: true, ...resultaat });
+});
+
+router.get('/api/admin/media/opschonen/preview', vereisAdmin, async (req, res) => {
+    const slug = String(req.query.collectie || '').trim().toLowerCase();
+    res.json(await voerOpschoningUit({ slug, droog: true }));
+});
+
+router.post('/api/admin/media/opschonen', vereisAdmin, async (req, res) => {
+    const uitvoeren = req.body?.uitvoeren === true;
+    if (!uitvoeren || req.body?.bevestiging !== 'OPSCHONEN') {
+        return res.status(400).json({ fout: 'Bevestig opschonen met OPSCHONEN.' });
+    }
+    const slug = String(req.body?.collectie || '').trim().toLowerCase();
+    res.json(await voerOpschoningUit({ slug, droog: false }));
 });
 
 router.post('/api/admin/seed', vereisAdmin, (req, res) => {
