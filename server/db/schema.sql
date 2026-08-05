@@ -155,13 +155,13 @@ CREATE INDEX IF NOT EXISTS idx_titels_curatie ON titels (nl_tv_bekend, curatie_s
 CREATE INDEX IF NOT EXISTS idx_titels_studio ON titels (studio);
 CREATE INDEX IF NOT EXISTS idx_titels_bekendheid ON titels (bekendheid_score DESC, youtube_max_views DESC);
 CREATE INDEX IF NOT EXISTS idx_titels_media_collectie ON titels (collectie_id, type, jaar);
-DO $
+DO $m$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_titels_media_collectie') THEN
         ALTER TABLE titels ADD CONSTRAINT fk_titels_media_collectie
             FOREIGN KEY (collectie_id) REFERENCES media_collecties(id) ON DELETE CASCADE;
     END IF;
-END$;
+END$m$;
 
 
 -- ---------------------------------------------------------------------
@@ -268,13 +268,13 @@ CREATE INDEX IF NOT EXISTS idx_tracks_youtube_stats
     ON tracks (youtube_statistieken_op NULLS FIRST, youtube_views DESC);
 CREATE INDEX IF NOT EXISTS idx_tracks_media_collectie ON tracks (collectie_id, titel_id);
 CREATE INDEX IF NOT EXISTS idx_tracks_yt_iconisch ON tracks (collectie_id, yt_iconisch, youtube_views DESC);
-DO $
+DO $m$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_tracks_media_collectie') THEN
         ALTER TABLE tracks ADD CONSTRAINT fk_tracks_media_collectie
             FOREIGN KEY (collectie_id) REFERENCES media_collecties(id) ON DELETE CASCADE;
     END IF;
-END$;
+END$m$;
 
 
 UPDATE tracks
