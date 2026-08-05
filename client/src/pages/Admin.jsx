@@ -442,6 +442,47 @@ function Beheer({ onUit }) {
         laadCollecties();
     }
 
+    async function importeerTop1000(titelsOnly = false) {
+        await achtergrondTaak(
+            () => api.adminTop1000Import(titelsOnly),
+            api.adminTop1000ImportStatus,
+            setBezigCollecties,
+            titelsOnly ? 'Top 1000-films en series inlezen…' : 'Top 1000 YouTube-tracks zoeken en downloaden…',
+            titelsOnly ? 'Top 1000-lijsten ingelezen.' : 'Top 1000 YouTube-vulling klaar.',
+        );
+        laadCollecties();
+    }
+
+    async function verwijderTop1000() {
+        if (!window.confirm('Top 1000-collectie en bijbehorende lokale bestanden verwijderen?')) return;
+        try {
+            await api.adminVerwijderMediaCollectie('top1000-films-series');
+            setMelding('Top 1000-collectie, databasekoppelingen en lokale bestanden zijn verwijderd.');
+            laadCollecties();
+        } catch (err) {
+            setMelding(err.message);
+        }
+    }
+
+    async function opschoonPreview(collectie = '') {
+        try {
+            const resultaat = await api.adminMediaOpschonenPreview(collectie);
+            setMelding(`Opschoonpreview: ${resultaat?.aantal ?? 0} bestanden gevonden.`);
+        } catch (err) {
+            setMelding(err.message);
+        }
+    }
+
+    async function opschonen(collectie = '') {
+        if (!window.confirm('Bestanden nu ordenen/hernoemen? Dit verwijdert geen oude databasecollectie.')) return;
+        try {
+            const resultaat = await api.adminMediaOpschonen(collectie, true);
+            setMelding(`Opschonen klaar: ${resultaat?.aantal ?? 0} bestanden verwerkt.`);
+        } catch (err) {
+            setMelding(err.message);
+        }
+    }
+
     async function playlistImport() {
         setBezigPlaylist(true);
         setMelding('YouTube-playlists importeren… duidelijke matches vervangen veilig de oude track.');
@@ -843,14 +884,23 @@ function Beheer({ onUit }) {
             )}
 
             {tab === 'collecties' && (
-                <Collectiebeheer
-                    collecties={collecties}
-                    bezig={bezigCollecties}
-                    onImport={importeerCollecties}
-                    onDownload={downloadVooraf}
-                    onWijzig={laadCollecties}
-                    onMelding={setMelding}
-                />
+                <>
+                    <Collectiebeheer
+                        collecties={collecties}
+                        bezig={bezigCollecties}
+                        onImport={importeerCollecties}
+                        onImportTop1000={importeerTop1000}
+                        onDownload={downloadVooraf}
+                        onWijzig={laadCollecties}
+                        onMelding={setMelding}
+                    />
+                    <MediaOpschonen
+                        collecties={collecties}
+                        onPreview={opschoonPreview}
+                        onOpschonen={opschonen}
+                        onVerwijder={verwijderTop1000}
+                    />
+                </>
             )}
 
             {tab === 'meldingen' && meldingen.length > 0 && (
@@ -1221,7 +1271,7 @@ function Tegel({ label, waarde, onClick }) {
     return <div className="tegel">{inhoud}</div>;
 }
 
-function Collectiebeheer({ collecties, bezig, onImport, onDownload, onWijzig, onMelding }) {
+function Collectiebeheer({ collecties, bezig, onImport, onImportTop1000, onDownload, onWijzig, onMelding }) {
     const [nieuw, setNieuw] = useState({ sleutel: '', naam: '', beschrijving: '', standaard_type: 'beide', toevoeg_reden: '' });
 
     async function maak(e) {
@@ -1255,9 +1305,20 @@ function Collectiebeheer({ collecties, bezig, onImport, onDownload, onWijzig, on
                                 {!c.actief && <span className="dim"> · uitgeschakeld</span>}
                             </span>
                             <span className="admin-account-acties">
-                                <button className="afspeelknop klein" disabled={bezig} onClick={() => onImport([c.sleutel])}>
-                                    {bezig ? '…' : 'Vullen + MP3'}
-                                </button>
+                                {c.sleutel === 'top1000-films-series' ? (
+                                    <>
+                                        <button className="afspeelknop klein" disabled={bezig} onClick={() => onImportTop1000(true)}>
+                                            {bezig ? '…' : 'Lijsten inlezen'}
+                                        </button>
+                                        <button className="afspeelknop klein" disabled={bezig} onClick={() => onImportTop1000(false)}>
+                                            {bezig ? '…' : 'YouTube vullen'}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button className="afspeelknop klein" disabled={bezig} onClick={() => onImport([c.sleutel])}>
+                                        {bezig ? '…' : 'Vullen + MP3'}
+                                    </button>
+                                )}
                                 <button className="afspeelknop klein" onClick={() => onDownload([c.sleutel])}>
                                     ⇩ MP3
                                 </button>
@@ -1285,6 +1346,43 @@ function Collectiebeheer({ collecties, bezig, onImport, onDownload, onWijzig, on
                 </div>
                 <button className="knop knop-stil" type="submit">Editie opslaan</button>
             </form>
+        </section>
+    );
+}
+
+function MediaOpschonen({ collecties, onPreview, onOpschonen, onVerwijder }) {
+    const top1000 = collecties.find((c) => c.sleutel === 'top1000-films-series');
+
+    return (
+        <section className="admin-panel" style={{ marginTop: '1rem' }}>
+            <div className="kaart">
+                <p className="kaart-label">Lokale media ordenen</p>
+                <p className="dim">
+                    Eerst bekijken met preview. Daarna worden nieuwe bestanden onder Film/ of Serie/ gezet
+                    met naam, releasejaar, genre en taal. De oude 13k-collectie blijft ongemoeid.
+                </p>
+                <div className="admin-account-acties">
+                    <button className="knop knop-stil" type="button" onClick={() => onPreview('')}>
+                        Preview alle lokale bestanden
+                    </button>
+                    <button className="knop knop-stil" type="button" onClick={() => onOpschonen('')}>
+                        Alles ordenen
+                    </button>
+                    {top1000 && (
+                        <>
+                            <button className="knop knop-stil" type="button" onClick={() => onPreview('top1000-films-series')}>
+                                Preview Top 1000
+                            </button>
+                            <button className="knop knop-stil" type="button" onClick={() => onOpschonen('top1000-films-series')}>
+                                Alleen Top 1000 ordenen
+                            </button>
+                            <button className="knop knop-stil" type="button" onClick={onVerwijder}>
+                                Top 1000 verwijderen
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
         </section>
     );
 }
