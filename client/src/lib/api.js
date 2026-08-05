@@ -538,6 +538,27 @@ export async function adminCollectieImport(data) {
 export async function adminCollectieImportStatus() {
     return adminFetch('/api/admin/collecties/import/status');
 }
+export async function adminTop1000Import(titelsOnly = false, limiet = null) {
+    return adminFetch('/api/admin/collecties/top1000-films-series/import', {
+        method: 'POST',
+        ...jsonBody({ titels_only: titelsOnly, limiet }),
+    });
+}
+export async function adminTop1000ImportStatus() {
+    return adminFetch('/api/admin/collecties/top1000-films-series/import/status');
+}
+export async function adminVerwijderMediaCollectie(slug) {
+    return adminFetch('/api/admin/media/collecties/' + encodeURIComponent(slug), { method: 'DELETE' });
+}
+export async function adminMediaOpschonenPreview(collectie = '') {
+    return adminFetch('/api/admin/media/opschonen/preview?collectie=' + encodeURIComponent(collectie));
+}
+export async function adminMediaOpschonen(collectie = '', uitvoeren = false) {
+    return adminFetch('/api/admin/media/opschonen', {
+        method: 'POST',
+        ...jsonBody({ collectie, uitvoeren, bevestiging: uitvoeren ? 'OPSCHONEN' : '' }),
+    });
+}
 export async function adminTitelCollecties(id, collecties) {
     return adminFetch(`/api/admin/titels/${id}/collecties`, {
         method: 'PUT',
