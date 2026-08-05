@@ -1410,7 +1410,7 @@ router.post(
     async (req, res) => {
         if (!req.file) return res.status(400).json({ fout: 'Kies een audiobestand.' });
         const { rows: titels } = await pool.query(
-            `SELECT id, naam FROM titels WHERE id = $1`,
+            `SELECT id, naam, collectie_id, type, jaar, genres, taal, land, talen FROM titels WHERE id = $1`,
             [req.params.id],
         );
         if (!titels[0]) return res.status(404).json({ fout: 'Titel niet gevonden.' });
@@ -1424,27 +1424,41 @@ router.post(
         const veiligeExtensie = audioExtensies.includes(extensie)
             ? extensie
             : '.audio';
-        const bestandsnaam = `upload-${req.params.id}-${crypto.randomUUID()}${veiligeExtensie}`;
-        const absoluut = path.join(UPLOAD_DIR, bestandsnaam);
-        const lokaal = `/media/uploads/${bestandsnaam}`;
+        let mediaMap = '';
+        if (titels[0].collectie_id) {
+            const { rows: collecties } = await pool.query(
+                `SELECT media_map FROM media_collecties WHERE id = $1`,
+                [titels[0].collectie_id],
+            );
+            mediaMap = collecties[0]?.media_map || '';
+        }
+        const media = mediaWebpad(
+            MEDIA_DIR,
+            titels[0],
+            mediaMap,
+            veiligeExtensie,
+            ` - upload-${crypto.randomUUID().slice(0, 8)}`,
+        );
+        const absoluut = media.bestand;
+        const lokaal = media.lokaal;
         const hash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
 
         try {
-            await fs.mkdir(UPLOAD_DIR, { recursive: true });
+            await fs.mkdir(media.basis, { recursive: true });
             await fs.writeFile(absoluut, req.file.buffer, { flag: 'wx' });
             const titelNaam = String(req.body?.tracknaam || titels[0].naam).trim().slice(0, 200);
             const artiest = String(req.body?.artiest || 'Eigen upload').trim().slice(0, 200);
             const { rows } = await pool.query(
                 `INSERT INTO tracks
-                    (titel_id, bron, preview_url, bestand_pad, tracknaam, artiest,
+                    (titel_id, collectie_id, bron, preview_url, bestand_pad, tracknaam, artiest,
                      herkenbaarheid, gecontroleerd, verificatie_score,
                      verificatie_reden, bron_url, download_status, audio_sha256, gedownload_op,
                      review_status, review_handmatig, review_reden)
-                 VALUES ($1, 'lokaal', $2, $2, $3, $4, 5, true, 1,
-                         'handmatig audiobestand door admin', $5, 'available', $6, now(),
+                 VALUES ($1, $2, 'lokaal', $3, $3, $4, $5, 5, true, 1,
+                         'handmatig audiobestand door admin', $6, 'available', $7, now(),
                          'goedgekeurd', true, 'Eigen audiobestand gecontroleerd door admin')
                  RETURNING *`,
-                [req.params.id, lokaal, titelNaam, artiest, req.file.originalname, hash],
+                [req.params.id, titels[0].collectie_id || null, lokaal, titelNaam, artiest, req.file.originalname, hash],
             );
             await pool.query(
                 `UPDATE meldingen SET afgehandeld = true
@@ -2269,6 +2283,54 @@ router.post('/api/admin/collecties/import', vereisAdmin, (req, res) => {
 
 router.get('/api/admin/collecties/import/status', vereisAdmin, (_req, res) => {
     res.json(collectieImportStatus);
+});
+
+router.post('/api/admin/collecties/top1000-films-series/import', vereisAdmin, (req, res) => {
+    const titelsOnly = req.body?.titels_only === true;
+    const limiet = Number.isFinite(Number(req.body?.limiet)) && Number(req.body?.limiet) > 0
+        ? Math.floor(Number(req.body.limiet))
+        : Infinity;
+    const antwoord = startAdminScript(
+        'collectie:top1000-films-series',
+        top1000ImportStatus,
+        (v) => { top1000ImportStatus = v; },
+        async () => importeerCollectie({
+            force: true,
+            titelsOnly,
+            limiet,
+            onLog: (regel) => logger.info('Top 1000-collectie-import', regel),
+        }),
+    );
+    res.json(antwoord);
+});
+
+router.get('/api/admin/collecties/top1000-films-series/import/status', vereisAdmin, (_req, res) => {
+    res.json(top1000ImportStatus);
+});
+
+router.delete('/api/admin/media/collecties/:slug', vereisAdmin, async (req, res) => {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+        return res.status(400).json({ fout: 'Ongeldige collectie.' });
+    }
+    const resultaat = await verwijderCollectie(slug);
+    if (!resultaat.verwijderd) return res.status(404).json({ fout: 'Collectie niet gevonden.' });
+    await pool.query(`DELETE FROM collecties WHERE sleutel = $1`, [slug]);
+    res.json({ ok: true, ...resultaat });
+});
+
+router.get('/api/admin/media/opschonen/preview', vereisAdmin, async (req, res) => {
+    const slug = String(req.query.collectie || '').trim().toLowerCase();
+    res.json(await voerOpschoningUit({ slug, droog: true }));
+});
+
+router.post('/api/admin/media/opschonen', vereisAdmin, async (req, res) => {
+    const uitvoeren = req.body?.uitvoeren === true;
+    if (!uitvoeren || req.body?.bevestiging !== 'OPSCHONEN') {
+        return res.status(400).json({ fout: 'Bevestig opschonen met OPSCHONEN.' });
+    }
+    const slug = String(req.body?.collectie || '').trim().toLowerCase();
+    res.json(await voerOpschoningUit({ slug, droog: false }));
 });
 
 router.post('/api/admin/seed', vereisAdmin, (req, res) => {
