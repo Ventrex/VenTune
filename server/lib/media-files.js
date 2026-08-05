@@ -59,7 +59,7 @@ async function verwijderLokaalBestand(bestandPad) {
 async function verwijderBestanden(rijen) {
     let aantal = 0;
     for (const rij of rijen) {
-        const resultaat = await verwijderLokaalBestand(rij.bestand_pad);
+        const resultaat = await verwijderLokaalBestand(rij.bestand_pad || rij.preview_url);
         if (resultaat.verwijderd) aantal++;
     }
     return aantal;
@@ -67,7 +67,7 @@ async function verwijderBestanden(rijen) {
 
 async function verwijderTitelMetBestanden(titelId, executor = pool) {
     const { rows: tracks } = await executor.query(
-        `SELECT id, bestand_pad FROM tracks WHERE titel_id = $1`,
+        `SELECT id, bestand_pad, preview_url FROM tracks WHERE titel_id = $1`,
         [titelId],
     );
     await verwijderBestanden(tracks);
@@ -96,7 +96,7 @@ async function verwijderCollectie(slug) {
         if (!collecties[0]) return { verwijderd: false, reden: 'collectie-niet-gevonden' };
         const collectie = collecties[0];
         const { rows: tracks } = await client.query(
-            `SELECT tr.id, tr.bestand_pad
+            `SELECT tr.id, tr.bestand_pad, tr.preview_url
                FROM tracks tr
               WHERE tr.collectie_id = $1`,
             [collectie.id],
