@@ -127,7 +127,8 @@ async function verwijderMediaBestand(track) {
 async function lokaleTracksVoorTitel(titelId) {
     const { rows } = await pool.query(
         `SELECT id, bron, preview_url, bestand_pad FROM tracks
-          WHERE titel_id = $1 AND bron = 'lokaal'`,
+          WHERE titel_id = $1
+            AND (bestand_pad IS NOT NULL OR preview_url LIKE '/media/%')`,
         [titelId],
     );
     return rows;
@@ -482,7 +483,8 @@ router.post('/api/admin/titels/bulk-delete', vereisAdmin, async (req, res) => {
     if (!ids.length) return res.status(400).json({ fout: 'Kies minimaal één titel.' });
     const tracks = await pool.query(
         `SELECT id, titel_id, bron, preview_url, bestand_pad FROM tracks
-          WHERE titel_id = ANY($1::int[]) AND bron = 'lokaal'`,
+          WHERE titel_id = ANY($1::int[])
+            AND (bestand_pad IS NOT NULL OR preview_url LIKE '/media/%')`,
         [ids],
     );
     const { rowCount } = await pool.query(`DELETE FROM titels WHERE id = ANY($1::int[])`, [ids]);
@@ -1333,7 +1335,7 @@ router.post('/api/admin/titels/:id/tracks', vereisAdmin, async (req, res) => {
         ? startTrackDownload(rows[0].id, async () => {
             await controleerTrackUrl({ ...rows[0], naam: titel.naam });
             await downloadTrack({ ...rows[0], naam: titel.naam });
-            return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+            return { ok: true, opgeslagen: true, map: '/media/Film of Serie' };
         })
         : null;
     res.json({ ...rows[0], download });
@@ -1370,9 +1372,11 @@ router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(
         `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
                 tr.start_seconde, tr.download_status, tr.itunes_track_id,
-                t.naam
+                t.naam, t.type, t.jaar, t.genres, t.taal, t.land, t.talen,
+                mc.media_map
            FROM tracks tr
            JOIN titels t ON t.id = tr.titel_id
+           LEFT JOIN media_collecties mc ON mc.id = tr.collectie_id
           WHERE tr.id = $1`,
         [req.params.id],
     );
@@ -1386,7 +1390,7 @@ router.post('/api/admin/tracks/:id/download', vereisAdmin, async (req, res) => {
     const antwoord = startTrackDownload(rows[0].id, async () => {
         await controleerTrackUrl(rows[0]);
         await downloadTrack({ ...rows[0], naam: rows[0].tracknaam || rows[0].naam });
-        return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+        return { ok: true, opgeslagen: true, map: '/media/Film of Serie' };
     });
     res.status(antwoord.gestart ? 202 : 409).json(antwoord);
 });
@@ -1605,7 +1609,7 @@ router.post('/api/admin/meldingen/:id/koppel', vereisAdmin, async (req, res) => 
     const download = startTrackDownload(track.id, async () => {
         await controleerTrackUrl({ ...track, naam: tracknaam });
         await downloadTrack({ ...track, naam: tracknaam });
-        return { ok: true, opgeslagen: true, map: process.env.DOWNLOAD_DIR || '/media/downloads' };
+        return { ok: true, opgeslagen: true, map: '/media/Film of Serie' };
     });
     res.json({ ok: true, track, download, melding_id: Number(req.params.id) });
 });
@@ -1879,8 +1883,12 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
     const limietParam = batchLimiet ? params.length : null;
     const { rows } = await pool.query(
         `SELECT tr.id, tr.preview_url, tr.bron, tr.bron_url, tr.tracknaam,
-                tr.start_seconde, tr.download_status, t.naam
-           FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+                tr.start_seconde, tr.download_status,
+                t.naam, t.type, t.jaar, t.genres, t.taal, t.land, t.talen,
+                mc.media_map
+           FROM tracks tr
+           JOIN titels t ON t.id = tr.titel_id
+           LEFT JOIN media_collecties mc ON mc.id = tr.collectie_id
           WHERE tr.werkt = true
             AND (
                 tr.bron = 'youtube'
@@ -1992,7 +2000,7 @@ async function downloadTracksVooruit({ collecties = [], force = false, controlee
         overgeslagen,
         mislukt,
         fouten: fouten.slice(0, 100),
-        map: process.env.DOWNLOAD_DIR || '/media/downloads',
+        map: '/media/Film of Serie',
     };
 }
 
