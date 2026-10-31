@@ -64,7 +64,7 @@ router.post('/api/lobby/:code/join', async (req, res) => {
     try {
         const naam = req.body && req.body.naam;
         const leeftijd = req.body && req.body.leeftijd;
-        const resultaat = await lobby.doeMee({ code: req.params.code, naam, leeftijd });
+        const resultaat = await lobby.doeMee({ code: req.params.code, naam, leeftijd, specialiteit: req.body?.specialiteit });
         logger.info('Speler deed mee.', { code: req.params.code });
         res.json({
             token: resultaat.token,
