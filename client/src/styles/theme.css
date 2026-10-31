@@ -1,19 +1,64 @@
 /* =====================================================================
-   VenTune — theme-tokens (OLED zwart met donkerrood)
-   Puur zwart zodat OLED-pixels echt uit staan.
+   VenTune — thema-tokens. Drie looks, gekozen via data-thema op <html>:
+     (standaard) Neon Arcade  — diep paars, neon magenta + cyan
+     data-thema="noir"        — OLED zwart met donkerrood
+     data-thema="kerst"       — dennengroen, kerstrood, goud
+
+   Alle componenten gebruiken dezelfde variabelen, dus één thema wisselen
+   kleurt de hele app. De variabelenamen (--red, --red-hot…) zijn
+   historisch; de waarde is wat telt.
    ===================================================================== */
 
-:root {
+/* ---- Neon Arcade (standaard) ---- */
+:root, :root[data-thema='neon'] {
+    --bg: #0a0618;
+    --surface: #160c33;
+    --border: #2d1c5c;
+    --red: #b0228a;
+    --red-hot: #ff2d95;
+    --red-glow: rgba(255, 45, 149, 0.45);
+    --accent: #ff2d95;
+    --accent-2: #00e5ff;
+    --text: #ecebff;
+    --text-dim: #948fce;
+    --merk-font: 'Orbitron';
+    --app-font: 'Inter';
+    --font-scale: 1;
+    color-scheme: dark;
+}
+
+/* ---- OLED Noir ---- */
+:root[data-thema='noir'] {
     --bg: #000000;
     --surface: #0a0a0a;
     --border: #1c1c1c;
     --red: #8b0f1d;
     --red-hot: #c41230;
     --red-glow: rgba(196, 18, 48, 0.35);
+    --accent: #c41230;
+    --accent-2: #c41230;
     --text: #f5f5f5;
     --text-dim: #8a8a8a;
-    --app-font: system-ui;
-    --font-scale: 1;
+    --merk-font: 'Inter';
+    --app-font: 'Inter';
+    color-scheme: dark;
+}
+
+/* ---- Kerst Cozy ---- */
+:root[data-thema='kerst'] {
+    --bg: #0a2019;
+    --surface: #0f3027;
+    --border: #1d4a3a;
+    --red: #c9a24a;
+    --red-hot: #e24b3b;
+    --red-glow: rgba(240, 201, 105, 0.4);
+    --accent: #f0c969;
+    --accent-2: #f0c969;
+    --text: #f5efe2;
+    --text-dim: #9ab5a4;
+    --merk-font: 'Fraunces';
+    --app-font: 'Inter';
+    color-scheme: dark;
 }
 
 *,
@@ -1804,4 +1849,95 @@ select.invoer {
 .lobby-instellingen .knop {
     min-height: 44px;
     font-size: 1rem;
+}
+
+/* =====================================================================
+   Thema-afwerking: sfeer-achtergrond, merkfont per look, themakiezer.
+   ===================================================================== */
+
+/* De merknaam (kort) in het display-font van het gekozen thema. Koppen
+   blijven in Inter: breed display-font + lange kop = afgekapte tekst. */
+.merk-naam {
+    font-family: var(--merk-font), 'Inter', system-ui, sans-serif;
+}
+h1 {
+    font-family: 'Inter', system-ui, sans-serif;
+}
+/* Kerst mag wel een warme serif-kop, die is smal genoeg. */
+:root[data-thema='kerst'] h1 {
+    font-family: 'Fraunces', Georgia, serif;
+}
+
+/* Sfeer-achtergrond per thema (subtiel, geen horizontaal scrollen). */
+body {
+    background:
+        radial-gradient(130% 80% at 50% -10%, rgba(123, 60, 200, 0.28), transparent 60%),
+        var(--bg);
+    background-attachment: fixed;
+}
+:root[data-thema='noir'] body {
+    background: var(--bg);
+}
+:root[data-thema='kerst'] body {
+    background:
+        radial-gradient(120% 70% at 50% -10%, rgba(226, 75, 59, 0.14), transparent 55%),
+        var(--bg);
+    background-attachment: fixed;
+}
+
+/* Neon-gloed op de merknaam; in de andere thema's rustig. */
+:root[data-thema='neon'] .merk-naam {
+    color: var(--accent-2);
+    text-shadow: 0 0 16px rgba(0, 229, 255, 0.5);
+    letter-spacing: 0.01em;
+}
+:root[data-thema='neon'] .merk-logo {
+    box-shadow: 0 0 26px var(--red-glow), 0 0 12px rgba(0, 229, 255, 0.4);
+}
+
+/* De visualizer krijgt in Neon twee kleuren en meer gloed. */
+:root[data-thema='neon'] .visualizer span {
+    background: linear-gradient(var(--accent-2), var(--red-hot));
+    box-shadow: 0 0 14px var(--red-glow);
+}
+
+/* --- Themakiezer --- */
+.thema-kiezer {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 0.5rem 0 1.5rem;
+}
+
+.thema-knop {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.thema-knop:hover {
+    color: var(--text);
+    border-color: var(--red);
+}
+
+.thema-knop.actief {
+    color: var(--text);
+    border-color: var(--red-hot);
+    box-shadow: 0 0 0 2px var(--red-glow);
+}
+
+.thema-emoji {
+    font-size: 1.1rem;
+    line-height: 1;
 }

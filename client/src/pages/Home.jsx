@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { haalRanking } from '../lib/api.js';
 import Brand from '../components/Brand.jsx';
+import ThemaKiezer from '../components/ThemaKiezer.jsx';
 import { ThemaContext } from '../lib/thema.js';
 
 // Startscherm: nieuw spel maken (host) of meedoen met een code.
@@ -88,7 +89,14 @@ export default function Home() {
                 </div>
             )}
 
-            <p style={{ marginTop: '2rem' }}>
+            <div style={{ marginTop: '2.5rem' }}>
+                <p className="kaart-label" style={{ textAlign: 'left' }}>
+                    Uiterlijk
+                </p>
+                <ThemaKiezer />
+            </div>
+
+            <p style={{ marginTop: '1rem' }}>
                 <Link className="terug" to="/changelog">
                     Wat is nieuw? →
                 </Link>
