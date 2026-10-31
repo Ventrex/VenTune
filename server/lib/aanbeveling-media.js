@@ -119,7 +119,7 @@ async function keurMp3Af(id) {
 
 /** Vind of maak de titel die bij een aanbeveling hoort. */
 async function vindOfMaakTitel(a) {
-    if (a.soort === 'kerst') {
+    if (a.soort !== 'film_serie') {
         // Een kerstnummer is zelf de te raden titel (type 'muziek').
         const naam = a.tracknaam;
         const { rows: best } = await pool.query(
@@ -127,9 +127,11 @@ async function vindOfMaakTitel(a) {
         if (best[0]) return best[0].id;
         const { rows } = await pool.query(
             `INSERT INTO titels (naam, type, jaar, genres, taal, themas, muziek_genres)
-             VALUES ($1, 'muziek', $2, ARRAY['Kerst'], 'nl', ARRAY['Kerst'], $3)
+             VALUES ($1, 'muziek', $2, $3, 'nl', $4, $5)
              RETURNING id`,
-            [naam, Number.isFinite(a.jaar) ? a.jaar : null, Array.isArray(a.muziek_genres) ? a.muziek_genres : []]);
+            [naam, Number.isFinite(a.jaar) ? a.jaar : null,
+             a.categorie === 'kerst' ? ['Kerst'] : Array.isArray(a.muziek_genres) ? a.muziek_genres : [],
+             [a.categorie], Array.isArray(a.muziek_genres) ? a.muziek_genres : []]);
         return rows[0].id;
     }
     // film/serie
