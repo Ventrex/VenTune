@@ -74,7 +74,18 @@ router.get('/api/quizzen', async (_req, res) => {
                     melding: err.message,
                 });
             }
+            // Toon ook de totale bibliotheekgrootte om verkeerde filters van
+            // ontbrekende downloads te onderscheiden.
+            let catalogus = 0;
+            try {
+                const basis = bouwFilter({ ...(quiz.filter || {}), alleen_nl_tv: false, alleen_lokaal: false });
+                const t = await pool.query(`SELECT count(*)::int AS n FROM titels t ${basis.where}`, basis.params);
+                catalogus = t.rows[0]?.n || 0;
+            } catch (err) {
+                logger.waarschuwing('Catalogustelling mislukt', { quiz: quiz.sleutel, melding: err.message });
+            }
             uitkomst.push({
+                catalogus,
                 sleutel: quiz.sleutel,
                 naam: quiz.naam,
                 emoji: quiz.emoji,
