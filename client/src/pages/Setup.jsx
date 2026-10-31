@@ -109,6 +109,8 @@ export default function Setup() {
         periode_start: 1930,
         periode_eind: NU,
         rondes: 10,
+        spelvorm: 'tegen_elkaar',
+        team_modus: 'snelste',
         hints_aan: true,
         speeltijd: 0,
         modus: 'snelste',
@@ -321,6 +323,8 @@ export default function Setup() {
             periode_start: p.periode_start,
             periode_eind: p.periode_eind,
             rondes: p.rondes,
+            spelvorm: p.spelvorm || 'tegen_elkaar',
+            team_modus: p.team_modus || 'snelste',
             speeltijd: p.speeltijd ?? 0,
             modus: p.modus || 'snelste',
             antwoord_modus: p.antwoord_modus || 'meerkeuze',
@@ -650,6 +654,22 @@ export default function Setup() {
                     <label className="vt-toggle-row"><input type="checkbox" checked={filters.bonusvragen_aan !== false} onChange={e=>zet('bonusvragen_aan',e.target.checked)}/><span>Bonusvragen</span></label>
                     <label className="vt-toggle-row"><input type="checkbox" checked={filters.info_aan !== false} onChange={e=>zet('info_aan',e.target.checked)}/><span>Film- en serie-informatie na afloop</span></label>
                                         <div className="vt-setting-pair">
+                        <label className="setup-veld"><span className="kaart-label">Wie speelt?</span>
+                            <select className="invoer" value={filters.spelvorm || 'tegen_elkaar'} onChange={e=>zet('spelvorm',e.target.value)}>
+                                <option value="tegen_elkaar">Tegen elkaar</option>
+                                <option value="om_en_om">Om en om</option>
+                                <option value="teams">Teams tegen elkaar</option>
+                            </select>
+                        </label>
+                        {filters.spelvorm === 'teams' && <label className="setup-veld"><span className="kaart-label">Teamspel</span>
+                            <select className="invoer" value={filters.team_modus || 'snelste'} onChange={e=>zet('team_modus',e.target.value)}>
+                                <option value="snelste">Snelste team</option>
+                                <option value="kenner">Ieder team mag antwoorden</option>
+                                <option value="om_en_om">Teams om en om</option>
+                            </select>
+                        </label>}
+                    </div>
+                    <div className="vt-setting-pair">
                       <label className="setup-veld"><span className="kaart-label">Spelsoort</span><select className="invoer" value={filters.modus} onChange={e=>zet('modus',e.target.value)}>{MODI.map(m=><option key={m.waarde} value={m.waarde}>{m.label}</option>)}</select></label>
                       <label className="setup-veld"><span className="kaart-label">Antwoordwijze</span><select className="invoer" value={filters.antwoord_modus} onChange={e=>zet('antwoord_modus',e.target.value)}>{ANTWOORD_MODI.map(m=><option key={m.waarde} value={m.waarde}>{m.label}</option>)}</select></label>
                     </div>
