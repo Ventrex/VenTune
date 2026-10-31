@@ -410,7 +410,7 @@ class SpelBeheer {
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
-                    t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.omschrijving,
+                    t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
                     t.hoofdrollen, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
@@ -1468,7 +1468,7 @@ class SpelBeheer {
             // Poster en korte omschrijving (uit TMDB) voor het eindbeeld.
             poster: h.titel.poster_pad
                 ? `https://image.tmdb.org/t/p/w342${h.titel.poster_pad}`
-                : null,
+                : h.titel.cover_url || null,
             omschrijving: h.titel.omschrijving || null,
             tracknaam: h.track.tracknaam,
             artiest: h.track.artiest,
