@@ -883,6 +883,24 @@ ALTER TABLE vragen ADD COLUMN IF NOT EXISTS ai_review_status TEXT NOT NULL DEFAU
 CREATE INDEX IF NOT EXISTS idx_vragen_ai_review ON vragen (titel_id, ai_review_status);
 
 
+-- Herkenbaarheid is feedback, geen reden om ooit een MP3 te verwijderen.
+CREATE TABLE IF NOT EXISTS titel_herkenbaarheid (
+    id BIGSERIAL PRIMARY KEY,
+    titel_id INTEGER NOT NULL REFERENCES titels(id) ON DELETE CASCADE,
+    speler_id UUID REFERENCES spelers(id) ON DELETE SET NULL,
+    gebruiker_id UUID REFERENCES gebruikers(id) ON DELETE SET NULL,
+    leeftijdsgroep TEXT NOT NULL DEFAULT 'onbekend',
+    herkenbaar BOOLEAN NOT NULL,
+    beoordeeld_op TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (speler_id IS NOT NULL OR gebruiker_id IS NOT NULL)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_herkenbaarheid_gebruiker
+    ON titel_herkenbaarheid(titel_id, gebruiker_id) WHERE gebruiker_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_herkenbaarheid_speler
+    ON titel_herkenbaarheid(titel_id, speler_id) WHERE gebruiker_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_herkenbaarheid_groep
+    ON titel_herkenbaarheid(titel_id, leeftijdsgroep, herkenbaar);
+
 -- Bonusvragen die spelers zelf insturen. Ze worden nooit direct speelbaar:
 -- de admin keurt ze eerst goed of wijst ze af.
 CREATE TABLE IF NOT EXISTS vraag_suggesties (
