@@ -30,8 +30,8 @@ const meerdere = bouwFilter({ categorieen: ['film', 'serie'], periode_start: 195
 assert(meerdere.where.includes('t.type::text = ANY'), 'meerdere inhoudstypen moeten enum-veilig filterbaar zijn');
 
 const gecontroleerd = bouwFilter({ categorie: 'beide', alleen_gecontroleerd: true, periode_start: 1950, periode_eind: 2026 });
-assert(gecontroleerd.where.includes('vc.gecontroleerd = true'), 'geverifieerde spelmodus ontbreekt');
-assert(gecontroleerd.where.includes('vc.verificatie_score >= 0.85'), 'geverifieerde drempel ontbreekt');
+assert(gecontroleerd.where.includes("vc.review_status, 'open') = 'goedgekeurd'"), 'reviewstatus ontbreekt');
+assert(gecontroleerd.where.includes('vc.review_handmatig = true'), 'handmatig goedgekeurde tracks ontbreken');
 
 const kind = bouwFilter({ categorie: 'beide', kindvriendelijk: true, periode_start: 1950, periode_eind: 2026 });
 assert(kind.where.includes('t.leeftijdsgrens <= 12'), 'kindmodus moet leeftijd begrenzen');
