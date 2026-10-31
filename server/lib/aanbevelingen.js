@@ -82,7 +82,7 @@ const OMSCHRIJVING = {
     rock: 'bekende rockmuziek (echte rocknummers)',
     '80s': 'bekende muziekhits uitgebracht tussen 1980 en 1989',
     '90s': 'bekende muziekhits uitgebracht tussen 1990 en 1999',
-    '20s': 'bekende muziekhits uitgebracht tussen 2020 en 2029',
+    '20s': 'bekende muziekhits uitgebracht vanaf 2020 tot en met het huidige jaar (geen toekomstige releases)',
     kinder: 'bekende kinderliedjes voor Nederlandse gezinnen',
     '100nl': 'bekende Nederlandstalige liedjes van artiesten uit Nederland; geen Vlaamse artiesten tenzij zij zelf uit Nederland afkomstig zijn',
 };
