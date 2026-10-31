@@ -45,6 +45,50 @@ async function zoekVoorbeeld(aanbeveling) {
     }
 }
 
+// Download alleen bij het opvragen van een luistervoorbeeld. Hergebruik het
+// bestand bij opnieuw openen; zo hoeft de browser geen YouTube-iframe te laden.
+const previewDownloads = new Map();
+async function lokaalVoorbeeld(aanbeveling) {
+    const id = Number(aanbeveling?.id);
+    if (!Number.isSafeInteger(id) || id < 1) throw new Error('Ongeldige aanbeveling.');
+    const naam = `aanbeveling-${id}.mp3`;
+    const map = path.join(MEDIA_DIR, 'previews');
+    const bestand = path.join(map, naam);
+    const url = `/media/previews/${naam}`;
+    const bestaand = async () => {
+        try {
+            const stat = await fs.stat(bestand);
+            return stat.size > 0 && stat.size <= MAX_BYTES;
+        } catch { return false; }
+    };
+    if (await bestaand()) return { audioUrl: url };
+    if (previewDownloads.has(id)) return previewDownloads.get(id);
+    const taak = (async () => {
+        const bron = await zoekVoorbeeld(aanbeveling);
+        if (!bron) throw new Error('Geen geschikt luistervoorbeeld gevonden.');
+        await fs.mkdir(map, { recursive: true });
+        const tmp = path.join(map, `aanbeveling-${id}-${Date.now()}.mp3`);
+        try {
+            await execFileAsync('yt-dlp', [
+                '--no-playlist', '--download-sections', `*0-${FRAGMENT_SECONDEN}`,
+                '--force-keyframes-at-cuts', '--extract-audio',
+                '--audio-format', 'mp3', '--audio-quality', '5',
+                '--no-part', '--output', tmp,
+                `https://www.youtube.com/watch?v=${bron.videoId}`,
+            ], { timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
+            const stat = await fs.stat(tmp);
+            if (stat.size < 1 || stat.size > MAX_BYTES) throw new Error('Luistervoorbeeld is leeg of te groot.');
+            await fs.rename(tmp, bestand);
+            return { audioUrl: url };
+        } finally {
+            await fs.rm(tmp, { force: true }).catch(() => {});
+        }
+    })();
+    previewDownloads.set(id, taak);
+    try { return await taak; }
+    finally { previewDownloads.delete(id); }
+}
+
 /** Vind of maak de titel die bij een aanbeveling hoort. */
 async function vindOfMaakTitel(a) {
     if (a.soort === 'kerst') {
@@ -150,4 +194,4 @@ async function verwerkGoed(aanbevelingId) {
     return { ok: true, titelId };
 }
 
-module.exports = { zoekVoorbeeld, verwerkGoed };
+module.exports = { zoekVoorbeeld, lokaalVoorbeeld, verwerkGoed };
