@@ -343,7 +343,7 @@ const SCHEMA_QUIZ = {
             properties: {
                 vraag: { type: 'string' },
                 opties: { type: 'array', items: { type: 'string' } },
-                correct_index: { type: 'integer', minimum: 0, maximum: 3 },
+                correct_index: { type: 'integer', minimum: 0, maximum: 5 },
             },
         } },
     },
@@ -369,9 +369,9 @@ function valideerQuizSet(hints, vragen) {
     const uniek = (arr) => new Set(arr.map(quizTekst)).size === arr.length;
     if (!uniek(hints) || !uniek(vragen.map(q => q.vraag))) return 'Dubbele hints of bonusvragen.';
     for (const q of vragen) {
-        if (!q.vraag || !Array.isArray(q.opties) || q.opties.length !== 4 ||
+        if (!q.vraag || !Array.isArray(q.opties) || q.opties.length !== 6 ||
             new Set(q.opties.map(quizTekst)).size !== 4 ||
-            !Number.isInteger(q.correct_index) || q.correct_index < 0 || q.correct_index > 3) {
+            !Number.isInteger(q.correct_index) || q.correct_index < 0 || q.correct_index > 5) {
             return 'Bonusvraag met ongeldige antwoordkeuzes.';
         }
         const juist = quizTekst(q.opties[q.correct_index]);
@@ -385,7 +385,7 @@ async function vulQuizMetadata(titelId) {
     const { rows } = await pool.query("SELECT id, naam, type, jaar, omschrijving FROM titels WHERE id = $1", [titelId]);
     const titel = rows[0];
     if (!titel || !['film', 'serie'].includes(titel.type)) return { ok: false, error: 'Geen film of serie.' };
-    const prompt = `Maak voor de ${titel.type} "${titel.naam}" (${titel.jaar || 'onbekend jaar'}) EXACT drie inhoudelijk verschillende hints en EXACT drie feitelijk verifieerbare bonusvragen met vier verschillende antwoordopties en correct_index (0-3). Gebruik verschillende feitelijke onderwerpen voor alle zes items. CRUCIAAL: geen enkele hint mag DIRECT OF INDIRECT het correcte antwoord op welke bonusvraag dan ook verklappen. Voorbeeld VERBODEN: hint "Het bedrijf verkoopt papier" en vraag "Wat verkoopt het bedrijf?". Ook synoniemen en omschrijvingen zijn verboden als lek. Hints mogen de filmtitel niet letterlijk vermelden. Weet je iets niet zeker, verzin niets: lever dan minder items en de titel blijft op controle nodig staan. Geen herhaalde jaarvragen. Korte beschrijving: ${titel.omschrijving || 'onbekend'}.`;
+    const prompt = `Maak voor de ${titel.type} "${titel.naam}" (${titel.jaar || 'onbekend jaar'}) EXACT drie inhoudelijk verschillende hints en EXACT drie feitelijk verifieerbare bonusvragen met ZES verschillende antwoordopties en correct_index (0-5). Gebruik verschillende feitelijke onderwerpen voor alle zes items. CRUCIAAL: geen enkele hint mag DIRECT OF INDIRECT het correcte antwoord op welke bonusvraag dan ook verklappen. Voorbeeld VERBODEN: hint "Het bedrijf verkoopt papier" en vraag "Wat verkoopt het bedrijf?". Ook synoniemen en omschrijvingen zijn verboden als lek. Hints mogen de filmtitel niet letterlijk vermelden. Weet je iets niet zeker, verzin niets: lever dan minder items en de titel blijft op controle nodig staan. Geen herhaalde jaarvragen. Korte beschrijving: ${titel.omschrijving || 'onbekend'}.`;
     const res = await codex.vraagJson({ prompt, schema: SCHEMA_QUIZ });
     if (!res.ok) return { ok: false, error: res.error };
     const hints = (res.data.hints || []).filter(x => typeof x === 'string' && x.trim()).slice(0, 3);
@@ -417,4 +417,4 @@ async function vulQuizMetadata(titelId) {
         waarschuwing: 'AI-set opgeslagen maar nog niet goedgekeurd; controleer feiten en inhoudelijke overlap.' };
 }
 
-module.exports = { genereer, herzoekFout, vulQuizMetadata, SCHEMA_FILM_SERIE, SCHEMA_KERST, CATEGORIEEN };
+module.exports = { genereer, herzoekFout, vulQuizMetadata, valideerQuizSet, SCHEMA_FILM_SERIE, SCHEMA_KERST, CATEGORIEEN };
