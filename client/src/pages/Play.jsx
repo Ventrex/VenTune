@@ -22,6 +22,7 @@ export default function Play() {
         hints,
         antwoordOpties,
         verwijderdeOpties,
+        toeschouwerTitel,
         antwoord,
         bonus,
         bonusResultaat,
@@ -90,7 +91,8 @@ export default function Play() {
     if (!sessie) return null;
 
     const goedGeraden = resultaat?.status === 'goed';
-    const titelVergrendeld = gokIngediend || goedGeraden;
+    const aanBeurt = !ronde?.aanBeurtSpelers || ronde.aanBeurtSpelers.includes(sessie.spelerId);
+    const titelVergrendeld = gokIngediend || goedGeraden || !aanBeurt;
 
     function versturen(e) {
         e.preventDefault();
@@ -197,7 +199,13 @@ export default function Play() {
                         <p className="feedback neutraal">Even pauze…</p>
                     )}
 
-                    {goedGeraden ? (
+                    {!aanBeurt ? (
+                        <div className="kaart" style={{marginTop:'1rem',padding:'1rem'}}>
+                            <p className="kaart-label">Beurt: {ronde.aanBeurtNaam || 'andere speler'}</p>
+                            <p className="dim">Jij geeft hints als hints zijn toegestaan. Het juiste antwoord is alleen voor toeschouwers zichtbaar.</p>
+                            <h2>{toeschouwerTitel?.naam || 'Antwoord laden…'}</h2>
+                        </div>
+                    ) : goedGeraden ? (
                         <div className="kaart" style={{ marginTop: '1.5rem' }}>
                             <p className="goed-tekst">Goed! +{resultaat.punten}</p>
                             <p className="dim">Afspelen… wachten op de anderen</p>
@@ -477,6 +485,7 @@ export default function Play() {
                     )}
                     {antwoord && <BonusVraagInsturen titelId={antwoord.titelId} />}
                     <MiniScore lijst={scorebord} mijnId={sessie.spelerId} />
+                    {ronde?.aanBeurtSpelers?.includes(sessie.spelerId) && <button className="knop" style={{marginTop:'1rem'}} onClick={spel.volgende}>Doorgaan naar de volgende ronde</button>}
                 </>
             )}
 
