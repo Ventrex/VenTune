@@ -114,6 +114,27 @@ router.post('/api/admin/metadata-verrijken/start', vereisAdmin, async (_req, res
     })().catch((err) => { verrijking.fout = err.message; }).finally(() => { verrijking.bezig = false; });
 });
 
+// Inzicht in automatisch gegenereerde hints en bonusvragen per titel.
+router.get('/api/admin/quiz-inhoud', vereisAdmin, async (req, res) => {
+    try {
+        const zoek = String(req.query.zoek || '').trim().slice(0, 80);
+        const { rows } = await pool.query(
+            `SELECT t.id, t.naam, t.type::text AS type, t.jaar, t.ai_hints,
+                    (SELECT COALESCE(json_agg(json_build_object(
+                        'vraag', v.vraag, 'opties', v.opties, 'correct_index', v.correct_index)
+                        ORDER BY v.id), '[]'::json)
+                       FROM vragen v WHERE v.titel_id = t.id) AS vragen
+               FROM titels t
+              WHERE t.type IN ('film', 'serie')
+                AND ($1::text = '' OR t.naam ILIKE '%' || $1::text || '%')
+              ORDER BY t.naam LIMIT 100`, [zoek]);
+        res.json({ titels: rows });
+    } catch (err) {
+        logger.waarschuwing('Quizinhoud ophalen mislukt', { melding: err.message });
+        res.status(500).json({ fout: 'Kon quizvragen niet ophalen: ' + err.message });
+    }
+});
+
 // --- ChatGPT koppelen via de site (device-code login) ---
 
 router.post('/api/admin/aanbevelingen/login/start', vereisAdmin, (req, res) => {
