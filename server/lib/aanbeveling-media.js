@@ -226,4 +226,51 @@ async function verwerkGoed(aanbevelingId) {
     return { ok: true, titelId };
 }
 
-module.exports = { zoekVoorbeeld, lokaalVoorbeeld, keurMp3Af, verwerkGoed };
+// Herstel goedgekeurde nummers die vroeger als 45-secondenfragment zijn bewaard.
+// Sla de nieuwe audio eerst tijdelijk op en vervang pas na een geslaagde download.
+async function herstelGoedgekeurdeAudio({ voortgang } = {}) {
+    const { absoluutPad } = require('./media-files');
+    const { rows } = await pool.query(`
+        SELECT DISTINCT ON (tr.id) tr.id, tr.bestand_pad, tr.bron_url
+        FROM tracks tr
+        JOIN aanbevelingen a ON a.titel_id = tr.titel_id
+        WHERE a.status = 'toegevoegd'
+          AND tr.bron = 'lokaal'
+          AND tr.bron_url LIKE 'https://www.youtube.com/watch?v=%'
+          AND tr.bestand_pad IS NOT NULL
+        ORDER BY tr.id, a.aangemaakt_op DESC`);
+    const resultaat = { totaal: rows.length, verwerkt: 0, hersteld: 0, mislukt: 0, fouten: [] };
+    for (const tr of rows) {
+        const doel = absoluutPad(tr.bestand_pad);
+        if (!doel) {
+            resultaat.mislukt++;
+        } else {
+            const tijdelijk = doel.replace(/\\.mp3$/i, '') + '.herstel-' + tr.id + '.mp3';
+            try {
+                await fs.mkdir(path.dirname(doel), { recursive: true });
+                await execFileAsync('yt-dlp', [
+                    '--js-runtimes', 'node', '--no-playlist',
+                    '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '5',
+                    '--no-part', '--output', tijdelijk, tr.bron_url,
+                ], { timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
+                const info = await fs.stat(tijdelijk);
+                if (info.size < 1 || info.size > MAX_BYTES) throw new Error('Download heeft ongeldige grootte.');
+                await fs.rename(tijdelijk, doel);
+                await pool.query(
+                    "UPDATE tracks SET gedownload_op = now(), download_status = 'available', werkt = true WHERE id = $1",
+                    [tr.id]);
+                resultaat.hersteld++;
+            } catch (err) {
+                resultaat.mislukt++;
+                if (resultaat.fouten.length < 10) resultaat.fouten.push({ id: tr.id, fout: String(err.message).slice(0, 180) });
+            } finally {
+                await fs.rm(tijdelijk, { force: true }).catch(() => {});
+            }
+        }
+        resultaat.verwerkt++;
+        if (voortgang) voortgang({ ...resultaat });
+    }
+    return resultaat;
+}
+
+module.exports = { zoekVoorbeeld, lokaalVoorbeeld, keurMp3Af, verwerkGoed, herstelGoedgekeurdeAudio };
