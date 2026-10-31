@@ -220,18 +220,20 @@ export default function AdminSwipe() {
                         <div className="swipe-knoppen">
                             <button className="swipe-knop fout" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('niet')} aria-label="Ken ik niet">✕</button>
                             <button className="swipe-knop goed" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('herkend')} aria-label="Ken ik">✓</button>
+                            <button className="swipe-knop" style={{ background: "#e58a19", color: "#111" }} disabled={voorbereiden?.bezig} onClick={() => swipe('verkeerde_mp3')} aria-label="Verkeerde MP3" title="Verkeerde MP3">!</button>
                         </div>
                     ) : (
                         <div className="swipe-knoppen">
                             <button className="swipe-knop fout" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('fout')} aria-label="Fout">✕</button>
                             <button className="swipe-knop weet" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('onbekend')} aria-label="Onbekend">?</button>
                             <button className="swipe-knop goed" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('goed')} aria-label="Goed">✓</button>
+                            <button className="swipe-knop" style={{ background: "#e58a19", color: "#111" }} disabled={voorbereiden?.bezig} onClick={() => swipe('verkeerde_mp3')} aria-label="Verkeerde MP3" title="Verkeerde MP3">!</button>
                         </div>
                     )}
                     <p className="dim swipe-uitleg">
                         {fase === 'blind'
-                            ? '✓ = ik herken dit (goed). ✕ = nee (komt terug mét naam).'
-                            : '✓ = klopt (goed). ✕ = fout nummer. ? = onbekend (anderen beoordelen).'}
+                            ? '✓ = herken ik. ✕ = herken ik niet (met naam). Oranje ! = verkeerde MP3.'
+                            : '✓ = klopt. ✕ = fout nummer. ? = onbekend. Oranje ! = verkeerde MP3.'}
                     </p>
                 </>
             )}
