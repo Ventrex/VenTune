@@ -225,6 +225,7 @@ export default function Host() {
                                                 <span className="host-tag">host</span>
                                             )}
                                             {s.team_naam && <span className="dim"> · {s.team_naam}</span>}
+                                            {s.specialiteit && <span className="dim"> · Specialiteit: {s.specialiteit}</span>}
                                             {s.leeftijd && <span className="dim"> · {s.leeftijd} jaar</span>}
                                         </span>
                                     </li>
@@ -251,6 +252,18 @@ export default function Host() {
                                     >
                                         <option value="0">Heel nummer</option><option value="30">30 seconden</option><option value="60">1 minuut</option>
                                     </select>
+                                </div>
+                                <div style={{ marginTop: '0.75rem' }}>
+                                    <label className="kaart-label">Genres films en series (leeg = alle genres)</label>
+                                    <div className="chips">
+                                        {['Actie','Komedie','Drama','Horror','Thriller','Sciencefiction','Fantasy','Animatie','Avontuur','Romantiek','Musical'].map((genre) => {
+                                            const gekozen = (lobbyWijziging?.met_genres || []).includes(genre);
+                                            return <button key={genre} type="button" className={'chip' + (gekozen ? ' gekozen' : '')}
+                                                onClick={() => setLobbyWijziging((oud) => ({ ...oud, met_genres: gekozen
+                                                    ? (oud?.met_genres || []).filter((g) => g !== genre)
+                                                    : [...(oud?.met_genres || []), genre] }))}>{genre}</button>;
+                                        })}
+                                    </div>
                                 </div>
                                 <div className="zoekbalk" style={{ marginTop: '0.5rem' }}>
                                     <input className="invoer" value={nieuwTeam} placeholder="Nieuw team" maxLength={24} onChange={(e) => setNieuwTeam(e.target.value)} />
