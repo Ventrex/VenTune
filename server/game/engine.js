@@ -1336,6 +1336,41 @@ class SpelBeheer {
 
     // ---- Host-acties ----
 
+    /** Bewaar één herkenbaarheidsstem per deelnemer en titel.
+     * Een onbekende titel verdwijnt nooit automatisch uit de database. */
+    async beoordeelHerkenbaarheid(socket, herkenbaar) {
+        const state = this.spellen.get(socket.data.lobbyId);
+        if (!state || !state.huidige || !['onthul', 'bonus', 'scorebord'].includes(state.fase)) return;
+        if (typeof herkenbaar !== 'boolean' || !socket.data.spelerId) return;
+        const { rows } = await pool.query(
+            `SELECT id, gebruiker_id, leeftijd FROM spelers WHERE id=$1 AND lobby_id=$2`,
+            [socket.data.spelerId, state.lobbyId]);
+        const speler = rows[0];
+        if (!speler) return;
+        const leeftijd = Number(speler.leeftijd);
+        const leeftijdsgroep = !Number.isInteger(leeftijd) || leeftijd < 4 ? 'onbekend'
+            : leeftijd <= 12 ? '4-12' : leeftijd <= 17 ? '13-17'
+            : leeftijd <= 29 ? '18-29' : leeftijd <= 44 ? '30-44'
+            : leeftijd <= 59 ? '45-59' : '60+';
+        const titelId = state.huidige.titel.id;
+        if (speler.gebruiker_id) {
+            await pool.query(`INSERT INTO titel_herkenbaarheid
+                (titel_id, speler_id, gebruiker_id, leeftijdsgroep, herkenbaar)
+                VALUES ($1,$2,$3,$4,$5)
+                ON CONFLICT (titel_id, gebruiker_id) WHERE gebruiker_id IS NOT NULL
+                DO UPDATE SET herkenbaar=EXCLUDED.herkenbaar, leeftijdsgroep=EXCLUDED.leeftijdsgroep,
+                              beoordeeld_op=now()`, [titelId, speler.id, speler.gebruiker_id, leeftijdsgroep, herkenbaar]);
+        } else {
+            await pool.query(`INSERT INTO titel_herkenbaarheid
+                (titel_id, speler_id, leeftijdsgroep, herkenbaar)
+                VALUES ($1,$2,$3,$4)
+                ON CONFLICT (titel_id, speler_id) WHERE gebruiker_id IS NULL
+                DO UPDATE SET herkenbaar=EXCLUDED.herkenbaar, leeftijdsgroep=EXCLUDED.leeftijdsgroep,
+                              beoordeeld_op=now()`, [titelId, speler.id, leeftijdsgroep, herkenbaar]);
+        }
+        this.io.to(spelerKamer(speler.id)).emit('ronde:herkenbaarheid-ok', { titelId, herkenbaar });
+    }
+
     /** Host klikt op 'Volgende': gokfase afronden en door. */
     async volgende(socket) {
         const state = this.spellen.get(socket.data.lobbyId);
