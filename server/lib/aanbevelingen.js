@@ -328,4 +328,42 @@ Wat is wél de originele, algemeen bekende soundtrack / titelmuziek / het herken
     return { ok: true, hersteld };
 }
 
-module.exports = { genereer, herzoekFout, SCHEMA_FILM_SERIE, SCHEMA_KERST, CATEGORIEEN };
+const SCHEMA_QUIZ = {
+    type: 'object', additionalProperties: false, required: ['hints', 'vragen'],
+    properties: {
+        hints: { type: 'array', items: { type: 'string' } },
+        vragen: { type: 'array', items: {
+            type: 'object', additionalProperties: false,
+            required: ['vraag', 'opties', 'correct_index'],
+            properties: {
+                vraag: { type: 'string' },
+                opties: { type: 'array', items: { type: 'string' } },
+                correct_index: { type: 'integer', minimum: 0, maximum: 3 },
+            },
+        } },
+    },
+};
+async function vulQuizMetadata(titelId) {
+    const { rows } = await pool.query("SELECT id, naam, type, jaar, omschrijving FROM titels WHERE id = $1", [titelId]);
+    const titel = rows[0];
+    if (!titel || !['film', 'serie'].includes(titel.type)) return { ok: false, error: 'Geen film of serie.' };
+    const prompt = `Maak voor ${titel.type} "${titel.naam}" (${titel.jaar || 'onbekend jaar'}) drie korte, oplopend duidelijke hints en drie feitelijk controleerbare bonusvragen voor een Nederlandse muziekquiz. Denk aan personages, werkzaamheden en locatie. Geef steeds precies vier verschillende plausibele antwoorden, met correct_index (0-3). Gebruik geen onbevestigde feiten; geef liever minder items. Hints mogen niet de titel letterlijk noemen. Bonusvragen moeten één ondubbelzinnig goed antwoord hebben. Korte inhoud: ${titel.omschrijving || 'onbekend'}.`;
+    const res = await codex.vraagJson({ prompt, schema: SCHEMA_QUIZ });
+    if (!res.ok) return { ok: false, error: res.error };
+    const hints = (res.data.hints || []).filter(x => typeof x === 'string' && x.trim()).slice(0, 3);
+    await pool.query('UPDATE titels SET ai_hints = $2 WHERE id = $1', [titelId, hints]);
+    let toegevoegd = 0;
+    for (const q of (res.data.vragen || []).slice(0, 3)) {
+        if (!q.vraag || !Array.isArray(q.opties) || q.opties.length !== 4 ||
+            q.opties.some(o => typeof o !== 'string' || !o.trim()) ||
+            new Set(q.opties.map(o => o.trim().toLowerCase())).size !== 4 ||
+            !Number.isInteger(q.correct_index) || q.correct_index < 0 || q.correct_index > 3) continue;
+        const r = await pool.query(
+            "INSERT INTO vragen (titel_id, soort, vraag, opties, correct_index) VALUES ($1,'ai',$2,$3::jsonb,$4) ON CONFLICT DO NOTHING RETURNING id",
+            [titelId, q.vraag, JSON.stringify(q.opties), q.correct_index]);
+        if (r.rows.length) toegevoegd++;
+    }
+    return { ok: true, hints: hints.length, vragen: toegevoegd, waarschuwing: 'AI-inhoud controleren voor gebruik.' };
+}
+
+module.exports = { genereer, herzoekFout, vulQuizMetadata, SCHEMA_FILM_SERIE, SCHEMA_KERST, CATEGORIEEN };
