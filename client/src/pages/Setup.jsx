@@ -645,12 +645,6 @@ export default function Setup() {
                         </select>
                     </div>
 
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input type="checkbox" checked={filters.hints_aan !== false}
-                            onChange={(e) => zet('hints_aan', e.target.checked)} />
-                        <span><strong>Hints tijdens het raden</strong><span className="dim"> Spelers kunnen aanwijzingen aanvragen.</span></span>
-                    </label>
-
                     <label className="vt-toggle-row"><input type="checkbox" checked={filters.kindvriendelijk === true} onChange={e => setFilters(f=>({...f,kindvriendelijk:e.target.checked,leeftijd_max:e.target.checked?12:0}))}/><span>Kindvriendelijk</span></label>
                     <label className="vt-toggle-row"><input type="checkbox" checked={filters.hints_aan !== false} onChange={e=>zet('hints_aan',e.target.checked)}/><span>Hints tijdens het raden</span></label>
                     <label className="vt-toggle-row"><input type="checkbox" checked={filters.bonusvragen_aan !== false} onChange={e=>zet('bonusvragen_aan',e.target.checked)}/><span>Bonusvragen</span></label>
