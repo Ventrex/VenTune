@@ -83,14 +83,15 @@ function promptFilmSerie({ aantal, taal, bestaand }) {
         : '';
     return `Je helpt een muziekquiz over films en series (zoals Hitster) vullen.
 
-Geef ${aantal} kandidaten: elk een bekende film of serie met het ALGEMEEN BEKENDE herkenningsnummer dat er echt bij hoort — de theme song, titelmuziek of een iconisch nummer uit die film/serie. Voorbeelden van het soort: de titelmuziek van The Office, het thema van Terminator, de titelsong van een bekende serie.
+Geef ${aantal} kandidaten: elk een bekende film of serie met de ORIGINELE SOUNDTRACK — de officiële theme song, titelmuziek of het iconische herkenningsnummer dat echt bij die film/serie hoort. Denk aan: de titelmuziek van The Office, het thema van CSI (Who Are You - The Who), de titelsong van Friends (I'll Be There For You), het thema van Terminator.
 
 Harde eisen:
 - Alleen films/series met een GOEDE FANBASE. Geen obscure of nauwelijks bekende titels.
-- Het nummer moet echt en herkenbaar bij die titel horen (geen willekeurig liedje).
-- Vul 'bekendheid' 1..5: 5 = vrijwel iedereen kent titel én nummer, 1 = alleen fans. Geef niets onder de 3.
-- 'youtube_zoekterm': een zoekterm waarmee je het nummer op YouTube vindt (bv. "The Office theme song").
-- 'reden': één korte zin waarom dit nummer bekend is bij deze titel.
+- Het nummer moet de ECHTE, originele soundtrack/titelmuziek zijn — niet een willekeurig liedje of een cover.
+- Geef, als het een bestaand lied is, de echte artiest; is het instrumentale titelmuziek, geef dan de componist of "Titelmuziek".
+- Vul 'bekendheid' 1..5: 5 = vrijwel iedereen herkent het meteen, 1 = alleen fans. Geef niets onder de 3.
+- 'youtube_zoekterm': waarmee je de originele soundtrack op YouTube vindt (bv. "The Office theme song", "CSI Who Are You theme").
+- 'reden': één korte zin waarom dit het herkenningsnummer van die titel is.
 ${taalregel}${uitsluiten}`;
 }
 
@@ -184,4 +185,46 @@ async function genereer(opties) {
     return { ok: true, toegevoegd, overgeslagen };
 }
 
-module.exports = { genereer, SCHEMA_FILM_SERIE, SCHEMA_KERST };
+const SCHEMA_CORRECTIE = {
+    type: 'object', additionalProperties: false, required: ['tracknaam', 'artiest', 'youtube_zoekterm'],
+    properties: {
+        tracknaam: { type: 'string' },
+        artiest: { type: 'string' },
+        youtube_zoekterm: { type: 'string' },
+        reden: { type: 'string' },
+    },
+};
+
+/**
+ * Herzoek de nummers die als 'fout' zijn gemarkeerd: vraag ChatGPT om het
+ * JUISTE herkenningsnummer en zet ze terug naar 'nieuw' (ronde 1).
+ * @returns {Promise<{ok:boolean, hersteld?:number, error?:string}>}
+ */
+async function herzoekFout({ limiet = 10 } = {}) {
+    const { rows } = await pool.query(
+        `SELECT * FROM aanbevelingen WHERE status = 'fout' AND soort = 'film_serie'
+         ORDER BY aangemaakt_op LIMIT $1`, [limiet]);
+    if (!rows.length) return { ok: true, hersteld: 0 };
+
+    let hersteld = 0;
+    for (const a of rows) {
+        const prompt = `Het herkenningsnummer "${a.tracknaam}" van ${a.artiest} bleek NIET het juiste nummer voor ${a.type} "${a.titel}"${a.jaar ? ` (${a.jaar})` : ''}.
+
+Wat is wél de originele, algemeen bekende soundtrack / titelmuziek / het herkenningsnummer van deze ${a.type}? Geef het juiste nummer, de artiest (of componist / "Titelmuziek"), en een YouTube-zoekterm. Verzin niets: baseer je op web search.`;
+        const res = await codex.vraagJson({ prompt, schema: SCHEMA_CORRECTIE });
+        if (!res.ok) continue;
+        const d = res.data || {};
+        if (!d.tracknaam) continue;
+        await pool.query(
+            `UPDATE aanbevelingen SET tracknaam = $2, artiest = $3, youtube_zoekterm = $4,
+                    reden = COALESCE($5, reden), status = 'nieuw', voorbeeld_bron = NULL,
+                    beoordeeld_op = NULL
+             WHERE id = $1`,
+            [a.id, d.tracknaam, d.artiest || 'Onbekend', d.youtube_zoekterm || `${a.titel} soundtrack`, d.reden || null]);
+        hersteld++;
+    }
+    logger.info('Foute nummers herzocht', { hersteld });
+    return { ok: true, hersteld };
+}
+
+module.exports = { genereer, herzoekFout, SCHEMA_FILM_SERIE, SCHEMA_KERST };

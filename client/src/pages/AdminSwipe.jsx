@@ -3,9 +3,14 @@ import { Link } from 'react-router-dom';
 import Brand from '../components/Brand.jsx';
 
 // =====================================================================
-// Tinder-swipe: beoordeel de door ChatGPT aangedragen nummers één voor
-// één. Beluister het voorbeeld, veeg of tik: goed / fout / weet niet.
-// Bij 'goed' wordt het nummer op de achtergrond gedownload en speelbaar.
+// Tweetraps-swipe:
+//   Ronde 1 (blind): hoor het nummer zonder naam → herken je het?
+//       ja  → goed, wordt gedownload.
+//       nee → gaat naar ronde 2.
+//   Ronde 2 (met naam): hoor het nog eens mét de titel → goed / fout / onbekend.
+//       goed     → wordt gedownload.
+//       fout     → AI zoekt later het juiste nummer.
+//       onbekend → anderen beluisteren het via de review-link.
 // =====================================================================
 
 async function jsonOfNull(r) { try { return await r.json(); } catch { return null; } }
@@ -15,65 +20,61 @@ async function haal(pad, opties = {}) {
     if (!r.ok) throw new Error((d && d.fout) || 'Er ging iets mis.');
     return d;
 }
+const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) });
 
 export default function AdminSwipe() {
+    const [fase, setFase] = useState('blind');       // blind | naam
     const [soort, setSoort] = useState('film_serie');
     const [kaarten, setKaarten] = useState([]);
     const [index, setIndex] = useState(0);
     const [videoId, setVideoId] = useState(null);
-    const [laadtVoorbeeld, setLaadtVoorbeeld] = useState(false);
+    const [laadt, setLaadt] = useState(true);
     const [sleep, setSleep] = useState({ dx: 0, actief: false });
-    const [klaar, setKlaar] = useState(false);
     const start = useRef(null);
 
-    async function laad(s) {
+    async function laad() {
+        setLaadt(true);
         try {
-            const lijst = await haal('/api/admin/aanbevelingen?soort=' + s);
-            setKaarten(lijst); setIndex(0); setKlaar(lijst.length === 0);
+            const lijst = await haal(`/api/admin/aanbevelingen?soort=${soort}&fase=${fase}`);
+            setKaarten(lijst); setIndex(0);
         } catch { setKaarten([]); }
+        setLaadt(false);
     }
-    useEffect(() => { laad(soort); /* eslint-disable-next-line */ }, [soort]);
+    useEffect(() => { laad(); /* eslint-disable-next-line */ }, [soort, fase]);
 
     const huidige = kaarten[index];
+    const klaar = !laadt && !huidige;
 
-    // Voorbeeld ophalen zodra er een nieuwe kaart is.
     useEffect(() => {
         setVideoId(null);
         if (!huidige) return;
         let actief = true;
-        setLaadtVoorbeeld(true);
         haal('/api/admin/aanbevelingen/' + huidige.id + '/voorbeeld')
             .then((d) => { if (actief) setVideoId(d.videoId || null); })
-            .catch(() => {})
-            .finally(() => actief && setLaadtVoorbeeld(false));
+            .catch(() => {});
         return () => { actief = false; };
     }, [huidige]);
 
     async function swipe(keuze) {
         if (!huidige) return;
         const id = huidige.id;
-        // Optimistisch naar de volgende.
         setSleep({ dx: 0, actief: false });
-        setIndex((i) => {
-            const next = i + 1;
-            if (next >= kaarten.length) setKlaar(true);
-            return next;
-        });
-        try { await haal('/api/admin/aanbevelingen/' + id + '/swipe', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keuze }),
-        }); } catch { /* stil; kaart is al weg */ }
+        setIndex((i) => i + 1);
+        try {
+            await haal('/api/admin/aanbevelingen/' + id + '/swipe', {
+                method: 'POST', ...jsonBody({ keuze, fase }),
+            });
+        } catch { /* kaart is al weg */ }
     }
 
-    // Sleep-gebaren (touch + muis).
-    function omlaag(x) { start.current = x; setSleep({ dx: 0, actief: true }); }
+    // Sleep (alleen in blind-fase: rechts=herken, links=niet).
+    function omlaag(x) { if (fase !== 'blind') return; start.current = x; setSleep({ dx: 0, actief: true }); }
     function beweeg(x) { if (start.current != null) setSleep({ dx: x - start.current, actief: true }); }
     function omhoog() {
         if (start.current == null) return;
-        const dx = sleep.dx;
-        start.current = null;
-        if (dx > 90) swipe('goed');
-        else if (dx < -90) swipe('fout');
+        const dx = sleep.dx; start.current = null;
+        if (dx > 90) swipe('herkend');
+        else if (dx < -90) swipe('niet');
         else setSleep({ dx: 0, actief: false });
     }
 
@@ -84,26 +85,49 @@ export default function AdminSwipe() {
                 <Link className="terug" to="/admin/ai">← AI-beheer</Link>
             </div>
 
+            {/* Fase-keuze */}
             <div className="swipe-tabs">
-                <button className={'knop' + (soort === 'film_serie' ? '' : ' knop-stil')}
-                        onClick={() => setSoort('film_serie')}>🎬 Films &amp; series</button>
-                <button className={'knop' + (soort === 'kerst' ? '' : ' knop-stil')}
-                        onClick={() => setSoort('kerst')}>🎄 Kerst</button>
+                <button className={'knop' + (fase === 'blind' ? '' : ' knop-stil')} onClick={() => setFase('blind')}>
+                    1. Blind
+                </button>
+                <button className={'knop' + (fase === 'naam' ? '' : ' knop-stil')} onClick={() => setFase('naam')}>
+                    2. Met naam
+                </button>
             </div>
+            <div className="swipe-tabs" style={{ marginTop: '-0.5rem' }}>
+                <button className={'knop knop-stil' + (soort === 'film_serie' ? ' gekozen-soort' : '')}
+                        onClick={() => setSoort('film_serie')} style={{ fontSize: '0.95rem' }}>🎬 Films &amp; series</button>
+                <button className={'knop knop-stil' + (soort === 'kerst' ? ' gekozen-soort' : '')}
+                        onClick={() => setSoort('kerst')} style={{ fontSize: '0.95rem' }}>🎄 Kerst</button>
+            </div>
+
+            <p className="dim swipe-uitleg" style={{ marginTop: 0 }}>
+                {fase === 'blind'
+                    ? 'Je hoort het nummer zonder titel. Herken je het?'
+                    : 'Nu mét de titel erbij. Klopt dit nummer bij de titel?'}
+            </p>
+
+            {laadt && <p className="dim">Laden…</p>}
 
             {klaar && (
                 <div className="kaart swipe-leeg">
-                    <p style={{ fontSize: '1.2rem', fontWeight: 600 }}>Alles beoordeeld! 🎉</p>
-                    <p className="dim">Haal nieuwe aanbevelingen op in het AI-beheer, of wissel van categorie.</p>
-                    <Link className="knop" to="/admin/ai">Naar AI-beheer</Link>
+                    <p style={{ fontSize: '1.2rem', fontWeight: 600 }}>
+                        {fase === 'blind' ? 'Alle nieuwe nummers blind beoordeeld! 🎉' : 'Niets meer om met naam te beoordelen 🎉'}
+                    </p>
+                    <p className="dim">
+                        {fase === 'blind'
+                            ? 'Ga naar "Met naam" voor de nummers die je niet blind herkende.'
+                            : 'Haal nieuwe aanbevelingen op, of laat foute nummers opnieuw zoeken in het AI-beheer.'}
+                    </p>
+                    <Link className="knop" to={fase === 'blind' ? '#' : '/admin/ai'} onClick={() => fase === 'blind' && setFase('naam')}>
+                        {fase === 'blind' ? 'Naar "Met naam"' : 'Naar AI-beheer'}
+                    </Link>
                 </div>
             )}
 
-            {!klaar && huidige && (
+            {huidige && (
                 <>
-                    <p className="dim swipe-teller">
-                        Nog {kaarten.length - index} te beoordelen
-                    </p>
+                    <p className="dim swipe-teller">Nog {kaarten.length - index} te beoordelen</p>
 
                     <div
                         className="swipe-kaart"
@@ -119,59 +143,66 @@ export default function AdminSwipe() {
                         onMouseUp={omhoog}
                         onMouseLeave={omhoog}
                     >
-                        {/* Veeg-hints */}
-                        <span className="swipe-stempel goed" style={{ opacity: Math.max(0, sleep.dx / 120) }}>GOED</span>
-                        <span className="swipe-stempel fout" style={{ opacity: Math.max(0, -sleep.dx / 120) }}>FOUT</span>
-
-                        <div className="swipe-bek">
-                            {huidige.soort === 'kerst' ? '🎄' : (huidige.type === 'serie' ? '📺' : '🎬')}
-                        </div>
-
-                        {huidige.soort === 'kerst' ? (
+                        {fase === 'blind' && (
                             <>
-                                <h2 className="swipe-titel">{huidige.tracknaam}</h2>
-                                <p className="swipe-sub">{huidige.artiest}{huidige.jaar ? ` · ${huidige.jaar}` : ''}</p>
-                            </>
-                        ) : (
-                            <>
-                                <h2 className="swipe-titel">{huidige.titel}</h2>
-                                <p className="swipe-sub">
-                                    {huidige.tracknaam} — {huidige.artiest}
-                                    {huidige.jaar ? ` · ${huidige.jaar}` : ''}
-                                </p>
+                                <span className="swipe-stempel goed" style={{ opacity: Math.max(0, sleep.dx / 120) }}>KEN IK</span>
+                                <span className="swipe-stempel fout" style={{ opacity: Math.max(0, -sleep.dx / 120) }}>NEE</span>
                             </>
                         )}
 
-                        {huidige.reden && <p className="swipe-reden">{huidige.reden}</p>}
+                        {/* BLIND: geen titelinfo, alleen een vraagteken + geluid. */}
+                        {fase === 'blind' ? (
+                            <>
+                                <div className="swipe-bek">🎧</div>
+                                <h2 className="swipe-titel">Welk nummer is dit?</h2>
+                                <p className="swipe-sub">Luister en bepaal of je het herkent.</p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="swipe-bek">{huidige.soort === 'kerst' ? '🎄' : (huidige.type === 'serie' ? '📺' : '🎬')}</div>
+                                {huidige.soort === 'kerst' ? (
+                                    <>
+                                        <h2 className="swipe-titel">{huidige.tracknaam}</h2>
+                                        <p className="swipe-sub">{huidige.artiest}{huidige.jaar ? ` · ${huidige.jaar}` : ''}</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <h2 className="swipe-titel">{huidige.titel}</h2>
+                                        <p className="swipe-sub">{huidige.tracknaam} — {huidige.artiest}{huidige.jaar ? ` · ${huidige.jaar}` : ''}</p>
+                                    </>
+                                )}
+                                {huidige.reden && <p className="swipe-reden">{huidige.reden}</p>}
+                            </>
+                        )}
 
-                        <div className="swipe-bekend">
-                            Bekendheid: {'★'.repeat(huidige.bekendheid)}{'☆'.repeat(5 - huidige.bekendheid)}
-                        </div>
-
-                        {/* Voorbeeld beluisteren (YouTube). Draait alleen op de echte site. */}
                         <div className="swipe-voorbeeld">
-                            {laadtVoorbeeld && <p className="dim">Voorbeeld zoeken…</p>}
-                            {!laadtVoorbeeld && videoId && (
-                                <iframe
-                                    title="Voorbeeld"
-                                    width="100%" height="80"
-                                    src={`https://www.youtube.com/embed/${videoId}?rel=0`}
-                                    frameBorder="0"
-                                    allow="autoplay; encrypted-media"
-                                    allowFullScreen
-                                />
+                            {videoId === null && <p className="dim">Voorbeeld zoeken…</p>}
+                            {videoId && (
+                                <iframe title="Voorbeeld" width="100%" height="80"
+                                        src={`https://www.youtube.com/embed/${videoId}?rel=0`}
+                                        frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen />
                             )}
-                            {!laadtVoorbeeld && !videoId && <p className="dim">Geen voorbeeld gevonden.</p>}
+                            {videoId === null && huidige && !laadt && false}
                         </div>
                     </div>
 
-                    <div className="swipe-knoppen">
-                        <button className="swipe-knop fout" onClick={() => swipe('fout')} aria-label="Fout">✕</button>
-                        <button className="swipe-knop weet" onClick={() => swipe('weet_niet')} aria-label="Weet niet">?</button>
-                        <button className="swipe-knop goed" onClick={() => swipe('goed')} aria-label="Goed">✓</button>
-                    </div>
+                    {/* Knoppen verschillen per fase. */}
+                    {fase === 'blind' ? (
+                        <div className="swipe-knoppen">
+                            <button className="swipe-knop fout" onClick={() => swipe('niet')} aria-label="Ken ik niet">✕</button>
+                            <button className="swipe-knop goed" onClick={() => swipe('herkend')} aria-label="Ken ik">✓</button>
+                        </div>
+                    ) : (
+                        <div className="swipe-knoppen">
+                            <button className="swipe-knop fout" onClick={() => swipe('fout')} aria-label="Fout">✕</button>
+                            <button className="swipe-knop weet" onClick={() => swipe('onbekend')} aria-label="Onbekend">?</button>
+                            <button className="swipe-knop goed" onClick={() => swipe('goed')} aria-label="Goed">✓</button>
+                        </div>
+                    )}
                     <p className="dim swipe-uitleg">
-                        Veeg naar rechts of tik ✓ = goed (wordt gedownload). Links of ✕ = fout. ? = weet niet.
+                        {fase === 'blind'
+                            ? '✓ = ik herken dit (goed). ✕ = nee (komt terug mét naam).'
+                            : '✓ = klopt (goed). ✕ = fout nummer. ? = onbekend (anderen beoordelen).'}
                     </p>
                 </>
             )}

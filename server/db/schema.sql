@@ -939,3 +939,35 @@ CREATE UNIQUE INDEX IF NOT EXISTS aanbevelingen_uniek
 
 CREATE INDEX IF NOT EXISTS aanbevelingen_status_idx
     ON aanbevelingen (status, soort, bekendheid DESC);
+
+-- =====================================================================
+-- Tweetraps-swipe: extra statussen + stemmen voor de review-link.
+--   nieuw       → ronde 1 (blind): herken je het?
+--   blind_nee   → ronde 2 (met naam): goed / fout / onbekend?
+--   review      → onbekend: anderen beluisteren via de review-link
+--   fout        → verkeerd nummer; AI zoekt later opnieuw
+--   toegevoegd  → goedgekeurd en speelbaar gemaakt
+-- =====================================================================
+DO $mig$
+BEGIN
+    ALTER TABLE aanbevelingen DROP CONSTRAINT IF EXISTS aanbevelingen_status_check;
+    ALTER TABLE aanbevelingen ADD CONSTRAINT aanbevelingen_status_check
+        CHECK (status IN ('nieuw', 'blind_nee', 'review', 'goed', 'fout', 'weet_niet', 'toegevoegd'));
+EXCEPTION WHEN others THEN NULL;
+END$mig$;
+
+-- Telt hoe vaak dit nummer al verkeerd bleek (voor AI-herzoek).
+ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS fout_aantal INTEGER NOT NULL DEFAULT 0;
+
+-- Stemmen van anderen op review-nummers.
+CREATE TABLE IF NOT EXISTS aanbeveling_stemmen (
+    id             SERIAL PRIMARY KEY,
+    aanbeveling_id INTEGER NOT NULL REFERENCES aanbevelingen (id) ON DELETE CASCADE,
+    -- Anonieme stemmer (browser-id uit localStorage), zodat dubbel stemmen
+    -- op hetzelfde apparaat wordt voorkomen.
+    stemmer        TEXT    NOT NULL,
+    herkend        BOOLEAN NOT NULL,
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS aanbeveling_stemmen_uniek
+    ON aanbeveling_stemmen (aanbeveling_id, stemmer);

@@ -247,6 +247,15 @@ function Genereren() {
         } catch (e) { setBezig(false); setMelding(e.message); }
     }
 
+    async function herzoek() {
+        setMelding('ChatGPT zoekt de juiste nummers opnieuw…');
+        try {
+            await haal('/api/admin/aanbevelingen/herzoek', { method: 'POST' });
+            clearInterval(poll.current);
+            poll.current = setInterval(ververs, 3000);
+        } catch (e) { setMelding(e.message); }
+    }
+
     const fs = aantallen.film_serie || {};
     const k = aantallen.kerst || {};
 
@@ -270,16 +279,27 @@ function Genereren() {
             {melding && <p className={bezig ? 'dim' : 'feedback neutraal'} style={{ marginTop: '1rem' }}>{melding}</p>}
 
             <div className="ai-tellers">
-                <Teller label="Films/series — te swipen" n={fs.nieuw || 0} />
-                <Teller label="Kerst — te swipen" n={k.nieuw || 0} />
-                <Teller label="Goedgekeurd" n={(fs.goed || 0) + (k.goed || 0)} />
+                <Teller label="Blind te swipen" n={(fs.nieuw || 0) + (k.nieuw || 0)} />
+                <Teller label="Met naam" n={(fs.blind_nee || 0) + (k.blind_nee || 0)} />
+                <Teller label="Goedgekeurd" n={(fs.goed || 0) + (k.goed || 0) + (fs.toegevoegd || 0) + (k.toegevoegd || 0)} />
+            </div>
+            <div className="ai-tellers" style={{ gridTemplateColumns: 'repeat(2,1fr)', marginTop: '0.5rem' }}>
+                <Teller label="Fout (AI opnieuw)" n={(fs.fout || 0) + (k.fout || 0)} />
+                <Teller label="Bij anderen (review)" n={(fs.review || 0) + (k.review || 0)} />
             </div>
 
-            {((fs.nieuw || 0) + (k.nieuw || 0)) > 0 && (
-                <Link className="knop" to="/admin/swipe" style={{ marginTop: '1rem', display: 'inline-flex' }}>
-                    Swipen ({(fs.nieuw || 0) + (k.nieuw || 0)}) →
-                </Link>
-            )}
+            <div className="ai-knoprij" style={{ marginTop: '1rem' }}>
+                {((fs.nieuw || 0) + (k.nieuw || 0) + (fs.blind_nee || 0) + (k.blind_nee || 0)) > 0 && (
+                    <Link className="knop" to="/admin/swipe">Swipen →</Link>
+                )}
+                {((fs.fout || 0) + (k.fout || 0)) > 0 && (
+                    <button className="knop knop-stil" onClick={herzoek} disabled={bezig}>
+                        Foute opnieuw zoeken
+                    </button>
+                )}
+            </div>
+
+            {((fs.review || 0) + (k.review || 0)) > 0 && <ReviewLink aantal={(fs.review || 0) + (k.review || 0)} />}
         </section>
     );
 }
@@ -289,6 +309,28 @@ function Teller({ label, n }) {
         <div className="tegel">
             <span className="tegel-waarde">{n}</span>
             <span className="tegel-label">{label}</span>
+        </div>
+    );
+}
+
+function ReviewLink({ aantal }) {
+    const [gekopieerd, setGekopieerd] = useState(false);
+    const url = (typeof window !== 'undefined' ? window.location.origin : '') + '/review';
+    async function kopieer() {
+        try { await navigator.clipboard.writeText(url); setGekopieerd(true); setTimeout(() => setGekopieerd(false), 2000); }
+        catch { /* selecteerbaar in beeld */ }
+    }
+    return (
+        <div className="kaart" style={{ marginTop: '1rem' }}>
+            <p className="kaart-label">Review-link delen</p>
+            <p className="dim ai-uitleg">
+                {aantal} nummer{aantal === 1 ? '' : 's'} wacht op anderen. Deel deze link; vrienden
+                luisteren blind en stemmen of ze het kennen.
+            </p>
+            <div className="ai-knoprij">
+                <input className="invoer" readOnly value={url} onFocus={(e) => e.target.select()} />
+                <button className="knop" onClick={kopieer}>{gekopieerd ? 'Gekopieerd!' : 'Kopieer'}</button>
+            </div>
         </div>
     );
 }

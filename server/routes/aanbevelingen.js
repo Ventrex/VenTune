@@ -97,16 +97,19 @@ router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) =
         });
 });
 
+// Lijst om te swipen. fase=blind → status 'nieuw' (ronde 1, zonder naam).
+// fase=naam → status 'blind_nee' (ronde 2, met naam).
 router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
     try {
         const soort = req.query.soort === 'kerst' ? 'kerst' : 'film_serie';
+        const fase = req.query.fase === 'naam' ? 'blind_nee' : 'nieuw';
         const { rows } = await pool.query(
             `SELECT id, soort, titel, type, jaar, genres, tracknaam, artiest,
                     youtube_zoekterm, bekendheid, reden, voorbeeld_bron, status
              FROM aanbevelingen
-             WHERE soort = $1 AND status = 'nieuw'
+             WHERE soort = $1 AND status = $2
              ORDER BY bekendheid DESC, aangemaakt_op
-             LIMIT 100`, [soort]);
+             LIMIT 100`, [soort, fase]);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ fout: err.message });
@@ -133,26 +136,64 @@ router.get('/api/admin/aanbevelingen/:id/voorbeeld', vereisAdmin, async (req, re
 // Downloads die op de achtergrond lopen na een 'goed'-swipe.
 const downloads = new Map(); // id -> { status, error }
 
+function startDownload(id) {
+    downloads.set(id, { status: 'bezig', error: null });
+    media.verwerkGoed(id)
+        .then((r) => downloads.set(id, { status: r.ok ? 'klaar' : 'fout', error: r.ok ? null : r.error }))
+        .catch((e) => downloads.set(id, { status: 'fout', error: String(e.message) }));
+}
+
+// Swipe. In ronde 1 (blind) is keuze 'herkend' of 'niet'. In ronde 2 (naam)
+// is keuze 'goed', 'fout' of 'onbekend'.
 router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) => {
     const id = Number(req.params.id);
     const keuze = req.body && req.body.keuze;
-    const geldig = { goed: 'goed', fout: 'fout', weet_niet: 'weet_niet' };
-    if (!geldig[keuze]) return res.status(400).json({ fout: 'Ongeldige keuze.' });
+    const fase = req.body && req.body.fase === 'naam' ? 'naam' : 'blind';
     try {
-        const { rows } = await pool.query(
-            `UPDATE aanbevelingen SET status = $2, beoordeeld_op = now()
-             WHERE id = $1 AND status = 'nieuw' RETURNING id`,
-            [id, geldig[keuze]]);
-        if (!rows[0]) return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
-
-        // Bij 'goed': op de achtergrond downloaden en speelbaar maken.
-        if (keuze === 'goed') {
-            downloads.set(id, { status: 'bezig', error: null });
-            media.verwerkGoed(id)
-                .then((r) => downloads.set(id, { status: r.ok ? 'klaar' : 'fout', error: r.ok ? null : r.error }))
-                .catch((e) => downloads.set(id, { status: 'fout', error: String(e.message) }));
+        if (fase === 'blind') {
+            // herkend → goed + download; niet → door naar ronde 2 (met naam).
+            if (keuze === 'herkend') {
+                const { rows } = await pool.query(
+                    `UPDATE aanbevelingen SET status = 'goed', beoordeeld_op = now()
+                     WHERE id = $1 AND status = 'nieuw' RETURNING id`, [id]);
+                if (!rows[0]) return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
+                startDownload(id);
+                return res.json({ ok: true, status: 'goed', download: true });
+            }
+            if (keuze === 'niet') {
+                await pool.query(
+                    `UPDATE aanbevelingen SET status = 'blind_nee'
+                     WHERE id = $1 AND status = 'nieuw'`, [id]);
+                return res.json({ ok: true, status: 'blind_nee' });
+            }
+            return res.status(400).json({ fout: 'Ongeldige keuze.' });
         }
-        res.json({ ok: true, status: geldig[keuze], download: keuze === 'goed' });
+
+        // fase === 'naam'
+        if (keuze === 'goed') {
+            const { rows } = await pool.query(
+                `UPDATE aanbevelingen SET status = 'goed', beoordeeld_op = now()
+                 WHERE id = $1 AND status = 'blind_nee' RETURNING id`, [id]);
+            if (!rows[0]) return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
+            startDownload(id);
+            return res.json({ ok: true, status: 'goed', download: true });
+        }
+        if (keuze === 'fout') {
+            // Verkeerd nummer: AI moet later opnieuw zoeken. Bron wissen zodat
+            // een herzoek een nieuw voorbeeld oplevert.
+            await pool.query(
+                `UPDATE aanbevelingen SET status = 'fout', fout_aantal = fout_aantal + 1,
+                        voorbeeld_bron = NULL, beoordeeld_op = now()
+                 WHERE id = $1 AND status = 'blind_nee'`, [id]);
+            return res.json({ ok: true, status: 'fout' });
+        }
+        if (keuze === 'onbekend') {
+            await pool.query(
+                `UPDATE aanbevelingen SET status = 'review', beoordeeld_op = now()
+                 WHERE id = $1 AND status = 'blind_nee'`, [id]);
+            return res.json({ ok: true, status: 'review' });
+        }
+        return res.status(400).json({ fout: 'Ongeldige keuze.' });
     } catch (err) {
         res.status(500).json({ fout: err.message });
     }
@@ -162,6 +203,87 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
 router.get('/api/admin/aanbevelingen/:id/download-status', vereisAdmin, (req, res) => {
     const d = downloads.get(Number(req.params.id));
     res.json(d || { status: 'onbekend', error: null });
+});
+
+// Foute nummers opnieuw laten zoeken door ChatGPT (achtergrond).
+let herzoekBezig = false;
+router.post('/api/admin/aanbevelingen/herzoek', vereisAdmin, (req, res) => {
+    if (herzoekBezig) return res.status(409).json({ fout: 'Herzoeken loopt al.' });
+    herzoekBezig = true;
+    res.json({ gestart: true });
+    aanbevelingen.herzoekFout({ limiet: 15 })
+        .catch((e) => logger.fout('Herzoek mislukt', { melding: e.message }))
+        .finally(() => { herzoekBezig = false; });
+});
+
+// =====================================================================
+// Publieke review-link: vrienden beluisteren de 'onbekend'-nummers blind
+// en stemmen of ze het herkennen. Genoeg "herkend" → automatisch goed +
+// download. Geen admin-login; wel per-apparaat één stem per nummer.
+// =====================================================================
+
+const REVIEW_DREMPEL = 2;   // minstens 2 meer "herkend" dan "niet"
+const REVIEW_MIN_STEMMEN = 3;
+
+/** Volgende te beoordelen nummer voor een stemmer (zonder titelinfo). */
+router.get('/api/review/volgende', async (req, res) => {
+    try {
+        const stemmer = String(req.query.stemmer || '').slice(0, 64);
+        const { rows } = await pool.query(
+            `SELECT a.id, a.voorbeeld_bron, a.youtube_zoekterm, a.tracknaam, a.artiest
+             FROM aanbevelingen a
+             WHERE a.status = 'review'
+               AND ($1 = '' OR NOT EXISTS (
+                   SELECT 1 FROM aanbeveling_stemmen s
+                   WHERE s.aanbeveling_id = a.id AND s.stemmer = $1))
+             ORDER BY random() LIMIT 1`, [stemmer]);
+        const a = rows[0];
+        if (!a) return res.json({ klaar: true });
+
+        // Voorbeeld-bron bepalen (zoeken als nog niet bekend) — zonder titel terug te geven.
+        let videoId = a.voorbeeld_bron;
+        if (!videoId) {
+            const v = await media.zoekVoorbeeld(a);
+            if (v) {
+                videoId = v.videoId;
+                await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [a.id, videoId]);
+            }
+        }
+        res.json({ id: a.id, videoId: videoId || null });
+    } catch (err) {
+        res.status(500).json({ fout: err.message });
+    }
+});
+
+/** Stem uitbrengen op een review-nummer. */
+router.post('/api/review/:id/stem', async (req, res) => {
+    const id = Number(req.params.id);
+    const stemmer = String(req.body?.stemmer || '').slice(0, 64);
+    const herkend = req.body?.herkend === true;
+    if (!stemmer) return res.status(400).json({ fout: 'Geen stemmer-id.' });
+    try {
+        await pool.query(
+            `INSERT INTO aanbeveling_stemmen (aanbeveling_id, stemmer, herkend)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (aanbeveling_id, stemmer) DO UPDATE SET herkend = EXCLUDED.herkend`,
+            [id, stemmer, herkend]);
+
+        // Telling: genoeg herkenning → goedkeuren en downloaden.
+        const { rows } = await pool.query(
+            `SELECT count(*) FILTER (WHERE herkend) AS ja,
+                    count(*) FILTER (WHERE NOT herkend) AS nee
+             FROM aanbeveling_stemmen WHERE aanbeveling_id = $1`, [id]);
+        const ja = Number(rows[0].ja), nee = Number(rows[0].nee);
+        if (ja + nee >= REVIEW_MIN_STEMMEN && ja - nee >= REVIEW_DREMPEL) {
+            const { rows: upd } = await pool.query(
+                `UPDATE aanbevelingen SET status = 'goed', beoordeeld_op = now()
+                 WHERE id = $1 AND status = 'review' RETURNING id`, [id]);
+            if (upd[0]) startDownload(id);
+        }
+        res.json({ ok: true, ja, nee });
+    } catch (err) {
+        res.status(500).json({ fout: err.message });
+    }
 });
 
 module.exports = router;

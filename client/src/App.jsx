@@ -8,6 +8,7 @@ import Play from './pages/Play.jsx';
 import Admin from './pages/Admin.jsx';
 import AdminAI from './pages/AdminAI.jsx';
 import AdminSwipe from './pages/AdminSwipe.jsx';
+import Review from './pages/Review.jsx';
 import Changelog from './pages/Changelog.jsx';
 import HostAuth from './pages/HostAuth.jsx';
 import HostProfile from './pages/HostProfile.jsx';
@@ -45,6 +46,7 @@ export default function App() {
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/admin/ai" element={<AdminAI />} />
                     <Route path="/admin/swipe" element={<AdminSwipe />} />
+                    <Route path="/review" element={<Review />} />
                     <Route path="/changelog" element={<Changelog />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
