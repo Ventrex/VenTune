@@ -83,7 +83,7 @@ const OMSCHRIJVING = {
     '90s': 'bekende muziekhits uitgebracht tussen 1990 en 1999',
     '20s': 'bekende muziekhits uitgebracht tussen 2020 en 2029',
     kinder: 'bekende kinderliedjes voor Nederlandse gezinnen',
-    '100nl': 'bekende Nederlandstalige muziekhits van Nederlandse en Vlaamse artiesten',
+    '100nl': 'bekende Nederlandstalige liedjes van artiesten uit Nederland; geen Vlaamse artiesten tenzij zij zelf uit Nederland afkomstig zijn',
 };
 function promptMuziek({ categorie, aantal, bestaand }) {
     const onderwerp = OMSCHRIJVING[categorie] || 'bekende muziekhits';
