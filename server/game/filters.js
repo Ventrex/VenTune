@@ -131,9 +131,10 @@ function bouwFilter(f = {}) {
     // De standaard spelcatalogus is gecureerd voor titels die in Nederland
     // op televisie of breed via de Nederlandse zenders te zien waren. Nieuwe
     // TMDB-imports blijven eerst buiten het spel tot de admin ze beoordeelt.
-    if (f.alleen_nl_tv !== false) {
-        condities.push(`t.nl_tv_bekend = true AND t.curatie_status = 'goedgekeurd'`);
-    }
+    // Verouderde curatievlag niet meer toepassen: lokale MP3 + werkt +
+    // download_status worden afzonderlijk gecontroleerd.
+    // Laat de instelling voor oude presets bestaan, maar blokkeer geen tracks.
+
 
     // Kindmodus is een echte inhoudsfilter, niet alleen een scorebonus:
     // maximaal 12+, alleen familie/animatie/fantasy/musical/avontuur/komedie/
