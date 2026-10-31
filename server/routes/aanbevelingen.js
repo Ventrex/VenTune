@@ -193,17 +193,37 @@ router.get('/api/admin/aanbevelingen/voorbereiden/status', vereisAdmin, (req, re
     res.json(voorbereidingen.get(sleutel) || { bezig: false, totaal: 0, klaar: 0, fouten: 0 });
 });
 
-/** Advertentievrij lokaal MP3-luistervoorbeeld, alleen voor ingelogde beheerders. */
+/** MP3-downloads starten asynchroon: een lange yt-dlp download mag niet
+ * door de reverse proxy als 504 worden afgebroken. */
+const audioTaken = new Map();
 router.get('/api/admin/aanbevelingen/:id/audio', vereisAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ fout: 'Ongeldig ID.' });
     try {
-        const id = Number(req.params.id);
-        if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ fout: 'Ongeldig ID.' });
         const { rows } = await pool.query('SELECT * FROM aanbevelingen WHERE id = $1', [id]);
         if (!rows[0]) return res.status(404).json({ fout: 'Aanbeveling niet gevonden.' });
-        res.json(await media.lokaalVoorbeeld(rows[0]));
+        let taak = audioTaken.get(id);
+        // Fouten blijven kort zichtbaar en kunnen daarna opnieuw worden geprobeerd.
+        if (taak?.status === 'fout' && Date.now() - taak.sinds > 30000) {
+            audioTaken.delete(id);
+            taak = null;
+        }
+        if (!taak) {
+            taak = { status: 'bezig', sinds: Date.now() };
+            audioTaken.set(id, taak);
+            media.lokaalVoorbeeld(rows[0])
+                .then((result) => Object.assign(taak, { status: 'klaar', audioUrl: result.audioUrl }))
+                .catch((err) => {
+                    logger.waarschuwing('Luistervoorbeeld downloaden mislukt', { id, melding: err.message });
+                    Object.assign(taak, { status: 'fout', fout: String(err.message).slice(0, 500), sinds: Date.now() });
+                });
+        }
+        if (taak.status === 'fout') return res.status(502).json({ fout: taak.fout });
+        if (taak.status === 'klaar') return res.json({ audioUrl: taak.audioUrl });
+        return res.status(202).json({ bezig: true, id });
     } catch (err) {
-        logger.waarschuwing('Luistervoorbeeld downloaden mislukt', { melding: err.message });
-        res.status(502).json({ fout: 'Lokaal luistervoorbeeld niet beschikbaar: ' + err.message.slice(0, 180) });
+        logger.waarschuwing('Luistervoorbeeld API mislukt', { id, melding: err.message });
+        return res.status(500).json({ fout: String(err.message).slice(0, 300) });
     }
 });
 
