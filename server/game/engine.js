@@ -598,10 +598,8 @@ class SpelBeheer {
               WHERE tr.titel_id = $1
                 AND tr.werkt = true
                 AND tr.bron = 'lokaal'
-                AND tr.itunes_track_id IS NULL
                 AND tr.download_status = 'available'
-                AND tr.preview_url IS NOT NULL
-                AND tr.preview_url <> ''
+                AND COALESCE(NULLIF(tr.bestand_pad, ''), NULLIF(tr.preview_url, '')) IS NOT NULL
                 AND ($2::boolean = false
                      OR COALESCE(tr.review_status, 'open') = 'goedgekeurd'
                      OR tr.review_handmatig = true)
