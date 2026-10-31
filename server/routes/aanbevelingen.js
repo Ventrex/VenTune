@@ -97,7 +97,9 @@ router.post('/api/admin/metadata-verrijken/start', vereisAdmin, async (_req, res
                     tmdb_id = COALESCE(tmdb_id, $2),
                     poster_pad = COALESCE(poster_pad, $3),
                     omschrijving = COALESCE(NULLIF(omschrijving, ''), $4),
-                    genres = CASE WHEN cardinality(genres) = 0 THEN $5::text[] ELSE genres END,
+                    genres = ARRAY(SELECT DISTINCT g FROM unnest(
+                        CASE WHEN genres IS NULL THEN '{}'::text[] ELSE genres END || $5::text[]
+                     ) AS g WHERE btrim(g) <> '' AND lower(g) <> 'onbekend'),
                     studio = CASE WHEN studio IS NULL OR lower(studio) = 'onbekend' THEN $6 ELSE studio END,
                     jaar = COALESCE(jaar, $7)
                     WHERE id = $1`,
