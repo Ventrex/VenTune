@@ -83,10 +83,13 @@ function promptFilmSerie({ aantal, taal, bestaand }) {
         : '';
     return `Je helpt een muziekquiz over films en series (zoals Hitster) vullen.
 
-Geef ${aantal} kandidaten: elk een bekende film of serie met de ORIGINELE SOUNDTRACK — de officiële theme song, titelmuziek of het iconische herkenningsnummer dat echt bij die film/serie hoort. Denk aan: de titelmuziek van The Office, het thema van CSI (Who Are You - The Who), de titelsong van Friends (I'll Be There For You), het thema van Terminator.
+Geef ${aantal} verschillende kandidaten (nooit een lege lijst): elk een bekende film of serie met de ORIGINELE SOUNDTRACK — de officiële theme song, titelmuziek of het iconische herkenningsnummer dat echt bij die film/serie hoort. Denk aan: de titelmuziek van The Office, het thema van CSI (Who Are You - The Who), de titelsong van Friends (I'll Be There For You), het thema van Terminator.
 
 Harde eisen:
 - Alleen films/series met een GOEDE FANBASE. Geen obscure of nauwelijks bekende titels.
+- Geef uitsluitend titels die NIET in de uitsluitlijst staan. Gebruik alternatieven als een titel al bestaat.
+- Een herkenbare intro, officiële titelmuziek of iconische soundtrack is toegestaan; geef geen niet-gerelateerde nummers.
+- Gebruik jouw kennis om een lijst samen te stellen. Zoek zo nodig online ter verificatie, maar geef ook zonder gevonden webresultaten de beste feitelijke kandidaten terug.
 - Het nummer moet de ECHTE, originele soundtrack/titelmuziek zijn — niet een willekeurig liedje of een cover.
 - Geef, als het een bestaand lied is, de echte artiest; is het instrumentale titelmuziek, geef dan de componist of "Titelmuziek".
 - Vul 'bekendheid' 1..5: 5 = vrijwel iedereen herkent het meteen, 1 = alleen fans. Geef niets onder de 3.
@@ -101,10 +104,13 @@ function promptKerst({ aantal, bestaand }) {
         : '';
     return `Je helpt een kerstmuziek-quiz vullen. In het spel moeten spelers de zanger, het nummer en het jaartal raden.
 
-Geef ${aantal} kandidaten: algemeen bekende kerstliedjes die vrijwel iedereen kent (bv. de grote kersthits die elk jaar overal klinken).
+Geef ${aantal} VERSCHILLENDE kandidaten voor een top 100 van algemeen bekende kerstliedjes die vrijwel iedereen kent (bv. de grote kersthits die elk jaar overal klinken).
 
 Harde eisen:
 - Alleen ECHT BEKENDE kerstliedjes met een brede fanbase. Geen obscure nummers.
+- Sla alle nummers uit de uitsluitlijst over, kies andere bekende nummers.
+- Gebruik jouw kennis om de top samen te stellen en verifieer jaartallen zo nodig via web search; geef nooit een lege lijst puur omdat online zoeken niets opleverde.
+- Het jaar is het oorspronkelijke uitgavejaar van de genoemde uitvoering (niet het jaar waarin de compositie is geschreven).
 - Geef het jaar van de originele/bekendste uitgave zo nauwkeurig mogelijk.
 - Vul 'bekendheid' 1..5: 5 = iedereen kent het, 1 = alleen liefhebbers. Geef niets onder de 3.
 - 'youtube_zoekterm': waarmee je het nummer op YouTube vindt (bv. "Wham Last Christmas").
@@ -135,20 +141,45 @@ async function bestaandeNamen(soort) {
  */
 async function genereer(opties) {
     const soort = opties.soort === 'kerst' ? 'kerst' : 'film_serie';
-    const aantal = Math.min(40, Math.max(1, opties.aantal || 15));
+    const aantal = Math.min(soort === 'kerst' ? 100 : 40, Math.max(1, opties.aantal || (soort === 'kerst' ? 100 : 15)));
     const minBek = opties.minBekendheid || 3;
 
-    const bestaand = await bestaandeNamen(soort).catch(() => []);
+    const bestaand = await bestaandeNamen(soort);
+    const bestaandeSet = new Set(bestaand.map((n) => String(n).trim().toLowerCase()));
 
-    const prompt = soort === 'kerst'
-        ? promptKerst({ aantal, bestaand })
-        : promptFilmSerie({ aantal, taal: opties.taal || 'beide', bestaand });
     const schema = soort === 'kerst' ? SCHEMA_KERST : SCHEMA_FILM_SERIE;
 
-    const res = await codex.vraagJson({ prompt, schema, signal: opties.signal });
-    if (!res.ok) return { ok: false, error: res.error };
-
-    const lijst = Array.isArray(res.data && res.data.kandidaten) ? res.data.kandidaten : [];
+    // Grote kerstlijsten in kleine batches opvragen: betrouwbaarder dan 100 items in één AI-antwoord.
+    const lijst = [];
+    const batchSize = soort === 'kerst' ? 20 : 15;
+    const aantalBatches = Math.ceil(aantal / batchSize);
+    for (let i = 0; i < aantalBatches; i++) {
+        const nodig = Math.min(batchSize, aantal - lijst.length);
+        if (nodig <= 0) break;
+        const aanvullend = lijst.map((k) => soort === 'kerst' ? `${k.tracknaam} - ${k.artiest}` : k.titel).filter(Boolean);
+        const batchPrompt = soort === 'kerst'
+            ? promptKerst({ aantal: nodig, bestaand: [...bestaand, ...aanvullend] })
+            : promptFilmSerie({ aantal: nodig, taal: opties.taal || 'beide', bestaand: [...bestaand, ...aanvullend] });
+        const res = await codex.vraagJson({ prompt: batchPrompt, schema, signal: opties.signal });
+        if (!res.ok) {
+            if (!lijst.length) return { ok: false, error: res.error };
+            logger.waarschuwing('Aanbevelingen batch mislukt', { batch: i + 1, melding: res.error });
+            break;
+        }
+        const ontvangen = Array.isArray(res.data?.kandidaten) ? res.data.kandidaten : [];
+        for (const k of ontvangen) {
+            if (!k) continue;
+            const sleutel = soort === 'kerst' ? `${k.tracknaam || ''} - ${k.artiest || ''}` : k.titel || '';
+            const genormaliseerd = sleutel.trim().toLowerCase();
+            if (!genormaliseerd || bestaandeSet.has(genormaliseerd)) continue;
+            bestaandeSet.add(genormaliseerd);
+            lijst.push(k);
+        }
+        if (!ontvangen.length) {
+            logger.waarschuwing('ChatGPT gaf lege aanbevelingenbatch', { soort, batch: i + 1 });
+            break;
+        }
+    }
     if (!lijst.length) {
         return { ok: false, error: 'ChatGPT heeft geen kandidaten teruggegeven. Er is niets toegevoegd.' };
     }
