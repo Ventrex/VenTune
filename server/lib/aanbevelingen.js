@@ -149,8 +149,13 @@ async function genereer(opties) {
     if (!res.ok) return { ok: false, error: res.error };
 
     const lijst = Array.isArray(res.data && res.data.kandidaten) ? res.data.kandidaten : [];
+    if (!lijst.length) {
+        return { ok: false, error: 'ChatGPT heeft geen kandidaten teruggegeven. Er is niets toegevoegd.' };
+    }
     let toegevoegd = 0;
     let overgeslagen = 0;
+    let opslagFouten = 0;
+    let eersteOpslagFout = '';
 
     for (const k of lijst) {
         if (!k || (k.bekendheid || 0) < minBek) { overgeslagen++; continue; }
@@ -177,16 +182,24 @@ async function genereer(opties) {
             if (r.rows[0]) toegevoegd++; else overgeslagen++;
         } catch (err) {
             logger.waarschuwing('Aanbeveling niet opgeslagen', { melding: err.message });
+            opslagFouten++;
+            if (!eersteOpslagFout) eersteOpslagFout = err.message;
             overgeslagen++;
         }
     }
 
-    logger.info('Aanbevelingen gegenereerd', { soort, toegevoegd, overgeslagen });
+    logger.info('Aanbevelingen gegenereerd', { soort, ontvangen: lijst.length, toegevoegd, overgeslagen, opslagFouten });
+    if (toegevoegd === 0) {
+        const reden = opslagFouten
+            ? `Opslaan mislukt (${opslagFouten} databasefouten). Eerste fout: ${eersteOpslagFout}`
+            : `Geen nieuwe nummers toegevoegd: ${overgeslagen} kandidaat/kandidaten afgekeurd of al aanwezig.`;
+        return { ok: false, error: reden };
+    }
     return { ok: true, toegevoegd, overgeslagen };
 }
 
 const SCHEMA_CORRECTIE = {
-    type: 'object', additionalProperties: false, required: ['tracknaam', 'artiest', 'youtube_zoekterm'],
+    type: 'object', additionalProperties: false, required: ['tracknaam', 'artiest', 'youtube_zoekterm', 'reden'],
     properties: {
         tracknaam: { type: 'string' },
         artiest: { type: 'string' },
