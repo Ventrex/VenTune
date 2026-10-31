@@ -28,12 +28,16 @@ const SCHEMA_FILM_SERIE = {
                 type: 'object',
                 additionalProperties: false,
                 required: ['titel', 'type', 'jaar', 'genres', 'tracknaam', 'artiest',
-                           'youtube_zoekterm', 'bekendheid', 'reden'],
+                           'themas', 'studio', 'muziek_genres', 'muziek_type', 'muziek_genres', 'youtube_zoekterm', 'bekendheid', 'reden'],
                 properties: {
                     titel: { type: 'string' },
                     type: { type: 'string', enum: ['film', 'serie'] },
                     jaar: { type: 'integer' },
                     genres: { type: 'array', items: { type: 'string' } },
+                    themas: { type: 'array', items: { type: 'string' } },
+                    studio: { type: ['string', 'null'] },
+                    muziek_genres: { type: 'array', items: { type: 'string' } },
+                    muziek_type: { type: 'string', enum: ['intro', 'thema', 'soundtrack'] },
                     tracknaam: { type: 'string' },
                     artiest: { type: 'string' },
                     youtube_zoekterm: { type: 'string' },
@@ -61,6 +65,7 @@ const SCHEMA_KERST = {
                     tracknaam: { type: 'string' },
                     artiest: { type: 'string' },
                     jaar: { type: 'integer' },
+                    muziek_genres: { type: 'array', items: { type: 'string' } },
                     youtube_zoekterm: { type: 'string' },
                     bekendheid: { type: 'integer', minimum: 1, maximum: 5 },
                     reden: { type: 'string' },
@@ -94,6 +99,8 @@ Harde eisen:
 - Geef, als het een bestaand lied is, de echte artiest; is het instrumentale titelmuziek, geef dan de componist of "Titelmuziek".
 - Vul 'bekendheid' 1..5: 5 = vrijwel iedereen herkent het meteen, 1 = alleen fans. Geef niets onder de 3.
 - 'youtube_zoekterm': waarmee je de originele soundtrack op YouTube vindt (bv. "The Office theme song", "CSI Who Are You theme").
+- Geef genres van de film/serie (bv. Actie, Komedie), themas (bv. Superhelden, Kerst, Disney), studio/uitgever (bv. Disney, Warner Bros., Netflix) of null indien onbekend.
+- Geef de muziek_genres van het daadwerkelijke nummer (bv. Rock, Pop, Orkestraal) en muziek_type: intro, thema of soundtrack.
 - 'reden': één korte zin waarom dit het herkenningsnummer van die titel is.
 ${taalregel}${uitsluiten}`;
 }
@@ -114,6 +121,7 @@ Harde eisen:
 - Geef het jaar van de originele/bekendste uitgave zo nauwkeurig mogelijk.
 - Vul 'bekendheid' 1..5: 5 = iedereen kent het, 1 = alleen liefhebbers. Geef niets onder de 3.
 - 'youtube_zoekterm': waarmee je het nummer op YouTube vindt (bv. "Wham Last Christmas").
+- Vermeld muziek_genres (bv. Pop, Rock, Jazz of Klassiek) voor toekomstige genreselecties.
 - 'reden': één korte zin.
 - Mix Engelstalige en Nederlandstalige kersthits.${uitsluiten}`;
 }
@@ -194,8 +202,8 @@ async function genereer(opties) {
             const r = await pool.query(
                 `INSERT INTO aanbevelingen
                     (soort, titel, type, jaar, genres, tracknaam, artiest,
-                     youtube_zoekterm, bekendheid, reden, status)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'nieuw')
+                     youtube_zoekterm, bekendheid, reden, themas, studio, muziek_genres, muziek_type, status)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'nieuw')
                  ON CONFLICT DO NOTHING RETURNING id`,
                 [
                     soort,
@@ -208,6 +216,10 @@ async function genereer(opties) {
                     k.youtube_zoekterm || '',
                     k.bekendheid || minBek,
                     k.reden || null,
+                    Array.isArray(k.themas) ? k.themas : [],
+                    k.studio || null,
+                    Array.isArray(k.muziek_genres) ? k.muziek_genres : [],
+                    k.muziek_type || null,
                 ],
             );
             if (r.rows[0]) toegevoegd++; else overgeslagen++;
