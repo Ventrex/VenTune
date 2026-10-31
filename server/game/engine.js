@@ -404,6 +404,8 @@ class SpelBeheer {
             ...(instellingen || {}),
             leeftijd_max: leeftijdMax,
             kindvriendelijk: kindmodusUit(instellingen),
+            // Oude Nederlandse-tv-curatiefilter niet meer toepassen op nieuwe goedgekeurde AI-tracks.
+            alleen_nl_tv: false,
             alleen_lokaal: true,
         };
 
