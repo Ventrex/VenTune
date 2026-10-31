@@ -302,8 +302,15 @@ class SpelBeheer {
                 modus: state.modus,
                 antwoordModus: state.antwoordModus,
                 opties: h.antwoordOpties?.opties || null,
+                aanBeurtSpelers: h.aanBeurtSpelers || null,
+                aanBeurtNaam: h.aanBeurtNaam || null,
                 herstel: true,
             });
+            if (h.aanBeurtSpelers && !h.aanBeurtSpelers.includes(socket.data.spelerId)) {
+                socket.emit('ronde:toeschouwer', {
+                    rondeId: h.rondeId, naam: h.titel.naam, jaar: h.titel.jaar,
+                });
+            }
             if (socket.data.isHost) {
                 socket.emit('ronde:audio', { ...audio, pauze: gepauzeerd });
             }
@@ -508,7 +515,8 @@ class SpelBeheer {
             code,
             instellingen: spelInstellingen,
             rondeDuurMs: rondeDuurUit(spelInstellingen),
-            modus: modusUit(spelInstellingen),
+            modus: spelInstellingen.spelvorm === 'teams' && spelInstellingen.team_modus === 'kenner'
+                ? 'kenner' : modusUit(spelInstellingen),
             antwoordModus: antwoordModusUit(spelInstellingen),
             pool: pool_,
             totaalRondes: totaal,
