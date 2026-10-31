@@ -941,6 +941,7 @@ ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS themas TEXT[] NOT NULL DEFAUL
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS studio TEXT;
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS muziek_genres TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS muziek_type TEXT;
+ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS afgekeurde_bronnen TEXT[] NOT NULL DEFAULT '{}';
 
 CREATE UNIQUE INDEX IF NOT EXISTS aanbevelingen_uniek
     ON aanbevelingen (soort, lower(coalesce(titel, '')), lower(tracknaam), lower(artiest));
