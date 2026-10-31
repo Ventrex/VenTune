@@ -1688,10 +1688,12 @@ class SpelBeheer {
     }
 
     async iedereenBonusKlaar(state) {
+        const actieveBeurt = state.huidige?.aanBeurtSpelers || null;
         const { rows } = await pool.query(
             `SELECT id, verbonden FROM spelers
-              WHERE lobby_id = $1`,
-            [state.lobbyId],
+              WHERE lobby_id = $1
+                AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[]))`,
+            [state.lobbyId, actieveBeurt],
         );
         return iedereenActiefKlaar(rows, state.huidige.bonus.klaar);
     }
