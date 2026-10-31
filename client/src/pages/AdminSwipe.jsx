@@ -17,7 +17,7 @@ async function jsonOfNull(r) { try { return await r.json(); } catch { return nul
 async function haal(pad, opties = {}) {
     const r = await fetch(pad, { credentials: 'include', ...opties });
     const d = await jsonOfNull(r);
-    if (!r.ok) throw new Error((d && d.fout) || 'Er ging iets mis.');
+    if (!r.ok) throw new Error((d && d.fout) || `Serverfout HTTP ${r.status} bij ${pad}.`);
     return d;
 }
 const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) });
@@ -49,25 +49,34 @@ export default function AdminSwipe() {
     const huidige = kaarten[index];
     const klaar = !laadt && !huidige;
 
+    // Download op server draait op de achtergrond. Poll zonder lange HTTP-wachttijd.
     useEffect(() => {
         setAudioUrl(null);
         setAudioFout('');
         setMagAfspelen(false);
-        if (!huidige) return;
+        if (!huidige) return undefined;
         let actief = true;
-        haal('/api/admin/aanbevelingen/' + huidige.id + '/audio')
-            .then((d) => { if (actief) setAudioUrl(d.audioUrl || null); })
-            .catch((e) => { if (actief) setAudioFout(e.message); });
-        return () => { actief = false; };
-    }, [huidige]);
+        let timer;
+        const haalAudio = async () => {
+            try {
+                const d = await haal('/api/admin/aanbevelingen/' + huidige.id + '/audio');
+                if (!actief) return;
+                if (d.audioUrl) setAudioUrl(d.audioUrl);
+                else if (d.bezig) timer = setTimeout(haalAudio, 1800);
+                else setAudioFout('Geen audio-URL van server ontvangen.');
+            } catch (err) {
+                if (actief) setAudioFout(err.message);
+            }
+        };
+        haalAudio();
+        return () => { actief = false; clearTimeout(timer); };
+    }, [huidige?.id]);
 
-    // Terwijl de huidige kaart wordt beoordeeld, de volgende twee nummers
-    // alvast lokaal klaarmaken. Niet wachten op de hele lijst.
+    // De volgende twee nummers in de downloadwachtrij zetten.
     useEffect(() => {
-        const volgende = kaarten.slice(index + 1, index + 3);
-        for (const kaart of volgende) {
+        kaarten.slice(index + 1, index + 3).forEach((kaart) => {
             haal('/api/admin/aanbevelingen/' + kaart.id + '/audio').catch(() => {});
-        }
+        });
     }, [kaarten, index]);
 
     async function swipe(keuze) {
