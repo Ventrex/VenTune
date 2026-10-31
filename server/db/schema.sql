@@ -637,6 +637,7 @@ CREATE INDEX IF NOT EXISTS idx_spelers_token    ON spelers (sessie_token);
 ALTER TABLE spelers ADD COLUMN IF NOT EXISTS gebruiker_id UUID;
 ALTER TABLE spelers ADD COLUMN IF NOT EXISTS leeftijd SMALLINT;
 ALTER TABLE spelers ADD COLUMN IF NOT EXISTS team_naam TEXT;
+ALTER TABLE spelers ADD COLUMN IF NOT EXISTS specialiteit TEXT;
 DO $$
 BEGIN
     ALTER TABLE spelers DROP CONSTRAINT IF EXISTS spelers_leeftijd_check;
