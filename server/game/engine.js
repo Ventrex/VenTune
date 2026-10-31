@@ -416,7 +416,7 @@ class SpelBeheer {
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
                     t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
-                    t.hoofdrollen, t.ai_hints, t.speelplek, t.studio, t.leeftijdsgrens,
+                    t.hoofdrollen, t.ai_hints, t.ai_hints_status, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
                ${where}`,
@@ -1053,7 +1053,7 @@ class SpelBeheer {
     }
 
     bouwHint(nr, titel, ronde = null) {
-        const ai = (titel.ai_hints || []).filter(Boolean);
+        const ai = titel.ai_hints_status === 'goedgekeurd' ? (titel.ai_hints || []).filter(Boolean) : [];
         // Per speelronde één willekeurige volgorde; nooit opnieuw schudden per speler/hint.
         if (ai.length && ronde && !ronde.aiHintVolgorde) ronde.aiHintVolgorde = husselArray(ai);
         const hints = ai.length
