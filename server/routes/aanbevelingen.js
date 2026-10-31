@@ -212,16 +212,17 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
                         THEN array_append(afgekeurde_bronnen, voorbeeld_bron)
                         ELSE afgekeurde_bronnen END,
                     voorbeeld_bron = NULL, fout_aantal = fout_aantal + 1,
-                    status = 'fout', beoordeeld_op = now()
+                    status = CASE WHEN fout_aantal + 1 >= 3 THEN 'fout' ELSE 'nieuw' END,
+                    beoordeeld_op = now()
                  WHERE id = $1 AND status = $2
                  RETURNING id, fout_aantal`, [id, verwacht]);
             if (!rows[0]) return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
             await media.keurMp3Af(id);
-            if (rows[0].fout_aantal < 3) {
-                aanbevelingen.herzoekFout({ limiet: 15 }).catch((e) =>
-                    logger.waarschuwing('Opnieuw zoeken mislukt', { melding: e.message }));
-            }
-            return res.json({ ok: true, status: 'fout', opnieuw: rows[0].fout_aantal < 3 });
+            return res.json({
+                ok: true,
+                status: rows[0].fout_aantal < 3 ? 'nieuw' : 'fout',
+                opnieuw: rows[0].fout_aantal < 3,
+            });
         }
         if (fase === 'blind') {
             // herkend → goed + download; niet → door naar ronde 2 (met naam).
