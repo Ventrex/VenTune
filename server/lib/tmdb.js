@@ -206,7 +206,33 @@ async function haalAfleiderPool(genreId, type, exclusiefTmdbId) {
     return { regisseurs: [...regisseurs], acteurs: [...acteurs] };
 }
 
+/**
+ * Zoek poster en korte synopsis op titel + jaartal voor de antwoordonthulling.
+ * Optioneel: geen API-key of geen betrouwbare match laat de titel ongewijzigd.
+ */
+async function zoekPresentatie(naam, type, jaar) {
+    if (!beschikbaar() || !['film', 'serie'].includes(type)) return null;
+    const endpoint = type === 'serie' ? '/search/tv' : '/search/movie';
+    const data = await haal(endpoint, { query: naam, page: '1' });
+    const kandidaten = data.results || [];
+    const genormaliseerd = String(naam).trim().toLowerCase();
+    const gevonden = kandidaten.find((item) => {
+        const titel = String(item.title || item.name || '').trim().toLowerCase();
+        const origineel = String(item.original_title || item.original_name || '').trim().toLowerCase();
+        const datum = item.release_date || item.first_air_date || '';
+        return (titel === genormaliseerd || origineel === genormaliseerd)
+            && (!jaar || !datum || Number(datum.slice(0, 4)) === Number(jaar));
+    });
+    if (!gevonden) return null;
+    return {
+        tmdbId: gevonden.id,
+        posterPad: gevonden.poster_path || null,
+        omschrijving: gevonden.overview || null,
+    };
+}
+
 module.exports = {
+    zoekPresentatie,
     beschikbaar,
     haalDetails,
     haalAfleiderPool,
