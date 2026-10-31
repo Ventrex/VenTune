@@ -448,7 +448,7 @@ export default function Setup() {
                                             <span className="quiz-emoji" aria-hidden="true">{q.emoji || '🎵'}</span>
                                             <span className="quiz-naam">{q.naam}</span>
                                             <span className="quiz-aantal">
-                                                {q.speelbaar === 0 ? 'nog geen lokale muziek' : `${q.speelbaar} ${q.speelbaar === 1 ? 'titel' : 'titels'}`}
+                                                {q.speelbaar === 0 ? `${q.catalogus || 0} titels · 0 speelbare MP3's` : `${q.speelbaar} speelbaar` }
                                             </span>
                                         </button>
                                     ))}
