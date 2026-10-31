@@ -28,7 +28,7 @@ const SCHEMA_FILM_SERIE = {
                 type: 'object',
                 additionalProperties: false,
                 required: ['titel', 'type', 'jaar', 'genres', 'tracknaam', 'artiest',
-                           'themas', 'studio', 'muziek_genres', 'muziek_type', 'muziek_genres', 'youtube_zoekterm', 'bekendheid', 'reden'],
+                           'themas', 'studio', 'muziek_genres', 'muziek_type', 'youtube_zoekterm', 'bekendheid', 'reden'],
                 properties: {
                     titel: { type: 'string' },
                     type: { type: 'string', enum: ['film', 'serie'] },
@@ -60,7 +60,7 @@ const SCHEMA_KERST = {
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['tracknaam', 'artiest', 'jaar', 'youtube_zoekterm', 'bekendheid', 'reden'],
+                required: ['tracknaam', 'artiest', 'jaar', 'muziek_genres', 'youtube_zoekterm', 'bekendheid', 'reden'],
                 properties: {
                     tracknaam: { type: 'string' },
                     artiest: { type: 'string' },
