@@ -103,7 +103,7 @@ async function haalLobby(code) {
  * Laat een speler meedoen aan een lobby.
  * @returns {Promise<{spelerId, token, lobbyId}>}
  */
-async function doeMee({ code, naam, leeftijd = null }) {
+async function doeMee({ code, naam, leeftijd = null, specialiteit = null }) {
     const schoneNaam = String(naam || '').trim().slice(0, 24);
     if (!schoneNaam) throw new Error('Geef een naam op.');
     const leeftijdGetal = leeftijd === null || leeftijd === '' || leeftijd === undefined
@@ -119,12 +119,14 @@ async function doeMee({ code, naam, leeftijd = null }) {
         throw new Error('Dit spel is al begonnen.');
     }
 
+    const toegestaan = ['film', 'serie', 'disney', 'kerst', 'rock', '80s', '90s', '20s', 'kinder', '100nl'];
+    const keuze = toegestaan.includes(specialiteit) ? specialiteit : null;
     const token = maakToken();
     const { rows } = await pool.query(
-        `INSERT INTO spelers (lobby_id, naam, leeftijd, sessie_token, verbonden)
-         VALUES ($1, $2, $3, $4, true)
+        `INSERT INTO spelers (lobby_id, naam, leeftijd, sessie_token, verbonden, specialiteit)
+         VALUES ($1, $2, $3, $4, true, $5)
          RETURNING id`,
-        [lobby.id, schoneNaam, leeftijdGetal, token],
+        [lobby.id, schoneNaam, leeftijdGetal, token, keuze],
     );
     return { spelerId: rows[0].id, token, lobbyId: lobby.id };
 }
@@ -132,7 +134,7 @@ async function doeMee({ code, naam, leeftijd = null }) {
 /** Lijst met spelers in een lobby (voor de spelerslijst). */
 async function haalSpelers(lobbyId) {
     const { rows } = await pool.query(
-        `SELECT id, naam, is_host, verbonden, score, leeftijd, team_naam
+        `SELECT id, naam, is_host, verbonden, score, leeftijd, team_naam, specialiteit
            FROM spelers
           WHERE lobby_id = $1
           ORDER BY is_host DESC, aangemaakt_op ASC`,
