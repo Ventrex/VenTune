@@ -69,26 +69,40 @@ async function lokaalVoorbeeld(aanbeveling) {
     }
     if (previewDownloads.has(id)) return previewDownloads.get(id);
     const taak = (async () => {
-        const bron = await zoekVoorbeeld(aanbeveling);
-        if (!bron) throw new Error('Geen geschikt luistervoorbeeld gevonden.');
         await fs.mkdir(map, { recursive: true });
-        const tmp = path.join(map, `aanbeveling-${id}-${Date.now()}.mp3`);
-        try {
-            await execFileAsync('yt-dlp', [
-                '--no-playlist', '--download-sections', `*${INTRO_OVERSLAAN}-${INTRO_OVERSLAAN + FRAGMENT_SECONDEN}`,
-                '--force-keyframes-at-cuts', '--extract-audio',
-                '--audio-format', 'mp3', '--audio-quality', '5',
-                '--no-part', '--output', tmp,
-                `https://www.youtube.com/watch?v=${bron.videoId}`,
-            ], { timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
-            const stat = await fs.stat(tmp);
-            if (stat.size < 1 || stat.size > MAX_BYTES) throw new Error('Luistervoorbeeld is leeg of te groot.');
-            await fs.rename(tmp, bestand);
-            await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [id, bron.videoId]);
-            return { audioUrl: `${url}?v=${Math.floor((await fs.stat(bestand)).mtimeMs)}` };
-        } finally {
-            await fs.rm(tmp, { force: true }).catch(() => {});
+        const afgekeurd = new Set(aanbeveling.afgekeurde_bronnen || []);
+        let laatsteFout = '';
+        // Bij een verwijderde/onbeschikbare video automatisch een volgende bron kiezen.
+        for (let poging = 0; poging < 5; poging++) {
+            const bron = await zoekVoorbeeld({ ...aanbeveling, afgekeurde_bronnen: [...afgekeurd] });
+            if (!bron) break;
+            const tmp = path.join(map, `aanbeveling-${id}-${Date.now()}-${poging}.mp3`);
+            try {
+                await execFileAsync('yt-dlp', [
+                    '--js-runtimes', 'node',
+                    '--no-playlist', '--download-sections', `*${INTRO_OVERSLAAN}-${INTRO_OVERSLAAN + FRAGMENT_SECONDEN}`,
+                    '--force-keyframes-at-cuts', '--extract-audio',
+                    '--audio-format', 'mp3', '--audio-quality', '5',
+                    '--no-part', '--output', tmp,
+                    `https://www.youtube.com/watch?v=${bron.videoId}`,
+                ], { timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
+                const stat = await fs.stat(tmp);
+                if (stat.size < 1 || stat.size > MAX_BYTES) throw new Error('Luistervoorbeeld is leeg of te groot.');
+                await fs.rename(tmp, bestand);
+                await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [id, bron.videoId]);
+                return { audioUrl: `${url}?v=${Math.floor((await fs.stat(bestand)).mtimeMs)}` };
+            } catch (err) {
+                laatsteFout = err.stderr?.slice(-500) || err.message;
+                afgekeurd.add(bron.videoId);
+                logger.waarschuwing('Videobron niet downloadbaar', { id, videoId: bron.videoId, melding: laatsteFout.slice(0, 250) });
+                await pool.query(
+                    'UPDATE aanbevelingen SET afgekeurde_bronnen = array_append(afgekeurde_bronnen, $2) WHERE id = $1 AND NOT ($2 = ANY(afgekeurde_bronnen))',
+                    [id, bron.videoId]);
+            } finally {
+                await fs.rm(tmp, { force: true }).catch(() => {});
+            }
         }
+        throw new Error('Geen van de beschikbare videobronnen kon worden gedownload. ' + laatsteFout.slice(0, 250));
     })();
     previewDownloads.set(id, taak);
     try { return await taak; }
