@@ -203,6 +203,26 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
     const keuze = req.body && req.body.keuze;
     const fase = req.body && req.body.fase === 'naam' ? 'naam' : 'blind';
     try {
+        if (keuze === 'verkeerde_mp3') {
+            const verwacht = fase === 'blind' ? 'nieuw' : 'blind_nee';
+            const { rows } = await pool.query(
+                `UPDATE aanbevelingen SET
+                    afgekeurde_bronnen = CASE
+                        WHEN voorbeeld_bron IS NOT NULL AND NOT (voorbeeld_bron = ANY(afgekeurde_bronnen))
+                        THEN array_append(afgekeurde_bronnen, voorbeeld_bron)
+                        ELSE afgekeurde_bronnen END,
+                    voorbeeld_bron = NULL, fout_aantal = fout_aantal + 1,
+                    status = 'fout', beoordeeld_op = now()
+                 WHERE id = $1 AND status = $2
+                 RETURNING id, fout_aantal`, [id, verwacht]);
+            if (!rows[0]) return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
+            await media.keurMp3Af(id);
+            if (rows[0].fout_aantal < 3) {
+                aanbevelingen.herzoekFout({ limiet: 15 }).catch((e) =>
+                    logger.waarschuwing('Opnieuw zoeken mislukt', { melding: e.message }));
+            }
+            return res.json({ ok: true, status: 'fout', opnieuw: rows[0].fout_aantal < 3 });
+        }
         if (fase === 'blind') {
             // herkend → goed + download; niet → door naar ronde 2 (met naam).
             if (keuze === 'herkend') {
