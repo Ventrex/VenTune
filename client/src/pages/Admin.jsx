@@ -4,6 +4,7 @@ import * as api from '../lib/api.js';
 import { audioBron } from '../lib/api.js';
 import { haalVideoId } from '../lib/youtube.js';
 import Brand from '../components/Brand.jsx';
+import { QuizInhoud } from './AdminAI.jsx';
 
 // ---------------------------------------------------------------------
 // Indeling van het beheerportaal.
@@ -685,6 +686,7 @@ function Beheer({ onUit }) {
                 />
             )}
 
+            {tab === 'ai-generator' && <QuizInhoud />}
             {tab === 'ai-generator' && <section className="kaart"><h2>AI · Vragen en hints</h2><p className="dim">Genereer bonusvragen uit beschikbare titelmetadata. Controleer en keur resultaten goed voordat ze in een spel worden gebruikt.</p><button className="knop" type="button" disabled={bezigVragen} onClick={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Bonusvragen aanvullen…', 'Vragen klaar.')}>{bezigVragen?'Genereren…':'Bonusvragen aanvullen'}</button><p className="dim">Drie onafhankelijk gecontroleerde hints en vragen per titel zijn nog niet gegarandeerd.</p></section>}
             {tab === 'vragen' && (
                 <VraagSuggesties
