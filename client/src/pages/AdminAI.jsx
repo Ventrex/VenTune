@@ -75,6 +75,7 @@ function Paneel() {
                 <ChatGptKoppeling />
                 <Genereren />
             </div>
+            <HandmatigToevoegen />
             <Database />
         </main>
     );
@@ -248,6 +249,39 @@ function ChatGptKoppeling() {
 }
 
 // ------------------------- Aanbevelingen -------------------------
+
+function HandmatigToevoegen() {
+    const [titel, setTitel] = useState('');
+    const [type, setType] = useState('film');
+    const [jaar, setJaar] = useState('');
+    const [melding, setMelding] = useState('');
+    const [bezig, setBezig] = useState(false);
+    async function opslaan(e) {
+        e.preventDefault();
+        setBezig(true); setMelding('');
+        try {
+            const r = await haal('/api/admin/aanbevelingen/handmatig', {
+                method: 'POST', ...jsonBody({ titel, type, jaar: jaar || null }),
+            });
+            setMelding(r.toelichting);
+            setTitel(''); setJaar('');
+        } catch (err) { setMelding(err.message); }
+        finally { setBezig(false); }
+    }
+    return <section className="kaart ai-kaart" style={{ marginTop: '1rem' }}>
+        <p className="kaart-label">Zelf een film of serie toevoegen</p>
+        <p className="dim">Controleert dubbelen en zet de titel klaar om een correcte intro of soundtrack te zoeken.</p>
+        <form className="stapel" onSubmit={opslaan}>
+            <input className="invoer" value={titel} onChange={e => setTitel(e.target.value)} placeholder="Film of serienaam" required maxLength={160} />
+            <select className="invoer" value={type} onChange={e => setType(e.target.value)}>
+                <option value="film">Film</option><option value="serie">Serie</option>
+            </select>
+            <input className="invoer" inputMode="numeric" type="number" min="1900" max="2100" value={jaar} onChange={e => setJaar(e.target.value)} placeholder="Jaartal (optioneel)" />
+            <button className="knop" disabled={bezig}>Toevoegen aan muziekwachtrij</button>
+        </form>
+        {melding && <p className="feedback neutraal">{melding}</p>}
+    </section>;
+}
 
 function Genereren() {
     const [bezig, setBezig] = useState(false);
