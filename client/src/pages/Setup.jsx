@@ -316,6 +316,7 @@ export default function Setup() {
 
     function pasPresetToe(p) {
         setFilters({
+            ...p.extra_instellingen,
             categorie: p.categorie || 'beide',
             categorieen: p.categorieen || (p.categorie === 'films' ? ['film'] : p.categorie === 'series' ? ['serie'] : ['film', 'serie']),
             collecties: p.collecties || [],
@@ -323,8 +324,8 @@ export default function Setup() {
             periode_start: p.periode_start,
             periode_eind: p.periode_eind,
             rondes: p.rondes,
-            spelvorm: p.spelvorm || 'tegen_elkaar',
-            team_modus: p.team_modus || 'snelste',
+            spelvorm: p.extra_instellingen?.spelvorm || 'tegen_elkaar',
+            team_modus: p.extra_instellingen?.team_modus || 'snelste',
             speeltijd: p.speeltijd ?? 0,
             modus: p.modus || 'snelste',
             antwoord_modus: p.antwoord_modus || 'meerkeuze',
