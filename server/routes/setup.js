@@ -263,7 +263,7 @@ router.get('/api/presets', async (_req, res) => {
                 leeftijd_max, alleen_nl_tv, collecties,
                 antwoord_modus, leeftijd_deelnemer_min, leeftijd_deelnemer_max,
                leeftijdspunten_aan, leeftijdsfactoren, alleen_gecontroleerd,
-               kindvriendelijk,
+               kindvriendelijk, extra_instellingen,
                 aangemaakt_op
            FROM presets
           ORDER BY aangemaakt_op DESC`,
@@ -284,14 +284,14 @@ router.post('/api/presets', async (req, res) => {
                 speeltijd, modus, min_bekendheid, zonder_genres, leeftijd_max,
                 alleen_nl_tv, antwoord_modus, collecties, leeftijd_deelnemer_min,
                 leeftijd_deelnemer_max, leeftijdspunten_aan, leeftijdsfactoren,
-                gebruiker_id, alleen_gecontroleerd, kindvriendelijk)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                gebruiker_id, alleen_gecontroleerd, kindvriendelijk, extra_instellingen)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23::jsonb)
              RETURNING id, naam, categorie, categorieen, taal, periode_start, periode_eind,
                        rondes, speeltijd, modus, min_bekendheid, zonder_genres,
                        leeftijd_max, alleen_nl_tv, antwoord_modus, collecties,
                        leeftijd_deelnemer_min, leeftijd_deelnemer_max,
                        leeftijdspunten_aan, leeftijdsfactoren, gebruiker_id,
-                       alleen_gecontroleerd, kindvriendelijk, aangemaakt_op`,
+                       alleen_gecontroleerd, kindvriendelijk, extra_instellingen, aangemaakt_op`,
             [
                 naam,
                 b.categorie || 'beide',
@@ -315,6 +315,13 @@ router.post('/api/presets', async (req, res) => {
                 (await require('../lib/auth').gebruikerUitRequest(req))?.id || null,
                 b.alleen_gecontroleerd === true,
                 b.kindvriendelijk === true,
+                JSON.stringify({
+                    hints_aan: b.hints_aan !== false,
+                    bonusvragen_aan: b.bonusvragen_aan !== false,
+                    info_aan: b.info_aan !== false,
+                    spelvorm: ['tegen_elkaar','om_en_om','teams'].includes(b.spelvorm) ? b.spelvorm : 'tegen_elkaar',
+                    team_modus: ['snelste','kenner','om_en_om'].includes(b.team_modus) ? b.team_modus : 'snelste',
+                }),
             ],
         );
         res.json(rows[0]);
