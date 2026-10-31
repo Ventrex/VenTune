@@ -185,10 +185,8 @@ function bouwFilter(f = {}) {
                                  WHERE vl.titel_id = t.id
                                    AND vl.werkt = true
                                    AND vl.bron = 'lokaal'
-                                   AND vl.itunes_track_id IS NULL
                                    AND vl.download_status = 'available'
-                                   AND vl.preview_url IS NOT NULL
-                                   AND vl.preview_url <> '')`);
+                                   AND COALESCE(NULLIF(vl.bestand_pad, ''), NULLIF(vl.preview_url, '')) IS NOT NULL)`);
     }
 
     const where = condities.length ? `WHERE ${condities.join(' AND ')}` : '';
