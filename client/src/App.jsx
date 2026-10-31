@@ -6,6 +6,7 @@ import Join from './pages/Join.jsx';
 import Host from './pages/Host.jsx';
 import Play from './pages/Play.jsx';
 import Admin from './pages/Admin.jsx';
+import AdminAI from './pages/AdminAI.jsx';
 import Changelog from './pages/Changelog.jsx';
 import HostAuth from './pages/HostAuth.jsx';
 import HostProfile from './pages/HostProfile.jsx';
@@ -18,16 +19,12 @@ export default function App() {
 
     useEffect(() => {
         haalAppInstellingen().then((nieuw) => {
+            // Alleen naam/logo/ondertitel en lettergrootte uit de
+            // serverinstellingen gebruiken. De KLEUREN komen uit het gekozen
+            // thema (Neon / Noir / Kerst via data-thema); die mogen hier niet
+            // meer overschreven worden, anders wint altijd de oude roodinstelling.
             setThema(nieuw || {});
             const root = document.documentElement;
-            const mapping = {
-                achtergrond: '--bg', oppervlak: '--surface', rand: '--border',
-                accent: '--red-hot', accentDonker: '--red', tekst: '--text',
-                tekstDim: '--text-dim', lettertype: '--app-font',
-            };
-            Object.entries(mapping).forEach(([bron, css]) => {
-                if (nieuw?.[bron]) root.style.setProperty(css, nieuw[bron]);
-            });
             if (nieuw?.fontSchaal) root.style.setProperty('--font-scale', String(nieuw.fontSchaal));
             if (nieuw?.appNaam) document.title = nieuw.appNaam;
         }).catch(() => {});
@@ -45,6 +42,7 @@ export default function App() {
                     <Route path="/host" element={<Host />} />
                     <Route path="/play" element={<Play />} />
                     <Route path="/admin" element={<Admin />} />
+                    <Route path="/admin/ai" element={<AdminAI />} />
                     <Route path="/changelog" element={<Changelog />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

@@ -1941,3 +1941,70 @@ body {
     font-size: 1.1rem;
     line-height: 1;
 }
+
+/* =====================================================================
+   AI & Aanbevelingen-pagina (/admin/ai)
+   ===================================================================== */
+.admin-ai { text-align: left; }
+.ai-kop {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; margin-bottom: 0.5rem;
+}
+.ai-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+.ai-kaart { text-align: left; }
+.ai-status-rij { display: flex; align-items: center; gap: 0.6rem; font-size: 1.2rem; }
+.ai-stip {
+    width: 0.85rem; height: 0.85rem; border-radius: 50%;
+    flex: 0 0 auto; box-shadow: 0 0 10px currentColor;
+}
+.ai-stip.aan { background: #27c08a; color: #27c08a; }
+.ai-stip.uit { background: var(--text-dim); color: transparent; box-shadow: none; }
+.ai-uitleg { font-size: 0.95rem; margin: 0.5rem 0 1rem; }
+.ai-login { margin-top: 1rem; }
+.ai-link { display: inline-flex; width: 100%; text-align: center; }
+.ai-code {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.8rem, 9vw, 2.6rem);
+    font-weight: 700; letter-spacing: 0.15em;
+    text-align: center;
+    padding: 0.75rem 1rem; margin: 0.5rem 0;
+    border: 1px solid var(--red-hot);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--accent-2);
+    user-select: all;
+}
+.ai-knoprij { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.ai-knoprij .knop { flex: 1 1 10rem; }
+.ai-tellers {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+}
+
+/* =====================================================================
+   Responsive: ruimer op tablet en pc, terwijl mobiel smal en rustig blijft.
+   Leesbare tekstkolommen behouden; waar het kan twee kolommen.
+   ===================================================================== */
+@media (min-width: 720px) {
+    .scherm { max-width: 40rem; padding: 2.5rem; }
+    .setup-scherm { max-width: 46rem; }
+    .admin-ai { max-width: 52rem; }
+    .ai-grid { grid-template-columns: 1fr 1fr; align-items: start; }
+}
+
+@media (min-width: 1000px) {
+    .host-scherm { max-width: 68rem; }
+    .admin-portaal { max-width: 60rem; }
+    /* Startpagina: topscores naast elkaar blijven, ruimer middenblok. */
+    .scherm { max-width: 44rem; }
+    /* Grotere, rustigere visualizer op een tv/pc-hostscherm. */
+    .host-speler { min-height: 220px; }
+    .visualizer { height: 160px; }
+}

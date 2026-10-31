@@ -125,6 +125,113 @@ async function loginStatus(fresh = false) {
     return loginCache;
 }
 
+// =====================================================================
+// Inloggen vanaf de site (device-code), zoals VenTradeXLAB.
+//
+// `codex login --device-auth` toont een URL en een korte code. De
+// beheerder opent die op zijn telefoon/pc, voert de code in en bevestigt
+// in ChatGPT. Geen terminal nodig. De site pollt de status.
+// =====================================================================
+
+const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*(\x07|\x1b\\)|\x1b[=>()][0-9A-Za-z]?/g;
+const URL_RE = /https:\/\/[^\s"'<>]+/g;
+const CODE_RE = /\b([A-Z0-9]{4,5}-[A-Z0-9]{4,6})\b/;
+
+function striptAnsi(t) { return String(t || '').replace(ANSI, '').replace(/\r/g, ''); }
+
+// Eén lopende inlog-flow (VenTune heeft één beheerder).
+let sessie = null;
+
+function startLogin() {
+    // Bestaande flow afbreken.
+    if (sessie && sessie.proc && sessie.proc.exitCode === null) {
+        try { sessie.proc.kill('SIGKILL'); } catch { /* */ }
+    }
+    const { spawn } = require('node:child_process');
+    const s = {
+        status: 'starting',    // starting | waiting_user | done | error
+        url: null, code: null, error: null, output: '',
+        gestart: Date.now(), proc: null,
+    };
+    sessie = s;
+
+    try {
+        s.proc = spawn(CFG.bin, ['login', '--device-auth'], {
+            env: childEnv(), stdio: ['ignore', 'pipe', 'pipe'],
+        });
+    } catch (err) {
+        s.status = 'error'; s.error = `Codex CLI niet gevonden (${CFG.bin}).`;
+        return s;
+    }
+
+    const lees = (buf) => {
+        s.output += buf.toString('utf8');
+        const txt = striptAnsi(s.output);
+        if (!s.url) {
+            const urls = (txt.match(URL_RE) || []).filter((u) => /device|auth/.test(u));
+            if (urls.length) s.url = urls[0].replace(/[.,)]+$/, '');
+        }
+        if (!s.code) {
+            const m = CODE_RE.exec(txt);
+            if (m) s.code = m[1];
+        }
+        if (s.url && s.code && s.status === 'starting') s.status = 'waiting_user';
+    };
+    s.proc.stdout.on('data', lees);
+    s.proc.stderr.on('data', lees);
+
+    s.proc.on('error', () => {
+        s.status = 'error';
+        s.error = `Codex CLI niet gevonden (${CFG.bin}).`;
+    });
+    s.proc.on('close', (rc) => {
+        loginCache = null; // forceer verse is-ingelogd-check
+        if (s.status === 'error') return;
+        const ingelogd = require('node:fs').existsSync(
+            require('node:path').join(CFG.home, 'auth.json'));
+        if (rc === 0 && ingelogd) {
+            s.status = 'done';
+        } else {
+            s.status = 'error';
+            const laatste = striptAnsi(s.output).trim().split('\n').filter(Boolean).pop();
+            s.error = redact(laatste || 'Inloggen mislukt.').slice(0, 300);
+        }
+    });
+
+    // Vangnet: na 15 minuten stoppen.
+    setTimeout(() => {
+        if (s.proc && s.proc.exitCode === null) {
+            try { s.proc.kill('SIGKILL'); } catch { /* */ }
+            if (s.status !== 'done') { s.status = 'error'; s.error = 'Verlopen (15 minuten). Probeer opnieuw.'; }
+        }
+    }, 15 * 60 * 1000).unref?.();
+
+    return s;
+}
+
+/** Status van de lopende inlog-flow voor de site. */
+function loginSessieStatus() {
+    if (!sessie) return { status: 'geen', url: null, code: null, error: null };
+    const regels = striptAnsi(sessie.output).split('\n').map((l) => l.trim()).filter(Boolean).slice(-10);
+    return {
+        status: sessie.status,
+        url: sessie.url,
+        code: sessie.code,
+        error: sessie.error,
+        regels,
+        leeftijd: Math.round((Date.now() - sessie.gestart) / 1000),
+    };
+}
+
+/** Koppeling verbreken: auth.json verwijderen. */
+function logUit() {
+    try { require('node:fs').rmSync(require('node:path').join(CFG.home, 'auth.json'), { force: true }); }
+    catch { /* */ }
+    loginCache = null;
+    sessie = null;
+    return { ok: true };
+}
+
 /**
  * Vraag ChatGPT om een antwoord dat voldoet aan een JSON-schema.
  * @param {{prompt: string, schema: object, signal?: AbortSignal}} request
@@ -196,4 +303,7 @@ async function vraagJson(request) {
     }
 }
 
-module.exports = { vraagJson, loginStatus, redact, CFG };
+module.exports = {
+    vraagJson, loginStatus, redact, CFG,
+    startLogin, loginSessieStatus, logUit,
+};

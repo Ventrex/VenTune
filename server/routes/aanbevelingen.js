@@ -43,6 +43,21 @@ router.get('/api/admin/aanbevelingen/status', vereisAdmin, async (_req, res) => 
     }
 });
 
+// --- ChatGPT koppelen via de site (device-code login) ---
+
+router.post('/api/admin/aanbevelingen/login/start', vereisAdmin, (req, res) => {
+    const s = codex.startLogin();
+    res.json(codex.loginSessieStatus(s));
+});
+
+router.get('/api/admin/aanbevelingen/login/status', vereisAdmin, (req, res) => {
+    res.json(codex.loginSessieStatus());
+});
+
+router.post('/api/admin/aanbevelingen/login/uit', vereisAdmin, (req, res) => {
+    res.json(codex.logUit());
+});
+
 router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) => {
     if (run.bezig) return res.status(409).json({ fout: 'Er loopt al een generatie.' });
     const soort = req.body && req.body.soort === 'kerst' ? 'kerst' : 'film_serie';
