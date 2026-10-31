@@ -116,6 +116,20 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
     }
 });
 
+/** Advertentievrij lokaal MP3-luistervoorbeeld, alleen voor ingelogde beheerders. */
+router.get('/api/admin/aanbevelingen/:id/audio', vereisAdmin, async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ fout: 'Ongeldig ID.' });
+        const { rows } = await pool.query('SELECT * FROM aanbevelingen WHERE id = $1', [id]);
+        if (!rows[0]) return res.status(404).json({ fout: 'Aanbeveling niet gevonden.' });
+        res.json(await media.lokaalVoorbeeld(rows[0]));
+    } catch (err) {
+        logger.waarschuwing('Luistervoorbeeld downloaden mislukt', { melding: err.message });
+        res.status(502).json({ fout: 'Lokaal luistervoorbeeld niet beschikbaar: ' + err.message.slice(0, 180) });
+    }
+});
+
 /** Voorbeeld (YouTube-video-id) voor een kandidaat, om te beluisteren. */
 router.get('/api/admin/aanbevelingen/:id/voorbeeld', vereisAdmin, async (req, res) => {
     try {
