@@ -245,7 +245,7 @@ async function herstelGoedgekeurdeAudio({ voortgang } = {}) {
         if (!doel) {
             resultaat.mislukt++;
         } else {
-            const tijdelijk = doel.replace(/\\.mp3$/i, '') + '.herstel-' + tr.id + '.mp3';
+            const tijdelijk = doel.replace(/\.mp3$/i, '') + '.herstel-' + tr.id + '.mp3';
             try {
                 await fs.mkdir(path.dirname(doel), { recursive: true });
                 await execFileAsync('yt-dlp', [
