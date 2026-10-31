@@ -4,7 +4,7 @@
 # server als de seed-map in het image komen. De mappenstructuur blijft
 # /app/server en /app/seed, gelijk aan de repo.
 # =====================================================================
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app/server
 
@@ -18,7 +18,7 @@ RUN npm install --omit=dev
 # expliciet aangewezen video's op; ffmpeg maakt browser-vriendelijke audio.
 # Eigen uploads, waaronder m4a, blijven ook ondersteund via /media.
 RUN apk add --no-cache python3 py3-pip ffmpeg \
-    && python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
+    && python3 -m pip install --no-cache-dir --break-system-packages 'yt-dlp[default]'
 
 # ChatGPT-aanbevelingen via de officiële Codex CLI (ChatGPT-login van de
 # beheerder, geen API-key). De login komt in CODEX_HOME (een volume), zodat
