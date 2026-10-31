@@ -62,7 +62,7 @@ export default function AdminSwipe() {
     }, [huidige]);
 
     async function swipe(keuze) {
-        if (!huidige || !audioUrl || audioFout || voorbereiden?.bezig || !magAfspelen) return;
+        if (!huidige || !audioUrl || audioFout || !magAfspelen) return;
         const id = huidige.id;
         setSleep({ dx: 0, actief: false });
         setIndex((i) => i + 1);
@@ -164,8 +164,8 @@ export default function AdminSwipe() {
                             </>
                         ) : (
                             <>
-                                <div className="swipe-bek">{huidige.soort !== 'film_serie' ? '🎄' : (huidige.type === 'serie' ? '📺' : '🎬')}</div>
-                                {huidige.soort === 'kerst' ? (
+                                <div className="swipe-bek">{huidige.soort === 'kerst' ? '🎄' : huidige.soort === 'muziek' ? '🎵' : (huidige.type === 'serie' ? '📺' : '🎬')}</div>
+                                {huidige.soort !== 'film_serie' ? (
                                     <>
                                         <h2 className="swipe-titel">{huidige.tracknaam}</h2>
                                         <p className="swipe-sub">{huidige.artiest}{huidige.jaar ? ` · ${huidige.jaar}` : ''}</p>
@@ -192,16 +192,16 @@ export default function AdminSwipe() {
                     {/* Knoppen verschillen per fase. */}
                     {fase === 'blind' ? (
                         <div className="swipe-knoppen">
-                            <button className="swipe-knop fout" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('niet')} aria-label="Ken ik niet">✕</button>
-                            <button className="swipe-knop goed" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('herkend')} aria-label="Ken ik">✓</button>
-                            <button className="swipe-knop" style={{ background: "#e58a19", color: "#111" }} disabled={voorbereiden?.bezig} onClick={() => swipe('verkeerde_mp3')} aria-label="Verkeerde MP3" title="Verkeerde MP3">!</button>
+                            <button className="swipe-knop fout" disabled={!magAfspelen || !!audioFout} onClick={() => swipe('niet')} aria-label="Ken ik niet">✕</button>
+                            <button className="swipe-knop goed" disabled={!magAfspelen || !!audioFout} onClick={() => swipe('herkend')} aria-label="Ken ik">✓</button>
+                            <button className="swipe-knop" style={{ background: "#e58a19", color: "#111" }} disabled={false} onClick={() => swipe('verkeerde_mp3')} aria-label="Verkeerde MP3" title="Verkeerde MP3">!</button>
                         </div>
                     ) : (
                         <div className="swipe-knoppen">
-                            <button className="swipe-knop fout" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('fout')} aria-label="Fout">✕</button>
-                            <button className="swipe-knop weet" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('onbekend')} aria-label="Onbekend">?</button>
-                            <button className="swipe-knop goed" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('goed')} aria-label="Goed">✓</button>
-                            <button className="swipe-knop" style={{ background: "#e58a19", color: "#111" }} disabled={voorbereiden?.bezig} onClick={() => swipe('verkeerde_mp3')} aria-label="Verkeerde MP3" title="Verkeerde MP3">!</button>
+                            <button className="swipe-knop fout" disabled={!magAfspelen || !!audioFout} onClick={() => swipe('fout')} aria-label="Fout">✕</button>
+                            <button className="swipe-knop weet" disabled={!magAfspelen || !!audioFout} onClick={() => swipe('onbekend')} aria-label="Onbekend">?</button>
+                            <button className="swipe-knop goed" disabled={!magAfspelen || !!audioFout} onClick={() => swipe('goed')} aria-label="Goed">✓</button>
+                            <button className="swipe-knop" style={{ background: "#e58a19", color: "#111" }} disabled={false} onClick={() => swipe('verkeerde_mp3')} aria-label="Verkeerde MP3" title="Verkeerde MP3">!</button>
                         </div>
                     )}
                     <p className="dim swipe-uitleg">
