@@ -17,6 +17,7 @@ const audioRoutes = require('./routes/audio');
 const lobbyRoutes = require('./routes/lobby');
 const setupRoutes = require('./routes/setup');
 const adminRoutes = require('./routes/admin');
+const aanbevelingenRoutes = require('./routes/aanbevelingen');
 const changelogRoutes = require('./routes/changelog');
 const { router: authRoutes } = require('./lib/auth');
 const { setupSockets } = require('./socket');
@@ -44,6 +45,8 @@ async function start() {
     app.use(setupRoutes);
     // Admin-portal (titels, tracks, lokale audio, gebruikers en seed).
     app.use(adminRoutes);
+    // Aanbevelingen via ChatGPT (Codex) + Tinder-swipe.
+    app.use(aanbevelingenRoutes);
     // Publiek: spelers mogen zien wat er veranderd is.
     app.use(changelogRoutes);
 

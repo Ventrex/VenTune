@@ -52,6 +52,13 @@ services:
       DOWNLOAD_DIR: ${DOWNLOAD_DIR:-/media/downloads}
       UPLOAD_DIR: ${UPLOAD_DIR:-/media/uploads}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      # ChatGPT via Codex CLI (aanbevelingen) — geen API-key.
+      CHATGPT_ENABLED: ${CHATGPT_ENABLED:-true}
+      CODEX_BIN: ${CODEX_BIN:-codex}
+      CODEX_HOME: ${CODEX_HOME:-/data/codex}
+      CHATGPT_MODEL: ${CHATGPT_MODEL:-}
+      CHATGPT_TIMEOUT_SECONDS: ${CHATGPT_TIMEOUT_SECONDS:-300}
+      CHATGPT_CODEX_ARGS: ${CHATGPT_CODEX_ARGS:-}
     # De seed-map als volume, zodat import.js altijd beschikbaar is (ook
     # zonder rebuild) en aanpassingen aan titels.json direct meekomen.
     volumes:
@@ -59,6 +66,9 @@ services:
       # Permanente audio-opslag. De server schrijft echte bestanden in
       # ./media/downloads en ./media/uploads; opnieuw bouwen wist ze niet.
       - ./media:/media
+      # ChatGPT-login (codex auth.json). Blijft bestaan na een rebuild,
+      # zodat je maar één keer hoeft in te loggen.
+      - codexdata:/data/codex
     ports:
       - "8090:3000"
 
@@ -80,3 +90,4 @@ services:
 
 volumes:
   pgdata:
+  codexdata:

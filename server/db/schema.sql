@@ -908,3 +908,34 @@ ON CONFLICT (sleutel) DO UPDATE SET
     naam = EXCLUDED.naam,
     beschrijving = EXCLUDED.beschrijving,
     standaard_type = EXCLUDED.standaard_type;
+
+-- =====================================================================
+-- Aanbevelingen: door ChatGPT (Codex) aangedragen kandidaten die de
+-- beheerder Tinder-stijl beoordeelt (goed / fout / weet niet). Pas na
+-- 'goed' worden ze een echte titel + track met gedownloade audio.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS aanbevelingen (
+    id                SERIAL PRIMARY KEY,
+    soort             TEXT        NOT NULL CHECK (soort IN ('film_serie', 'kerst')),
+    titel             TEXT,
+    type              TEXT        CHECK (type IN ('film', 'serie')),
+    jaar              INTEGER,
+    genres            TEXT[]      NOT NULL DEFAULT '{}',
+    tracknaam         TEXT        NOT NULL DEFAULT '',
+    artiest           TEXT        NOT NULL DEFAULT '',
+    youtube_zoekterm  TEXT        NOT NULL DEFAULT '',
+    bekendheid        SMALLINT    NOT NULL DEFAULT 3 CHECK (bekendheid BETWEEN 1 AND 5),
+    reden             TEXT,
+    voorbeeld_bron    TEXT,
+    status            TEXT        NOT NULL DEFAULT 'nieuw'
+                      CHECK (status IN ('nieuw', 'goed', 'fout', 'weet_niet', 'toegevoegd')),
+    titel_id          INTEGER     REFERENCES titels (id) ON DELETE SET NULL,
+    aangemaakt_op     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    beoordeeld_op     TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS aanbevelingen_uniek
+    ON aanbevelingen (soort, lower(coalesce(titel, '')), lower(tracknaam), lower(artiest));
+
+CREATE INDEX IF NOT EXISTS aanbevelingen_status_idx
+    ON aanbevelingen (status, soort, bekendheid DESC);

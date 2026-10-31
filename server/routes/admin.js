@@ -2849,3 +2849,6 @@ function startPlaylistPlanner() {
 startPlaylistPlanner();
 
 module.exports = router;
+
+// Gedeeld met andere adminroutes (bv. aanbevelingen).
+module.exports.vereisAdmin = vereisAdmin;

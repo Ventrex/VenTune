@@ -20,9 +20,14 @@ RUN npm install --omit=dev
 RUN apk add --no-cache python3 py3-pip ffmpeg \
     && python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
 
-# Vaste mappen voor audio die tussen container-restarts blijft bestaan via
-# de bind mount uit docker-compose.yml.
-RUN mkdir -p /media/downloads /media/uploads
+# ChatGPT-aanbevelingen via de officiële Codex CLI (ChatGPT-login van de
+# beheerder, geen API-key). De login komt in CODEX_HOME (een volume), zodat
+# die een rebuild overleeft. Eenmalig inloggen: `docker compose exec server codex login`.
+RUN npm install -g @openai/codex
+
+# Vaste mappen voor audio en de Codex-login die tussen container-restarts
+# blijven bestaan via de bind mounts uit docker-compose.yml.
+RUN mkdir -p /media/downloads /media/uploads /data/codex
 
 # Servercode en seed kopiëren.
 COPY server/ ./
