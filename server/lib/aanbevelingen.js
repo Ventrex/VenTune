@@ -348,27 +348,73 @@ const SCHEMA_QUIZ = {
         } },
     },
 };
+// Herken directe en indirecte antwoordlekken tussen hints en bonusvragen.
+// Automatische controles zijn conservatief; een beheerder moet nog goedkeuren.
+function quizTekst(s) {
+    return String(s || '').normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function inhoudWoorden(s) {
+    const stop = new Set(['de','het','een','wat','welke','welk','waar','wie','hoe','in','op','van','bij','met','is','zijn','en','of','uit','voor','naar','als','dan','wordt','was','werd','dat','dit','ze','zij','hij','haar','hun','zijn','serie','film','amerikaanse','nederlandse','sitcom']);
+    return new Set(quizTekst(s).split(' ').filter(w => w.length > 3 && !stop.has(w)));
+}
+function vraagHintOverlap(hint, vraag) {
+    const a = inhoudWoorden(hint);
+    const b = inhoudWoorden(vraag);
+    const gemeen = [...b].filter(w => a.has(w));
+    return gemeen.length >= 2 || (gemeen.length >= 1 && b.size <= 2);
+}
+function valideerQuizSet(hints, vragen) {
+    if (hints.length !== 3 || vragen.length !== 3) return 'Minimaal drie hints en drie bonusvragen zijn vereist.';
+    const uniek = (arr) => new Set(arr.map(quizTekst)).size === arr.length;
+    if (!uniek(hints) || !uniek(vragen.map(q => q.vraag))) return 'Dubbele hints of bonusvragen.';
+    for (const q of vragen) {
+        if (!q.vraag || !Array.isArray(q.opties) || q.opties.length !== 4 ||
+            new Set(q.opties.map(quizTekst)).size !== 4 ||
+            !Number.isInteger(q.correct_index) || q.correct_index < 0 || q.correct_index > 3) {
+            return 'Bonusvraag met ongeldige antwoordkeuzes.';
+        }
+        const juist = quizTekst(q.opties[q.correct_index]);
+        if (!juist || hints.some(h => quizTekst(h).includes(juist) || vraagHintOverlap(h, q.vraag))) {
+            return 'Een hint verklapt een bonusantwoord of overlapt met de vraag.';
+        }
+    }
+    return null;
+}
 async function vulQuizMetadata(titelId) {
     const { rows } = await pool.query("SELECT id, naam, type, jaar, omschrijving FROM titels WHERE id = $1", [titelId]);
     const titel = rows[0];
     if (!titel || !['film', 'serie'].includes(titel.type)) return { ok: false, error: 'Geen film of serie.' };
-    const prompt = `Maak voor ${titel.type} "${titel.naam}" (${titel.jaar || 'onbekend jaar'}) drie korte, oplopend duidelijke hints en drie feitelijk controleerbare bonusvragen voor een Nederlandse muziekquiz. Denk aan personages, werkzaamheden en locatie. Geef steeds precies vier verschillende plausibele antwoorden, met correct_index (0-3). Gebruik geen onbevestigde feiten; geef liever minder items. Hints mogen niet de titel letterlijk noemen. Bonusvragen moeten één ondubbelzinnig goed antwoord hebben. Korte inhoud: ${titel.omschrijving || 'onbekend'}.`;
+    const prompt = `Maak voor de ${titel.type} "${titel.naam}" (${titel.jaar || 'onbekend jaar'}) EXACT drie inhoudelijk verschillende hints en EXACT drie feitelijk verifieerbare bonusvragen met vier verschillende antwoordopties en correct_index (0-3). Gebruik verschillende feitelijke onderwerpen voor alle zes items. CRUCIAAL: geen enkele hint mag DIRECT OF INDIRECT het correcte antwoord op welke bonusvraag dan ook verklappen. Voorbeeld VERBODEN: hint "Het bedrijf verkoopt papier" en vraag "Wat verkoopt het bedrijf?". Ook synoniemen en omschrijvingen zijn verboden als lek. Hints mogen de filmtitel niet letterlijk vermelden. Weet je iets niet zeker, verzin niets: lever dan minder items en de titel blijft op controle nodig staan. Geen herhaalde jaarvragen. Korte beschrijving: ${titel.omschrijving || 'onbekend'}.`;
     const res = await codex.vraagJson({ prompt, schema: SCHEMA_QUIZ });
     if (!res.ok) return { ok: false, error: res.error };
     const hints = (res.data.hints || []).filter(x => typeof x === 'string' && x.trim()).slice(0, 3);
-    await pool.query('UPDATE titels SET ai_hints = $2 WHERE id = $1', [titelId, hints]);
-    let toegevoegd = 0;
-    for (const q of (res.data.vragen || []).slice(0, 3)) {
-        if (!q.vraag || !Array.isArray(q.opties) || q.opties.length !== 4 ||
-            q.opties.some(o => typeof o !== 'string' || !o.trim()) ||
-            new Set(q.opties.map(o => o.trim().toLowerCase())).size !== 4 ||
-            !Number.isInteger(q.correct_index) || q.correct_index < 0 || q.correct_index > 3) continue;
-        const r = await pool.query(
-            "INSERT INTO vragen (titel_id, soort, vraag, opties, correct_index) VALUES ($1,'ai',$2,$3::jsonb,$4) ON CONFLICT DO NOTHING RETURNING id",
-            [titelId, q.vraag, JSON.stringify(q.opties), q.correct_index]);
-        if (r.rows.length) toegevoegd++;
+    const vragen = (res.data.vragen || []).slice(0, 3);
+    const fout = valideerQuizSet(hints, vragen);
+    if (fout) return { ok: false, error: fout, controle_nodig: true };
+    // Atomair bewaren: geen halve sets als één van de inserts faalt.
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            "UPDATE titels SET ai_hints = $2, ai_hints_status = 'controle_nodig' WHERE id = $1",
+            [titelId, hints]);
+        for (const q of vragen) {
+            await client.query(
+                `INSERT INTO vragen (titel_id, soort, vraag, opties, correct_index, ai_review_status)
+                 VALUES ($1,'ai',$2,$3::jsonb,$4,'controle_nodig')
+                 ON CONFLICT (titel_id, soort, vraag) DO NOTHING`,
+                [titelId, q.vraag, JSON.stringify(q.opties), q.correct_index]);
+        }
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
     }
-    return { ok: true, hints: hints.length, vragen: toegevoegd, waarschuwing: 'AI-inhoud controleren voor gebruik.' };
+    return { ok: true, hints: 3, vragen: 3, controle_nodig: true,
+        waarschuwing: 'AI-set opgeslagen maar nog niet goedgekeurd; controleer feiten en inhoudelijke overlap.' };
 }
 
 module.exports = { genereer, herzoekFout, vulQuizMetadata, SCHEMA_FILM_SERIE, SCHEMA_KERST, CATEGORIEEN };
