@@ -20,9 +20,8 @@ const logger = require('./logger');
 const execFileAsync = promisify(execFile);
 
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
-const FRAGMENT_SECONDEN = 45;
-const INTRO_OVERSLAAN = 5; // korte gesproken intro's/reclame aan begin overslaan      // ruim genoeg om te raden
-const MAX_BYTES = 20 * 1024 * 1024;
+// Bewaar complete audio; kies het quiz-startpunt later via tracks.start_seconde.
+const MAX_BYTES = 35 * 1024 * 1024;
 
 /**
  * Zoek een voorbeeld-video voor een aanbeveling.
@@ -80,8 +79,7 @@ async function lokaalVoorbeeld(aanbeveling) {
             try {
                 await execFileAsync('yt-dlp', [
                     '--js-runtimes', 'node',
-                    '--no-playlist', '--download-sections', `*${INTRO_OVERSLAAN}-${INTRO_OVERSLAAN + FRAGMENT_SECONDEN}`,
-                    '--force-keyframes-at-cuts', '--extract-audio',
+                    '--no-playlist', '--extract-audio',
                     '--audio-format', 'mp3', '--audio-quality', '5',
                     '--no-part', '--output', tmp,
                     `https://www.youtube.com/watch?v=${bron.videoId}`,
@@ -184,9 +182,8 @@ async function verwerkGoed(aanbevelingId) {
         if (voorbereid) {
             await fs.copyFile(path.join(MEDIA_DIR, 'previews', `aanbeveling-${a.id}.mp3`), media.bestand);
         } else await execFileAsync('yt-dlp', [
+            '--js-runtimes', 'node',
             '--no-playlist',
-            '--download-sections', `*0-${FRAGMENT_SECONDEN}`,
-            '--force-keyframes-at-cuts',
             '--extract-audio',
             '--audio-format', 'mp3',
             '--audio-quality', '5',
