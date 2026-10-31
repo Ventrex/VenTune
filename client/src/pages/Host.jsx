@@ -44,6 +44,7 @@ export default function Host() {
     const [meldingToelichting, setMeldingToelichting] = useState('');
     const [, setBonusTik] = useState(0);
     const [nieuwTeam, setNieuwTeam] = useState('');
+    const [qrGroot, setQrGroot] = useState(false);
     const [lobbyWijziging, setLobbyWijziging] = useState(null);
     const [startBezig, setStartBezig] = useState(false);
     const [audioStatus, setAudioStatus] = useState(null);
@@ -205,8 +206,8 @@ export default function Host() {
             {fase === 'wachten' && (
                 <>
                     <h1>Lobby</h1>
-                    <p className="dim">Leeftijd deelnemers: {lobbyInstellingen?.leeftijd_deelnemer_min || 4}–{lobbyInstellingen?.leeftijd_deelnemer_max || 99}</p>
-                    <div className="host-wacht">
+
+                    <div className="host-wacht vt-lobby-layout">
                         <div className="host-wacht-links">
                             <p className="kaart-label" style={{ textAlign: 'left' }}>
                                 Spelers ({spelers.length})
@@ -233,7 +234,7 @@ export default function Host() {
                                     <li className="dim">Nog niemand — scan de QR →</li>
                                 )}
                             </ul>
-                            <div className="kaart lobby-instellingen">
+                            <details className="kaart lobby-instellingen"><summary>Lobbyinstellingen aanpassen</summary>
                                 <p className="kaart-label">Lobby aanpassen</p>
                                 <div className="velden">
                                     <select
@@ -263,7 +264,7 @@ export default function Host() {
                                     }}>Team toevoegen</button>
                                 </div>
                                 {(lobbyWijziging?.teams || teams || []).length > 0 && <div className="chips">
-                                    {(lobbyWijziging?.teams || teams || []).map((team) => <span className="chip gekozen" key={team}>{team}</span>)}
+                                    {(lobbyWijziging?.teams || teams || []).map((team) => <span className="chip gekozen" key={team}>{team} · {spelers.filter(p=>p.team_naam===team).map(p=>p.naam).join(", ") || "leeg"}</span>)}
                                 </div>}
                                 {(teams || []).length > 0 && (
                                     <div className="kaart team-keuze-kaart">
@@ -282,7 +283,7 @@ export default function Host() {
                                     </div>
                                 )}
                                 <button className="knop knop-stil" type="button" onClick={() => spel.bewaarLobbyInstellingen(lobbyWijziging || {})}>Instellingen opslaan</button>
-                            </div>
+                            </details>
                             {(voorbereiding || startBezig) && (
                                 <div className="kaart" style={{ marginTop: '1.5rem' }} role="status">
                                     <strong>{voorbereiding?.melding || 'Spel voorbereiden… even geduld.'}</strong>
@@ -311,7 +312,7 @@ export default function Host() {
                         <div className="kaart host-kaart host-wacht-rechts">
                             <p className="kaart-label">Scan om mee te doen</p>
                             <p className="lobby-code">{sessie.code}</p>
-                            <div className="qr-doos">
+                            <button type="button" className="qr-doos vt-qr-trigger" aria-label="Vergroot QR-code" onClick={() => setQrGroot(true)}>
                                 <QRCodeSVG
                                     value={joinUrl}
                                     size={200}
@@ -320,12 +321,15 @@ export default function Host() {
                                     level="M"
                                     includeMargin
                                 />
-                            </div>
+                            </button>
                             <p className="dim" style={{ wordBreak: 'break-all' }}>
                                 {joinUrl}
                             </p>
                         </div>
                     </div>
+                    {qrGroot && <div className="vt-qr-overlay" role="dialog" aria-modal="true" aria-label="Vergrote QR-code" onClick={() => setQrGroot(false)}>
+                      <div className="vt-qr-modal" onClick={e=>e.stopPropagation()}><button className="knop knop-stil" type="button" onClick={() => setQrGroot(false)}>Sluiten ×</button><p className="lobby-code">{sessie.code}</p><QRCodeSVG value={joinUrl} size={Math.min(typeof window !== 'undefined' ? window.innerWidth - 70 : 340, 340)} bgColor="#ffffff" fgColor="#111111" includeMargin/><p>Scan om mee te doen</p></div>
+                    </div>}
                 </>
             )}
 
