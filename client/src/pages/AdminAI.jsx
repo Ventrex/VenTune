@@ -252,7 +252,7 @@ function Genereren() {
     async function start(soort) {
         setBezig(true); setMelding('ChatGPT denkt na… dit kan even duren.');
         try {
-            await haal('/api/admin/aanbevelingen/genereer', { method: 'POST', ...jsonBody({ soort, aantal: 15 }) });
+            await haal('/api/admin/aanbevelingen/genereer', { method: 'POST', ...jsonBody({ soort, aantal: soort === 'kerst' ? 100 : 15 }) });
             clearInterval(poll.current);
             poll.current = setInterval(ververs, 3000);
         } catch (e) { setBezig(false); setMelding(e.message); }
