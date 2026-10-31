@@ -32,7 +32,7 @@ router.get('/api/admin/aanbevelingen/status', vereisAdmin, async (_req, res) => 
         const aantallen = {};
         for (const r of tel.rows) {
             aantallen[r.soort] = aantallen[r.soort] || {};
-            aantallen[r.soort][r.status] = r.n;
+            aantallen[r.soort][r.status] = (aantallen[r.soort][r.status] || 0) + r.n;
         }
         const perCategorie = {};
         for (const r of tel.rows) {
