@@ -141,7 +141,7 @@ async function bestaandeNamen(soort) {
  */
 async function genereer(opties) {
     const soort = opties.soort === 'kerst' ? 'kerst' : 'film_serie';
-    const aantal = Math.min(soort === 'kerst' ? 100 : 40, Math.max(1, opties.aantal || (soort === 'kerst' ? 100 : 15)));
+    const aantal = Math.min(100, Math.max(1, opties.aantal || (100)));
     const minBek = opties.minBekendheid || 3;
 
     const bestaand = await bestaandeNamen(soort);
