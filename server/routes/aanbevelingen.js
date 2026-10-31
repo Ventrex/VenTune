@@ -70,6 +70,48 @@ router.get('/api/admin/db-overzicht', vereisAdmin, async (_req, res) => {
     }
 });
 
+// Bestaande film/serie-metadata voorzichtig verrijken met gecontroleerde TMDB-gegevens.
+// Geen automatische overschrijving van correcte bestaande waarden.
+const verrijking = { bezig: false, totaal: 0, klaar: 0, aangepast: 0, gemist: 0, fout: null };
+router.get('/api/admin/metadata-verrijken/status', vereisAdmin, (_req, res) => res.json(verrijking));
+router.post('/api/admin/metadata-verrijken/start', vereisAdmin, async (_req, res) => {
+    if (verrijking.bezig) return res.status(409).json({ fout: 'Verrijking draait al.' });
+    const tmdb = require('../lib/tmdb');
+    if (!tmdb.beschikbaar()) return res.status(422).json({ fout: 'TMDB_API_KEY is nog niet ingesteld.' });
+    const { rows } = await pool.query(`
+       SELECT id, naam, type, jaar FROM titels
+       WHERE type IN ('film','serie') AND (
+           poster_pad IS NULL OR omschrijving IS NULL OR btrim(omschrijving) = ''
+           OR genres IS NULL OR cardinality(genres) = 0 OR jaar IS NULL
+           OR studio IS NULL OR lower(studio) = 'onbekend')
+       ORDER BY id LIMIT 100`);
+    Object.assign(verrijking, { bezig: true, totaal: rows.length, klaar: 0, aangepast: 0, gemist: 0, fout: null });
+    res.json({ gestart: true, totaal: rows.length });
+    (async () => {
+        for (const t of rows) {
+            try {
+                const info = await tmdb.zoekPresentatie(t.naam, t.type, t.jaar);
+                if (!info) { verrijking.gemist++; continue; }
+                const details = await tmdb.haalDetails(info.tmdbId, t.type);
+                await pool.query(`UPDATE titels SET
+                    tmdb_id = COALESCE(tmdb_id, $2),
+                    poster_pad = COALESCE(poster_pad, $3),
+                    omschrijving = COALESCE(NULLIF(omschrijving, ''), $4),
+                    genres = CASE WHEN cardinality(genres) = 0 THEN $5::text[] ELSE genres END,
+                    studio = CASE WHEN studio IS NULL OR lower(studio) = 'onbekend' THEN $6 ELSE studio END,
+                    jaar = COALESCE(jaar, $7)
+                    WHERE id = $1`,
+                    [t.id, info.tmdbId, info.posterPad, info.omschrijving,
+                     details.genres || [], details.studio, info.jaar]);
+                verrijking.aangepast++;
+            } catch (err) {
+                logger.waarschuwing('Titelmetadata niet verrijkt', { titelId: t.id, melding: err.message });
+                verrijking.gemist++;
+            } finally { verrijking.klaar++; }
+        }
+    })().catch((err) => { verrijking.fout = err.message; }).finally(() => { verrijking.bezig = false; });
+});
+
 // --- ChatGPT koppelen via de site (device-code login) ---
 
 router.post('/api/admin/aanbevelingen/login/start', vereisAdmin, (req, res) => {
