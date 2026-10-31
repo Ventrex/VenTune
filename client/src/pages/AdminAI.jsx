@@ -85,7 +85,7 @@ function Paneel() {
 
 // ------------------------- Database (simpel) -------------------------
 
-function QuizInhoud() {
+export function QuizInhoud() {
     const [zoek, setZoek] = useState('');
     const [data, setData] = useState([]);
     const [fout, setFout] = useState('');
