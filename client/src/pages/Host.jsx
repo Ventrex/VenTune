@@ -584,7 +584,7 @@ export default function Host() {
 // Toont alle informatie over de titel: type, jaar, taal, land en genres.
 export function AntwoordInfo({ antwoord }) {
     if (!antwoord) return null;
-    const type = antwoord.type === 'serie' ? 'Serie' : 'Film';
+    const type = antwoord.type === 'serie' ? 'Serie' : antwoord.type === 'muziek' ? 'Muziek' : 'Film';
     const taal = antwoord.taal === 'nl' ? 'Nederlands' : 'Internationaal';
     return (
         <>
@@ -596,6 +596,7 @@ export function AntwoordInfo({ antwoord }) {
                 {antwoord.jaar && <span className="info-chip">{antwoord.jaar}</span>}
                 <span className="info-chip">{taal}</span>
                 {antwoord.land && <span className="info-chip">{antwoord.land}</span>}
+                {antwoord.studio && <span className="info-chip">{antwoord.studio}</span>}
                 {(antwoord.genres || []).map((g) => (
                     <span key={g} className="info-chip">{g}</span>
                 ))}
