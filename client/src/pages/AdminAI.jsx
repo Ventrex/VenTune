@@ -89,33 +89,96 @@ function QuizInhoud() {
     const [zoek, setZoek] = useState('');
     const [data, setData] = useState([]);
     const [fout, setFout] = useState('');
+    const [melding, setMelding] = useState('');
+    const [batch, setBatch] = useState(null);
     const [geladen, setGeladen] = useState(false);
-    async function zoeken(e) {
-        e?.preventDefault();
-        setFout('');
+    const [wijzigingen, setWijzigingen] = useState({});
+    const timer = useRef(null);
+    const laadBatch = async () => {
         try {
-            const r = await haal('/api/admin/quiz-inhoud?zoek=' + encodeURIComponent(zoek));
-            setData(r.titels || []);
-            setGeladen(true);
+            const b = await haal('/api/admin/ai-vragen/status');
+            setBatch(b);
+            if (!b.bezig && timer.current) { clearInterval(timer.current); timer.current = null; }
+        } catch (err) { setFout(err.message); }
+    };
+    useEffect(() => { laadBatch(); return () => { if (timer.current) clearInterval(timer.current); }; }, []);
+    async function starten() {
+        setFout(''); setMelding('');
+        try {
+            await haal('/api/admin/ai-vragen/start', { method: 'POST', ...jsonBody({limiet: 500}) });
+            await laadBatch();
+            timer.current = setInterval(laadBatch, 2500);
+            setMelding('AI-generatie gestart. Titels zonder betrouwbare gegevens blijven op Controle nodig.');
         } catch (err) { setFout(err.message); }
     }
-    return <section className="kaart ai-kaart" style={{ marginTop: '1rem' }}>
-        <p className="kaart-label">Hints en bonusvragen bekijken</p>
-        <form className="zoekbalk" onSubmit={zoeken}>
-            <input className="invoer" value={zoek} onChange={e => setZoek(e.target.value)} placeholder="Zoek een film of serie…" />
-            <button className="knop" type="submit">Zoeken</button>
+    async function zoeken(e) {
+        e?.preventDefault(); setFout('');
+        try {
+            const r = await haal('/api/admin/quiz-inhoud?zoek=' + encodeURIComponent(zoek));
+            setData(r.titels || []); setGeladen(true);
+        } catch (err) { setFout(err.message); }
+    }
+    async function beoordelen(pad, status) {
+        setFout(''); setMelding('');
+        try {
+            await haal(pad, { method: 'POST', ...jsonBody({ status }) });
+            setMelding('Beoordeling opgeslagen.');
+            await zoeken();
+            await laadBatch();
+        } catch (err) { setFout(err.message); }
+    }
+    async function bewaarHints(t) {
+        const hints = t.ai_hints.map((h,i) => wijzigingen['h'+t.id+'-'+i] ?? h);
+        try {
+            await haal('/api/admin/ai-hints/' + t.id, {method:'PATCH', ...jsonBody({hints})});
+            setMelding('Hints aangepast: controle opnieuw vereist.'); await zoeken();
+        } catch(err) {setFout(err.message);}
+    }
+    async function bewaarVraag(v) {
+        const basis='v'+v.id+'-';
+        const vraag=wijzigingen[basis+'vraag'] ?? v.vraag;
+        const opties=v.opties.map((o,i)=>wijzigingen[basis+i] ?? o);
+        const correct_index=Number(wijzigingen[basis+'correct'] ?? v.correct_index);
+        try {
+            await haal('/api/admin/ai-vraag/'+v.id,{method:'PATCH',...jsonBody({vraag,opties,correct_index})});
+            setMelding('Vraag aangepast: controle opnieuw vereist.'); await zoeken();
+        } catch(err){setFout(err.message);}
+    }
+    return <section className="kaart ai-kaart" style={{ marginTop:'1rem' }}>
+        <h2>AI · Hints en bonusvragen</h2>
+        <p className="dim">Drie verschillende hints en drie bonusvragen met zes keuzes per film/serie. AI-voorstellen zijn niet automatisch goedgekeurd.</p>
+        {batch && <p className="dim">Bibliotheek: {batch.database?.titels ?? '—'} titels · {batch.database?.hints_goedgekeurd ?? 0} met drie goedgekeurde hints · {batch.database?.vragen_goedgekeurd ?? 0} met drie goedgekeurde AI-vragen</p>}
+        <button className="knop" disabled={batch?.bezig} onClick={starten}>{batch?.bezig ? 'Generatie loopt…' : 'Ontbrekende hints en vragen genereren'}</button>
+        {batch?.bezig && <p className="dim">Voortgang {batch.verwerkt}/{batch.totaal} · {batch.gelukt} sets aangemaakt · {batch.mislukt} niet gelukt</p>}
+        {!!batch?.fouten?.length && <details><summary>{batch.fouten.length} meldingen</summary>{batch.fouten.map((e,i)=><p key={i}>{e.id}: {e.fout}</p>)}</details>}
+        <form className="zoekbalk" onSubmit={zoeken} style={{marginTop:'1rem'}}>
+            <input className="invoer" value={zoek} onChange={e=>setZoek(e.target.value)} placeholder="Zoek film of serie…" />
+            <button className="knop" type="submit">Bekijken</button>
         </form>
         {fout && <p className="waarschuwing">{fout}</p>}
-        {geladen && !data.length && <p className="dim">Geen films of series gevonden.</p>}
-        {data.map(t => <details key={t.id} style={{ marginTop: '.7rem' }}>
-            <summary>{t.naam} {t.jaar ? '(' + t.jaar + ')' : ''} · {(t.ai_hints || []).length} hints · {(t.vragen || []).length} vragen</summary>
-            <p><strong>Hints</strong></p>
-            {(t.ai_hints || []).length ? <ol>{t.ai_hints.map((h, i) => <li key={i}>{h}</li>)}</ol> : <p className="dim">Nog geen AI-hints opgeslagen.</p>}
+        {melding && <p className="dim">{melding}</p>}
+        {geladen && !data.length && <p className="dim">Geen titels gevonden.</p>}
+        {data.map(t=><details key={t.id} style={{marginTop:'.7rem'}}>
+            <summary>{t.naam} ({t.jaar || 'jaar onbekend'}) · {(t.ai_hints||[]).length} hints · {(t.vragen||[]).filter(v=>v.status).length} AI-vragen</summary>
+            <p><strong>Hints</strong> · {t.ai_hints_status || 'controle nodig'}</p>
+            {(t.ai_hints||[]).map((h,i)=><input key={i} className="invoer" style={{display:'block',marginBottom:'.4rem'}} defaultValue={h} onChange={e=>setWijzigingen(w=>({...w,['h'+t.id+'-'+i]:e.target.value}))}/>)}
+            <div className="ai-knoprij">
+                <button className="knop knop-stil" type="button" onClick={()=>bewaarHints(t)}>Hints opslaan</button>
+                <button className="knop" type="button" onClick={()=>beoordelen('/api/admin/ai-hints/'+t.id+'/beoordeel','goedgekeurd')}>Hints goedkeuren</button>
+                <button className="knop knop-stil" type="button" onClick={()=>beoordelen('/api/admin/ai-hints/'+t.id+'/beoordeel','afgekeurd')}>Afkeuren</button>
+            </div>
             <p><strong>Bonusvragen</strong></p>
-            {(t.vragen || []).length ? t.vragen.map((v, i) => <div key={i} style={{ marginBottom: '.75rem' }}>
-                <strong>{v.vraag}</strong>
-                <div className="dim">{(v.opties || []).map((opt, j) => <span key={j} style={{ display: 'block', color: j === v.correct_index ? 'var(--success, #40c98b)' : undefined }}>{j === v.correct_index ? '✓ ' : ''}{opt}</span>)}</div>
-            </div>) : <p className="dim">Nog geen bonusvragen opgeslagen.</p>}
+            {(t.vragen||[]).filter(v=>v.status).map(v=><div className="kaart" key={v.id} style={{marginBottom:'.65rem',padding:'.7rem'}}>
+                <p className="dim">Status: {v.status}</p>
+                <input className="invoer" defaultValue={v.vraag} onChange={e=>setWijzigingen(w=>({...w,['v'+v.id+'-vraag']:e.target.value}))}/>
+                {(v.opties||[]).map((opt,i)=><input className="invoer" key={i} style={{display:'block',marginTop:'.3rem'}} defaultValue={opt} onChange={e=>setWijzigingen(w=>({...w,['v'+v.id+'-'+i]:e.target.value}))}/>)}
+                <label>Correcte optie (1–6) <select className="invoer" defaultValue={v.correct_index} onChange={e=>setWijzigingen(w=>({...w,['v'+v.id+'-correct']:e.target.value}))}>{[0,1,2,3,4,5].map(i=><option key={i} value={i}>{i+1}</option>)}</select></label>
+                <div className="ai-knoprij">
+                    <button type="button" className="knop knop-stil" onClick={()=>bewaarVraag(v)}>Vraag opslaan</button>
+                    <button type="button" className="knop" onClick={()=>beoordelen('/api/admin/ai-vraag/'+v.id+'/beoordeel','goedgekeurd')}>Goedkeuren</button>
+                    <button type="button" className="knop knop-stil" onClick={()=>beoordelen('/api/admin/ai-vraag/'+v.id+'/beoordeel','afgekeurd')}>Afkeuren</button>
+                </div>
+            </div>)}
         </details>)}
     </section>;
 }
