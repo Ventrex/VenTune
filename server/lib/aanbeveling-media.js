@@ -55,10 +55,13 @@ async function lokaalVoorbeeld(aanbeveling) {
     const naam = `aanbeveling-${id}.mp3`;
     const map = path.join(MEDIA_DIR, 'previews');
     const bestand = path.join(map, naam);
+    // Alleen bestanden met marker zijn volgens het nieuwe volledige-audioformaat gemaakt.
+    const marker = bestand + '.volledig';
     const url = `/media/previews/${naam}`;
     const bestaand = async () => {
         try {
             const stat = await fs.stat(bestand);
+            await fs.access(marker);
             return stat.size > 0 && stat.size <= MAX_BYTES;
         } catch { return false; }
     };
@@ -87,6 +90,7 @@ async function lokaalVoorbeeld(aanbeveling) {
                 const stat = await fs.stat(tmp);
                 if (stat.size < 1 || stat.size > MAX_BYTES) throw new Error('Luistervoorbeeld is leeg of te groot.');
                 await fs.rename(tmp, bestand);
+                await fs.writeFile(marker, 'volledige-audio-v1');
                 await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [id, bron.videoId]);
                 return { audioUrl: `${url}?v=${Math.floor((await fs.stat(bestand)).mtimeMs)}` };
             } catch (err) {
@@ -113,6 +117,7 @@ async function keurMp3Af(id) {
         await previewDownloads.get(id).catch(() => {});
     }
     await fs.rm(path.join(MEDIA_DIR, 'previews', `aanbeveling-${id}.mp3`), { force: true });
+    await fs.rm(path.join(MEDIA_DIR, 'previews', `aanbeveling-${id}.mp3.volledig`), { force: true });
 }
 
 /** Vind of maak de titel die bij een aanbeveling hoort. */
