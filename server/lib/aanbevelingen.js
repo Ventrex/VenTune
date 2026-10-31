@@ -92,8 +92,26 @@ function promptMuziek({ categorie, aantal, bestaand }) {
     return `Stel voor een muziekquiz ${aantal} unieke, breed herkenbare nummers samen in de categorie ${categorie}: ${onderwerp}.
 Geef in kandidaten de exacte tracknaam, artiest, het oorspronkelijke releasejaar van die uitvoering, muziek_genres, youtube_zoekterm, bekendheid (3..5) en een korte reden.
 Kies uitsluitend nummers die aantoonbaar tot de categorie behoren. Wees precies met releasejaren en artiesten. Geen covers verwarren met originele versies.
-Gebruik jouw kennis en zoek waar nodig ter verificatie; verzin niets.${uitsluiten}`;
+Gebruik jouw kennis en zoek waar nodig ter verificatie; verzin niets.\nVoor 100nl: geef bij elk nummer herkomst_land = Nederland, Anders of Onbekend op basis van de afkomst van de uitvoerende artiest.${uitsluiten}`;
 }
+
+// Voor 100% NL verplicht de AI de herkomst van de uitvoerende artiest te vermelden.
+const SCHEMA_100NL = {
+    ...SCHEMA_KERST,
+    properties: {
+        kandidaten: {
+            ...SCHEMA_KERST.properties.kandidaten,
+            items: {
+                ...SCHEMA_KERST.properties.kandidaten.items,
+                required: [...SCHEMA_KERST.properties.kandidaten.items.required, 'herkomst_land'],
+                properties: {
+                    ...SCHEMA_KERST.properties.kandidaten.items.properties,
+                    herkomst_land: { type: 'string', enum: ['Nederland', 'Anders', 'Onbekend'] },
+                },
+            },
+        },
+    },
+};
 
 // -------------------------- prompts --------------------------
 
@@ -177,7 +195,7 @@ async function genereer(opties) {
     const bestaand = await bestaandeNamen(soort);
     const bestaandeSet = new Set(bestaand.map((n) => String(n).trim().toLowerCase()));
 
-    const schema = soort === 'film_serie' ? SCHEMA_FILM_SERIE : SCHEMA_KERST;
+    const schema = categorie === '100nl' ? SCHEMA_100NL : soort === 'film_serie' ? SCHEMA_FILM_SERIE : SCHEMA_KERST;
 
     // Grote kerstlijsten in kleine batches opvragen: betrouwbaarder dan 100 items in één AI-antwoord.
     const lijst = [];
@@ -201,7 +219,7 @@ async function genereer(opties) {
         }
         const ontvangen = Array.isArray(res.data?.kandidaten) ? res.data.kandidaten : [];
         for (const k of ontvangen) {
-            if (!k || (soort === 'film_serie' && k.type !== categorie)) continue;
+            if (!k || (soort === 'film_serie' && k.type !== categorie) || (categorie === '100nl' && k.herkomst_land !== 'Nederland')) continue;
             const sleutel = soort !== 'film_serie' ? `${k.tracknaam || ''} - ${k.artiest || ''}` : k.titel || '';
             const genormaliseerd = sleutel.trim().toLowerCase();
             if (!genormaliseerd || bestaandeSet.has(genormaliseerd)) continue;
