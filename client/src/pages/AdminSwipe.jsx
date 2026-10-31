@@ -32,6 +32,9 @@ export default function AdminSwipe() {
     const [laadt, setLaadt] = useState(true);
     const [sleep, setSleep] = useState({ dx: 0, actief: false });
     const start = useRef(null);
+    const speler = useRef(null);
+    const [voorbereiden, setVoorbereiden] = useState(null);
+    const [magAfspelen, setMagAfspelen] = useState(false);
 
     async function laad() {
         setLaadt(true);
@@ -43,22 +46,46 @@ export default function AdminSwipe() {
     }
     useEffect(() => { laad(); /* eslint-disable-next-line */ }, [soort, fase]);
 
+    useEffect(() => {
+        if (!kaarten.length) { setVoorbereiden(null); return; }
+        let actief = true;
+        let timer;
+        setVoorbereiden({ bezig: true, klaar: 0, totaal: kaarten.length, fouten: 0 });
+        const poll = async () => {
+            try {
+                const status = await haal(`/api/admin/aanbevelingen/voorbereiden/status?soort=${soort}&fase=${fase}`);
+                if (!actief) return;
+                setVoorbereiden(status);
+                if (!status.bezig) clearInterval(timer);
+            } catch (err) {
+                if (actief) setVoorbereiden({ bezig: false, fout: err.message, fouten: 1 });
+                clearInterval(timer);
+            }
+        };
+        haal('/api/admin/aanbevelingen/voorbereiden', {
+            method: 'POST', ...jsonBody({ soort, fase }),
+        }).then(() => { if (actief) { poll(); timer = setInterval(poll, 2000); } })
+          .catch((err) => { if (actief) setVoorbereiden({ bezig: false, fout: err.message, fouten: 1 }); });
+        return () => { actief = false; clearInterval(timer); };
+    }, [kaarten, soort, fase]);
+
     const huidige = kaarten[index];
     const klaar = !laadt && !huidige;
 
     useEffect(() => {
         setAudioUrl(null);
         setAudioFout('');
-        if (!huidige) return;
+        setMagAfspelen(false);
+        if (!huidige || voorbereiden?.bezig) return;
         let actief = true;
         haal('/api/admin/aanbevelingen/' + huidige.id + '/audio')
             .then((d) => { if (actief) setAudioUrl(d.audioUrl || null); })
             .catch((e) => { if (actief) setAudioFout(e.message); });
         return () => { actief = false; };
-    }, [huidige]);
+    }, [huidige, voorbereiden?.bezig]);
 
     async function swipe(keuze) {
-        if (!huidige) return;
+        if (!huidige || !audioUrl || audioFout || voorbereiden?.bezig || !magAfspelen) return;
         const id = huidige.id;
         setSleep({ dx: 0, actief: false });
         setIndex((i) => i + 1);
@@ -110,6 +137,8 @@ export default function AdminSwipe() {
             </p>
 
             {laadt && <p className="dim">Laden…</p>}
+            {voorbereiden?.bezig && <p className="dim">Audio voorbereiden: {voorbereiden.klaar || 0}/{voorbereiden.totaal || kaarten.length} verwerkt…</p>}
+            {voorbereiden && !voorbereiden.bezig && voorbereiden.fouten > 0 && <p className="waarschuwing">{voorbereiden.fouten} fragment(en) konden niet worden gedownload. {voorbereiden.eersteFout || voorbereiden.fout}</p>}
 
             {klaar && (
                 <div className="kaart swipe-leeg">
@@ -178,24 +207,25 @@ export default function AdminSwipe() {
                         )}
 
                         <div className="swipe-voorbeeld">
-                            {!audioUrl && !audioFout && <p className="dim">Lokaal luistervoorbeeld downloaden…</p>}
+                            {!audioUrl && !audioFout && <p className="dim">{voorbereiden?.bezig ? 'Alle luistervoorbeelden voorbereiden…' : 'Luistervoorbeeld laden…'}</p>}
                             {audioFout && <p className="waarschuwing">{audioFout}</p>}
-                            {audioUrl && <audio key={audioUrl} controls preload="metadata" src={audioUrl}
-                                style={{ width: '100%' }} onError={() => setAudioFout('MP3 kon niet worden afgespeeld.')} />}
+                            {audioUrl && <audio key={audioUrl} ref={speler} controls autoPlay preload="auto" src={audioUrl}
+                                style={{ width: '100%' }} onCanPlay={() => { setMagAfspelen(true); speler.current?.play().catch(() => {}); }}
+                                onError={() => { setMagAfspelen(false); setAudioFout('MP3 kon niet worden afgespeeld.'); }} />}
                         </div>
                     </div>
 
                     {/* Knoppen verschillen per fase. */}
                     {fase === 'blind' ? (
                         <div className="swipe-knoppen">
-                            <button className="swipe-knop fout" onClick={() => swipe('niet')} aria-label="Ken ik niet">✕</button>
-                            <button className="swipe-knop goed" onClick={() => swipe('herkend')} aria-label="Ken ik">✓</button>
+                            <button className="swipe-knop fout" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('niet')} aria-label="Ken ik niet">✕</button>
+                            <button className="swipe-knop goed" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('herkend')} aria-label="Ken ik">✓</button>
                         </div>
                     ) : (
                         <div className="swipe-knoppen">
-                            <button className="swipe-knop fout" onClick={() => swipe('fout')} aria-label="Fout">✕</button>
-                            <button className="swipe-knop weet" onClick={() => swipe('onbekend')} aria-label="Onbekend">?</button>
-                            <button className="swipe-knop goed" onClick={() => swipe('goed')} aria-label="Goed">✓</button>
+                            <button className="swipe-knop fout" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('fout')} aria-label="Fout">✕</button>
+                            <button className="swipe-knop weet" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('onbekend')} aria-label="Onbekend">?</button>
+                            <button className="swipe-knop goed" disabled={!magAfspelen || !!audioFout || voorbereiden?.bezig} onClick={() => swipe('goed')} aria-label="Goed">✓</button>
                         </div>
                     )}
                     <p className="dim swipe-uitleg">
