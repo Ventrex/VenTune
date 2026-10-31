@@ -171,7 +171,7 @@ async function vindOfMaakTitel(a) {
     if (best[0]) return best[0].id;
     const { rows } = await pool.query(
         `INSERT INTO titels (naam, type, jaar, genres, taal, themas, studio, muziek_genres, omschrijving)
-         VALUES ($1, $2, $3, $4, 'onbekend', $5, $6, $7, $8) RETURNING id`,
+         VALUES ($1, $2, $3, $4, 'en', $5, $6, $7, $8) RETURNING id`,
         [a.titel, type, Number.isFinite(a.jaar) ? a.jaar : null,
          Array.isArray(a.genres) ? a.genres : [],
           Array.isArray(a.themas) ? a.themas : [], a.studio || null,
