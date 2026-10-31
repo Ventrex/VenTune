@@ -38,10 +38,10 @@ const LEEFTIJDEN = [
 ];
 const DEELNEMER_LEEFTIJDEN = Array.from({ length: 96 }, (_, index) => index + 4);
 const RONDES = [
-    { waarde: 10, label: '10' },
-    { waarde: 20, label: '20' },
-    { waarde: 30, label: '30' },
-    { waarde: 0, label: 'Eindeloos' },
+    { waarde: 10, label: 'Kort · 10 rondes' },
+    { waarde: 20, label: 'Medium · 20 rondes' },
+    { waarde: 30, label: 'Lang · 30 rondes' },
+    { waarde: 0, label: 'Oneindig' },
 ];
 // Bekendheid: hoeveel TMDB-stemmen een titel minimaal moet hebben.
 const BEKENDHEID = [
@@ -113,6 +113,8 @@ export default function Setup() {
         speeltijd: 0,
         modus: 'snelste',
         antwoord_modus: 'meerkeuze',
+        info_aan: true,
+        bonusvragen_aan: true,
         vraag_profiel: 'speler',
         min_bekendheid: 0,
         zonder_genres: [],
@@ -649,224 +651,129 @@ export default function Setup() {
                         <span><strong>Hints tijdens het raden</strong><span className="dim"> Spelers kunnen aanwijzingen aanvragen.</span></span>
                     </label>
 
-                    {/* Bekendheid */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Hoe bekend moeten de titels zijn?
-                    </p>
-                    <select className="invoer compact-select" value={filters.min_bekendheid} onChange={(e) => zet('min_bekendheid', Number(e.target.value))} aria-label="Bekendheid">
-                        {BEKENDHEID.map((b) => <option key={b.waarde} value={b.waarde}>{b.label}</option>)}
-                    </select>
-
-                    {/* Genres uitklikken */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Genres — tik aan om uit te sluiten
-                        {(filters.zonder_genres || []).length > 0 &&
-                            ` (${filters.zonder_genres.length} uit)`}
-                    </p>
-                    <div className="chips">
-                        {GENRES.map((g) => {
-                            const uit = (filters.zonder_genres || []).includes(g);
-                            return (
-                                <button
-                                    key={g}
-                                    className={'chip' + (uit ? ' uitgezet' : ' gekozen')}
-                                    onClick={() => wisselGenre(g)}
-                                >
-                                    {uit ? `✕ ${g}` : g}
-                                </button>
-                            );
-                        })}
+                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.kindvriendelijk === true} onChange={e => setFilters(f=>({...f,kindvriendelijk:e.target.checked,leeftijd_max:e.target.checked?12:0}))}/><span>Kindvriendelijk</span></label>
+                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.hints_aan !== false} onChange={e=>zet('hints_aan',e.target.checked)}/><span>Hints tijdens het raden</span></label>
+                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.bonusvragen_aan !== false} onChange={e=>zet('bonusvragen_aan',e.target.checked)}/><span>Bonusvragen</span></label>
+                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.info_aan !== false} onChange={e=>zet('info_aan',e.target.checked)}/><span>Film- en serie-informatie na afloop</span></label>
+                                        <div className="vt-setting-pair">
+                      <label className="setup-veld"><span className="kaart-label">Spelsoort</span><select className="invoer" value={filters.modus} onChange={e=>zet('modus',e.target.value)}>{MODI.map(m=><option key={m.waarde} value={m.waarde}>{m.label}</option>)}</select></label>
+                      <label className="setup-veld"><span className="kaart-label">Antwoordwijze</span><select className="invoer" value={filters.antwoord_modus} onChange={e=>zet('antwoord_modus',e.target.value)}>{ANTWOORD_MODI.map(m=><option key={m.waarde} value={m.waarde}>{m.label}</option>)}</select></label>
+                    </div>
+                                        <label className="vt-toggle-row"><input type="checkbox" checked={filters.speeltijd > 0} onChange={e=>zet('speeltijd',e.target.checked?60:0)}/><span>Speeltijd per ronde {filters.speeltijd > 0 ? '(aan)' : '(uit · heel nummer)'}</span></label>
+                    {filters.speeltijd > 0 && <div className="vt-range"><input type="range" min="15" max="180" step="15" value={filters.speeltijd} onChange={e=>zet('speeltijd',Number(e.target.value))}/><strong>{filters.speeltijd} seconden</strong></div>}
+                                        {/* Live telling */}
+                    <div className="telling">
+                        {tellingFout ? (
+                            <p className="waarschuwing">
+                                {tellingFout}{' '}
+                                <button className="afspeelknop klein" type="button" onClick={ververTelling}>Opnieuw proberen</button>
+                            </p>
+                        ) : telling ? (
+                            telling.genoeg ? (
+                                <p className="dim">
+                                    {telling.titels} speelbare titels beschikbaar met deze filters.
+                                    {telling.catalogus > telling.titels && ` (${telling.catalogus} titels in de catalogus; tracks ontbreken nog bij ${telling.catalogus - telling.titels})`}
+                                    {telling.minder_dan_gevraagd && ` Het spel speelt ${telling.titels} ronde${telling.titels === 1 ? '' : 's'} met deze selectie.`}
+                                </p>
+                            ) : (
+                                <p className="waarschuwing">
+                                    Slechts {telling.titels} speelbare titels — je hebt er minstens{' '}
+                                    {telling.drempel} nodig. Verruim de filters of voeg
+                                    meer nummers toe.
+                                    {telling.catalogus > telling.titels && ` De filter bevat ${telling.catalogus} titels, maar ${telling.catalogus - telling.titels} daarvan heeft nog geen werkende track.`}
+                                </p>
+                            )
+                        ) : (
+                            <p className="dim">Beschikbare titels tellen…</p>
+                        )}
                     </div>
 
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Leeftijd
-                    </p>
-                    <select className="invoer compact-select" value={filters.leeftijd_max} onChange={(e) => zet('leeftijd_max', Number(e.target.value))} aria-label="Leeftijdscategorie">
-                        {LEEFTIJDEN.map((l) => <option key={l.waarde} value={l.waarde}>{l.label}</option>)}
-                    </select>
-
-                    <div className="setup-leeftijdsbereik">
-                        <label className="setup-veld">
-                            Jongste deelnemer
-                            <select
-                                className="invoer compact-select"
-                                value={filters.leeftijd_deelnemer_min}
-                                onChange={(e) => {
-                                    const waarde = Number(e.target.value);
-                                    setFilters((f) => ({
-                                        ...f,
-                                        leeftijd_deelnemer_min: waarde,
-                                        leeftijd_deelnemer_max: Math.max(waarde, Number(f.leeftijd_deelnemer_max) || 99),
-                                    }));
-                                }}
-                            >
-                                {DEELNEMER_LEEFTIJDEN.map((leeftijd) => <option key={leeftijd} value={leeftijd}>{leeftijd} jaar</option>)}
-                            </select>
-                        </label>
-                        <label className="setup-veld">
-                            Oudste deelnemer
-                            <select
-                                className="invoer compact-select"
-                                value={filters.leeftijd_deelnemer_max}
-                                onChange={(e) => wijzigDeelnemerLeeftijd('leeftijd_deelnemer_max', Number(e.target.value))}
-                            >
-                                {DEELNEMER_LEEFTIJDEN.filter((leeftijd) => leeftijd >= Number(filters.leeftijd_deelnemer_min || 4)).map((leeftijd) => <option key={leeftijd} value={leeftijd}>{leeftijd} jaar</option>)}
-                            </select>
-                        </label>
+                    <div className="kaart setup-samenvatting" style={{ marginTop: '1rem', textAlign: 'left' }}>
+                        <p className="kaart-label">Jouw spel</p>
+                        <p style={{ margin: 0 }}>
+                            {/* Is er een editie gekozen, dan is dát de naam van
+                                het spel; de losse filters staan eronder. */}
+                            <strong>
+                                {gekozenQuiz
+                                    ? `${gekozenQuiz.emoji || ''} ${gekozenQuiz.naam}`.trim()
+                                    : (filters.categorie === 'beide' ? 'Films & Series' : filters.categorie === 'films' ? 'Films' : filters.categorie === 'series' ? 'Series' : 'Muziek')}
+                            </strong>
+                            {' · '}{filters.periode_start}–{filters.periode_eind}
+                            {' · '}{filters.rondes === 0 ? 'eindeloos' : `${filters.rondes} rondes`}
+                        </p>
+                        <p className="dim" style={{ marginBottom: 0 }}>
+                            {filters.antwoord_modus === 'meerkeuze' ? '6 antwoordopties' : 'zelf typen'}
+                            {' · '}{filters.speeltijd === 0 ? 'heel nummer' : `${filters.speeltijd} seconden`}
+                            {filters.kindvriendelijk === true ? ' · kindvriendelijk: 200 punten / 20 seconden' : ''}
+                        </p>
                     </div>
 
-                    <label className="setup-veld" style={{ marginTop: '1rem' }}>
-                        <span className="kaart-label">Vraagprofiel <InfoTip tekst="Speler krijgt alleen geteste vragen. Beta Tester kan nieuwe vragen krijgen en fouten melden." /></span>
-                        <select
-                            className="invoer compact-select"
-                            value={filters.vraag_profiel || (filters.alleen_gecontroleerd ? 'speler' : 'beta')}
-                            onChange={(e) => {
-                                const profiel = e.target.value;
-                                zet('vraag_profiel', profiel);
-                                zet('alleen_gecontroleerd', profiel === 'speler');
-                            }}
+                    <button
+                        className="knop"
+                        style={{ width: '100%' }}
+                        onClick={start}
+                        disabled={bezig || !telling || !telling.genoeg}
+                    >
+                        {bezig ? 'Lobby maken…' : 'Start spel'}
+                    </button>
+
+                    {/* Preset opslaan */}
+                    <div className="zoekbalk" style={{ marginTop: '1.5rem' }}>
+                        <input
+                            className="invoer"
+                            value={presetNaam}
+                            onChange={(e) => setPresetNaam(e.target.value)}
+                            placeholder="Bewaar als preset…"
+                            maxLength={40}
+                            aria-label="Presetnaam"
+                        />
+                        <button
+                            className="knop knop-stil"
+                            onClick={opslaanPreset}
+                            disabled={!presetNaam.trim()}
                         >
-                            {VRAAG_PROFIELEN.map((p) => <option key={p.waarde} value={p.waarde}>{p.label}</option>)}
-                        </select>
-                    </label>
-
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={filters.alleen_nl_tv !== false}
-                            onChange={(e) => zet('alleen_nl_tv', e.target.checked)}
-                        />
-                        <span>
-                            <strong>Alleen titels die op Nederlandse tv te zien waren</strong>
-                            <InfoTip tekst="Laat alleen films en series toe die in Nederland zijn uitgebracht of uitgezonden en door de admin zijn gecureerd." />
-                        </span>
-                    </label>
-
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={filters.alleen_gecontroleerd === true}
-                            onChange={(e) => zet('alleen_gecontroleerd', e.target.checked)}
-                        />
-                        <span>
-                            <strong>Alleen gecontroleerde nummers</strong>
-                            <InfoTip tekst="Gebruik alleen betrouwbare, door de admin gecontroleerde lokale audiobestanden." />
-                        </span>
-                    </label>
-
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={filters.leeftijdspunten_aan === true}
-                            onChange={(e) => zet('leeftijdspunten_aan', e.target.checked)}
-                        />
-                        <span>
-                            <strong>Leeftijdsbonus aan</strong>
-                            <InfoTip tekst="Kinderen krijgen extra punten volgens het gekozen schema." />
-                        </span>
-                    </label>
-                    {filters.leeftijdspunten_aan === true && (
-                        <label className="velden compact-veld" style={{ marginTop: '0.5rem' }}>
-                            <span className="kaart-label" style={{ textAlign: 'left' }}>Schema leeftijdsbonus</span>
-                            <select
-                                className="invoer"
-                                value={String(filters.leeftijdsfactoren?.[6] || 2)}
-                                onChange={(e) => {
-                                    const royaal = Number(e.target.value) >= 2;
-                                    zet('leeftijdsfactoren', royaal
-                                        ? { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 }
-                                        : { 6: 1.5, 9: 1.35, 12: 1.2, 16: 1.1, 18: 1 });
-                                }}
-                            >
-                                <option value="2">Royaal: ×2 / ×1,75 / ×1,5</option>
-                                <option value="1.5">Mild: ×1,5 / ×1,35 / ×1,2</option>
-                            </select>
-                        </label>
-                    )}
-
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={filters.kindvriendelijk === true}
-                            onChange={(e) => setFilters((f) => ({
-                                ...f,
-                                kindvriendelijk: e.target.checked,
-                                leeftijd_max: e.target.checked ? Math.min(Number(f.leeftijd_max) || 12, 12) : f.leeftijd_max,
-                            }))}
-                        />
-                        <span>
-                            <strong>Kindvriendelijke editie</strong>
-                            <InfoTip tekst="Beperkt de selectie tot kindvriendelijke inhoud en geeft kinderen meer leestijd." />
-                        </span>
-                    </label>
-
-                    {/* Spelsoort */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Spelsoort
-                    </p>
-                    <div className="keuzes">
-                        {MODI.map((m) => (
-                            <button
-                                key={m.waarde}
-                                className={
-                                    'keuze klein' +
-                                    (filters.modus === m.waarde ? ' gekozen' : '')
-                                }
-                                onClick={() => zet('modus', m.waarde)}
-                            >
-                                <span>{m.label}</span>
-                                <span className="keuze-uitleg">{m.uitleg}</span>
-                            </button>
-                        ))}
+                            Opslaan
+                        </button>
                     </div>
 
-                    {/* Antwoordwijze */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Antwoordwijze
+                    <p className="dim setup-preset-hint">
+                        Preset gekozen? Gebruik het menu bovenaan om een andere preset te laden.
                     </p>
-                    <div className="keuzes">
-                        {ANTWOORD_MODI.map((m) => (
-                            <button
-                                key={m.waarde}
-                                className={
-                                    'keuze klein' +
-                                    (filters.antwoord_modus === m.waarde ? ' gekozen' : '')
-                                }
-                                onClick={() => zet('antwoord_modus', m.waarde)}
-                            >
-                                <span>{m.label}</span>
-                                <span className="keuze-uitleg">{m.uitleg}</span>
-                            </button>
-                        ))}
-                    </div>
+                </section>
+            )}
 
-                    {/* Speeltijd per ronde */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Speeltijd per ronde
-                    </p>
-                    <select className="invoer compact-select" value={filters.speeltijd} onChange={(e) => zet('speeltijd', Number(e.target.value))} aria-label="Speeltijd per ronde">
-                        {SPEELTIJDEN.map((s) => <option key={s.waarde} value={s.waarde}>{s.label}</option>)}
-                    </select>
+            <p style={{ marginTop: '2rem' }}>
+                <Link className="terug" to="/muziek">
+                    Muziek zoeken (test) →
+                </Link>
+            </p>
+        </main>
+    );
+}
 
-                    {/* Live telling */}
+// Korte samenvatting van een preset voor in de lijst.
+function labelVoor(p) {
+    const cat =
+        p.categorie === 'films'
+            ? 'Films'
+            : p.categorie === 'series'
+              ? 'Series'
+              : p.categorie === 'muziek'
+                ? 'Muziek'
+                : p.categorie === 'alles'
+                  ? 'Alles'
+              : 'Beide';
+    const taal = p.taal === 'nl' ? 'NL' : p.taal === 'us' ? 'Amerikaans' : p.taal === 'en' ? 'Int' : 'NL+Int';
+    const rondes = p.rondes === 0 ? 'eindeloos' : `${p.rondes} rondes`;
+    const tijd = p.speeltijd === 0 ? 'heel nummer' : `${p.speeltijd}s`;
+    const antwoord = p.antwoord_modus === 'meerkeuze' ? '6 opties' : 'typen';
+    const leeftijd = p.leeftijd_max ? `t/m ${p.leeftijd_max}` : 'alle leeftijden';
+    const tv = p.alleen_nl_tv === false ? 'alle catalogus' : 'NL-tv';
+    const controle = p.alleen_gecontroleerd === true ? ' · alleen gecontroleerd' : '';
+    const collecties = (p.collecties || []).length ? ` · ${p.collecties.join(', ')}` : '';
+    const kind = p.kindvriendelijk === true ? ' · kindvriendelijk' : '';
+    return `${cat}${collecties} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd} · ${antwoord} · ${leeftijd} · ${tv}${controle}${kind}`;
+}                    {/* Live telling */}
                     <div className="telling">
                         {tellingFout ? (
                             <p className="waarschuwing">
