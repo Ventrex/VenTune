@@ -234,26 +234,7 @@ export default function Host() {
                                     <li className="dim">Nog niemand — scan de QR →</li>
                                 )}
                             </ul>
-                            <details className="kaart lobby-instellingen"><summary>Lobbyinstellingen aanpassen</summary>
-                                <p className="kaart-label">Lobby aanpassen</p>
-                                <div className="velden">
-                                    <select
-                                        className="invoer"
-                                        value={lobbyWijziging?.antwoord_modus || 'meerkeuze'}
-                                        onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, antwoord_modus: e.target.value })}
-                                    >
-                                        <option value="typen">Typen</option>
-                                        <option value="meerkeuze">6 opties</option>
-                                    </select>
-                                    <select
-                                        className="invoer"
-                                        value={String(lobbyWijziging?.speeltijd ?? 0)}
-                                        onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, speeltijd: Number(e.target.value) })}
-                                    >
-                                        <option value="0">Heel nummer</option><option value="30">30 seconden</option><option value="60">1 minuut</option>
-                                    </select>
-                                </div>
-                                <div className="zoekbalk" style={{ marginTop: '0.5rem' }}>
+                            <section className="kaart vt-team-panel"><h2>Teams</h2><p className="dim">Maak een team en kies welk team je wilt joinen. Spelers zien hun team bij hun naam.</p>                                <div className="zoekbalk" style={{ marginTop: '0.5rem' }}>
                                     <input className="invoer" value={nieuwTeam} placeholder="Nieuw team" maxLength={24} onChange={(e) => setNieuwTeam(e.target.value)} />
                                     <button className="knop knop-stil" type="button" onClick={() => {
                                         const naam = nieuwTeam.trim();
@@ -282,6 +263,26 @@ export default function Host() {
                                         </div>
                                     </div>
                                 )}
+</section>
+                            <details className="kaart lobby-instellingen"><summary>Lobbyinstellingen aanpassen</summary>
+                                <p className="kaart-label">Lobby aanpassen</p>
+                                <div className="velden">
+                                    <select
+                                        className="invoer"
+                                        value={lobbyWijziging?.antwoord_modus || 'meerkeuze'}
+                                        onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, antwoord_modus: e.target.value })}
+                                    >
+                                        <option value="typen">Typen</option>
+                                        <option value="meerkeuze">6 opties</option>
+                                    </select>
+                                    <select
+                                        className="invoer"
+                                        value={String(lobbyWijziging?.speeltijd ?? 0)}
+                                        onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, speeltijd: Number(e.target.value) })}
+                                    >
+                                        <option value="0">Heel nummer</option><option value="30">30 seconden</option><option value="60">1 minuut</option>
+                                    </select>
+                                </div>
                                 <button className="knop knop-stil" type="button" onClick={() => spel.bewaarLobbyInstellingen(lobbyWijziging || {})}>Instellingen opslaan</button>
                             </details>
                             {(voorbereiding || startBezig) && (
