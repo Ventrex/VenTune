@@ -64,7 +64,70 @@ function Paneel() {
                 <ChatGptKoppeling />
                 <Genereren />
             </div>
+            <Database />
         </main>
+    );
+}
+
+// ------------------------- Database (simpel) -------------------------
+
+function Database() {
+    const [tel, setTel] = useState(null);
+    const [bevestig, setBevestig] = useState(false);
+    const [bezig, setBezig] = useState(false);
+    const [melding, setMelding] = useState('');
+
+    async function ververs() {
+        try { setTel(await haal('/api/admin/db-overzicht')); } catch { /* */ }
+    }
+    useEffect(() => { ververs(); }, []);
+
+    async function schoonBegin() {
+        setBezig(true); setMelding('');
+        try {
+            await haal('/api/admin/database/opschonen', {
+                method: 'POST', ...jsonBody({ actie: 'schoon_begin', bevestiging: 'SCHOON' }),
+            });
+            setMelding('Database is leeg. Haal nu nieuwe AI-aanbevelingen op.');
+            setBevestig(false);
+            ververs();
+        } catch (e) { setMelding(e.message); }
+        setBezig(false);
+    }
+
+    return (
+        <section className="kaart ai-kaart" style={{ marginTop: '1rem' }}>
+            <p className="kaart-label">Database</p>
+            {!tel ? <p className="dim">Laden…</p> : (
+                <div className="ai-tellers" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                    <Teller label="Titels" n={tel.titels} />
+                    <Teller label="Nummers" n={tel.nummers} />
+                    <Teller label="Speelbaar" n={tel.speelbaar} />
+                    <Teller label="Downloadfouten" n={tel.downloadfouten} />
+                </div>
+            )}
+
+            {!bevestig ? (
+                <button className="knop knop-stil gevaar" style={{ marginTop: '1rem' }}
+                        onClick={() => setBevestig(true)}>
+                    Schoon beginnen (alles wissen)
+                </button>
+            ) : (
+                <div className="kaart" style={{ marginTop: '1rem', borderColor: 'var(--fout, #e24b4b)' }}>
+                    <p style={{ marginTop: 0 }}>
+                        Weet je het zeker? Dit wist <strong>alle titels, nummers en aanbevelingen</strong>.
+                        Je hostaccount en instellingen blijven staan.
+                    </p>
+                    <div className="ai-knoprij">
+                        <button className="knop gevaar" disabled={bezig} onClick={schoonBegin}>
+                            {bezig ? 'Bezig…' : 'Ja, alles wissen'}
+                        </button>
+                        <button className="knop knop-stil" onClick={() => setBevestig(false)}>Annuleer</button>
+                    </div>
+                </div>
+            )}
+            {melding && <p className="feedback neutraal" style={{ marginTop: '0.75rem' }}>{melding}</p>}
+        </section>
     );
 }
 

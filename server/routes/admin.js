@@ -939,12 +939,43 @@ router.get('/api/admin/database', vereisAdmin, async (_req, res) => {
 
 router.post('/api/admin/database/opschonen', vereisAdmin, async (req, res) => {
     const actie = String(req.body?.actie || '');
+
+    // Schoon beginnen: alles wissen wat met de catalogus te maken heeft
+    // (titels, tracks, aanbevelingen, downloadfouten, cache, meldingen).
+    // Hostaccounts en instellingen blijven staan. Vereist bevestiging.
+    if (actie === 'schoon_begin') {
+        if (req.body?.bevestiging !== 'SCHOON') {
+            return res.status(400).json({ fout: 'Bevestiging ontbreekt.' });
+        }
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Volgorde respecteert foreign keys (tracks/aanbevelingen verwijzen naar titels).
+            for (const tbl of ['tracks', 'aanbevelingen', 'vragen', 'titel_collecties',
+                               'zoek_cache', 'zoek_log', 'meldingen']) {
+                await client.query(`TRUNCATE TABLE ${tbl} RESTART IDENTITY CASCADE`).catch(() => {});
+            }
+            await client.query(`TRUNCATE TABLE titels RESTART IDENTITY CASCADE`).catch(() => {});
+            await client.query('COMMIT');
+        } catch (err) {
+            await client.query('ROLLBACK');
+            return res.status(500).json({ fout: 'Schoon beginnen mislukt: ' + err.message });
+        } finally {
+            client.release();
+        }
+        logger.info('Database schoongemaakt (schoon begin).');
+        return res.json({ ok: true, actie, melding: 'Database is leeg. Je kunt nu met AI-aanbevelingen opnieuw beginnen.' });
+    }
+
     const acties = {
         zoek_cache: `DELETE FROM zoek_cache`,
         oude_zoekcache: `DELETE FROM zoek_cache WHERE opgehaald_op < now() - interval '7 days'`,
         afgehandelde_meldingen: `DELETE FROM meldingen WHERE afgehandeld = true`,
         spelgeschiedenis: `DELETE FROM lobbies WHERE status = 'afgelopen'`,
         afgekeurde_tracks: `DELETE FROM tracks WHERE werkt = false`,
+        // Alle titels + tracks weg, maar accounts/instellingen behouden.
+        alle_titels: `DELETE FROM titels`,
+        downloadfouten: `UPDATE tracks SET download_status = 'not_requested', download_melding = NULL WHERE download_status = 'error'`,
     };
     if (!acties[actie]) {
         if (actie === 'wees_media') {
@@ -2846,7 +2877,13 @@ function startPlaylistPlanner() {
     }, 60 * 1000);
     playlistPlannerTimer.unref?.();
 }
-startPlaylistPlanner();
+// Het oude automatische systeem (dagelijkse keten database→YouTube→lokaal,
+// TMDB, bulk-downloads) staat standaard UIT. Het veroorzaakte duizenden
+// downloadfouten en de TMDB-401. Zet OUDE_PIPELINE=true in .env om het
+// terug aan te zetten; anders draait VenTune alleen op AI-aanbevelingen.
+if (process.env.OUDE_PIPELINE === 'true') {
+    startPlaylistPlanner();
+}
 
 module.exports = router;
 

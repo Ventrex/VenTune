@@ -44,6 +44,24 @@ router.get('/api/admin/aanbevelingen/status', vereisAdmin, async (_req, res) => 
     }
 });
 
+// --- Simpele database-samenvatting voor het beheer ---
+router.get('/api/admin/db-overzicht', vereisAdmin, async (_req, res) => {
+    try {
+        const q = async (sql) => {
+            try { return Number((await pool.query(sql)).rows[0].n) || 0; } catch { return 0; }
+        };
+        res.json({
+            titels: await q('SELECT count(*) n FROM titels'),
+            nummers: await q('SELECT count(*) n FROM tracks'),
+            speelbaar: await q(`SELECT count(*) n FROM tracks WHERE werkt = true AND download_status = 'available'`),
+            downloadfouten: await q(`SELECT count(*) n FROM tracks WHERE download_status = 'error'`),
+            te_swipen: await q(`SELECT count(*) n FROM aanbevelingen WHERE status = 'nieuw'`),
+        });
+    } catch (err) {
+        res.status(500).json({ fout: err.message });
+    }
+});
+
 // --- ChatGPT koppelen via de site (device-code login) ---
 
 router.post('/api/admin/aanbevelingen/login/start', vereisAdmin, (req, res) => {
