@@ -66,8 +66,8 @@ async function vindOfMaakTitel(a) {
         `SELECT id FROM titels WHERE lower(naam) = lower($1) AND type = $2 LIMIT 1`, [a.titel, type]);
     if (best[0]) return best[0].id;
     const { rows } = await pool.query(
-        `INSERT INTO titels (naam, type, jaar, genres, taal)
-         VALUES ($1, $2, $3, $4, 'nl') RETURNING id`,
+        `INSERT INTO titels (naam, type, jaar, genres, taal, themas, studio, muziek_genres)
+         VALUES ($1, $2, $3, $4, 'nl', $5, $6, $7) RETURNING id`,
         [a.titel, type, Number.isFinite(a.jaar) ? a.jaar : null,
          Array.isArray(a.genres) ? a.genres : [],
           Array.isArray(a.themas) ? a.themas : [], a.studio || null,
