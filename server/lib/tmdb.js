@@ -229,6 +229,7 @@ async function zoekPresentatie(naam, type, jaar) {
         posterPad: gevonden.poster_path || null,
         omschrijving: gevonden.overview || null,
         jaar: Number((gevonden.release_date || gevonden.first_air_date || '').slice(0, 4)) || null,
+        taal: gevonden.original_language === 'nl' ? 'nl' : 'en',
     };
 }
 
