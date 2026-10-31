@@ -82,7 +82,7 @@ function bouwFilter(f = {}) {
     const iStart = params.length;
     params.push(eind);
     const iEind = params.length;
-    condities.push(`t.jaar IS NOT NULL AND t.jaar BETWEEN $${iStart} AND $${iEind}`);
+    condities.push(`(t.jaar BETWEEN ${iStart} AND ${iEind} OR (t.jaar IS NULL AND ${iStart} <= 1930 AND ${iEind} >= EXTRACT(YEAR FROM CURRENT_DATE)))`);
 
     // Bekendheid: alleen titels die genoeg mensen kennen. 'stemmen' uit TMDB
     // is hiervoor de betrouwbaarste maat. Titels zonder TMDB-gegevens (zoals
