@@ -27,7 +27,8 @@ export default function AdminSwipe() {
     const [soort, setSoort] = useState('film_serie');
     const [kaarten, setKaarten] = useState([]);
     const [index, setIndex] = useState(0);
-    const [videoId, setVideoId] = useState(null);
+    const [audioUrl, setAudioUrl] = useState(null);
+    const [audioFout, setAudioFout] = useState('');
     const [laadt, setLaadt] = useState(true);
     const [sleep, setSleep] = useState({ dx: 0, actief: false });
     const start = useRef(null);
@@ -46,12 +47,13 @@ export default function AdminSwipe() {
     const klaar = !laadt && !huidige;
 
     useEffect(() => {
-        setVideoId(null);
+        setAudioUrl(null);
+        setAudioFout('');
         if (!huidige) return;
         let actief = true;
-        haal('/api/admin/aanbevelingen/' + huidige.id + '/voorbeeld')
-            .then((d) => { if (actief) setVideoId(d.videoId || null); })
-            .catch(() => {});
+        haal('/api/admin/aanbevelingen/' + huidige.id + '/audio')
+            .then((d) => { if (actief) setAudioUrl(d.audioUrl || null); })
+            .catch((e) => { if (actief) setAudioFout(e.message); });
         return () => { actief = false; };
     }, [huidige]);
 
@@ -176,13 +178,10 @@ export default function AdminSwipe() {
                         )}
 
                         <div className="swipe-voorbeeld">
-                            {videoId === null && <p className="dim">Voorbeeld zoeken…</p>}
-                            {videoId && (
-                                <iframe title="Voorbeeld" width="100%" height="80"
-                                        src={`https://www.youtube.com/embed/${videoId}?rel=0`}
-                                        frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen />
-                            )}
-                            {videoId === null && huidige && !laadt && false}
+                            {!audioUrl && !audioFout && <p className="dim">Lokaal luistervoorbeeld downloaden…</p>}
+                            {audioFout && <p className="waarschuwing">{audioFout}</p>}
+                            {audioUrl && <audio key={audioUrl} controls preload="metadata" src={audioUrl}
+                                style={{ width: '100%' }} onError={() => setAudioFout('MP3 kon niet worden afgespeeld.')} />}
                         </div>
                     </div>
 
