@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { haalRanking } from '../lib/api.js';
 import Brand from '../components/Brand.jsx';
+import Icon from '../components/Icon.jsx';
 import ThemaKiezer from '../components/ThemaKiezer.jsx';
 import { ThemaContext } from '../lib/thema.js';
 
@@ -39,9 +40,9 @@ export default function Home() {
     }
 
     return (
-        <main className="scherm">
+        <main className="scherm ventune-home">
             <Brand link={false} />
-            <h1>De browser-muziekquiz</h1>
+            <div className="home-hero-icon"><Icon name="music" size={28} /><Icon name="sparkles" size={18} /></div><h1>De browser-muziekquiz</h1>
             <p className="ondertitel">{thema.ondertitel || 'Muziekquiz over films en series'}</p>
             <p className="dim start-uitleg">
                 Host? Log in of maak een hostaccount. Speler? Doe gratis mee met
@@ -52,7 +53,7 @@ export default function Home() {
 
             <div className="stapel">
                 <button className="knop" onClick={nieuwSpel}>
-                    Nieuw spel
+                    <Icon name="play" /> Nieuw spel <Icon name="arrow" size={17} />
                 </button>
 
                 <form onSubmit={meedoen} className="stapel" style={{ gap: '0.75rem' }}>
@@ -70,7 +71,7 @@ export default function Home() {
                             aria-label="Lobbycode"
                         />
                         <button className="knop knop-stil" type="submit">
-                            Meedoen
+                            <Icon name="users" size={18} /> Meedoen
                         </button>
                     </div>
                 </form>
