@@ -978,7 +978,7 @@ class SpelBeheer {
 
         this.io.to(spelerKamer(spelerId)).emit('ronde:hint', {
             nr,
-            ...this.bouwHint(nr, h.titel),
+            ...this.bouwHint(nr, h.titel, h),
             kosten: 25,
             voorraad: voorraad - 1,
         });
@@ -1036,9 +1036,13 @@ class SpelBeheer {
         }
     }
 
-    bouwHint(nr, titel) {
+    bouwHint(nr, titel, ronde = null) {
         const ai = (titel.ai_hints || []).filter(Boolean);
-        const hints = ai.length ? ai.map((tekst) => ({ type: 'ai', tekst })) : bouwHinten(titel);
+        // Per speelronde één willekeurige volgorde; nooit opnieuw schudden per speler/hint.
+        if (ai.length && ronde && !ronde.aiHintVolgorde) ronde.aiHintVolgorde = husselArray(ai);
+        const hints = ai.length
+            ? (ronde?.aiHintVolgorde || ai).map((tekst) => ({ type: 'ai', tekst }))
+            : bouwHinten(titel);
         return hints[Math.min(Math.max(nr - 1, 0), hints.length - 1)] || {
             type: 'geen',
             tekst: 'Er is geen extra hint beschikbaar.',
