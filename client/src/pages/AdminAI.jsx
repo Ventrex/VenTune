@@ -76,6 +76,7 @@ function Paneel() {
                 <Genereren />
             </div>
             <QuizInhoud />
+            <HerkenbaarheidBeheer />
             <MetadataVerrijken />
             <HandmatigToevoegen />
             <Database />
@@ -84,6 +85,38 @@ function Paneel() {
 }
 
 // ------------------------- Database (simpel) -------------------------
+
+export function HerkenbaarheidBeheer() {
+    const [zoek, setZoek] = useState('');
+    const [resultaten, setResultaten] = useState(null);
+    const [fout, setFout] = useState('');
+    async function laad(e) {
+        e?.preventDefault();
+        setFout('');
+        try {
+            const r = await haal('/api/admin/herkenbaarheid?zoek=' + encodeURIComponent(zoek));
+            setResultaten(r.resultaten || []);
+        } catch (err) { setFout(err.message); }
+    }
+    return <section className="kaart ai-kaart" style={{marginTop:'1rem'}}>
+        <h2>Herkenbaarheid per leeftijdsgroep</h2>
+        <p className="dim">Een onbekend nummer wordt niet verwijderd. Pas vanaf acht stemmen per leeftijdsgroep krijgt de feedback invloed op de selectie.</p>
+        <form className="zoekbalk" onSubmit={laad}>
+            <input className="invoer" value={zoek} onChange={e=>setZoek(e.target.value)} placeholder="Zoek een titel…" />
+            <button className="knop" type="submit">Bekijk stemmen</button>
+        </form>
+        {fout && <p className="waarschuwing">{fout}</p>}
+        {resultaten && (resultaten.length ? <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',textAlign:'left'}}>
+                <thead><tr><th>Titel</th><th>Leeftijd</th><th>Stemmen</th><th>Onbekend</th></tr></thead>
+                <tbody>{resultaten.map((r,i)=><tr key={i}>
+                    <td>{r.naam}</td><td>{r.leeftijdsgroep}</td><td>{r.stemmen}</td>
+                    <td>{r.onbekend} ({Math.round(r.onbekend/r.stemmen*100)}%)</td>
+                </tr>)}</tbody>
+            </table>
+        </div> : <p className="dim">Er zijn nog geen beoordelingen.</p>)}
+    </section>;
+}
 
 export function QuizInhoud() {
     const [zoek, setZoek] = useState('');
