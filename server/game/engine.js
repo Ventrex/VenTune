@@ -53,7 +53,7 @@ const AANTAL_MEERKEUZE_OPTIES = 6;
 function startSecondeVoorTrack(track) {
     // YouTube-downloads worden al vanaf start_seconde geknipt. Een lokaal
     // bestand begint daarom altijd op 0; nogmaals springen maakt het stil.
-    if (track?.bron === 'lokaal') return 0;
+    // Volledige lokale MP3's kunnen vanaf het ingestelde startpunt spelen.
     return Math.max(0, Number(track?.start_seconde) || 0);
 }
 
@@ -1447,6 +1447,7 @@ class SpelBeheer {
             taal: h.titel.taal, // nl of internationaal
             land: h.titel.land,
             genres: h.titel.genres || [],
+            studio: h.titel.studio || null,
             // Poster en korte omschrijving (uit TMDB) voor het eindbeeld.
             poster: h.titel.poster_pad
                 ? `https://image.tmdb.org/t/p/w342${h.titel.poster_pad}`
