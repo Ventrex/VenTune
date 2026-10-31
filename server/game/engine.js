@@ -1057,6 +1057,7 @@ class SpelBeheer {
         }
         const spelerId = socket.data.spelerId;
         const h = state.huidige;
+        if (h.aanBeurtSpelers && !h.aanBeurtSpelers.includes(spelerId)) return;
         if (h.klaar.has(spelerId)) return;
 
         const gegeven = h.hints.get(spelerId) || 0;
@@ -1263,6 +1264,7 @@ class SpelBeheer {
         const state = this.spellen.get(socket.data.lobbyId);
         if (!state || state.fase !== 'bonus' || !state.huidige?.bonus) return;
         const spelerId = socket.data.spelerId;
+        if (state.huidige.aanBeurtSpelers && !state.huidige.aanBeurtSpelers.includes(spelerId)) return;
         const b = state.huidige.bonus;
         if (b.afgesloten || b.klaar.has(spelerId)) return;
 
