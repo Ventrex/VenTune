@@ -106,6 +106,34 @@ router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) =
         });
 });
 
+// Handmatig een ontbrekende film of serie aanmelden voor muziekonderzoek.
+router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) => {
+    const titel = String(req.body?.titel || '').trim().slice(0, 160);
+    const type = req.body?.type;
+    const jaar = req.body?.jaar ? Number(req.body.jaar) : null;
+    if (!titel || !['film', 'serie'].includes(type) || (jaar && (!Number.isInteger(jaar) || jaar < 1900 || jaar > 2100))) {
+        return res.status(400).json({ fout: 'Geef een geldige titel, type en eventueel jaar op.' });
+    }
+    try {
+        const bestaat = await pool.query(
+            `SELECT naam FROM titels WHERE lower(trim(naam)) = lower($1)
+             UNION ALL SELECT titel FROM aanbevelingen WHERE lower(trim(titel)) = lower($1) LIMIT 1`, [titel]);
+        if (bestaat.rows.length) return res.status(409).json({ fout: 'Deze titel bestaat al in de database of aanbevelingen.' });
+        const { rows } = await pool.query(
+            `INSERT INTO aanbevelingen (soort, categorie, titel, type, jaar, tracknaam, artiest, youtube_zoekterm, bekendheid, reden, status)
+             VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'fout')
+             RETURNING id`,
+            [type, titel, type, jaar, `${titel} original theme soundtrack intro`]);
+        res.json({ ok: true, id: rows[0].id, toelichting: 'Aan herzoekwachtrij toegevoegd. Nog niet speelbaar.' });
+    } catch (err) { res.status(500).json({ fout: err.message }); }
+});
+router.post('/api/admin/titels/:id/ai-quiz', vereisAdmin, async (req, res) => {
+    try {
+        const resultaat = await aanbevelingen.vulQuizMetadata(Number(req.params.id));
+        return res.status(resultaat.ok ? 200 : 422).json(resultaat.ok ? resultaat : { fout: resultaat.error });
+    } catch (err) { return res.status(500).json({ fout: err.message }); }
+});
+
 // Lijst om te swipen. fase=blind → status 'nieuw' (ronde 1, zonder naam).
 // fase=naam → status 'blind_nee' (ronde 2, met naam).
 router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
@@ -217,7 +245,11 @@ const downloads = new Map(); // id -> { status, error }
 function startDownload(id) {
     downloads.set(id, { status: 'bezig', error: null });
     media.verwerkGoed(id)
-        .then((r) => downloads.set(id, { status: r.ok ? 'klaar' : 'fout', error: r.ok ? null : r.error }))
+        .then((r) => {
+            downloads.set(id, { status: r.ok ? 'klaar' : 'fout', error: r.ok ? null : r.error });
+            if (r.ok) aanbevelingen.vulQuizMetadata(r.titelId).catch((err) =>
+                logger.waarschuwing('AI-bonusvragen niet beschikbaar', { melding: err.message }));
+        })
         .catch((e) => downloads.set(id, { status: 'fout', error: String(e.message) }));
 }
 
