@@ -333,7 +333,7 @@ class SpelBeheer {
             // serverovergang; meerdere clients kunnen geen dubbele timer
             // veroorzaken.
             if (!state.scorebordTimer && !state.volgendeBezig) {
-                this.planVolgendeRonde(state);
+                // Wacht op een expliciete actie van de host; nooit automatisch verder.
             }
             return true;
         }
@@ -1324,9 +1324,7 @@ class SpelBeheer {
         if (state.fase === 'raden') return this.onthulEnBonus(state);
         if (state.fase === 'bonus') return this.eindBonus(state);
         if (state.fase === 'onthul') return this.naarScorebord(state);
-        // Het scorebord heeft één eigenaar: de servertimer. Een handmatige
-        // klik mag geen tweede overgang naast die timer starten.
-        if (state.fase === 'scorebord') return;
+        if (state.fase === 'scorebord') return this.volgendeRonde(state);
     }
 
     /** Host pauzeert: klok stilzetten en de muziek stoppen. */
