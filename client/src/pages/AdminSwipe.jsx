@@ -34,7 +34,6 @@ export default function AdminSwipe() {
     const [sleep, setSleep] = useState({ dx: 0, actief: false });
     const start = useRef(null);
     const speler = useRef(null);
-    const [voorbereiden, setVoorbereiden] = useState(null);
     const [magAfspelen, setMagAfspelen] = useState(false);
 
     async function laad() {
@@ -47,29 +46,6 @@ export default function AdminSwipe() {
     }
     useEffect(() => { laad(); /* eslint-disable-next-line */ }, [categorie, fase]);
 
-    useEffect(() => {
-        if (!kaarten.length) { setVoorbereiden(null); return; }
-        let actief = true;
-        let timer;
-        setVoorbereiden({ bezig: true, klaar: 0, totaal: kaarten.length, fouten: 0 });
-        const poll = async () => {
-            try {
-                const status = await haal(`/api/admin/aanbevelingen/voorbereiden/status?soort=${categorie === 'kerst' ? 'kerst' : ['film', 'serie'].includes(categorie) ? 'film_serie' : 'muziek'}&fase=${fase}`);
-                if (!actief) return;
-                setVoorbereiden(status);
-                if (!status.bezig) clearInterval(timer);
-            } catch (err) {
-                if (actief) setVoorbereiden({ bezig: false, fout: err.message, fouten: 1 });
-                clearInterval(timer);
-            }
-        };
-        haal('/api/admin/aanbevelingen/voorbereiden', {
-            method: 'POST', ...jsonBody({ soort: categorie === 'kerst' ? 'kerst' : ['film', 'serie'].includes(categorie) ? 'film_serie' : 'muziek', fase }),
-        }).then(() => { if (actief) { poll(); timer = setInterval(poll, 2000); } })
-          .catch((err) => { if (actief) setVoorbereiden({ bezig: false, fout: err.message, fouten: 1 }); });
-        return () => { actief = false; clearInterval(timer); };
-    }, [kaarten, soort, fase]);
-
     const huidige = kaarten[index];
     const klaar = !laadt && !huidige;
 
@@ -77,13 +53,13 @@ export default function AdminSwipe() {
         setAudioUrl(null);
         setAudioFout('');
         setMagAfspelen(false);
-        if (!huidige || voorbereiden?.bezig) return;
+        if (!huidige) return;
         let actief = true;
         haal('/api/admin/aanbevelingen/' + huidige.id + '/audio')
             .then((d) => { if (actief) setAudioUrl(d.audioUrl || null); })
             .catch((e) => { if (actief) setAudioFout(e.message); });
         return () => { actief = false; };
-    }, [huidige, voorbereiden?.bezig]);
+    }, [huidige]);
 
     async function swipe(keuze) {
         if (!huidige || !audioUrl || audioFout || voorbereiden?.bezig || !magAfspelen) return;
@@ -137,8 +113,6 @@ export default function AdminSwipe() {
             </p>
 
             {laadt && <p className="dim">Laden…</p>}
-            {voorbereiden?.bezig && <p className="dim">Audio voorbereiden: {voorbereiden.klaar || 0}/{voorbereiden.totaal || kaarten.length} verwerkt…</p>}
-            {voorbereiden && !voorbereiden.bezig && voorbereiden.fouten > 0 && <p className="waarschuwing">{voorbereiden.fouten} fragment(en) konden niet worden gedownload. {voorbereiden.eersteFout || voorbereiden.fout}</p>}
 
             {klaar && (
                 <div className="kaart swipe-leeg">
@@ -207,7 +181,7 @@ export default function AdminSwipe() {
                         )}
 
                         <div className="swipe-voorbeeld">
-                            {!audioUrl && !audioFout && <p className="dim">{voorbereiden?.bezig ? 'Alle luistervoorbeelden voorbereiden…' : 'Luistervoorbeeld laden…'}</p>}
+                            {!audioUrl && !audioFout && <p className="dim">Luistervoorbeeld laden…</p>}
                             {audioFout && <p className="waarschuwing">{audioFout}</p>}
                             {audioUrl && <audio key={audioUrl} ref={speler} controls autoPlay preload="auto" src={audioUrl}
                                 style={{ width: '100%' }} onCanPlay={() => { setMagAfspelen(true); speler.current?.play().catch(() => {}); }}
