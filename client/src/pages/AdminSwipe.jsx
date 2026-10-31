@@ -24,7 +24,8 @@ const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body
 
 export default function AdminSwipe() {
     const [fase, setFase] = useState('blind');       // blind | naam
-    const [soort, setSoort] = useState('film_serie');
+    const [categorie, setCategorie] = useState('film');
+    const categorieen = [['film', 'Films'], ['serie', 'Series'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
     const [kaarten, setKaarten] = useState([]);
     const [index, setIndex] = useState(0);
     const [audioUrl, setAudioUrl] = useState(null);
@@ -39,12 +40,12 @@ export default function AdminSwipe() {
     async function laad() {
         setLaadt(true);
         try {
-            const lijst = await haal(`/api/admin/aanbevelingen?soort=${soort}&fase=${fase}`);
+            const lijst = await haal(`/api/admin/aanbevelingen?categorie=${categorie}&fase=${fase}`);
             setKaarten(lijst); setIndex(0);
         } catch { setKaarten([]); }
         setLaadt(false);
     }
-    useEffect(() => { laad(); /* eslint-disable-next-line */ }, [soort, fase]);
+    useEffect(() => { laad(); /* eslint-disable-next-line */ }, [categorie, fase]);
 
     useEffect(() => {
         if (!kaarten.length) { setVoorbereiden(null); return; }
@@ -53,7 +54,7 @@ export default function AdminSwipe() {
         setVoorbereiden({ bezig: true, klaar: 0, totaal: kaarten.length, fouten: 0 });
         const poll = async () => {
             try {
-                const status = await haal(`/api/admin/aanbevelingen/voorbereiden/status?soort=${soort}&fase=${fase}`);
+                const status = await haal(`/api/admin/aanbevelingen/voorbereiden/status?soort=${categorie === 'kerst' ? 'kerst' : ['film', 'serie'].includes(categorie) ? 'film_serie' : 'muziek'}&fase=${fase}`);
                 if (!actief) return;
                 setVoorbereiden(status);
                 if (!status.bezig) clearInterval(timer);
@@ -63,7 +64,7 @@ export default function AdminSwipe() {
             }
         };
         haal('/api/admin/aanbevelingen/voorbereiden', {
-            method: 'POST', ...jsonBody({ soort, fase }),
+            method: 'POST', ...jsonBody({ soort: categorie === 'kerst' ? 'kerst' : ['film', 'serie'].includes(categorie) ? 'film_serie' : 'muziek', fase }),
         }).then(() => { if (actief) { poll(); timer = setInterval(poll, 2000); } })
           .catch((err) => { if (actief) setVoorbereiden({ bezig: false, fout: err.message, fouten: 1 }); });
         return () => { actief = false; clearInterval(timer); };
@@ -124,10 +125,9 @@ export default function AdminSwipe() {
                 </button>
             </div>
             <div className="swipe-tabs" style={{ marginTop: '-0.5rem' }}>
-                <button className={'knop knop-stil' + (soort === 'film_serie' ? ' gekozen-soort' : '')}
-                        onClick={() => setSoort('film_serie')} style={{ fontSize: '0.95rem' }}>🎬 Films &amp; series</button>
-                <button className={'knop knop-stil' + (soort === 'kerst' ? ' gekozen-soort' : '')}
-                        onClick={() => setSoort('kerst')} style={{ fontSize: '0.95rem' }}>🎄 Kerst</button>
+                <select className="invoer" value={categorie} onChange={(e) => setCategorie(e.target.value)}>
+                    {categorieen.map(([waarde, naam]) => <option key={waarde} value={waarde}>{naam}</option>)}
+                </select>
             </div>
 
             <p className="dim swipe-uitleg" style={{ marginTop: 0 }}>
@@ -190,7 +190,7 @@ export default function AdminSwipe() {
                             </>
                         ) : (
                             <>
-                                <div className="swipe-bek">{huidige.soort === 'kerst' ? '🎄' : (huidige.type === 'serie' ? '📺' : '🎬')}</div>
+                                <div className="swipe-bek">{huidige.soort !== 'film_serie' ? '🎄' : (huidige.type === 'serie' ? '📺' : '🎬')}</div>
                                 {huidige.soort === 'kerst' ? (
                                     <>
                                         <h2 className="swipe-titel">{huidige.tracknaam}</h2>
