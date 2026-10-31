@@ -451,7 +451,42 @@ class SpelBeheer {
             }
             return tags.includes(v) || (v === 'disney' && /disney/i.test(t.studio || ''));
         };
-        const alle = husselArray(titels);
+        // Leeftijdsafhankelijke herkenbaarheid beïnvloedt de kans, niet het
+        // bestaan van de titel. Pas na 8 onafhankelijke stemmen binnen één
+        // leeftijdsgroep telt de uitkomst mee.
+        const leeftijdsgroep = (leeftijd) => {
+            const l = Number(leeftijd);
+            return !Number.isInteger(l) || l < 4 ? null
+                : l <= 12 ? '4-12' : l <= 17 ? '13-17'
+                : l <= 29 ? '18-29' : l <= 44 ? '30-44'
+                : l <= 59 ? '45-59' : '60+';
+        };
+        const aanwezigeGroepen = spelers.map(sp => leeftijdsgroep(sp.leeftijd)).filter(Boolean);
+        const afwaardering = new Map();
+        if (aanwezigeGroepen.length && titels.length) {
+            try {
+                const { rows } = await pool.query(`
+                    SELECT titel_id, leeftijdsgroep, count(*)::int AS stemmen,
+                           count(*) FILTER (WHERE herkenbaar=false)::int AS onbekend
+                    FROM titel_herkenbaarheid
+                    WHERE titel_id = ANY($1::integer[])
+                    GROUP BY titel_id, leeftijdsgroep`,
+                    [titels.map(t => t.id)]);
+                for (const r of rows) {
+                    if (r.stemmen < 8 || r.onbekend / r.stemmen < 0.70) continue;
+                    const belang = aanwezigeGroepen.filter(g => g === r.leeftijdsgroep).length / aanwezigeGroepen.length;
+                    afwaardering.set(r.titel_id, Math.min(0.75,
+                        (afwaardering.get(r.titel_id) || 0) + belang * 0.65));
+                }
+            } catch (err) {
+                logger.waarschuwing('Herkenbaarheidsweging overgeslagen', { melding: err.message });
+            }
+        }
+        // Weighted random sort: onbekende titels kunnen altijd nog verschijnen.
+        const alle = titels.map(t => ({
+            titel: t,
+            score: Math.pow(Math.random(), 1 / (1 - (afwaardering.get(t.id) || 0))),
+        })).sort((a, b) => b.score - a.score).map(x => x.titel);
         const voorrang = alle.filter((t) => [...voorkeuren].some((v) => herken(t, v)));
         const aantalVoorrang = Math.min(voorrang.length, Math.ceil((gevraagd || alle.length) * 0.35));
         const gekozen = voorrang.slice(0, aantalVoorrang);
