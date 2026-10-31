@@ -196,6 +196,21 @@ router.get('/api/admin/aanbevelingen/:id/voorbeeld', vereisAdmin, async (req, re
     }
 });
 
+// Herstel bestaande korte MP3's op verzoek van de beheerder.
+let herstelRun = { bezig: false, totaal: 0, verwerkt: 0, hersteld: 0, mislukt: 0, fouten: [] };
+router.get('/api/admin/audio-herstel/status', vereisAdmin, (_req, res) => res.json(herstelRun));
+router.post('/api/admin/audio-herstel/start', vereisAdmin, (_req, res) => {
+    if (herstelRun.bezig) return res.status(409).json({ fout: 'Audioherstel loopt al.' });
+    herstelRun = { bezig: true, totaal: 0, verwerkt: 0, hersteld: 0, mislukt: 0, fouten: [] };
+    res.json({ gestart: true });
+    media.herstelGoedgekeurdeAudio({ voortgang: (status) => { herstelRun = { ...status, bezig: true }; } })
+        .then((status) => { herstelRun = { ...status, bezig: false }; })
+        .catch((err) => {
+            logger.fout('Audioherstel mislukt', { melding: err.message });
+            herstelRun = { ...herstelRun, bezig: false, fout: err.message };
+        });
+});
+
 // Downloads die op de achtergrond lopen na een 'goed'-swipe.
 const downloads = new Map(); // id -> { status, error }
 
