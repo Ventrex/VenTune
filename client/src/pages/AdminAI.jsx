@@ -75,6 +75,7 @@ function Paneel() {
                 <ChatGptKoppeling />
                 <Genereren />
             </div>
+            <QuizInhoud />
             <MetadataVerrijken />
             <HandmatigToevoegen />
             <Database />
@@ -83,6 +84,41 @@ function Paneel() {
 }
 
 // ------------------------- Database (simpel) -------------------------
+
+function QuizInhoud() {
+    const [zoek, setZoek] = useState('');
+    const [data, setData] = useState([]);
+    const [fout, setFout] = useState('');
+    const [geladen, setGeladen] = useState(false);
+    async function zoeken(e) {
+        e?.preventDefault();
+        setFout('');
+        try {
+            const r = await haal('/api/admin/quiz-inhoud?zoek=' + encodeURIComponent(zoek));
+            setData(r.titels || []);
+            setGeladen(true);
+        } catch (err) { setFout(err.message); }
+    }
+    return <section className="kaart ai-kaart" style={{ marginTop: '1rem' }}>
+        <p className="kaart-label">Hints en bonusvragen bekijken</p>
+        <form className="zoekbalk" onSubmit={zoeken}>
+            <input className="invoer" value={zoek} onChange={e => setZoek(e.target.value)} placeholder="Zoek een film of serie…" />
+            <button className="knop" type="submit">Zoeken</button>
+        </form>
+        {fout && <p className="waarschuwing">{fout}</p>}
+        {geladen && !data.length && <p className="dim">Geen films of series gevonden.</p>}
+        {data.map(t => <details key={t.id} style={{ marginTop: '.7rem' }}>
+            <summary>{t.naam} {t.jaar ? '(' + t.jaar + ')' : ''} · {(t.ai_hints || []).length} hints · {(t.vragen || []).length} vragen</summary>
+            <p><strong>Hints</strong></p>
+            {(t.ai_hints || []).length ? <ol>{t.ai_hints.map((h, i) => <li key={i}>{h}</li>)}</ol> : <p className="dim">Nog geen AI-hints opgeslagen.</p>}
+            <p><strong>Bonusvragen</strong></p>
+            {(t.vragen || []).length ? t.vragen.map((v, i) => <div key={i} style={{ marginBottom: '.75rem' }}>
+                <strong>{v.vraag}</strong>
+                <div className="dim">{(v.opties || []).map((opt, j) => <span key={j} style={{ display: 'block', color: j === v.correct_index ? 'var(--success, #40c98b)' : undefined }}>{j === v.correct_index ? '✓ ' : ''}{opt}</span>)}</div>
+            </div>) : <p className="dim">Nog geen bonusvragen opgeslagen.</p>}
+        </details>)}
+    </section>;
+}
 
 function MetadataVerrijken() {
     const [status, setStatus] = useState(null);
