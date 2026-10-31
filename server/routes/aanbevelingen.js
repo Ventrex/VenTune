@@ -27,14 +27,22 @@ router.get('/api/admin/aanbevelingen/status', vereisAdmin, async (_req, res) => 
     try {
         const login = await codex.loginStatus();
         const tel = await pool.query(
-            `SELECT soort, status, count(*)::int AS n
-             FROM aanbevelingen GROUP BY soort, status`);
+            `SELECT soort, categorie, status, count(*)::int AS n
+             FROM aanbevelingen GROUP BY soort, categorie, status`);
         const aantallen = {};
         for (const r of tel.rows) {
             aantallen[r.soort] = aantallen[r.soort] || {};
             aantallen[r.soort][r.status] = r.n;
         }
+        const perCategorie = {};
+        for (const r of tel.rows) {
+            const naam = r.categorie || r.soort;
+            perCategorie[naam] = perCategorie[naam] || { totaal: 0 };
+            perCategorie[naam][r.status] = r.n;
+            perCategorie[naam].totaal += r.n;
+        }
         res.json({
+            perCategorie,
             chatgpt: { gekoppeld: login.loggedIn, toelichting: login.text },
             run,
             aantallen,
@@ -80,14 +88,15 @@ router.post('/api/admin/aanbevelingen/login/uit', vereisAdmin, (req, res) => {
 router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) => {
     if (run.bezig) return res.status(409).json({ fout: 'Er loopt al een generatie.' });
     const soort = req.body && req.body.soort === 'kerst' ? 'kerst' : 'film_serie';
-    const aantal = Math.min(100, Math.max(1, Number(req.body && req.body.aantal) || (100)));
+    const aantal = Math.min(100, Math.max(1, Math.floor(Number(req.body && req.body.aantal) || 100)));
+    const categorie = aanbevelingen.CATEGORIEEN.includes(req.body?.categorie) ? req.body.categorie : (soort === 'kerst' ? 'kerst' : 'film');
     const taal = (req.body && req.body.taal) || 'beide';
 
-    run = { bezig: true, soort, gestart: new Date().toISOString(), klaar: null, resultaat: null, fout: null };
-    res.json({ gestart: true, soort, aantal });
+    run = { bezig: true, soort, categorie, gestart: new Date().toISOString(), klaar: null, resultaat: null, fout: null };
+    res.json({ gestart: true, soort, categorie, aantal });
 
     // Achtergrond.
-    aanbevelingen.genereer({ soort, aantal, taal })
+    aanbevelingen.genereer({ soort, categorie, aantal, taal })
         .then((r) => {
             run = { ...run, bezig: false, klaar: new Date().toISOString(), resultaat: r.ok ? r : null, fout: r.ok ? null : r.error };
         })
