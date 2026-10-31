@@ -252,6 +252,7 @@ export function useSpel() {
         [],
     );
     const bonusOpgeven = useCallback(() => haalSocket().emit('ronde:bonus-opgeven'), []);
+    const beoordeelHerkenbaarheid = useCallback((herkenbaar) => haalSocket().emit('ronde:herkenbaarheid', { herkenbaar }), []);
     /** Foutmelding wegklikken, zodat een nieuwe poging schoon begint. */
     const wisFout = useCallback(() => setFout(''), []);
     const herstelSpel = useCallback(() => {
@@ -318,6 +319,7 @@ export function useSpel() {
         verwijder3,
         bonusAntwoord,
         bonusOpgeven,
+        beoordeelHerkenbaarheid,
         herstelSpel,
     };
 }
