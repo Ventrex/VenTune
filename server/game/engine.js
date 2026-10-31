@@ -389,7 +389,7 @@ class SpelBeheer {
         // De jongste deelnemer bepaalt automatisch de veilige bovengrens.
         // De host kan daarnaast in Setup een strengere grens kiezen.
         const { rows: spelers } = await pool.query(
-            `SELECT id, leeftijd, verbonden, specialiteit FROM spelers WHERE lobby_id = $1`,
+            `SELECT id, naam, leeftijd, verbonden, specialiteit, team_naam FROM spelers WHERE lobby_id = $1 ORDER BY aangemaakt_op ASC`,
             [lobbyId],
         );
         const leeftijden = spelers
@@ -519,6 +519,9 @@ class SpelBeheer {
             gebruikteTrackIds: new Set(),
             leeftijden: new Map(spelers.map((s) => [s.id, Number(s.leeftijd)])),
             solo: spelers.filter((speler) => speler.verbonden !== false).length === 1,
+            spelvorm: ['tegen_elkaar','om_en_om','teams'].includes(spelInstellingen.spelvorm) ? spelInstellingen.spelvorm : 'tegen_elkaar',
+            teamModus: ['snelste','kenner','om_en_om'].includes(spelInstellingen.team_modus) ? spelInstellingen.team_modus : 'snelste',
+            beurtSpelers: spelers.filter(p => p.verbonden !== false).map(p => ({id:p.id, naam:p.naam,team:p.team_naam})),
             // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
             // titel niet twee keer dezelfde bonusvraag geeft.
             gebruikteVragen: new Set(),
@@ -817,8 +820,29 @@ class SpelBeheer {
                         || bouwMeerkeuzeOpties(titel, state.pool);
                 }
 
+                const beurtMode = state.spelvorm === 'om_en_om' ||
+                    (state.spelvorm === 'teams' && state.teamModus === 'om_en_om');
+                const beurtTeam = state.spelvorm === 'teams' && state.teamModus === 'om_en_om';
+                const deelnemers = state.beurtSpelers;
+                let aanBeurtSpelers = null;
+                let aanBeurtNaam = null;
+                if (beurtMode && deelnemers.length) {
+                    if (beurtTeam) {
+                        const teams = [...new Set(deelnemers.map(p => p.team || p.id))];
+                        const team = teams[(state.rondenummer - 1) % teams.length];
+                        aanBeurtSpelers = deelnemers.filter(p => (p.team || p.id) === team).map(p => p.id);
+                        aanBeurtNaam = String(team);
+                    } else {
+                        const beurt = deelnemers[(state.rondenummer - 1) % deelnemers.length];
+                        aanBeurtSpelers = [beurt.id];
+                        aanBeurtNaam = beurt.naam;
+                    }
+                }
+
                 const nieuweHuidige = {
                     rondeId: rondeRij.rows[0].id,
+                    aanBeurtSpelers,
+                    aanBeurtNaam,
                     titel,
                     track,
                     startTijd: Date.now(),
@@ -855,7 +879,22 @@ class SpelBeheer {
                     modus: state.modus,
                     antwoordModus: state.antwoordModus,
                     opties: state.huidige.antwoordOpties?.opties || null,
+                    aanBeurtSpelers,
+                    aanBeurtNaam,
                 });
+                // Toeschouwers zien de titel; de speler of het team dat moet
+                // raden krijgt deze informatie nadrukkelijk nooit vooraf.
+                if (aanBeurtSpelers) {
+                    for (const deelnemer of deelnemers) {
+                        if (!aanBeurtSpelers.includes(deelnemer.id)) {
+                            this.io.to(spelerKamer(deelnemer.id)).emit('ronde:toeschouwer', {
+                                rondeId: state.huidige.rondeId,
+                                naam: titel.naam,
+                                jaar: titel.jaar,
+                            });
+                        }
+                    }
+                }
                 // Host: krijgt de audio om af te spelen in de kamer.
                 this.io.to(hostKamer(state.code)).emit('ronde:audio', {
                     rondeId: state.huidige.rondeId,
@@ -908,6 +947,11 @@ class SpelBeheer {
         if (!spelerId) return;
 
         const h = state.huidige;
+        if (h.aanBeurtSpelers && !h.aanBeurtSpelers.includes(spelerId)) {
+            this.io.to(spelerKamer(spelerId)).emit('ronde:resultaat',
+                { status: 'niet_aan_beurt', melding: 'Een andere speler of team is aan de beurt.' });
+            return;
+        }
         if (h.klaar.has(spelerId) || h.ingediend.has(spelerId)) return;
 
         // Rate limit: max 1 gok per seconde.
@@ -1409,7 +1453,9 @@ class SpelBeheer {
     /** Host klikt op 'Volgende': gokfase afronden en door. */
     async volgende(socket) {
         const state = this.spellen.get(socket.data.lobbyId);
-        if (!state || !socket.data.isHost) return;
+        if (!state) return;
+        const actief = state.huidige?.aanBeurtSpelers?.includes(socket.data.spelerId);
+        if (!socket.data.isHost && !(actief && state.fase === 'scorebord')) return;
         if (state.fase === 'raden') return this.onthulEnBonus(state);
         if (state.fase === 'bonus') return this.eindBonus(state);
         if (state.fase === 'onthul') return this.naarScorebord(state);
