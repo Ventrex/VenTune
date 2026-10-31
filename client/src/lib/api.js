@@ -576,11 +576,11 @@ export async function checkLobby(code) {
 }
 
 /** Speler doet mee. Geeft { token, spelerId, code, is_host }. */
-export async function joinLobby(code, naam, leeftijd = null) {
+export async function joinLobby(code, naam, leeftijd = null, specialiteit = null) {
     const resp = await fetch(`/api/lobby/${encodeURIComponent(code)}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ naam, leeftijd }),
+        body: JSON.stringify({ naam, leeftijd, specialiteit }),
     });
     const data = await jsonOfNull(resp);
     if (!resp.ok) throw new Error(data?.fout || 'Meedoen mislukt.');
