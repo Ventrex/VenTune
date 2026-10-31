@@ -951,6 +951,14 @@ UPDATE aanbevelingen SET categorie = CASE WHEN soort = 'kerst' THEN 'kerst' WHEN
 ALTER TABLE aanbevelingen ALTER COLUMN categorie SET NOT NULL;
 ALTER TABLE aanbevelingen DROP CONSTRAINT IF EXISTS aanbevelingen_soort_check;
 ALTER TABLE aanbevelingen ADD CONSTRAINT aanbevelingen_soort_check CHECK (soort IN ('film_serie', 'kerst', 'muziek'));
+-- Film en serie blijven expliciet afzonderlijke soorten in de vraagbank.
+-- Herstel oudere imports die een generieke film_serie-categorie meekregen.
+UPDATE aanbevelingen
+SET categorie = type
+WHERE soort = 'film_serie' AND type IN ('film', 'serie')
+  AND categorie IS DISTINCT FROM type;
+CREATE INDEX IF NOT EXISTS aanbevelingen_type_status_idx ON aanbevelingen (type, status)
+    WHERE soort = 'film_serie';
 CREATE INDEX IF NOT EXISTS aanbevelingen_categorie_status_idx ON aanbevelingen (categorie, status);
 
 CREATE UNIQUE INDEX IF NOT EXISTS aanbevelingen_uniek
