@@ -110,15 +110,16 @@ router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) =
 // fase=naam → status 'blind_nee' (ronde 2, met naam).
 router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
     try {
-        const soort = req.query.soort === 'kerst' ? 'kerst' : 'film_serie';
+        const categorie = aanbevelingen.CATEGORIEEN.includes(req.query.categorie) ? req.query.categorie : null;
+        const soort = req.query.soort === 'kerst' ? 'kerst' : req.query.soort === 'muziek' ? 'muziek' : 'film_serie';
         const fase = req.query.fase === 'naam' ? 'blind_nee' : 'nieuw';
         const { rows } = await pool.query(
             `SELECT id, soort, titel, type, jaar, genres, tracknaam, artiest,
                     youtube_zoekterm, bekendheid, reden, voorbeeld_bron, status
              FROM aanbevelingen
-             WHERE soort = $1 AND status = $2
+             WHERE ($1::text IS NULL OR categorie = $1) AND status = $2
              ORDER BY bekendheid DESC, aangemaakt_op
-             LIMIT 100`, [soort, fase]);
+             LIMIT 100`, [categorie, fase]);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ fout: err.message });
