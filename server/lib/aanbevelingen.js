@@ -126,10 +126,10 @@ function promptFilmSerie({ aantal, taal, bestaand }) {
         : '';
     return `Je helpt een muziekquiz over films en series (zoals Hitster) vullen.
 
-Geef ${aantal} verschillende kandidaten (nooit een lege lijst): elk een bekende film of serie met de ORIGINELE SOUNDTRACK — de officiële theme song, titelmuziek of het iconische herkenningsnummer dat echt bij die film/serie hoort. Denk aan: de titelmuziek van The Office, het thema van CSI (Who Are You - The Who), de titelsong van Friends (I'll Be There For You), het thema van Terminator.
+Geef maximaal ${aantal} verschillende kandidaten (een lege lijst is toegestaan als je geen overtuigende bekende titels meer kent): elk een bekende film of serie met de ORIGINELE SOUNDTRACK — de officiële theme song, titelmuziek of het iconische herkenningsnummer dat echt bij die film/serie hoort. Denk aan: de titelmuziek van The Office, het thema van CSI (Who Are You - The Who), de titelsong van Friends (I'll Be There For You), het thema van Terminator.
 
 Harde eisen:
-- Alleen films/series met een GOEDE FANBASE. Geen obscure of nauwelijks bekende titels.
+- Alleen films/series met een GOEDE FANBASE. Geen obscure of nauwelijks bekende titels. Verzin GEEN titels om een gewenst aantal te bereiken.
 - Geef uitsluitend titels die NIET in de uitsluitlijst staan. Gebruik alternatieven als een titel al bestaat.
 - Een herkenbare intro, officiële titelmuziek of iconische soundtrack is toegestaan; geef geen niet-gerelateerde nummers.
 - Gebruik jouw kennis om een lijst samen te stellen. Zoek zo nodig online ter verificatie, maar geef ook zonder gevonden webresultaten de beste feitelijke kandidaten terug.
@@ -201,6 +201,7 @@ async function genereer(opties) {
     const lijst = [];
     const batchSize = soort !== 'film_serie' ? 20 : 15;
     const aantalBatches = Math.ceil(aantal / batchSize);
+    let legeOfDubbeleBatches = 0;
     for (let i = 0; i < aantalBatches; i++) {
         const nodig = Math.min(batchSize, aantal - lijst.length);
         if (nodig <= 0) break;
@@ -217,6 +218,7 @@ async function genereer(opties) {
             logger.waarschuwing('Aanbevelingen batch mislukt', { batch: i + 1, melding: res.error });
             break;
         }
+        const voorBatch = lijst.length;
         const ontvangen = Array.isArray(res.data?.kandidaten) ? res.data.kandidaten : [];
         for (const k of ontvangen) {
             if (!k || (soort === 'film_serie' && k.type !== categorie) || (categorie === '100nl' && k.herkomst_land !== 'Nederland')) continue;
@@ -226,8 +228,11 @@ async function genereer(opties) {
             bestaandeSet.add(genormaliseerd);
             lijst.push(k);
         }
-        if (!ontvangen.length) {
-            logger.waarschuwing('ChatGPT gaf lege aanbevelingenbatch', { soort, batch: i + 1 });
+        // Als de AI vrijwel niets nieuws meer weet, voorkom eindeloos
+        // varianten/dubbelen opvragen om een arbitrair doel te halen.
+        if (lijst.length === voorBatch) legeOfDubbeleBatches++; else legeOfDubbeleBatches = 0;
+        if (!ontvangen.length || legeOfDubbeleBatches >= 2) {
+            logger.info('Generatie gestopt: onvoldoende nieuwe betrouwbare kandidaten', { categorie, batch: i + 1 });
             break;
         }
     }
