@@ -65,7 +65,7 @@ function Paneel() {
                 <p className="kaart-label">Zo vul je de quiz — in 4 stappen</p>
                 <ol className="uitleg-stappen">
                     <li><strong>Koppel ChatGPT</strong> (één keer). Dan kan de AI nummers voor je zoeken.</li>
-                    <li><strong>Haal nummers op.</strong> Klik op “Films &amp; series” of “Kerstmuziek”. De AI zoekt bekende herkenningsnummers.</li>
+                    <li><strong>Haal nummers op.</strong> Kies een categorie en het gewenste aantal. De AI zoekt bekende herkenningsnummers.</li>
                     <li><strong>Swipe ze.</strong> Eerst blind (ken je het?), daarna de rest mét naam (goed/fout/onbekend). Goedgekeurde nummers komen vanzelf in de quiz.</li>
                     <li><strong>Twijfel je?</strong> Deel de review-link; vrienden luisteren en stemmen.</li>
                 </ol>
@@ -233,12 +233,17 @@ function Genereren() {
     const [bezig, setBezig] = useState(false);
     const [melding, setMelding] = useState('');
     const [aantallen, setAantallen] = useState({});
+    const [perCategorie, setPerCategorie] = useState({});
+    const [categorie, setCategorie] = useState('film');
+    const [aantal, setAantal] = useState(50);
+    const categorieen = [['film', 'Films'], ['serie', 'Series'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s (2020–2029)'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
     const poll = useRef(null);
 
     async function ververs() {
         try {
             const s = await haal('/api/admin/aanbevelingen/status');
             setAantallen(s.aantallen || {});
+            setPerCategorie(s.perCategorie || {});
             if (s.run && !s.run.bezig) {
                 setBezig(false);
                 clearInterval(poll.current);
@@ -249,10 +254,10 @@ function Genereren() {
     }
     useEffect(() => { ververs(); return () => clearInterval(poll.current); }, []);
 
-    async function start(soort) {
+    async function start() {
         setBezig(true); setMelding('ChatGPT denkt na… dit kan even duren.');
         try {
-            await haal('/api/admin/aanbevelingen/genereer', { method: 'POST', ...jsonBody({ soort, aantal: 100 }) });
+            await haal('/api/admin/aanbevelingen/genereer', { method: 'POST', ...jsonBody({ categorie, soort: categorie === 'kerst' ? 'kerst' : 'film_serie', aantal: Number(aantal) }) });
             clearInterval(poll.current);
             poll.current = setInterval(ververs, 3000);
         } catch (e) { setBezig(false); setMelding(e.message); }
@@ -274,17 +279,25 @@ function Genereren() {
         <section className="kaart ai-kaart">
             <p className="kaart-label">Aanbevelingen ophalen</p>
             <p className="dim ai-uitleg">
-                ChatGPT draagt bekende films/series met hun herkenningsnummer en
-                bekende kerstliedjes aan. Daarna swipe je ze goed of fout.
+                Kies zelf hoeveel nieuwe nummers je per categorie wilt verzamelen. Daarna beoordeel je de fragmenten.
             </p>
 
-            <div className="ai-knoprij">
-                <button className="knop" disabled={bezig} onClick={() => start('film_serie')}>
-                    🎬 Films &amp; series
-                </button>
-                <button className="knop" disabled={bezig} onClick={() => start('kerst')}>
-                    🎄 Kerstmuziek
-                </button>
+            <div className="ai-knoprij" style={{ alignItems: 'end' }}>
+                <label style={{ flex: '1 1 160px' }}>Categorie
+                    <select className="invoer" value={categorie} onChange={(e) => setCategorie(e.target.value)} style={{ display: 'block', width: '100%' }}>
+                        {categorieen.map(([waarde, naam]) => <option key={waarde} value={waarde}>{naam}</option>)}
+                    </select>
+                </label>
+                <label style={{ flex: '1 1 120px' }}>Aantal nummers
+                    <input className="invoer" type="number" min="1" max="100" value={aantal}
+                        onChange={(e) => setAantal(e.target.value)} style={{ display: 'block', width: '100%' }} />
+                </label>
+                <button className="knop" disabled={bezig || !Number.isInteger(Number(aantal)) || Number(aantal) < 1 || Number(aantal) > 100} onClick={start}>Lijst maken</button>
+            </div>
+            <p className="dim">Aantal per aanvraag (1–100). Films en series zijn apart opgeslagen en kunnen later samen worden geselecteerd.</p>
+            <div className="ai-tellers" style={{ marginTop: '0.75rem' }}>
+                {categorieen.map(([waarde, naam]) =>
+                    <Teller key={waarde} label={naam} n={perCategorie[waarde]?.totaal || 0} />)}
             </div>
 
             {melding && <p className={bezig ? 'dim' : 'feedback neutraal'} style={{ marginTop: '1rem' }}>{melding}</p>}
