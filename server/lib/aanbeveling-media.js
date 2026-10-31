@@ -20,7 +20,8 @@ const logger = require('./logger');
 const execFileAsync = promisify(execFile);
 
 const MEDIA_DIR = process.env.MEDIA_DIR || '/media';
-const FRAGMENT_SECONDEN = 45;      // ruim genoeg om te raden
+const FRAGMENT_SECONDEN = 45;
+const INTRO_OVERSLAAN = 5; // korte gesproken intro's/reclame aan begin overslaan      // ruim genoeg om te raden
 const MAX_BYTES = 20 * 1024 * 1024;
 
 /**
@@ -70,7 +71,7 @@ async function lokaalVoorbeeld(aanbeveling) {
         const tmp = path.join(map, `aanbeveling-${id}-${Date.now()}.mp3`);
         try {
             await execFileAsync('yt-dlp', [
-                '--no-playlist', '--download-sections', `*0-${FRAGMENT_SECONDEN}`,
+                '--no-playlist', '--download-sections', `*${INTRO_OVERSLAAN}-${INTRO_OVERSLAAN + FRAGMENT_SECONDEN}`,
                 '--force-keyframes-at-cuts', '--extract-audio',
                 '--audio-format', 'mp3', '--audio-quality', '5',
                 '--no-part', '--output', tmp,
@@ -129,11 +130,14 @@ async function verwerkGoed(aanbevelingId) {
     const a = rows[0];
     if (!a) return { ok: false, error: 'Aanbeveling niet gevonden.' };
 
-    // 1. Voorbeeld/bron bepalen.
+    // 1. Reeds klaargezet luistervoorbeeld gebruiken als bronbestand.
+    const voorbereid = await lokaalVoorbeeld(a).catch(() => null);
+
+    // 2. Voorbeeld/bron bepalen.
     const voorbeeld = a.voorbeeld_bron
         ? { videoId: a.voorbeeld_bron }
         : await zoekVoorbeeld(a);
-    if (!voorbeeld || !voorbeeld.videoId) {
+    if (!voorbereid && (!voorbeeld || !voorbeeld.videoId)) {
         return { ok: false, error: 'Geen YouTube-bron gevonden om te downloaden.' };
     }
 
@@ -146,9 +150,11 @@ async function verwerkGoed(aanbevelingId) {
     await fs.mkdir(media.basis, { recursive: true });
     const bronUrl = `https://www.youtube.com/watch?v=${voorbeeld.videoId}`;
 
-    // 4. Downloaden met yt-dlp (fragment, mp3).
+    // 4. Geen tweede download als het luistervoorbeeld al klaarstaat.
     try {
-        await execFileAsync('yt-dlp', [
+        if (voorbereid) {
+            await fs.copyFile(path.join(MEDIA_DIR, 'previews', `aanbeveling-${a.id}.mp3`), media.bestand);
+        } else await execFileAsync('yt-dlp', [
             '--no-playlist',
             '--download-sections', `*0-${FRAGMENT_SECONDEN}`,
             '--force-keyframes-at-cuts',
@@ -188,7 +194,7 @@ async function verwerkGoed(aanbevelingId) {
         `UPDATE aanbevelingen SET status = 'toegevoegd', titel_id = $2,
                 voorbeeld_bron = $3, beoordeeld_op = now()
          WHERE id = $1`,
-        [a.id, titelId, voorbeeld.videoId]);
+        [a.id, titelId, voorbeeld?.videoId || a.voorbeeld_bron || null]);
 
     logger.info('Aanbeveling toegevoegd als speelbare titel', { id: a.id, titelId });
     return { ok: true, titelId };
