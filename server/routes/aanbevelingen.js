@@ -295,6 +295,7 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
                  RETURNING id, fout_aantal`, [id, verwacht]);
             if (!rows[0]) return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
             await media.keurMp3Af(id);
+            audioTaken.delete(id);
             return res.json({
                 ok: true,
                 status: rows[0].fout_aantal < 3 ? 'nieuw' : 'fout',
