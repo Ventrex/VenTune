@@ -127,19 +127,22 @@ function bouwMeerkeuzeOpties(titel, pool_) {
         }
     };
 
-    // Samenstelling van de foute antwoorden. Voorbeeld: een Nederlandse comedy-
-    // serie uit 1990 krijgt ~2 Nederlandse comedy's, ~2 Nederlandse titels van
-    // hetzelfde type uit 1989–1991 en ~1 willekeurige Nederlandse titel. Zo
-    // zijn de afleiders passend én wisselen ze per ronde.
-    if (genres.size) voegToe(basis.filter(genreOk), 2);
-    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 1)), 2);
-    // Jaarvenster stapsgewijs verruimen als 1990±1 te weinig opleverde.
-    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 3)), 2);
-    voegToe(basis.filter((t) => typeOk(t) && jaarBij(t, 8)), 2);
-    // Eén willekeurige zelfde-taal-titel en, als vangnet, elke resterende titel,
-    // zodat er altijd zes opties zijn en de knoppen nooit verdwijnen.
-    voegToe(basis, AANTAL_MEERKEUZE_OPTIES);
-    voegToe(zonderZelf, AANTAL_MEERKEUZE_OPTIES);
+    // Eerst hetzelfde type én een overlappend genre: een sci-fi-serie
+    // krijgt geen willekeurige comedy als afleider wanneer er sci-fi bestaat.
+    const zelfdeType = basis.filter(typeOk);
+    if (genres.size) {
+        voegToe(zelfdeType.filter((t) => genreOk(t) && jaarBij(t, 3)), 5);
+        voegToe(zelfdeType.filter((t) => genreOk(t) && jaarBij(t, 10)), 5);
+        voegToe(zelfdeType.filter(genreOk), 5);
+    }
+    voegToe(zelfdeType.filter((t) => jaarBij(t, 3)), 5);
+    voegToe(zelfdeType.filter((t) => jaarBij(t, 10)), 5);
+    voegToe(zelfdeType, 5);
+    // Pas als er geen vijf passende opties beschikbaar zijn, de andere
+    // genres/types gebruiken in plaats van de vraag onmogelijk te maken.
+    voegToe(basis.filter(genreOk), 5);
+    voegToe(basis, 5);
+    voegToe(zonderZelf, 5);
 
     // Alleen als de hele pool te klein is (minder dan zes titels) lukt het niet.
     if (opties.length < AANTAL_MEERKEUZE_OPTIES) return null;
