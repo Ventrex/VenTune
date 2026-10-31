@@ -81,6 +81,7 @@ async function lokaalVoorbeeld(aanbeveling) {
             const stat = await fs.stat(tmp);
             if (stat.size < 1 || stat.size > MAX_BYTES) throw new Error('Luistervoorbeeld is leeg of te groot.');
             await fs.rename(tmp, bestand);
+            await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [id, bron.videoId]);
             return { audioUrl: url };
         } finally {
             await fs.rm(tmp, { force: true }).catch(() => {});
