@@ -512,7 +512,7 @@ export default function Host() {
                 <>
                     <p className="kaart-label">Het antwoord was</p>
                     <h1>{antwoord.naam}</h1>
-                    <AntwoordInfo antwoord={antwoord} />
+                    {lobbyInstellingen?.info_aan !== false && <AntwoordInfo antwoord={antwoord} />}
                     <div className="host-knoppen">
                         <button className="knop" onClick={spel.volgende}>
                             Volgende →
@@ -571,7 +571,7 @@ export default function Host() {
                         <>
                             <p className="kaart-label">Vorige titel</p>
                             <h1>{antwoord.naam}</h1>
-                            <AntwoordInfo antwoord={antwoord} />
+                            {lobbyInstellingen?.info_aan !== false && <AntwoordInfo antwoord={antwoord} />}
                         </>
                     )}
                     <Scorebord lijst={scorebord} mijnId={sessie.spelerId} />
