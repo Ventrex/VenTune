@@ -392,6 +392,7 @@ ALTER TABLE presets ADD COLUMN IF NOT EXISTS leeftijdsfactoren JSONB NOT NULL DE
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS gebruiker_id UUID;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS alleen_gecontroleerd BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE presets ADD COLUMN IF NOT EXISTS kindvriendelijk BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE presets ADD COLUMN IF NOT EXISTS extra_instellingen JSONB NOT NULL DEFAULT '{}'::jsonb;
 DO $$
 BEGIN
     ALTER TABLE presets DROP CONSTRAINT IF EXISTS presets_antwoord_modus_check;
