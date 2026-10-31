@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { haalRanking } from '../lib/api.js';
 import Brand from '../components/Brand.jsx';
+import Icon from '../components/Icon.jsx';
 import { ThemaContext } from '../lib/thema.js';
 
 // Startscherm: nieuw spel maken (host) of meedoen met een code.
@@ -38,8 +39,9 @@ export default function Home() {
     }
 
     return (
-        <main className="scherm">
+        <main className="scherm ventune-home">
             <Brand link={false} />
+            <div className="home-hero-icon"><Icon name="music" size={28} /><Icon name="sparkles" size={18} /></div>
             <h1>De browser-muziekquiz</h1>
             <p className="ondertitel">{thema.ondertitel || 'Muziekquiz over films en series'}</p>
             <p className="dim start-uitleg">
@@ -51,7 +53,7 @@ export default function Home() {
 
             <div className="stapel">
                 <button className="knop" onClick={nieuwSpel}>
-                    Nieuw spel
+                    <Icon name="play" /> Nieuw spel <Icon name="arrow" size={17} />
                 </button>
 
                 <form onSubmit={meedoen} className="stapel" style={{ gap: '0.75rem' }}>
@@ -69,7 +71,7 @@ export default function Home() {
                             aria-label="Lobbycode"
                         />
                         <button className="knop knop-stil" type="submit">
-                            Meedoen
+                            <Icon name="users" size={18} /> Meedoen
                         </button>
                     </div>
                 </form>
@@ -78,7 +80,7 @@ export default function Home() {
             {(ranking.beste_gemiddeld?.length > 0 || ranking.meeste_spellen?.length > 0 || ranking.punten_gemiddeld?.length > 0) && (
                 <div style={{ marginTop: '2.5rem' }}>
                     <p className="kaart-label" style={{ textAlign: 'left' }}>
-                        Topscores
+                        <Icon name="trophy" size={19} /> Topscores
                     </p>
                     <div className="ranking-blokken">
                         <RankingBlok titel="Beste gemiddelde per spel" veld="gemiddelde" suffix=" pnt" lijst={ranking.beste_gemiddeld} />
