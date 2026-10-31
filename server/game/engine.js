@@ -1121,8 +1121,8 @@ class SpelBeheer {
         let soort = null;
 
         try {
-            // Zorg dat deze titel vragen heeft (genereert ze indien nodig).
-            await vragenbank.vulAan(h.titel, 3, false);
+            // Alleen vooraf door de beheerder goedgekeurde vragen. Nooit live
+            // AI/TMDB-vragen genereren die een hint of het antwoord kunnen verraden.
             const uitBank = await vragenbank.haalVraag(
                 h.titel.id,
                 state.gebruikteVragen,
@@ -1136,28 +1136,9 @@ class SpelBeheer {
                 soort = uitBank.soort;
             }
         } catch (err) {
-            logger.waarschuwing('Vragenbank niet beschikbaar.', {
-                melding: err.message,
-            });
+            logger.waarschuwing('Goedgekeurde vragenbank niet beschikbaar.', { melding: err.message });
         }
-
-        if (!vraagTekst) {
-            const bonus = await genereerBonus(h.titel, {
-                jaarMin: Number(state.instellingen?.periode_start),
-                jaarMax: Number(state.instellingen?.periode_eind),
-            });
-            if (!bonus) {
-                return this.naarScorebord(state);
-            }
-            if (bonus.type === 'jaar') {
-                const liveJaar = Number(bonus.opties.find((optie) => optie.correct)?.tekst);
-                if (liveJaar !== Number(h.titel.jaar)) return this.naarScorebord(state);
-            }
-            vraagTekst = bonus.vraag;
-            opties = bonus.opties.map((o) => o.tekst);
-            correctIndex = bonus.opties.findIndex((o) => o.correct);
-            soort = bonus.type;
-        }
+        if (!vraagTekst) return this.naarScorebord(state);
 
         h.bonus = {
             correctIndex,
