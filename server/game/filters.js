@@ -83,8 +83,10 @@ function bouwFilter(f = {}) {
     params.push(eind);
     const iEind = params.length;
     const jaarStartParam = String.fromCharCode(36) + iStart;
+    const jaarEindParam = String.fromCharCode(36) + iEind;
+    condities.push(`(t.jaar BETWEEN ${jaarStartParam}::integer AND ${jaarEindParam}::integer OR (t.jaar IS NULL AND ${jaarStartParam}::integer <= 1930 AND ${jaarEindParam}::integer >= EXTRACT(YEAR FROM CURRENT_DATE)))`);
 
-    // Bekendheid: alleen titels die genoeg mensen kennen. 'stemmen' uit TMDB
+        // Bekendheid: alleen titels die genoeg mensen kennen. 'stemmen' uit TMDB
     // is hiervoor de betrouwbaarste maat. Titels zonder TMDB-gegevens (zoals
     // handmatig of via playlists toegevoegde) blijven altijd meedoen.
     const drempel = Number(f.min_bekendheid);
