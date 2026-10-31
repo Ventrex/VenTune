@@ -237,6 +237,11 @@ function setupSockets(io) {
             }
         });
 
+        socket.on('ronde:herkenbaarheid', async ({ herkenbaar } = {}) => {
+            try { await spel.beoordeelHerkenbaarheid(socket, herkenbaar); }
+            catch (err) { logger.waarschuwing('Herkenbaarheid opslaan mislukt', { melding: err.message }); }
+        });
+
         // Bonusvraag beantwoorden.
         socket.on('ronde:bonus-antwoord', async ({ keuze } = {}) => {
             try {
