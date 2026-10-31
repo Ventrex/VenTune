@@ -28,22 +28,34 @@ const MAX_BYTES = 35 * 1024 * 1024;
  * @returns {Promise<{videoId:string, titel:string, duurSeconden:number}|null>}
  */
 async function zoekVoorbeeld(aanbeveling) {
-    const term = (aanbeveling.youtube_zoekterm || '').trim()
-        || `${aanbeveling.artiest} ${aanbeveling.tracknaam}`.trim()
-        || `${aanbeveling.titel || ''} soundtrack`.trim();
-    if (!term) return null;
-    try {
-        const resultaten = await ytzoek.zoek(term, { limiet: 5 });
-        const afgekeurd = new Set(aanbeveling.afgekeurde_bronnen || []);
-        const beste = (resultaten || []).find((r) => r.videoId && !afgekeurd.has(r.videoId)
-            && ytzoek.isLatijnsSchrift(r.titel)
-            && (!r.duurSeconden || r.duurSeconden < 15 * 60));
-        if (!beste) return null;
-        return { videoId: beste.videoId, titel: beste.titel, duurSeconden: beste.duurSeconden || 0 };
-    } catch (err) {
-        logger.waarschuwing('Voorbeeld zoeken mislukt', { melding: err.message });
-        return null;
+    const titel = String(aanbeveling.titel || '').trim();
+    const track = String(aanbeveling.tracknaam || '').trim();
+    const artiest = String(aanbeveling.artiest || '').trim();
+    const oud = String(aanbeveling.youtube_zoekterm || '').trim();
+    const isSerie = aanbeveling.type === 'serie' || aanbeveling.categorie === 'serie';
+    // Oudere series hebben soms een generieke zoekterm of een onbekende artiest.
+    // Gebruik daarom meerdere onafhankelijke zoekopdrachten en sla geweigerde video's over.
+    const termen = [...new Set([
+        oud,
+        isSerie && titel ? `${titel} tv series original opening theme` : '',
+        isSerie && titel ? `${titel} official theme song soundtrack` : '',
+        titel && track ? `${titel} ${track} original soundtrack` : '',
+        track && artiest && !/^onbekend|titelmuziek$/i.test(artiest) ? `${artiest} ${track} original` : '',
+        titel ? `${titel} ${isSerie ? 'tv series theme' : 'original soundtrack theme'}` : '',
+    ].filter(Boolean))];
+    const afgekeurd = new Set(aanbeveling.afgekeurde_bronnen || []);
+    for (const term of termen) {
+        try {
+            const resultaten = await ytzoek.zoek(term, { limiet: 10 });
+            const beste = (resultaten || []).find((r) => r.videoId && !afgekeurd.has(r.videoId)
+                && ytzoek.isLatijnsSchrift(r.titel)
+                && (!r.duurSeconden || r.duurSeconden < 15 * 60));
+            if (beste) return { videoId: beste.videoId, titel: beste.titel, duurSeconden: beste.duurSeconden || 0 };
+        } catch (err) {
+            logger.waarschuwing('Alternatieve videobron zoeken mislukt', { term, melding: err.message });
+        }
     }
+    return null;
 }
 
 // Download alleen bij het opvragen van een luistervoorbeeld. Hergebruik het
