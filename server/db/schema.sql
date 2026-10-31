@@ -877,6 +877,11 @@ CREATE TABLE IF NOT EXISTS vragen (
 );
 
 CREATE INDEX IF NOT EXISTS idx_vragen_titel ON vragen (titel_id, keer_gebruikt);
+-- AI-vragen en hints blijven in beoordeling totdat een beheerder ze goedkeurt.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_hints_status TEXT NOT NULL DEFAULT 'controle_nodig';
+ALTER TABLE vragen ADD COLUMN IF NOT EXISTS ai_review_status TEXT NOT NULL DEFAULT 'controle_nodig';
+CREATE INDEX IF NOT EXISTS idx_vragen_ai_review ON vragen (titel_id, ai_review_status);
+
 
 -- Bonusvragen die spelers zelf insturen. Ze worden nooit direct speelbaar:
 -- de admin keurt ze eerst goed of wijst ze af.
