@@ -2101,3 +2101,8 @@ body {
 }
 .uitleg-stappen li { padding-left: 0.2rem; }
 .uitleg-stappen strong { color: var(--text); }
+
+/* Bonuskeuzes op tablet en desktop in twee compacte kolommen, ook na algemene .keuzes regels. */
+.host-bonus-keuzes.meerkeuze-antwoorden { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; align-items:stretch; }
+.host-bonus-keuzes.meerkeuze-antwoorden > .keuze { min-width:0; min-height:52px; height:auto; padding:.7rem; font-size:1rem; line-height:1.3; }
+@media(max-width:480px) { .host-bonus-keuzes.meerkeuze-antwoorden { gap:.45rem; } .host-bonus-keuzes.meerkeuze-antwoorden > .keuze { font-size:.9rem; min-height:48px; } }
