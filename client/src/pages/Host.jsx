@@ -527,7 +527,7 @@ export default function Host() {
                     <p className="dim" style={{ marginTop: '1rem' }}>
                         Spelers antwoorden op hun telefoon; jij kunt hier ook meedoen.
                     </p>
-                    <div className="keuzes host-bonus-keuzes">
+                    <div className="keuzes host-bonus-keuzes meerkeuze-antwoorden">
                         {bonus.opties.map((opt, i) => {
                             let extra = bonusKeuze === i ? ' gekozen' : '';
                             if (bonusResultaat?.status === 'goed' && bonusResultaat.correctIndex === i) extra += ' juist';
@@ -572,8 +572,9 @@ export default function Host() {
                         </>
                     )}
                     <Scorebord lijst={scorebord} mijnId={sessie.spelerId} />
+                    <div className="host-knoppen"><button className="knop" onClick={spel.volgende}>Doorgaan naar volgende ronde →</button></div>
                     <p className="dim" style={{ marginTop: '1rem' }}>
-                        Afspelen… volgende ronde start automatisch
+                        De volgende ronde start pas wanneer de host op Doorgaan klikt.
                     </p>
                 </>
             )}
@@ -598,7 +599,7 @@ export default function Host() {
 export function AntwoordInfo({ antwoord }) {
     if (!antwoord) return null;
     const type = antwoord.type === 'serie' ? 'Serie' : antwoord.type === 'muziek' ? 'Muziek' : 'Film';
-    const taal = antwoord.taal === 'nl' ? 'Nederlands' : 'Internationaal';
+    const taal = antwoord.taal === 'nl' ? 'Nederlands' : antwoord.taal === 'en' ? 'Engels' : antwoord.taal === 'us' ? 'Engels' : null;
     return (
         <>
             {antwoord.poster && (
@@ -607,7 +608,7 @@ export function AntwoordInfo({ antwoord }) {
             <div className="info-rij">
                 <span className="info-chip">{type}</span>
                 {antwoord.jaar && <span className="info-chip">{antwoord.jaar}</span>}
-                <span className="info-chip">{taal}</span>
+                {taal && <span className="info-chip">{taal}</span>}
                 {antwoord.land && <span className="info-chip">{antwoord.land}</span>}
                 {antwoord.studio && <span className="info-chip">{antwoord.studio}</span>}
                 {(antwoord.genres || []).map((g) => (
