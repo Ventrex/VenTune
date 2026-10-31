@@ -85,6 +85,9 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS omschrijving TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS hoofdrollen TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS speelplek TEXT;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS studio TEXT;
+-- Metadata voor toekomstige quizfilters (bestaande gegevens blijven behouden).
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS themas TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS muziek_genres TEXT[] NOT NULL DEFAULT '{}';
 -- Curatie: waarom staat een titel in de database en is hij geschikt voor de
 -- standaardselectie "bekend van Nederlandse tv"?
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS toevoeg_reden TEXT NOT NULL
@@ -933,6 +936,11 @@ CREATE TABLE IF NOT EXISTS aanbevelingen (
     aangemaakt_op     TIMESTAMPTZ NOT NULL DEFAULT now(),
     beoordeeld_op     TIMESTAMPTZ
 );
+
+ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS themas TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS studio TEXT;
+ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS muziek_genres TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS muziek_type TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS aanbevelingen_uniek
     ON aanbevelingen (soort, lower(coalesce(titel, '')), lower(tracknaam), lower(artiest));
