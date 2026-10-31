@@ -96,9 +96,15 @@ export default function Home() {
                 <ThemaKiezer />
             </div>
 
-            <p style={{ marginTop: '1rem' }}>
+            <p style={{ marginTop: '1rem', display: 'flex', gap: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Link className="terug" to="/changelog">
                     Wat is nieuw? →
+                </Link>
+                <Link className="terug" to="/admin">
+                    Beheer →
+                </Link>
+                <Link className="terug" to="/admin/ai">
+                    AI &amp; aanbevelingen →
                 </Link>
             </p>
 

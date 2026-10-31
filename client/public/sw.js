@@ -9,8 +9,10 @@
 // =====================================================================
 
 // Ophogen bij elke wijziging hier: oude caches worden bij 'activate'
-// weggegooid. v3 ruimt de MP3's op die v2 ten onrechte had opgeslagen.
-const CACHE = 'ventune-v3';
+// weggegooid. v4 schakelt om naar netwerk-first voor de app zelf, zodat
+// een nieuwe build meteen zichtbaar is (de oude cache-first-aanpak liet
+// de vorige versie hangen tot de cache handmatig werd gewist).
+const CACHE = 'ventune-v4';
 
 self.addEventListener('install', () => {
     self.skipWaiting();
@@ -65,19 +67,18 @@ self.addEventListener('fetch', (e) => {
         return;
     }
 
-    // Statische assets (js/css/fonts/afbeeldingen): cache-first.
+    // Statische assets (js/css/fonts/afbeeldingen): NETWERK-first, met de
+    // cache alleen als terugval wanneer je offline bent. Zo zie je na een
+    // nieuwe build meteen de laatste versie in plaats van een oude cache.
     e.respondWith(
-        caches.match(req).then(
-            (gecached) =>
-                gecached ||
-                fetch(req).then((resp) => {
-                    // Alleen nette, volledige antwoorden cachen.
-                    if (resp && resp.status === 200 && resp.type === 'basic') {
-                        const kopie = resp.clone();
-                        caches.open(CACHE).then((c) => c.put(req, kopie));
-                    }
-                    return resp;
-                }),
-        ),
+        fetch(req)
+            .then((resp) => {
+                if (resp && resp.status === 200 && resp.type === 'basic') {
+                    const kopie = resp.clone();
+                    caches.open(CACHE).then((c) => c.put(req, kopie));
+                }
+                return resp;
+            })
+            .catch(() => caches.match(req)),
     );
 });
