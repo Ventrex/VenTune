@@ -75,6 +75,7 @@ function Paneel() {
                 <ChatGptKoppeling />
                 <Genereren />
             </div>
+            <MetadataVerrijken />
             <HandmatigToevoegen />
             <Database />
         </main>
@@ -82,6 +83,45 @@ function Paneel() {
 }
 
 // ------------------------- Database (simpel) -------------------------
+
+function MetadataVerrijken() {
+    const [status, setStatus] = useState(null);
+    const [melding, setMelding] = useState('');
+    const timer = useRef(null);
+    useEffect(() => {
+        const kijk = async () => {
+            try {
+                const r = await haal('/api/admin/metadata-verrijken/status');
+                setStatus(r);
+                if (!r.bezig) clearInterval(timer.current);
+            } catch { /* server tijdelijk niet bereikbaar */ }
+        };
+        kijk();
+        return () => clearInterval(timer.current);
+    }, []);
+    async function start() {
+        setMelding('');
+        try {
+            await haal('/api/admin/metadata-verrijken/start', { method: 'POST' });
+            clearInterval(timer.current);
+            timer.current = setInterval(async () => {
+                try {
+                    const r = await haal('/api/admin/metadata-verrijken/status');
+                    setStatus(r);
+                    if (!r.bezig) clearInterval(timer.current);
+                } catch { clearInterval(timer.current); }
+            }, 2500);
+        } catch (err) { setMelding(err.message); }
+    }
+    useEffect(() => () => clearInterval(timer.current), []);
+    return <section className="kaart ai-kaart" style={{ marginTop: '1rem' }}>
+        <p className="kaart-label">Metadata aanvullen</p>
+        <p className="dim">Vul ontbrekende jaartallen, alle gecontroleerde genres, studio, omschrijving en poster van films en series aan via TMDB. Maximaal 100 titels per ronde. Bestaande goedkeuringen blijven behouden.</p>
+        <button className="knop knop-stil" disabled={status?.bezig} onClick={start}>Ontbrekende gegevens aanvullen</button>
+        {status && <p className="dim">{status.klaar}/{status.totaal} gecontroleerd · {status.aangepast} bijgewerkt · {status.gemist} niet gevonden {status.bezig ? '· bezig' : ''}</p>}
+        {melding && <p className="waarschuwing">{melding}</p>}
+    </section>;
+}
 
 function Database() {
     const [tel, setTel] = useState(null);
