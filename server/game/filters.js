@@ -82,7 +82,7 @@ function bouwFilter(f = {}) {
     const iStart = params.length;
     params.push(eind);
     const iEind = params.length;
-    const jaarStartParam = '
+    const jaarStartParam = String.fromCharCode(36) + iStart;
 
     // Bekendheid: alleen titels die genoeg mensen kennen. 'stemmen' uit TMDB
     // is hiervoor de betrouwbaarste maat. Titels zonder TMDB-gegevens (zoals
@@ -196,7 +196,7 @@ function bouwFilter(f = {}) {
 
 module.exports = { bouwFilter };
  + iStart;
-    const jaarEindParam = '
+    const jaarEindParam = String.fromCharCode(36) + iEind;
 
     // Bekendheid: alleen titels die genoeg mensen kennen. 'stemmen' uit TMDB
     // is hiervoor de betrouwbaarste maat. Titels zonder TMDB-gegevens (zoals
