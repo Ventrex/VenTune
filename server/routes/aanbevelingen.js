@@ -135,6 +135,20 @@ router.get('/api/admin/quiz-inhoud', vereisAdmin, async (req, res) => {
     }
 });
 
+router.get('/api/admin/herkenbaarheid', vereisAdmin, async (req, res) => {
+    try {
+        const zoek = String(req.query.zoek || '').trim().slice(0, 80);
+        const { rows } = await pool.query(`SELECT t.id, t.naam, t.type::text AS type,
+            h.leeftijdsgroep, count(*)::int AS stemmen,
+            count(*) FILTER (WHERE h.herkenbaar = false)::int AS onbekend
+            FROM titel_herkenbaarheid h JOIN titels t ON t.id=h.titel_id
+            WHERE ($1::text='' OR t.naam ILIKE '%' || $1 || '%')
+            GROUP BY t.id, t.naam, t.type, h.leeftijdsgroep
+            ORDER BY onbekend DESC, stemmen DESC, t.naam LIMIT 300`, [zoek]);
+        res.json({ resultaten: rows, toelichting: 'Pas na minimaal 8 stemmen per leeftijdsgroep wordt herkenbaarheid voor die groep meegewogen; niets wordt verwijderd.' });
+    } catch (err) { res.status(500).json({ fout: err.message }); }
+});
+
 // AI-vragenbank: voortgang, bulk-generatie en expliciete controle door beheerder.
 const quizBatch = { bezig: false, totaal: 0, verwerkt: 0, gelukt: 0, controle_nodig: 0, mislukt: 0, fouten: [] };
 router.get('/api/admin/ai-vragen/status', vereisAdmin, async (_req, res) => {
