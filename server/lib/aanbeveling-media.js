@@ -143,12 +143,12 @@ async function vindOfMaakTitel(a) {
         `SELECT id FROM titels WHERE lower(naam) = lower($1) AND type = $2 LIMIT 1`, [a.titel, type]);
     if (best[0]) return best[0].id;
     const { rows } = await pool.query(
-        `INSERT INTO titels (naam, type, jaar, genres, taal, themas, studio, muziek_genres)
-         VALUES ($1, $2, $3, $4, 'nl', $5, $6, $7) RETURNING id`,
+        `INSERT INTO titels (naam, type, jaar, genres, taal, themas, studio, muziek_genres, omschrijving)
+         VALUES ($1, $2, $3, $4, 'nl', $5, $6, $7, $8) RETURNING id`,
         [a.titel, type, Number.isFinite(a.jaar) ? a.jaar : null,
          Array.isArray(a.genres) ? a.genres : [],
           Array.isArray(a.themas) ? a.themas : [], a.studio || null,
-          Array.isArray(a.muziek_genres) ? a.muziek_genres : []]);
+          Array.isArray(a.muziek_genres) ? a.muziek_genres : [], a.omschrijving || null]);
     return rows[0].id;
 }
 
