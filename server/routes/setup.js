@@ -21,6 +21,39 @@ const router = express.Router();
 // aantal rondes op de werkelijk beschikbare pool.
 const MIN_TITELS = 1;
 
+// Diagnoseer exact waarom lokaal opgeslagen nummers wel/niet speelbaar zijn.
+// Geen persoonlijke gegevens, paden of tokens in de uitvoer.
+router.get('/api/tracks/diagnose', async (_req, res) => {
+    try {
+        const { rows } = await pool.query(`
+            SELECT
+              count(*)::int AS totaal_tracks,
+              count(*) FILTER (WHERE bron = 'lokaal')::int AS lokaal,
+              count(*) FILTER (WHERE bron = 'lokaal' AND werkt = true)::int AS lokaal_werkend,
+              count(*) FILTER (WHERE bron = 'lokaal' AND download_status = 'available')::int AS lokaal_available,
+              count(*) FILTER (WHERE bron = 'lokaal' AND werkt = true AND download_status = 'available'
+                    AND COALESCE(NULLIF(bestand_pad, ''), NULLIF(preview_url, '')) IS NOT NULL)::int AS speelbare_tracks,
+              count(*) FILTER (WHERE bron = 'lokaal' AND itunes_track_id IS NOT NULL)::int AS oude_itunes_ids,
+              count(*) FILTER (WHERE bron = 'lokaal' AND (preview_url IS NULL OR preview_url = ''))::int AS zonder_preview_url,
+              count(*) FILTER (WHERE bron = 'lokaal' AND bestand_pad IS NOT NULL)::int AS lokale_bestanden,
+              count(*) FILTER (WHERE bron = 'lokaal' AND download_status IS DISTINCT FROM 'available')::int AS andere_downloadstatus
+            FROM tracks`);
+        const status = await pool.query(
+            `SELECT COALESCE(download_status, 'NULL') AS status, count(*)::int AS aantal
+               FROM tracks WHERE bron = 'lokaal' GROUP BY 1 ORDER BY aantal DESC`);
+        const types = await pool.query(
+            `SELECT t.type::text AS type, count(DISTINCT t.id)::int AS speelbare_titels
+               FROM titels t JOIN tracks tr ON tr.titel_id = t.id
+              WHERE tr.bron = 'lokaal' AND tr.werkt = true AND tr.download_status = 'available'
+                AND COALESCE(NULLIF(tr.bestand_pad, ''), NULLIF(tr.preview_url, '')) IS NOT NULL
+              GROUP BY t.type`);
+        res.json({ ...rows[0], status: status.rows, types: types.rows });
+    } catch (err) {
+        logger.fout('Audio-diagnose mislukt', { melding: err.message });
+        res.status(500).json({ fout: err.message });
+    }
+});
+
 // Publieke collectieknoppen voor de host. Alleen actieve collecties worden
 // getoond; de admin kan later nieuwe edities toevoegen zonder frontend-build.
 router.get('/api/collecties', async (_req, res) => {
