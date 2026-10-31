@@ -351,7 +351,7 @@ const SCHEMA_QUIZ = {
 // Herken directe en indirecte antwoordlekken tussen hints en bonusvragen.
 // Automatische controles zijn conservatief; een beheerder moet nog goedkeuren.
 function quizTekst(s) {
-    return String(s || '').normalize('NFD').replace(/\\p{M}/gu, '')
+    return String(s || '').normalize('NFD').replace(/\p{M}/gu, '')
         .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 function inhoudWoorden(s) {
