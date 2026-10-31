@@ -35,6 +35,7 @@ export default function Play() {
     const [gok, setGok] = useState('');
     const [gokIngediend, setGokIngediend] = useState(false);
     const [bonusKeuze, setBonusKeuze] = useState(null);
+    const [herkenbaarheidStem, setHerkenbaarheidStem] = useState(null);
     const [bonusWachtTot, setBonusWachtTot] = useState(0);
     const [meldingOpen, setMeldingOpen] = useState(false);
     const [meldingSoort, setMeldingSoort] = useState('geen_geluid');
@@ -49,6 +50,7 @@ export default function Play() {
     useEffect(() => {
         setGok('');
         setGokIngediend(false);
+        setHerkenbaarheidStem(null);
     }, [ronde?.rondeId]);
     useEffect(() => {
         if (resultaat?.opnieuw) setGokIngediend(false);
@@ -373,6 +375,20 @@ export default function Play() {
                         </ul>
                     )}
                 </>
+            )}
+
+            {/* Eén herkenbaarheidsstem per speler en titel; pas na onthulling zichtbaar. */}
+            {['onthul', 'bonus', 'scorebord'].includes(fase) && antwoord && (
+                <div className="kaart" style={{ marginTop: '1rem', padding: '.85rem' }}>
+                    <p className="dim">Ken je deze film, serie of dit nummer?</p>
+                    <div style={{ display: 'flex', gap: '.6rem' }}>
+                        <button type="button" className="knop knop-stil" aria-pressed={herkenbaarheidStem === true}
+                            onClick={() => { spel.beoordeelHerkenbaarheid(true); setHerkenbaarheidStem(true); }}>Ja, herken ik</button>
+                        <button type="button" className="knop knop-stil" aria-pressed={herkenbaarheidStem === false}
+                            onClick={() => { spel.beoordeelHerkenbaarheid(false); setHerkenbaarheidStem(false); }}>👎 Ken ik niet</button>
+                    </div>
+                    {herkenbaarheidStem !== null && <p className="dim">Bedankt. Je kunt je keuze nog aanpassen.</p>}
+                </div>
             )}
 
             {/* Titel onthuld (korte tussenfase voor de bonus) */}
