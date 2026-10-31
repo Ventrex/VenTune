@@ -27,7 +27,7 @@ const SCHEMA_FILM_SERIE = {
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['titel', 'type', 'jaar', 'tracknaam', 'artiest',
+                required: ['titel', 'type', 'jaar', 'genres', 'tracknaam', 'artiest',
                            'youtube_zoekterm', 'bekendheid', 'reden'],
                 properties: {
                     titel: { type: 'string' },
