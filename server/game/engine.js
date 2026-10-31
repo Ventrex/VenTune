@@ -426,7 +426,24 @@ class SpelBeheer {
         }
 
         const gevraagd = Number(spelInstellingen?.rondes) || 0; // 0 = eindeloos
-        const pool_ = husselArray(titels);
+        const voorkeuren = new Set(spelers.map((sp) => sp.specialiteit).filter(Boolean));
+        const herken = (t, v) => {
+            const tags = [...(t.genres || []), ...(t.muziek_genres || []), ...(t.themas || [])]
+                .map((x) => String(x).toLowerCase());
+            if (v === 'film' || v === 'serie') return t.type === v;
+            if (v === '80s' || v === '90s' || v === '20s') {
+                const decennium = { '80s': 1980, '90s': 1990, '20s': 2020 }[v];
+                return t.type === 'muziek' && t.jaar >= decennium && t.jaar <= decennium + 9;
+            }
+            return tags.includes(v) || (v === 'disney' && /disney/i.test(t.studio || ''));
+        };
+        const alle = husselArray(titels);
+        const voorrang = alle.filter((t) => [...voorkeuren].some((v) => herken(t, v)));
+        const aantalVoorrang = Math.min(voorrang.length, Math.ceil((gevraagd || alle.length) * 0.35));
+        const gekozen = voorrang.slice(0, aantalVoorrang);
+        const gekozenIds = new Set(gekozen.map((t) => t.id));
+        const pool_ = husselArray([...gekozen, ...alle.filter((t) => !gekozenIds.has(t.id))
+            .slice(0, Math.max(0, (gevraagd || alle.length) - gekozen.length))]);
         const totaal = gevraagd > 0 ? Math.min(gevraagd, pool_.length) : pool_.length;
 
         const aantalHulplijnen = lifelineAantal(spelInstellingen);
