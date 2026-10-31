@@ -12,6 +12,7 @@ export default function Join() {
 
     const [status, setStatus] = useState('controleren'); // controleren | ok | weg
     const [naam, setNaam] = useState('');
+    const [specialiteit, setSpecialiteit] = useState('');
     const [bezig, setBezig] = useState(false);
     const [fout, setFout] = useState('');
 
@@ -42,7 +43,7 @@ export default function Join() {
         setBezig(true);
         setFout('');
         try {
-            const res = await joinLobby(bovenCode, naam.trim());
+            const res = await joinLobby(bovenCode, naam.trim(), null, specialiteit);
             bewaarSessie({
                 token: res.token,
                 code: res.code,
@@ -78,6 +79,12 @@ export default function Join() {
                         aria-label="Je naam"
                         autoFocus
                     />
+                    <label className="dim">Jouw specialiteit (optioneel)
+                        <select className="invoer" value={specialiteit} onChange={(e) => setSpecialiteit(e.target.value)}>
+                            <option value="">Geen voorkeur</option>
+                            {[['film','Films'],['serie','Series'],['disney','Disney'],['kerst','Kerst'],['rock','Rock'],['80s','80s'],['90s','90s'],['20s','20s'],['kinder','Kinder'],['100nl','100% NL']].map(([k,n]) => <option key={k} value={k}>{n}</option>)}
+                        </select>
+                    </label>
                     <button className="knop" type="submit" disabled={bezig}>
                         {bezig ? 'Meedoen…' : 'Meedoen'}
                     </button>
