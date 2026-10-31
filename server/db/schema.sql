@@ -891,9 +891,9 @@ CREATE TABLE IF NOT EXISTS titel_herkenbaarheid (
     gebruiker_id UUID REFERENCES gebruikers(id) ON DELETE SET NULL,
     leeftijdsgroep TEXT NOT NULL DEFAULT 'onbekend',
     herkenbaar BOOLEAN NOT NULL,
-    beoordeeld_op TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CHECK (speler_id IS NOT NULL OR gebruiker_id IS NOT NULL)
+    beoordeeld_op TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE titel_herkenbaarheid DROP CONSTRAINT IF EXISTS titel_herkenbaarheid_check;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_herkenbaarheid_gebruiker
     ON titel_herkenbaarheid(titel_id, gebruiker_id) WHERE gebruiker_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_herkenbaarheid_speler
