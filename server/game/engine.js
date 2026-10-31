@@ -961,6 +961,10 @@ class SpelBeheer {
     async vraagHint(socket) {
         const state = this.spellen.get(socket.data.lobbyId);
         if (!state || state.fase !== 'raden' || !state.huidige) return;
+        if (state.instellingen?.hints_aan === false) {
+            this.io.to(spelerKamer(socket.data.spelerId)).emit('ronde:hint', { fout: 'Hints staan uit in dit spel.' });
+            return;
+        }
         const spelerId = socket.data.spelerId;
         const h = state.huidige;
         if (h.klaar.has(spelerId)) return;
