@@ -1107,6 +1107,12 @@ class SpelBeheer {
             antwoord: this.antwoordInfo(h),
         });
 
+        // Deze keuze komt uit de opgeslagen lobbyinstellingen; sla bonusvragen
+        // volledig over wanneer de host ze uitzet.
+        if (state.instellingen?.bonusvragen_aan === false) {
+            return this.naarScorebord(state);
+        }
+
         // Bonusvraag: eerst uit de eigen vragenbank (meerdere vragen per
         // titel, dus variatie), anders live via TMDB, anders geen bonus.
         let vraagTekst = null;
