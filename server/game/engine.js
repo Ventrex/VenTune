@@ -411,7 +411,7 @@ class SpelBeheer {
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
                     t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
-                    t.hoofdrollen, t.speelplek, t.studio, t.leeftijdsgrens,
+                    t.hoofdrollen, t.ai_hints, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
                ${where}`,
@@ -1037,7 +1037,8 @@ class SpelBeheer {
     }
 
     bouwHint(nr, titel) {
-        const hints = bouwHinten(titel);
+        const ai = (titel.ai_hints || []).filter(Boolean);
+        const hints = ai.length ? ai.map((tekst) => ({ type: 'ai', tekst })) : bouwHinten(titel);
         return hints[Math.min(Math.max(nr - 1, 0), hints.length - 1)] || {
             type: 'geen',
             tekst: 'Er is geen extra hint beschikbaar.',
