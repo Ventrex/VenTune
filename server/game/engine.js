@@ -386,7 +386,7 @@ class SpelBeheer {
         // De jongste deelnemer bepaalt automatisch de veilige bovengrens.
         // De host kan daarnaast in Setup een strengere grens kiezen.
         const { rows: spelers } = await pool.query(
-            `SELECT id, leeftijd, verbonden FROM spelers WHERE lobby_id = $1`,
+            `SELECT id, leeftijd, verbonden, specialiteit FROM spelers WHERE lobby_id = $1`,
             [lobbyId],
         );
         const leeftijden = spelers
@@ -410,7 +410,7 @@ class SpelBeheer {
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
-                    t.land, t.genres, t.tmdb_id, t.poster_pad, t.omschrijving,
+                    t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.omschrijving,
                     t.hoofdrollen, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
