@@ -351,7 +351,7 @@ const SCHEMA_QUIZ = {
 // Herken directe en indirecte antwoordlekken tussen hints en bonusvragen.
 // Automatische controles zijn conservatief; een beheerder moet nog goedkeuren.
 function quizTekst(s) {
-    return String(s || '').normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '')
+    return String(s || '').normalize('NFD').replace(/\\p{M}/gu, '')
         .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 function inhoudWoorden(s) {
@@ -370,7 +370,7 @@ function valideerQuizSet(hints, vragen) {
     if (!uniek(hints) || !uniek(vragen.map(q => q.vraag))) return 'Dubbele hints of bonusvragen.';
     for (const q of vragen) {
         if (!q.vraag || !Array.isArray(q.opties) || q.opties.length !== 6 ||
-            new Set(q.opties.map(quizTekst)).size !== 4 ||
+            new Set(q.opties.map(quizTekst)).size !== 6 ||
             !Number.isInteger(q.correct_index) || q.correct_index < 0 || q.correct_index > 5) {
             return 'Bonusvraag met ongeldige antwoordkeuzes.';
         }
