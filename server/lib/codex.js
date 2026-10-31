@@ -35,10 +35,14 @@ const CFG = {
     extraArgs: process.env.CHATGPT_CODEX_ARGS || '',
 };
 
-// Features die het model NIET mag gebruiken (alleen web search blijft over).
+// Features die het model NIET nodig heeft (bespaart tokens/schijf). Zelfde
+// lijst als VenTradeXLAB, die aantoonbaar werkt met de geïnstalleerde Codex.
 const DISABLED_FEATURES = [
-    'shell_tool', 'unified_exec', 'browser_use', 'browser_use_external',
-    'in_app_browser', 'computer_use', 'apps', 'plugins', 'multi_agent', 'hooks',
+    'plugins', 'remote_plugin', 'plugin_sharing', 'apps', 'code_mode_host',
+    'browser_use', 'browser_use_external', 'computer_use', 'multi_agent',
+    'image_generation', 'shell_snapshot', 'skill_search', 'goals',
+    'daemon_auto_start', 'tool_suggest', 'hooks', 'in_app_browser',
+    'view_image', 'workspace_dependencies', 'skill_mcp_dependency_install',
 ];
 
 const GUARDRAILS = `Werkwijze:
@@ -251,11 +255,14 @@ async function vraagJson(request) {
     const schemaFile = `${work}.schema.json`;
     fs.writeFileSync(schemaFile, JSON.stringify(request.schema));
 
+    // Zelfde aanroep als VenTradeXLAB (werkt met de geïnstalleerde Codex):
+    // --sandbox read-only (niet -s), --json, geen --ignore-rules.
     const args = [
-        'exec', '--ephemeral', '--skip-git-repo-check', '--ignore-rules',
-        '--color', 'never', '-s', 'read-only', '-C', work,
-        '-c', 'web_search="live"', '-c', 'approval_policy="never"',
+        'exec', '--skip-git-repo-check', '--ephemeral',
+        '--sandbox', 'read-only', '--color', 'never', '--json',
         '--output-schema', schemaFile, '-o', outFile,
+        '-c', 'model_reasoning_effort="low"',
+        '-c', 'web_search="live"',
     ];
     for (const f of DISABLED_FEATURES) args.push('--disable', f);
     if (CFG.model) args.push('-m', CFG.model);
@@ -281,12 +288,26 @@ async function vraagJson(request) {
             if (res.code === -1) return { ok: false, error: 'De Codex CLI is niet geïnstalleerd in de backend-container.' };
             if (/not logged in|unauthori[sz]ed|\b401\b|refresh token/i.test(err)) {
                 loginCache = null;
-                return { ok: false, error: 'ChatGPT is niet (meer) gekoppeld. Log opnieuw in met "codex login".' };
+                return { ok: false, error: 'ChatGPT is niet (meer) gekoppeld. Log opnieuw in.' };
             }
             if (/usage limit|rate limit|\b429\b|quota/i.test(err)) {
                 return { ok: false, error: 'De limiet van het ChatGPT-abonnement is even bereikt.' };
             }
-            return { ok: false, error: 'ChatGPT gaf geen antwoord.' };
+            // Probeer een foutregel uit de JSON-events (--json) te vissen.
+            let detail = '';
+            for (const regel of String(res.stdout).split('\n')) {
+                try {
+                    const ev = JSON.parse(regel);
+                    if (ev && (ev.type === 'error' || ev.type === 'turn.failed')) {
+                        detail = (ev.message || (ev.error && ev.error.message) || '').slice(0, 200);
+                    }
+                } catch { /* geen json-regel */ }
+            }
+            if (!detail) {
+                const laatste = redact(`${res.stderr}`).trim().split('\n').filter(Boolean).pop();
+                detail = (laatste || '').slice(0, 200);
+            }
+            return { ok: false, error: 'ChatGPT gaf geen antwoord' + (detail ? `: ${detail}` : '. Probeer opnieuw.') };
         }
 
         const json = redact(answer).replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');

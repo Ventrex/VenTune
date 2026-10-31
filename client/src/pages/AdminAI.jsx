@@ -59,7 +59,18 @@ function Paneel() {
                 <Brand link compact />
                 <Link className="terug" to="/admin">Volledig beheer →</Link>
             </div>
-            <h1>AI &amp; Aanbevelingen</h1>
+            <h1>Beheer</h1>
+
+            <section className="kaart ai-kaart" style={{ marginBottom: '1rem' }}>
+                <p className="kaart-label">Zo vul je de quiz — in 4 stappen</p>
+                <ol className="uitleg-stappen">
+                    <li><strong>Koppel ChatGPT</strong> (één keer). Dan kan de AI nummers voor je zoeken.</li>
+                    <li><strong>Haal nummers op.</strong> Klik op “Films &amp; series” of “Kerstmuziek”. De AI zoekt bekende herkenningsnummers.</li>
+                    <li><strong>Swipe ze.</strong> Eerst blind (ken je het?), daarna de rest mét naam (goed/fout/onbekend). Goedgekeurde nummers komen vanzelf in de quiz.</li>
+                    <li><strong>Twijfel je?</strong> Deel de review-link; vrienden luisteren en stemmen.</li>
+                </ol>
+            </section>
+
             <div className="ai-grid">
                 <ChatGptKoppeling />
                 <Genereren />
