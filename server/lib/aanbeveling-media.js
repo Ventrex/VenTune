@@ -175,7 +175,24 @@ async function verwerkGoed(aanbevelingId) {
 
     // 2. Titel vinden/maken.
     const titelId = await vindOfMaakTitel(a);
-    const titelRij = (await pool.query('SELECT * FROM titels WHERE id = $1', [titelId])).rows[0];
+    let titelRij = (await pool.query('SELECT * FROM titels WHERE id = $1', [titelId])).rows[0];
+    // Posters zijn afkomstig van TMDB, nooit door AI verzonnen.
+    if (a.soort === 'film_serie' && !titelRij.poster_pad) {
+        try {
+            const info = await require('./tmdb').zoekPresentatie(a.titel, a.type, a.jaar);
+            if (info) {
+                const { rows: bijgewerkt } = await pool.query(
+                    `UPDATE titels SET tmdb_id = COALESCE(tmdb_id, $2),
+                         poster_pad = COALESCE(poster_pad, $3),
+                         omschrijving = COALESCE(NULLIF(omschrijving, ''), $4)
+                     WHERE id = $1 RETURNING *`,
+                    [titelId, info.tmdbId, info.posterPad, info.omschrijving]);
+                titelRij = bijgewerkt[0] || titelRij;
+            }
+        } catch (err) {
+            logger.waarschuwing('TMDB-poster ophalen mislukt', { titelId, melding: err.message });
+        }
+    }
 
     // 3. Downloadpad bepalen (zelfde conventie als de gewone import).
     const media = mediaWebpad(MEDIA_DIR, titelRij, '', '.mp3', `aanb${a.id}`);
