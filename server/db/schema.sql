@@ -943,6 +943,7 @@ ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS studio TEXT;
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS muziek_genres TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS muziek_type TEXT;
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS afgekeurde_bronnen TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS omschrijving TEXT;
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS categorie TEXT;
 UPDATE aanbevelingen SET categorie = CASE WHEN soort = 'kerst' THEN 'kerst' WHEN type = 'film' THEN 'film' WHEN type = 'serie' THEN 'serie' ELSE 'film_serie' END WHERE categorie IS NULL;
 ALTER TABLE aanbevelingen ALTER COLUMN categorie SET NOT NULL;
