@@ -148,7 +148,7 @@ async function verwerkGoed(aanbevelingId) {
     // 3. Downloadpad bepalen (zelfde conventie als de gewone import).
     const media = mediaWebpad(MEDIA_DIR, titelRij, '', '.mp3', `aanb${a.id}`);
     await fs.mkdir(media.basis, { recursive: true });
-    const bronUrl = `https://www.youtube.com/watch?v=${voorbeeld.videoId}`;
+    const bronUrl = voorbeeld?.videoId ? `https://www.youtube.com/watch?v=${voorbeeld.videoId}` : null;
 
     // 4. Geen tweede download als het luistervoorbeeld al klaarstaat.
     try {
