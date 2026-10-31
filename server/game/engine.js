@@ -1321,7 +1321,7 @@ class SpelBeheer {
 
         const scorebord = await this.haalScorebord(state);
         this.io.to(kamer(state.code)).emit('ronde:afgelopen', { scorebord });
-        this.planVolgendeRonde(state);
+        // De host bepaalt wanneer de volgende ronde start.
     }
 
     // ---- Spel beëindigen ----
