@@ -28,7 +28,7 @@ const SCHEMA_FILM_SERIE = {
                 type: 'object',
                 additionalProperties: false,
                 required: ['titel', 'type', 'jaar', 'genres', 'tracknaam', 'artiest',
-                           'themas', 'studio', 'muziek_genres', 'muziek_type', 'youtube_zoekterm', 'bekendheid', 'reden'],
+                           'themas', 'studio', 'muziek_genres', 'muziek_type', 'omschrijving', 'youtube_zoekterm', 'bekendheid', 'reden'],
                 properties: {
                     titel: { type: 'string' },
                     type: { type: 'string', enum: ['film', 'serie'] },
@@ -38,6 +38,7 @@ const SCHEMA_FILM_SERIE = {
                     studio: { type: ['string', 'null'] },
                     muziek_genres: { type: 'array', items: { type: 'string' } },
                     muziek_type: { type: 'string', enum: ['intro', 'thema', 'soundtrack'] },
+                    omschrijving: { type: 'string' },
                     tracknaam: { type: 'string' },
                     artiest: { type: 'string' },
                     youtube_zoekterm: { type: 'string' },
@@ -120,6 +121,7 @@ Harde eisen:
 - 'youtube_zoekterm': waarmee je de originele soundtrack op YouTube vindt (bv. "The Office theme song", "CSI Who Are You theme").
 - Geef genres van de film/serie (bv. Actie, Komedie), themas (bv. Superhelden, Kerst, Disney), studio/uitgever (bv. Disney, Warner Bros., Netflix) of null indien onbekend.
 - Geef de muziek_genres van het daadwerkelijke nummer (bv. Rock, Pop, Orkestraal) en muziek_type: intro, thema of soundtrack.
+- 'omschrijving': één of twee feitelijke zinnen waar de film of serie over gaat, zonder spoilers.
 - 'reden': één korte zin waarom dit het herkenningsnummer van die titel is.
 ${taalregel}${uitsluiten}`;
 }
@@ -225,8 +227,8 @@ async function genereer(opties) {
             const r = await pool.query(
                 `INSERT INTO aanbevelingen
                     (soort, titel, type, jaar, genres, tracknaam, artiest,
-                     youtube_zoekterm, bekendheid, reden, themas, studio, muziek_genres, muziek_type, categorie, status)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'nieuw')
+                     youtube_zoekterm, bekendheid, reden, themas, studio, muziek_genres, muziek_type, categorie, omschrijving, status)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'nieuw')
                  ON CONFLICT DO NOTHING RETURNING id`,
                 [
                     soort,
@@ -244,6 +246,7 @@ async function genereer(opties) {
                     Array.isArray(k.muziek_genres) ? k.muziek_genres : [],
                     k.muziek_type || null,
                     categorie,
+                    k.omschrijving || null,
                 ],
             );
             if (r.rows[0]) toegevoegd++; else overgeslagen++;
