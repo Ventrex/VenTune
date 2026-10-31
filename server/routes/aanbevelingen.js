@@ -119,9 +119,9 @@ router.get('/api/admin/quiz-inhoud', vereisAdmin, async (req, res) => {
     try {
         const zoek = String(req.query.zoek || '').trim().slice(0, 80);
         const { rows } = await pool.query(
-            `SELECT t.id, t.naam, t.type::text AS type, t.jaar, t.ai_hints,
+            `SELECT t.id, t.naam, t.type::text AS type, t.jaar, t.ai_hints, t.ai_hints_status,
                     (SELECT COALESCE(json_agg(json_build_object(
-                        'vraag', v.vraag, 'opties', v.opties, 'correct_index', v.correct_index)
+                        'vraag', v.vraag, 'opties', v.opties, 'correct_index', v.correct_index, 'id', v.id, 'status', v.ai_review_status)
                         ORDER BY v.id), '[]'::json)
                        FROM vragen v WHERE v.titel_id = t.id) AS vragen
                FROM titels t
@@ -133,6 +133,92 @@ router.get('/api/admin/quiz-inhoud', vereisAdmin, async (req, res) => {
         logger.waarschuwing('Quizinhoud ophalen mislukt', { melding: err.message });
         res.status(500).json({ fout: 'Kon quizvragen niet ophalen: ' + err.message });
     }
+});
+
+// AI-vragenbank: voortgang, bulk-generatie en expliciete controle door beheerder.
+const quizBatch = { bezig: false, totaal: 0, verwerkt: 0, gelukt: 0, controle_nodig: 0, mislukt: 0, fouten: [] };
+router.get('/api/admin/ai-vragen/status', vereisAdmin, async (_req, res) => {
+    try {
+        const { rows } = await pool.query(`SELECT
+            count(*)::int AS titels,
+            count(*) FILTER (WHERE coalesce(array_length(t.ai_hints,1),0) >= 3 AND t.ai_hints_status = 'goedgekeurd')::int AS hints_goedgekeurd,
+            count(*) FILTER (WHERE (SELECT count(*) FROM vragen v WHERE v.titel_id=t.id AND v.soort='ai' AND v.ai_review_status='goedgekeurd') >= 3)::int AS vragen_goedgekeurd
+            FROM titels t WHERE t.type IN ('film','serie')`);
+        return res.json({ ...quizBatch, database: rows[0] });
+    } catch (err) { return res.status(500).json({ fout: err.message }); }
+});
+router.post('/api/admin/ai-vragen/start', vereisAdmin, async (req, res) => {
+    if (quizBatch.bezig) return res.status(409).json({ fout: 'Generatie loopt al.' });
+    const maximaal = Math.min(500, Math.max(1, Number(req.body?.limiet) || 100));
+    const { rows } = await pool.query(`
+       SELECT t.id FROM titels t WHERE t.type IN ('film','serie')
+         AND (coalesce(array_length(t.ai_hints,1),0) < 3
+           OR t.ai_hints_status <> 'goedgekeurd'
+           OR (SELECT count(*) FROM vragen v WHERE v.titel_id=t.id AND v.soort='ai' AND v.ai_review_status='goedgekeurd') < 3)
+       ORDER BY t.id LIMIT $1`, [maximaal]);
+    Object.assign(quizBatch, { bezig: true, totaal: rows.length, verwerkt: 0, gelukt: 0, controle_nodig: 0, mislukt: 0, fouten: [] });
+    res.json({ gestart: true, totaal: rows.length });
+    (async () => {
+        for (const t of rows) {
+            try {
+                const r = await aanbevelingen.vulQuizMetadata(t.id);
+                if (r.ok) { quizBatch.gelukt++; quizBatch.controle_nodig++; }
+                else { quizBatch.mislukt++; if (quizBatch.fouten.length < 15) quizBatch.fouten.push({ id: t.id, fout: r.error }); }
+            } catch (err) {
+                quizBatch.mislukt++;
+                if (quizBatch.fouten.length < 15) quizBatch.fouten.push({ id: t.id, fout: err.message });
+            } finally { quizBatch.verwerkt++; }
+        }
+    })().catch(err => { logger.fout('AI-vragenbatch mislukt', { melding: err.message }); })
+      .finally(() => { quizBatch.bezig = false; });
+});
+router.patch('/api/admin/ai-hints/:id', vereisAdmin, async (req, res) => {
+    const hints = req.body?.hints;
+    if (!Array.isArray(hints) || hints.length !== 3 || hints.some(h => typeof h !== 'string' || !h.trim() || h.length > 250)) {
+        return res.status(400).json({ fout: 'Vul exact drie verschillende hints in (max 250 tekens).' });
+    }
+    const { rows } = await pool.query(
+        "UPDATE titels SET ai_hints=$2, ai_hints_status='controle_nodig' WHERE id=$1 AND type IN ('film','serie') RETURNING id",
+        [req.params.id, hints.map(h=>h.trim())]);
+    return rows.length ? res.json({ ok: true, status: 'controle_nodig' }) : res.status(404).json({ fout: 'Titel niet gevonden' });
+});
+router.post('/api/admin/ai-hints/:id/beoordeel', vereisAdmin, async (req, res) => {
+    const status = req.body?.status;
+    if (!['goedgekeurd','afgekeurd'].includes(status)) return res.status(400).json({ fout: 'Ongeldige beoordeling' });
+    const { rows } = await pool.query("SELECT id, ai_hints FROM titels WHERE id=$1", [req.params.id]);
+    if (!rows.length) return res.status(404).json({ fout: 'Titel niet gevonden' });
+    const { rows: qs } = await pool.query("SELECT vraag, opties, correct_index FROM vragen WHERE titel_id=$1 AND soort='ai' AND ai_review_status <> 'afgekeurd'", [req.params.id]);
+    const fouten = qs.some(q => (rows[0].ai_hints || []).some(h =>
+        aanbevelingen.valideerQuizSet([h,'controlezin a','controlezin b'], [{vraag:q.vraag,opties:q.opties,correct_index:q.correct_index},{vraag:'controlevraag a',opties:['a','b','c','d','e','f'],correct_index:0},{vraag:'controlevraag b',opties:['a','b','c','d','e','f'],correct_index:0}])?.includes('verklapt')));
+    if (status === 'goedgekeurd' && (rows[0].ai_hints || []).length !== 3) return res.status(422).json({ fout: 'Eerst drie hints invoeren.' });
+    if (status === 'goedgekeurd' && fouten) return res.status(422).json({ fout: 'Controleer antwoordlekken tussen hints en vragen.' });
+    await pool.query('UPDATE titels SET ai_hints_status=$2 WHERE id=$1', [req.params.id,status]);
+    res.json({ ok: true, status });
+});
+router.patch('/api/admin/ai-vraag/:id', vereisAdmin, async (req, res) => {
+    const q = req.body;
+    if (typeof q?.vraag !== 'string' || !q.vraag.trim() || !Array.isArray(q.opties) || q.opties.length !== 6 ||
+        !q.opties.every(o=>typeof o==='string'&&o.trim()) || !Number.isInteger(q.correct_index) || q.correct_index<0 || q.correct_index>5)
+        return res.status(400).json({ fout:'Vul een vraag en zes opties met het juiste antwoord in.' });
+    const { rows }=await pool.query(
+        "UPDATE vragen SET vraag=$2,opties=$3::jsonb,correct_index=$4,ai_review_status='controle_nodig' WHERE id=$1 AND soort='ai' RETURNING id",
+        [req.params.id,q.vraag.trim(),JSON.stringify(q.opties),q.correct_index]);
+    return rows.length?res.json({ok:true}):res.status(404).json({fout:'Vraag niet gevonden'});
+});
+router.post('/api/admin/ai-vraag/:id/beoordeel', vereisAdmin, async (req, res) => {
+    const status=req.body?.status;
+    if (!['goedgekeurd','afgekeurd'].includes(status)) return res.status(400).json({fout:'Ongeldige beoordeling'});
+    const {rows}=await pool.query("SELECT v.*,t.ai_hints FROM vragen v JOIN titels t ON t.id=v.titel_id WHERE v.id=$1 AND v.soort='ai'",[req.params.id]);
+    if (!rows.length) return res.status(404).json({fout:'Vraag niet gevonden'});
+    const q=rows[0];
+    if(status==='goedgekeurd'){
+        const normalized=x=>String(x||'').toLocaleLowerCase('nl').replace(/[^a-z0-9]+/g,' ').trim();
+        const answer=normalized(q.opties[q.correct_index]);
+        if((q.ai_hints||[]).some(h=>normalized(h).includes(answer)))
+            return res.status(422).json({fout:'Een hint verklapt dit antwoord. Pas eerst hints of vraag aan.'});
+    }
+    await pool.query('UPDATE vragen SET ai_review_status=$2 WHERE id=$1',[req.params.id,status]);
+    res.json({ok:true,status});
 });
 
 // --- ChatGPT koppelen via de site (device-code login) ---
