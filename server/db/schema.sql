@@ -919,7 +919,7 @@ ON CONFLICT (sleutel) DO UPDATE SET
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS aanbevelingen (
     id                SERIAL PRIMARY KEY,
-    soort             TEXT        NOT NULL CHECK (soort IN ('film_serie', 'kerst')),
+    soort             TEXT        NOT NULL CHECK (soort IN ('film_serie', 'kerst', 'muziek')),
     titel             TEXT,
     type              TEXT        CHECK (type IN ('film', 'serie')),
     jaar              INTEGER,
@@ -942,6 +942,12 @@ ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS studio TEXT;
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS muziek_genres TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS muziek_type TEXT;
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS afgekeurde_bronnen TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS categorie TEXT;
+UPDATE aanbevelingen SET categorie = CASE WHEN soort = 'kerst' THEN 'kerst' WHEN type = 'film' THEN 'film' WHEN type = 'serie' THEN 'serie' ELSE 'film_serie' END WHERE categorie IS NULL;
+ALTER TABLE aanbevelingen ALTER COLUMN categorie SET NOT NULL;
+ALTER TABLE aanbevelingen DROP CONSTRAINT IF EXISTS aanbevelingen_soort_check;
+ALTER TABLE aanbevelingen ADD CONSTRAINT aanbevelingen_soort_check CHECK (soort IN ('film_serie', 'kerst', 'muziek'));
+CREATE INDEX IF NOT EXISTS aanbevelingen_categorie_status_idx ON aanbevelingen (categorie, status);
 
 CREATE UNIQUE INDEX IF NOT EXISTS aanbevelingen_uniek
     ON aanbevelingen (soort, lower(coalesce(titel, '')), lower(tracknaam), lower(artiest));
