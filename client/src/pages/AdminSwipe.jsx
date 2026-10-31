@@ -61,6 +61,15 @@ export default function AdminSwipe() {
         return () => { actief = false; };
     }, [huidige]);
 
+    // Terwijl de huidige kaart wordt beoordeeld, de volgende twee nummers
+    // alvast lokaal klaarmaken. Niet wachten op de hele lijst.
+    useEffect(() => {
+        const volgende = kaarten.slice(index + 1, index + 3);
+        for (const kaart of volgende) {
+            haal('/api/admin/aanbevelingen/' + kaart.id + '/audio').catch(() => {});
+        }
+    }, [kaarten, index]);
+
     async function swipe(keuze) {
         if (!huidige || !audioUrl || audioFout || !magAfspelen) return;
         const id = huidige.id;
