@@ -80,7 +80,7 @@ router.post('/api/admin/aanbevelingen/login/uit', vereisAdmin, (req, res) => {
 router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) => {
     if (run.bezig) return res.status(409).json({ fout: 'Er loopt al een generatie.' });
     const soort = req.body && req.body.soort === 'kerst' ? 'kerst' : 'film_serie';
-    const aantal = Math.min(40, Math.max(1, Number(req.body && req.body.aantal) || 15));
+    const aantal = Math.min(soort === 'kerst' ? 100 : 40, Math.max(1, Number(req.body && req.body.aantal) || (soort === 'kerst' ? 100 : 15)));
     const taal = (req.body && req.body.taal) || 'beide';
 
     run = { bezig: true, soort, gestart: new Date().toISOString(), klaar: null, resultaat: null, fout: null };
