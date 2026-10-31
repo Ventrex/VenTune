@@ -2008,3 +2008,69 @@ body {
     .host-speler { min-height: 220px; }
     .visualizer { height: 160px; }
 }
+
+/* =====================================================================
+   Tinder-swipe (/admin/swipe)
+   ===================================================================== */
+.admin-swipe { text-align: center; }
+.swipe-tabs { display: flex; gap: 0.5rem; margin: 0.5rem 0 1rem; }
+.swipe-tabs .knop { flex: 1; min-height: 48px; font-size: 1rem; }
+.swipe-teller { margin: 0 0 0.75rem; }
+.swipe-leeg { text-align: center; display: flex; flex-direction: column; gap: 0.75rem; align-items: center; }
+
+.swipe-kaart {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 1.5rem 1.25rem;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4), 0 0 30px var(--red-glow);
+    user-select: none;
+    cursor: grab;
+    touch-action: pan-y;
+    overflow: hidden;
+}
+.swipe-kaart:active { cursor: grabbing; }
+
+.swipe-stempel {
+    position: absolute; top: 1rem;
+    font-weight: 800; font-size: 1.6rem; letter-spacing: 0.1em;
+    padding: 0.2rem 0.8rem; border-radius: 10px; border: 3px solid currentColor;
+    pointer-events: none;
+}
+.swipe-stempel.goed { right: 1rem; color: #27c08a; transform: rotate(12deg); }
+.swipe-stempel.fout { left: 1rem; color: #e24b4b; transform: rotate(-12deg); }
+
+.swipe-bek { font-size: 2.8rem; line-height: 1; margin-bottom: 0.5rem; }
+.swipe-titel { font-size: clamp(1.4rem, 6vw, 2rem); margin: 0 0 0.25rem; }
+.swipe-sub { color: var(--text-dim); font-size: 1.05rem; margin: 0 0 0.75rem; }
+.swipe-reden {
+    font-size: 0.95rem; color: var(--text);
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px; padding: 0.6rem 0.8rem; margin: 0 0 0.75rem;
+}
+.swipe-bekend { color: var(--accent); font-size: 1.1rem; margin-bottom: 0.9rem; letter-spacing: 0.1em; }
+.swipe-voorbeeld { border-radius: 12px; overflow: hidden; background: #000; min-height: 80px; }
+
+.swipe-knoppen {
+    display: flex; justify-content: center; align-items: center;
+    gap: 1.25rem; margin: 1.25rem 0 0.5rem;
+}
+.swipe-knop {
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 2px solid var(--border); background: var(--surface);
+    font-size: 1.6rem; font-weight: 800; cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 0.1s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.swipe-knop:active { transform: scale(0.92); }
+.swipe-knop.goed { color: #27c08a; border-color: #27c08a; }
+.swipe-knop.goed:hover { box-shadow: 0 0 20px rgba(39,192,138,0.5); }
+.swipe-knop.fout { color: #e24b4b; border-color: #e24b4b; }
+.swipe-knop.fout:hover { box-shadow: 0 0 20px rgba(226,75,75,0.5); }
+.swipe-knop.weet { color: var(--text-dim); width: 52px; height: 52px; font-size: 1.3rem; }
+.swipe-uitleg { font-size: 0.85rem; margin-top: 0.5rem; }
+
+@media (min-width: 720px) {
+    .admin-swipe { max-width: 34rem; }
+}

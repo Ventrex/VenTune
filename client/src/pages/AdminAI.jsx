@@ -213,9 +213,9 @@ function Genereren() {
             </div>
 
             {((fs.nieuw || 0) + (k.nieuw || 0)) > 0 && (
-                <p className="dim" style={{ marginTop: '0.75rem' }}>
-                    De swipe-pagina volgt zodat je deze kandidaten kunt beoordelen.
-                </p>
+                <Link className="knop" to="/admin/swipe" style={{ marginTop: '1rem', display: 'inline-flex' }}>
+                    Swipen ({(fs.nieuw || 0) + (k.nieuw || 0)}) →
+                </Link>
             )}
         </section>
     );

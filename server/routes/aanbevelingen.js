@@ -14,6 +14,7 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const codex = require('../lib/codex');
 const aanbevelingen = require('../lib/aanbevelingen');
+const media = require('../lib/aanbeveling-media');
 const { vereisAdmin } = require('./admin');
 const logger = require('../lib/logger');
 
@@ -94,6 +95,26 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
     }
 });
 
+/** Voorbeeld (YouTube-video-id) voor een kandidaat, om te beluisteren. */
+router.get('/api/admin/aanbevelingen/:id/voorbeeld', vereisAdmin, async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM aanbevelingen WHERE id = $1', [Number(req.params.id)]);
+        const a = rows[0];
+        if (!a) return res.status(404).json({ fout: 'Niet gevonden.' });
+        if (a.voorbeeld_bron) return res.json({ videoId: a.voorbeeld_bron });
+        const v = await media.zoekVoorbeeld(a);
+        if (!v) return res.json({ videoId: null });
+        // Bewaar zodat we niet opnieuw hoeven te zoeken.
+        await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [a.id, v.videoId]);
+        res.json({ videoId: v.videoId, titel: v.titel });
+    } catch (err) {
+        res.status(500).json({ fout: err.message });
+    }
+});
+
+// Downloads die op de achtergrond lopen na een 'goed'-swipe.
+const downloads = new Map(); // id -> { status, error }
+
 router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) => {
     const id = Number(req.params.id);
     const keuze = req.body && req.body.keuze;
@@ -105,13 +126,24 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
              WHERE id = $1 AND status = 'nieuw' RETURNING id`,
             [id, geldig[keuze]]);
         if (!rows[0]) return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
-        // Opmerking: het echte downloaden + aanmaken van titel/track bij 'goed'
-        // komt in de volgende stap (download-flow). Hier leggen we alleen de
-        // swipe-uitslag vast.
-        res.json({ ok: true, status: geldig[keuze] });
+
+        // Bij 'goed': op de achtergrond downloaden en speelbaar maken.
+        if (keuze === 'goed') {
+            downloads.set(id, { status: 'bezig', error: null });
+            media.verwerkGoed(id)
+                .then((r) => downloads.set(id, { status: r.ok ? 'klaar' : 'fout', error: r.ok ? null : r.error }))
+                .catch((e) => downloads.set(id, { status: 'fout', error: String(e.message) }));
+        }
+        res.json({ ok: true, status: geldig[keuze], download: keuze === 'goed' });
     } catch (err) {
         res.status(500).json({ fout: err.message });
     }
+});
+
+/** Status van de download na een 'goed'-swipe. */
+router.get('/api/admin/aanbevelingen/:id/download-status', vereisAdmin, (req, res) => {
+    const d = downloads.get(Number(req.params.id));
+    res.json(d || { status: 'onbekend', error: null });
 });
 
 module.exports = router;
