@@ -116,6 +116,45 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
     }
 });
 
+// Zet alle audio voor de geselecteerde swipe-ronde eerst klaar, maximaal
+// twee downloads tegelijk om YouTube en de server niet te overbelasten.
+const voorbereidingen = new Map();
+router.post('/api/admin/aanbevelingen/voorbereiden', vereisAdmin, async (req, res) => {
+    const soort = req.body?.soort === 'kerst' ? 'kerst' : 'film_serie';
+    const status = req.body?.fase === 'naam' ? 'blind_nee' : 'nieuw';
+    const sleutel = `${soort}:${status}`;
+    const actief = voorbereidingen.get(sleutel);
+    if (actief?.bezig) return res.json(actief);
+    try {
+        const { rows } = await pool.query(
+            'SELECT * FROM aanbevelingen WHERE soort = $1 AND status = $2 ORDER BY bekendheid DESC, aangemaakt_op LIMIT 100',
+            [soort, status]);
+        const taak = { bezig: true, totaal: rows.length, klaar: 0, fouten: 0, eersteFout: null };
+        voorbereidingen.set(sleutel, taak);
+        res.json(taak);
+        (async () => {
+            let volgend = 0;
+            await Promise.all(Array.from({ length: Math.min(2, rows.length) }, async () => {
+                while (volgend < rows.length) {
+                    const a = rows[volgend++];
+                    try { await media.lokaalVoorbeeld(a); }
+                    catch (err) {
+                        taak.fouten++;
+                        if (!taak.eersteFout) taak.eersteFout = err.message;
+                        logger.waarschuwing('Voorbereiden luistervoorbeeld mislukt', { id: a.id, melding: err.message });
+                    }
+                    taak.klaar++;
+                }
+            }));
+            taak.bezig = false;
+        })().catch((err) => { taak.bezig = false; taak.eersteFout = err.message; });
+    } catch (err) { res.status(500).json({ fout: err.message }); }
+});
+router.get('/api/admin/aanbevelingen/voorbereiden/status', vereisAdmin, (req, res) => {
+    const sleutel = `${req.query.soort === 'kerst' ? 'kerst' : 'film_serie'}:${req.query.fase === 'naam' ? 'blind_nee' : 'nieuw'}`;
+    res.json(voorbereidingen.get(sleutel) || { bezig: false, totaal: 0, klaar: 0, fouten: 0 });
+});
+
 /** Advertentievrij lokaal MP3-luistervoorbeeld, alleen voor ingelogde beheerders. */
 router.get('/api/admin/aanbevelingen/:id/audio', vereisAdmin, async (req, res) => {
     try {
