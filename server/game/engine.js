@@ -421,8 +421,17 @@ class SpelBeheer {
         );
 
         if (titels.length === 0) {
+            const diagnostiek = await pool.query(`SELECT
+                count(DISTINCT t.id)::int AS titels,
+                count(DISTINCT t.id) FILTER (WHERE tr.id IS NOT NULL)::int AS lokaal
+                FROM titels t LEFT JOIN tracks tr ON tr.titel_id = t.id
+                   AND tr.bron = 'lokaal' AND tr.werkt = true
+                   AND tr.download_status = 'available' AND tr.preview_url IS NOT NULL
+                WHERE t.type::text = ANY($1::text[])`,
+                [spelInstellingen.categorieen?.length ? spelInstellingen.categorieen : ['film', 'serie']]);
+            const d = diagnostiek.rows[0] || {};
             this.io.to(kamer(code)).emit('spel:fout', {
-                melding: 'Geen speelbare titels met deze filters.',
+                melding: `Geen speelbare titels gevonden met de ingestelde filters. Database: ${d.titels || 0} titels, waarvan ${d.lokaal || 0} met lokaal beschikbare audio. ${d.lokaal ? 'Controleer genre-, periode- en leeftijdsfilters.' : 'Download eerst speelbare MP3-bestanden via AI-beheer.'}`,
             });
             return;
         }
