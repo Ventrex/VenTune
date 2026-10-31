@@ -63,7 +63,10 @@ async function lokaalVoorbeeld(aanbeveling) {
             return stat.size > 0 && stat.size <= MAX_BYTES;
         } catch { return false; }
     };
-    if (await bestaand()) return { audioUrl: url };
+    if (await bestaand()) {
+        const stat = await fs.stat(bestand);
+        return { audioUrl: `${url}?v=${Math.floor(stat.mtimeMs)}` };
+    }
     if (previewDownloads.has(id)) return previewDownloads.get(id);
     const taak = (async () => {
         const bron = await zoekVoorbeeld(aanbeveling);
@@ -82,7 +85,7 @@ async function lokaalVoorbeeld(aanbeveling) {
             if (stat.size < 1 || stat.size > MAX_BYTES) throw new Error('Luistervoorbeeld is leeg of te groot.');
             await fs.rename(tmp, bestand);
             await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [id, bron.videoId]);
-            return { audioUrl: url };
+            return { audioUrl: `${url}?v=${Math.floor((await fs.stat(bestand)).mtimeMs)}` };
         } finally {
             await fs.rm(tmp, { force: true }).catch(() => {});
         }
