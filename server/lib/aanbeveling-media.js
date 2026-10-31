@@ -120,6 +120,21 @@ async function keurMp3Af(id) {
     await fs.rm(path.join(MEDIA_DIR, 'previews', `aanbeveling-${id}.mp3.volledig`), { force: true });
 }
 
+// Alleen echte albumhoezen uit de iTunes-catalogus, niet gegenereerde covers.
+async function zoekMuziekCover(tracknaam, artiest) {
+    if (!tracknaam || !artiest) return null;
+    const params = new URLSearchParams({ term: `${tracknaam} ${artiest}`, entity: 'song', limit: '12', country: 'nl' });
+    const resp = await fetch(`https://itunes.apple.com/search?${params.toString()}`, {
+        signal: AbortSignal.timeout(7000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const norm = (v) => String(v || '').normalize('NFKC').toLowerCase().trim();
+    const resultaat = (data.results || []).find((x) =>
+        norm(x.trackName) === norm(tracknaam) && norm(x.artistName) === norm(artiest));
+    return resultaat?.artworkUrl100?.replace(/100x100bb/, '600x600bb') || null;
+}
+
 /** Vind of maak de titel die bij een aanbeveling hoort. */
 async function vindOfMaakTitel(a) {
     if (a.soort !== 'film_serie') {
@@ -191,6 +206,15 @@ async function verwerkGoed(aanbevelingId) {
             }
         } catch (err) {
             logger.waarschuwing('TMDB-poster ophalen mislukt', { titelId, melding: err.message });
+        }
+    }
+
+    if (a.soort !== 'film_serie' && !titelRij.cover_url) {
+        try {
+            const cover = await zoekMuziekCover(a.tracknaam, a.artiest);
+            if (cover) await pool.query('UPDATE titels SET cover_url = $2 WHERE id = $1', [titelId, cover]);
+        } catch (err) {
+            logger.waarschuwing('Muziekhoes ophalen overgeslagen', { titelId, melding: err.message });
         }
     }
 
