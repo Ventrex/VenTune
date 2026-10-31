@@ -54,10 +54,10 @@ async function vindOfMaakTitel(a) {
             `SELECT id FROM titels WHERE lower(naam) = lower($1) AND type = 'muziek' LIMIT 1`, [naam]);
         if (best[0]) return best[0].id;
         const { rows } = await pool.query(
-            `INSERT INTO titels (naam, type, jaar, genres, taal)
-             VALUES ($1, 'muziek', $2, ARRAY['Kerst'], 'nl')
+            `INSERT INTO titels (naam, type, jaar, genres, taal, themas, muziek_genres)
+             VALUES ($1, 'muziek', $2, ARRAY['Kerst'], 'nl', ARRAY['Kerst'], $3)
              RETURNING id`,
-            [naam, Number.isFinite(a.jaar) ? a.jaar : null]);
+            [naam, Number.isFinite(a.jaar) ? a.jaar : null, Array.isArray(a.muziek_genres) ? a.muziek_genres : []]);
         return rows[0].id;
     }
     // film/serie
@@ -69,7 +69,9 @@ async function vindOfMaakTitel(a) {
         `INSERT INTO titels (naam, type, jaar, genres, taal)
          VALUES ($1, $2, $3, $4, 'nl') RETURNING id`,
         [a.titel, type, Number.isFinite(a.jaar) ? a.jaar : null,
-         Array.isArray(a.genres) ? a.genres : []]);
+         Array.isArray(a.genres) ? a.genres : [],
+          Array.isArray(a.themas) ? a.themas : [], a.studio || null,
+          Array.isArray(a.muziek_genres) ? a.muziek_genres : []]);
     return rows[0].id;
 }
 
