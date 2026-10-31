@@ -26,6 +26,7 @@ export function useSpel() {
     const [hulplijnen, setHulplijnen] = useState({ verwijder3: null });
     const [resultaat, setResultaat] = useState(null); // laatste gok-uitslag
     const [hints, setHints] = useState([]); // ontvangen hints deze ronde
+    const [toeschouwerTitel, setToeschouwerTitel] = useState(null);
     const [antwoord, setAntwoord] = useState(null); // onthuld na de ronde
     const [bonus, setBonus] = useState(null); // {vraag, opties, durationMs:null}
     const [bonusResultaat, setBonusResultaat] = useState(null);
@@ -83,6 +84,7 @@ export function useSpel() {
             setResultaat(null);
             setHints([]);
             setAntwoord(null);
+            setToeschouwerTitel(null);
             setBonus(null);
             setBonusResultaat(null);
             setWinnaarId(null);
@@ -97,6 +99,7 @@ export function useSpel() {
             setHerstelNodig(false);
             setHerstelBezig(false);
         };
+        const bijToeschouwer = (d) => setToeschouwerTitel(d);
         const bijAudio = (d) => {
             // Alleen de host krijgt en speelt de audio af.
             if (isHost) setAudio(d);
@@ -165,6 +168,7 @@ export function useSpel() {
         socket.on('spel:fout', bijFout);
         socket.on('spel:voorbereiden', bijVoorbereiden);
         socket.on('ronde:start', bijStart);
+        socket.on('ronde:toeschouwer', bijToeschouwer);
         socket.on('ronde:audio', bijAudio);
         socket.on('ronde:resultaat', bijResultaat);
         socket.on('ronde:gewonnen', bijGewonnen);
@@ -195,6 +199,7 @@ export function useSpel() {
             socket.off('spel:fout', bijFout);
             socket.off('spel:voorbereiden', bijVoorbereiden);
             socket.off('ronde:start', bijStart);
+            socket.off('ronde:toeschouwer', bijToeschouwer);
             socket.off('ronde:audio', bijAudio);
             socket.off('ronde:resultaat', bijResultaat);
             socket.off('ronde:gewonnen', bijGewonnen);
@@ -282,6 +287,7 @@ export function useSpel() {
         ronde,
         antwoordOpties,
         verwijderdeOpties,
+        toeschouwerTitel,
         hulplijnen,
         resultaat,
         hints,
