@@ -38,10 +38,10 @@ const LEEFTIJDEN = [
 ];
 const DEELNEMER_LEEFTIJDEN = Array.from({ length: 96 }, (_, index) => index + 4);
 const RONDES = [
-    { waarde: 10, label: '10' },
-    { waarde: 20, label: '20' },
-    { waarde: 30, label: '30' },
-    { waarde: 0, label: 'Eindeloos' },
+    { waarde: 10, label: 'Kort · 10 rondes' },
+    { waarde: 20, label: 'Medium · 20 rondes' },
+    { waarde: 30, label: 'Lang · 30 rondes' },
+    { waarde: 0, label: 'Oneindig' },
 ];
 // Bekendheid: hoeveel TMDB-stemmen een titel minimaal moet hebben.
 const BEKENDHEID = [
@@ -112,6 +112,9 @@ export default function Setup() {
         speeltijd: 0,
         modus: 'snelste',
         antwoord_modus: 'meerkeuze',
+        hints_aan: true,
+        bonusvragen_aan: true,
+        info_aan: true,
         vraag_profiel: 'speler',
         min_bekendheid: 0,
         zonder_genres: [],
@@ -642,224 +645,17 @@ export default function Setup() {
                         </select>
                     </div>
 
-                    {/* Bekendheid */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Hoe bekend moeten de titels zijn?
-                    </p>
-                    <select className="invoer compact-select" value={filters.min_bekendheid} onChange={(e) => zet('min_bekendheid', Number(e.target.value))} aria-label="Bekendheid">
-                        {BEKENDHEID.map((b) => <option key={b.waarde} value={b.waarde}>{b.label}</option>)}
-                    </select>
-
-                    {/* Genres uitklikken */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Genres — tik aan om uit te sluiten
-                        {(filters.zonder_genres || []).length > 0 &&
-                            ` (${filters.zonder_genres.length} uit)`}
-                    </p>
-                    <div className="chips">
-                        {GENRES.map((g) => {
-                            const uit = (filters.zonder_genres || []).includes(g);
-                            return (
-                                <button
-                                    key={g}
-                                    className={'chip' + (uit ? ' uitgezet' : ' gekozen')}
-                                    onClick={() => wisselGenre(g)}
-                                >
-                                    {uit ? `✕ ${g}` : g}
-                                </button>
-                            );
-                        })}
+                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.kindvriendelijk === true} onChange={e => setFilters(f=>({...f,kindvriendelijk:e.target.checked,leeftijd_max:e.target.checked?12:0}))}/><span>Kindvriendelijk</span></label>
+                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.hints_aan !== false} onChange={e=>zet('hints_aan',e.target.checked)}/><span>Hints tijdens het raden</span></label>
+                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.bonusvragen_aan !== false} onChange={e=>zet('bonusvragen_aan',e.target.checked)}/><span>Bonusvragen</span></label>
+                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.info_aan !== false} onChange={e=>zet('info_aan',e.target.checked)}/><span>Film- en serie-informatie na afloop</span></label>
+                                        <div className="vt-setting-pair">
+                      <label className="setup-veld"><span className="kaart-label">Spelsoort</span><select className="invoer" value={filters.modus} onChange={e=>zet('modus',e.target.value)}>{MODI.map(m=><option key={m.waarde} value={m.waarde}>{m.label}</option>)}</select></label>
+                      <label className="setup-veld"><span className="kaart-label">Antwoordwijze</span><select className="invoer" value={filters.antwoord_modus} onChange={e=>zet('antwoord_modus',e.target.value)}>{ANTWOORD_MODI.map(m=><option key={m.waarde} value={m.waarde}>{m.label}</option>)}</select></label>
                     </div>
-
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Leeftijd
-                    </p>
-                    <select className="invoer compact-select" value={filters.leeftijd_max} onChange={(e) => zet('leeftijd_max', Number(e.target.value))} aria-label="Leeftijdscategorie">
-                        {LEEFTIJDEN.map((l) => <option key={l.waarde} value={l.waarde}>{l.label}</option>)}
-                    </select>
-
-                    <div className="setup-leeftijdsbereik">
-                        <label className="setup-veld">
-                            Jongste deelnemer
-                            <select
-                                className="invoer compact-select"
-                                value={filters.leeftijd_deelnemer_min}
-                                onChange={(e) => {
-                                    const waarde = Number(e.target.value);
-                                    setFilters((f) => ({
-                                        ...f,
-                                        leeftijd_deelnemer_min: waarde,
-                                        leeftijd_deelnemer_max: Math.max(waarde, Number(f.leeftijd_deelnemer_max) || 99),
-                                    }));
-                                }}
-                            >
-                                {DEELNEMER_LEEFTIJDEN.map((leeftijd) => <option key={leeftijd} value={leeftijd}>{leeftijd} jaar</option>)}
-                            </select>
-                        </label>
-                        <label className="setup-veld">
-                            Oudste deelnemer
-                            <select
-                                className="invoer compact-select"
-                                value={filters.leeftijd_deelnemer_max}
-                                onChange={(e) => wijzigDeelnemerLeeftijd('leeftijd_deelnemer_max', Number(e.target.value))}
-                            >
-                                {DEELNEMER_LEEFTIJDEN.filter((leeftijd) => leeftijd >= Number(filters.leeftijd_deelnemer_min || 4)).map((leeftijd) => <option key={leeftijd} value={leeftijd}>{leeftijd} jaar</option>)}
-                            </select>
-                        </label>
-                    </div>
-
-                    <label className="setup-veld" style={{ marginTop: '1rem' }}>
-                        <span className="kaart-label">Vraagprofiel <InfoTip tekst="Speler krijgt alleen geteste vragen. Beta Tester kan nieuwe vragen krijgen en fouten melden." /></span>
-                        <select
-                            className="invoer compact-select"
-                            value={filters.vraag_profiel || (filters.alleen_gecontroleerd ? 'speler' : 'beta')}
-                            onChange={(e) => {
-                                const profiel = e.target.value;
-                                zet('vraag_profiel', profiel);
-                                zet('alleen_gecontroleerd', profiel === 'speler');
-                            }}
-                        >
-                            {VRAAG_PROFIELEN.map((p) => <option key={p.waarde} value={p.waarde}>{p.label}</option>)}
-                        </select>
-                    </label>
-
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={filters.alleen_nl_tv !== false}
-                            onChange={(e) => zet('alleen_nl_tv', e.target.checked)}
-                        />
-                        <span>
-                            <strong>Alleen titels die op Nederlandse tv te zien waren</strong>
-                            <InfoTip tekst="Laat alleen films en series toe die in Nederland zijn uitgebracht of uitgezonden en door de admin zijn gecureerd." />
-                        </span>
-                    </label>
-
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={filters.alleen_gecontroleerd === true}
-                            onChange={(e) => zet('alleen_gecontroleerd', e.target.checked)}
-                        />
-                        <span>
-                            <strong>Alleen gecontroleerde nummers</strong>
-                            <InfoTip tekst="Gebruik alleen betrouwbare, door de admin gecontroleerde lokale audiobestanden." />
-                        </span>
-                    </label>
-
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={filters.leeftijdspunten_aan === true}
-                            onChange={(e) => zet('leeftijdspunten_aan', e.target.checked)}
-                        />
-                        <span>
-                            <strong>Leeftijdsbonus aan</strong>
-                            <InfoTip tekst="Kinderen krijgen extra punten volgens het gekozen schema." />
-                        </span>
-                    </label>
-                    {filters.leeftijdspunten_aan === true && (
-                        <label className="velden compact-veld" style={{ marginTop: '0.5rem' }}>
-                            <span className="kaart-label" style={{ textAlign: 'left' }}>Schema leeftijdsbonus</span>
-                            <select
-                                className="invoer"
-                                value={String(filters.leeftijdsfactoren?.[6] || 2)}
-                                onChange={(e) => {
-                                    const royaal = Number(e.target.value) >= 2;
-                                    zet('leeftijdsfactoren', royaal
-                                        ? { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 }
-                                        : { 6: 1.5, 9: 1.35, 12: 1.2, 16: 1.1, 18: 1 });
-                                }}
-                            >
-                                <option value="2">Royaal: ×2 / ×1,75 / ×1,5</option>
-                                <option value="1.5">Mild: ×1,5 / ×1,35 / ×1,2</option>
-                            </select>
-                        </label>
-                    )}
-
-                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={filters.kindvriendelijk === true}
-                            onChange={(e) => setFilters((f) => ({
-                                ...f,
-                                kindvriendelijk: e.target.checked,
-                                leeftijd_max: e.target.checked ? Math.min(Number(f.leeftijd_max) || 12, 12) : f.leeftijd_max,
-                            }))}
-                        />
-                        <span>
-                            <strong>Kindvriendelijke editie</strong>
-                            <InfoTip tekst="Beperkt de selectie tot kindvriendelijke inhoud en geeft kinderen meer leestijd." />
-                        </span>
-                    </label>
-
-                    {/* Spelsoort */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Spelsoort
-                    </p>
-                    <div className="keuzes">
-                        {MODI.map((m) => (
-                            <button
-                                key={m.waarde}
-                                className={
-                                    'keuze klein' +
-                                    (filters.modus === m.waarde ? ' gekozen' : '')
-                                }
-                                onClick={() => zet('modus', m.waarde)}
-                            >
-                                <span>{m.label}</span>
-                                <span className="keuze-uitleg">{m.uitleg}</span>
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Antwoordwijze */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Antwoordwijze
-                    </p>
-                    <div className="keuzes">
-                        {ANTWOORD_MODI.map((m) => (
-                            <button
-                                key={m.waarde}
-                                className={
-                                    'keuze klein' +
-                                    (filters.antwoord_modus === m.waarde ? ' gekozen' : '')
-                                }
-                                onClick={() => zet('antwoord_modus', m.waarde)}
-                            >
-                                <span>{m.label}</span>
-                                <span className="keuze-uitleg">{m.uitleg}</span>
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Speeltijd per ronde */}
-                    <p
-                        className="kaart-label"
-                        style={{ textAlign: 'left', marginTop: '1.5rem' }}
-                    >
-                        Speeltijd per ronde
-                    </p>
-                    <select className="invoer compact-select" value={filters.speeltijd} onChange={(e) => zet('speeltijd', Number(e.target.value))} aria-label="Speeltijd per ronde">
-                        {SPEELTIJDEN.map((s) => <option key={s.waarde} value={s.waarde}>{s.label}</option>)}
-                    </select>
-
-                    {/* Live telling */}
+                                        <label className="vt-toggle-row"><input type="checkbox" checked={filters.speeltijd > 0} onChange={e=>zet('speeltijd',e.target.checked?60:0)}/><span>Speeltijd per ronde {filters.speeltijd > 0 ? '(aan)' : '(uit · heel nummer)'}</span></label>
+                    {filters.speeltijd > 0 && <div className="vt-range"><input type="range" min="15" max="180" step="15" value={filters.speeltijd} onChange={e=>zet('speeltijd',Number(e.target.value))}/><strong>{filters.speeltijd} seconden</strong></div>}
+                                        {/* Live telling */}
                     <div className="telling">
                         {tellingFout ? (
                             <p className="waarschuwing">
