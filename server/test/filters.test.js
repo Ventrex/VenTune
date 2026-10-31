@@ -37,4 +37,13 @@ const kind = bouwFilter({ categorie: 'beide', kindvriendelijk: true, periode_sta
 assert(kind.where.includes('t.leeftijdsgrens <= 12'), 'kindmodus moet leeftijd begrenzen');
 assert(kind.where.includes("c.sleutel IN ('kids', 'disney', 'pixar')"), 'kindmodus moet kindercollecties herkennen');
 
+// Regressie: jaartalfilters moeten parameter-placeholders gebruiken, nooit
+// literal '1::integer' / '2::integer' met ongebruikte queryparameters.
+const jaren = bouwFilter({ categorieen: ['film', 'serie'], periode_start: 1930, periode_eind: 2026, alleen_lokaal: true });
+assert(jaren.where.includes('t.jaar BETWEEN $2::integer AND $3::integer'),
+    'jaartalfilter moet $2 en $3 als SQL-bindparameters gebruiken');
+assert(jaren.where.includes('$2::integer <= 1930'),
+    'onbekende jaartallen moeten correcte SQL-bindparameters gebruiken');
+assert.deepStrictEqual(jaren.params, [['film', 'serie'], 1930, 2026]);
+
 console.log('filters: film/serie/muziek, spelcollecties en kindmodus geslaagd');
