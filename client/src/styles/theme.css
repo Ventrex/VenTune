@@ -2106,3 +2106,42 @@ body {
 .host-bonus-keuzes.meerkeuze-antwoorden { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; align-items:stretch; }
 .host-bonus-keuzes.meerkeuze-antwoorden > .keuze { min-width:0; min-height:52px; height:auto; padding:.7rem; font-size:1rem; line-height:1.3; }
 @media(max-width:480px) { .host-bonus-keuzes.meerkeuze-antwoorden { gap:.45rem; } .host-bonus-keuzes.meerkeuze-antwoorden > .keuze { font-size:.9rem; min-height:48px; } }
+
+/* VenTune motion: subtiel, performant en toegankelijk. */
+@keyframes vt-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes vt-breathe { 0%,100% { transform: translateY(0); filter: drop-shadow(0 0 8px var(--red-glow)); } 50% { transform: translateY(-5px); filter: drop-shadow(0 0 18px var(--red-glow)); } }
+.ventune-home > * { animation: vt-enter .5s ease-out both; }
+.ventune-home > :nth-child(2) { animation-delay: .06s; }
+.ventune-home > :nth-child(3) { animation-delay: .1s; }
+.ventune-home > :nth-child(4) { animation-delay: .14s; }
+.ventune-home .home-hero-icon { display: flex; justify-content: center; align-items: flex-start; gap: .3rem; color: var(--red-hot); margin: .1rem auto .5rem; animation: vt-breathe 3.5s ease-in-out infinite; }
+.ventune-home .knop { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease; }
+@media (hover: hover) and (pointer: fine) { .ventune-home .knop:hover { transform: translateY(-2px); box-shadow: 0 5px 18px var(--red-glow); } }
+.ventune-home .knop:active { transform: scale(.98); }
+.ventune-home .ranking-blok { transition: border-color .2s ease, transform .2s ease; }
+@media (hover: hover) and (pointer: fine) { .ventune-home .ranking-blok:hover { transform: translateY(-3px); border-color: var(--red); } }
+@media (prefers-reduced-motion: reduce) {
+  .ventune-home *, .ventune-home *::before, .ventune-home *::after { animation: none !important; transition: none !important; }
+}
+
+
+
+/* Compacte spelinstellingen en lobby (2026-10-31). */
+.vt-toggle-row { display:flex; align-items:center; gap:.85rem; min-height:48px; padding:.65rem .85rem; margin:.55rem 0; border:1px solid var(--border); border-radius:14px; background:var(--surface); cursor:pointer; }
+.vt-toggle-row input { width:21px; height:21px; accent-color:var(--red-hot); flex-shrink:0; }
+.vt-setting-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; margin:1.2rem 0; }
+.vt-setting-pair .setup-veld { min-width:0; }
+.vt-range { display:flex; align-items:center; gap:1rem; padding:.6rem .3rem; }
+.vt-range input { flex:1; min-width:0; accent-color:var(--red-hot); }
+.vt-range strong { white-space:nowrap; }
+.vt-lobby-layout { display:flex; flex-direction:column; }
+.vt-lobby-layout .host-wacht-rechts { order:-1; width:100%; display:flex; flex-direction:column; align-items:center; text-align:center; }
+.vt-lobby-layout .host-wacht-links { width:100%; }
+.vt-qr-trigger { appearance:none; cursor:zoom-in; border:1px solid var(--border); background:transparent; padding:.5rem; border-radius:14px; }
+.vt-qr-overlay { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.88); display:grid; place-items:center; padding:1.5rem; }
+.vt-qr-modal { max-width:100%; display:flex; flex-direction:column; align-items:center; gap:1rem; padding:1.5rem; border-radius:18px; background:var(--surface); border:1px solid var(--border); }
+.vt-qr-modal svg { max-width:100%; height:auto; }
+.vt-team-panel { margin:.8rem 0; }
+.vt-team-panel h2 { margin:0 0 .4rem; }
+.lobby-instellingen summary { cursor:pointer; font-weight:600; }
+@media(max-width:600px) { .vt-setting-pair { grid-template-columns:1fr; } }
