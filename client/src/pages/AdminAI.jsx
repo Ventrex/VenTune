@@ -87,6 +87,7 @@ function Database() {
     const [bevestig, setBevestig] = useState(false);
     const [bezig, setBezig] = useState(false);
     const [melding, setMelding] = useState('');
+    const [audioHerstel, setAudioHerstel] = useState(null);
 
     async function ververs() {
         try { setTel(await haal('/api/admin/db-overzicht')); } catch { /* */ }
@@ -106,6 +107,22 @@ function Database() {
         setBezig(false);
     }
 
+    async function herstelAudio() {
+        setMelding('Audioherstel gestart. Bestaande nummers blijven behouden bij een downloadfout.');
+        try {
+            await haal('/api/admin/audio-herstel/start', { method: 'POST' });
+            const check = async () => {
+                const toestand = await haal('/api/admin/audio-herstel/status');
+                setAudioHerstel(toestand);
+                if (!toestand.bezig) clearInterval(audioHerstelTimer.current);
+            };
+            await check();
+            audioHerstelTimer.current = setInterval(check, 3000);
+        } catch (err) { setMelding(err.message); }
+    }
+    const audioHerstelTimer = useRef(null);
+    useEffect(() => () => clearInterval(audioHerstelTimer.current), []);
+
     return (
         <section className="kaart ai-kaart" style={{ marginTop: '1rem' }}>
             <p className="kaart-label">Database</p>
@@ -117,6 +134,9 @@ function Database() {
                     <Teller label="Downloadfouten" n={tel.downloadfouten} />
                 </div>
             )}
+
+            <button className="knop knop-stil" disabled={audioHerstel?.bezig} onClick={herstelAudio} style={{ marginTop: '1rem' }}>Herstel korte MP3's (volledige nummers)</button>
+            {audioHerstel && <p className="dim">Herstel: {audioHerstel.verwerkt}/{audioHerstel.totaal} verwerkt · {audioHerstel.hersteld} vervangen · {audioHerstel.mislukt} mislukt</p>}
 
             {!bevestig ? (
                 <button className="knop knop-stil gevaar" style={{ marginTop: '1rem' }}
