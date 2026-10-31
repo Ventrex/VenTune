@@ -1717,6 +1717,13 @@ class SpelBeheer {
             if (!speler.team_naam) continue;
             teams.set(speler.team_naam, (teams.get(speler.team_naam) || 0) + Number(speler.score || 0));
         }
+        if (state.spelvorm === 'teams' && teams.size) {
+            return [...teams.entries()].map(([naam, score]) => ({
+                id: 'team:' + naam, naam, team_naam: naam, score, team_score: score,
+                leden: rows.filter(speler => speler.team_naam === naam).map(speler => speler.naam),
+                is_host: false,
+            })).sort((a,b) => b.score - a.score || a.naam.localeCompare(b.naam));
+        }
         return rows.map((speler) => ({
             ...speler,
             team_score: speler.team_naam ? teams.get(speler.team_naam) : null,
