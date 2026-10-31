@@ -59,7 +59,7 @@ router.get('/api/quizzen', async (_req, res) => {
         // hooguit enkele tientallen, dus dit blijft één snelle ronde.
         const uitkomst = [];
         for (const quiz of rows) {
-            const filter = { ...(quiz.filter || {}), alleen_lokaal: true };
+            const filter = { ...(quiz.filter || {}), alleen_nl_tv: false, alleen_lokaal: true };
             const { where, params } = bouwFilter(filter);
             let speelbaar = 0;
             try {
@@ -134,7 +134,7 @@ router.get('/api/tracks/telling', async (req, res) => {
             : [],
         leeftijd_max: Number(req.query.leeftijd_max),
         kindvriendelijk: req.query.kindvriendelijk === 'true',
-        alleen_nl_tv: req.query.alleen_nl_tv !== 'false',
+        alleen_nl_tv: false,
         alleen_gecontroleerd: req.query.alleen_gecontroleerd === 'true',
         // Het spel draait lokaal; YouTube is alleen voor het admin-
         // downloadproces. Zonder deze vlag zou de teller externe tracks
