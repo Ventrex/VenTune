@@ -80,7 +80,7 @@ export default function AdminSwipe() {
     }, [kaarten, index]);
 
     async function swipe(keuze) {
-        if (!huidige || !audioUrl || audioFout || !magAfspelen) return;
+        if (!huidige || (keuze !== 'verkeerde_mp3' && (!audioUrl || audioFout || !magAfspelen))) return;
         const id = huidige.id;
         setSleep({ dx: 0, actief: false });
         setIndex((i) => i + 1);
@@ -200,7 +200,7 @@ export default function AdminSwipe() {
 
                         <div className="swipe-voorbeeld">
                             {!audioUrl && !audioFout && <p className="dim">Luistervoorbeeld laden…</p>}
-                            {audioFout && <p className="waarschuwing">{audioFout}</p>}
+                            {audioFout && <p className="waarschuwing">{audioFout} Gebruik de oranje knop om dit onbruikbare fragment over te slaan.</p>}
                             {audioUrl && <audio key={audioUrl} ref={speler} controls autoPlay preload="auto" src={audioUrl}
                                 style={{ width: '100%' }} onCanPlay={() => { setMagAfspelen(true); speler.current?.play().catch(() => {}); }}
                                 onError={() => { setMagAfspelen(false); setAudioFout('MP3 kon niet worden afgespeeld.'); }} />}
