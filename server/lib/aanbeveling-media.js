@@ -35,7 +35,8 @@ async function zoekVoorbeeld(aanbeveling) {
     if (!term) return null;
     try {
         const resultaten = await ytzoek.zoek(term, { limiet: 5 });
-        const beste = (resultaten || []).find((r) => r.videoId
+        const afgekeurd = new Set(aanbeveling.afgekeurde_bronnen || []);
+        const beste = (resultaten || []).find((r) => r.videoId && !afgekeurd.has(r.videoId)
             && ytzoek.isLatijnsSchrift(r.titel)
             && (!r.duurSeconden || r.duurSeconden < 15 * 60));
         if (!beste) return null;
@@ -88,6 +89,14 @@ async function lokaalVoorbeeld(aanbeveling) {
     previewDownloads.set(id, taak);
     try { return await taak; }
     finally { previewDownloads.delete(id); }
+}
+
+/** Verwijder een afgekeurd luisterfragment; voorkom dat dezelfde video opnieuw gekozen wordt. */
+async function keurMp3Af(id) {
+    if (previewDownloads.has(id)) {
+        await previewDownloads.get(id).catch(() => {});
+    }
+    await fs.rm(path.join(MEDIA_DIR, 'previews', `aanbeveling-${id}.mp3`), { force: true });
 }
 
 /** Vind of maak de titel die bij een aanbeveling hoort. */
@@ -200,4 +209,4 @@ async function verwerkGoed(aanbevelingId) {
     return { ok: true, titelId };
 }
 
-module.exports = { zoekVoorbeeld, lokaalVoorbeeld, verwerkGoed };
+module.exports = { zoekVoorbeeld, lokaalVoorbeeld, keurMp3Af, verwerkGoed };
