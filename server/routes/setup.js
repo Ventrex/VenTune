@@ -164,10 +164,8 @@ router.get('/api/tracks/telling', async (req, res) => {
                LEFT JOIN tracks tr ON tr.titel_id = t.id
                                   AND tr.werkt = true
                                   AND tr.bron = 'lokaal'
-                                  AND tr.itunes_track_id IS NULL
                                   AND tr.download_status = 'available'
-                                  AND tr.preview_url IS NOT NULL
-                                  AND tr.preview_url <> ''
+                                  AND COALESCE(NULLIF(tr.bestand_pad, ''), NULLIF(tr.preview_url, '')) IS NOT NULL
                                   AND ($${params.length + 1}::boolean = false
                                        OR (tr.gecontroleerd = true AND tr.verificatie_score >= 0.85))
                ${where}`,
