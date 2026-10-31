@@ -188,8 +188,12 @@ router.post('/api/admin/ai-hints/:id/beoordeel', vereisAdmin, async (req, res) =
     const { rows } = await pool.query("SELECT id, ai_hints FROM titels WHERE id=$1", [req.params.id]);
     if (!rows.length) return res.status(404).json({ fout: 'Titel niet gevonden' });
     const { rows: qs } = await pool.query("SELECT vraag, opties, correct_index FROM vragen WHERE titel_id=$1 AND soort='ai' AND ai_review_status <> 'afgekeurd'", [req.params.id]);
-    const fouten = qs.some(q => (rows[0].ai_hints || []).some(h =>
-        aanbevelingen.valideerQuizSet([h,'controlezin a','controlezin b'], [{vraag:q.vraag,opties:q.opties,correct_index:q.correct_index},{vraag:'controlevraag a',opties:['a','b','c','d','e','f'],correct_index:0},{vraag:'controlevraag b',opties:['a','b','c','d','e','f'],correct_index:0}])?.includes('verklapt')));
+    const fouten = qs.some(q => (rows[0].ai_hints || []).some(h => {
+        const juist = aanbevelingen.quizTekst(q.opties[q.correct_index]);
+        const hint = aanbevelingen.quizTekst(h);
+        return (juist.length >= 3 && hint.includes(juist)) ||
+            aanbevelingen.vraagHintOverlap(h, q.vraag);
+    }));
     if (status === 'goedgekeurd' && (rows[0].ai_hints || []).length !== 3) return res.status(422).json({ fout: 'Eerst drie hints invoeren.' });
     if (status === 'goedgekeurd' && fouten) return res.status(422).json({ fout: 'Controleer antwoordlekken tussen hints en vragen.' });
     await pool.query('UPDATE titels SET ai_hints_status=$2 WHERE id=$1', [req.params.id,status]);
@@ -212,10 +216,15 @@ router.post('/api/admin/ai-vraag/:id/beoordeel', vereisAdmin, async (req, res) =
     if (!rows.length) return res.status(404).json({fout:'Vraag niet gevonden'});
     const q=rows[0];
     if(status==='goedgekeurd'){
-        const normalized=x=>String(x||'').toLocaleLowerCase('nl').replace(/[^a-z0-9]+/g,' ').trim();
-        const answer=normalized(q.opties[q.correct_index]);
-        if((q.ai_hints||[]).some(h=>normalized(h).includes(answer)))
-            return res.status(422).json({fout:'Een hint verklapt dit antwoord. Pas eerst hints of vraag aan.'});
+        if (!Array.isArray(q.opties) || q.opties.length !== 6 ||
+            !Number.isInteger(q.correct_index) || q.correct_index < 0 || q.correct_index >= 6)
+            return res.status(422).json({fout:'De vraag heeft geen zes geldige antwoorden.'});
+        const answer = aanbevelingen.quizTekst(q.opties[q.correct_index]);
+        if ((q.ai_hints || []).some(h => {
+            const hint = aanbevelingen.quizTekst(h);
+            return (answer.length >= 3 && hint.includes(answer)) ||
+                aanbevelingen.vraagHintOverlap(h, q.vraag);
+        })) return res.status(422).json({fout:'Een hint verklapt deze vraag of het antwoord. Pas eerst hints of vraag aan.'});
     }
     await pool.query('UPDATE vragen SET ai_review_status=$2 WHERE id=$1',[req.params.id,status]);
     res.json({ok:true,status});
