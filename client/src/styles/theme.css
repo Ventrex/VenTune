@@ -1805,3 +1805,21 @@ select.invoer {
     min-height: 44px;
     font-size: 1rem;
 }
+
+
+/* VenTune motion: subtiel, performant en toegankelijk. */
+@keyframes vt-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes vt-breathe { 0%,100% { transform: translateY(0); filter: drop-shadow(0 0 8px var(--red-glow)); } 50% { transform: translateY(-5px); filter: drop-shadow(0 0 18px var(--red-glow)); } }
+.ventune-home > * { animation: vt-enter .5s ease-out both; }
+.ventune-home > :nth-child(2) { animation-delay: .06s; }
+.ventune-home > :nth-child(3) { animation-delay: .1s; }
+.ventune-home > :nth-child(4) { animation-delay: .14s; }
+.ventune-home .home-hero-icon { display: flex; justify-content: center; align-items: flex-start; gap: .3rem; color: var(--red-hot); margin: .1rem auto .5rem; animation: vt-breathe 3.5s ease-in-out infinite; }
+.ventune-home .knop { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease; }
+@media (hover: hover) and (pointer: fine) { .ventune-home .knop:hover { transform: translateY(-2px); box-shadow: 0 5px 18px var(--red-glow); } }
+.ventune-home .knop:active { transform: scale(.98); }
+.ventune-home .ranking-blok { transition: border-color .2s ease, transform .2s ease; }
+@media (hover: hover) and (pointer: fine) { .ventune-home .ranking-blok:hover { transform: translateY(-3px); border-color: var(--red); } }
+@media (prefers-reduced-motion: reduce) {
+  .ventune-home *, .ventune-home *::before, .ventune-home *::after { animation: none !important; transition: none !important; }
+}
