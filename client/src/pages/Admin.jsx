@@ -28,8 +28,8 @@ const SUBTABS = {
         ['meldingen', 'Meldingen'],
         ['review', 'Trackcontrole'],
         ['controle', 'Controle'],
-        ['vragen', 'Bonusvragen'],
     ],
+    ai: [['vragen', 'Vragen controleren'], ['ai-generator', 'Genereren']],
     systeem: [
         ['users', 'Hosts'],
         ['database', 'Database'],
@@ -591,6 +591,7 @@ function Beheer({ onUit }) {
                     ['catalogus', 'Catalogus'],
                     ['muziek', 'Muziek'],
                     ['kwaliteit', `Kwaliteit${meldingen.length ? ` (${meldingen.length})` : ''}`],
+                    ['ai', 'AI'],
                     ['systeem', 'Systeem'],
                 ].map(([waarde, label]) => (
                     <button
@@ -684,6 +685,7 @@ function Beheer({ onUit }) {
                 />
             )}
 
+            {tab === 'ai-generator' && <section className="kaart"><h2>AI · Vragen en hints</h2><p className="dim">Genereer bonusvragen uit beschikbare titelmetadata. Controleer en keur resultaten goed voordat ze in een spel worden gebruikt.</p><button className="knop" type="button" disabled={bezigVragen} onClick={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Bonusvragen aanvullen…', 'Vragen klaar.')}>{bezigVragen?'Genereren…':'Bonusvragen aanvullen'}</button><p className="dim">Drie onafhankelijk gecontroleerde hints en vragen per titel zijn nog niet gegarandeerd.</p></section>}
             {tab === 'vragen' && (
                 <VraagSuggesties
                     suggesties={vraagSuggesties}
