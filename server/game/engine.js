@@ -1070,6 +1070,31 @@ class SpelBeheer {
             h.rondeId,
         ]);
 
+        // Verrijk oudere AI-imports vóór het onthullen: hun taal was eerder
+        // standaard 'nl' en posters/omschrijvingen konden ontbreken.
+        if (['film', 'serie'].includes(h.titel.type) && tmdb.beschikbaar()) {
+            try {
+                const info = await Promise.race([
+                    tmdb.zoekPresentatie(h.titel.naam, h.titel.type, h.titel.jaar),
+                    new Promise((resolve) => setTimeout(() => resolve(null), 3500)),
+                ]);
+                if (info) {
+                    const { rows } = await pool.query(`UPDATE titels SET
+                        taal = $2::titel_taal,
+                        tmdb_id = COALESCE(tmdb_id, $3),
+                        poster_pad = COALESCE(poster_pad, $4),
+                        omschrijving = COALESCE(NULLIF(omschrijving, ''), $5),
+                        jaar = COALESCE(jaar, $6)
+                        WHERE id = $1
+                        RETURNING taal, tmdb_id, poster_pad, omschrijving, jaar`,
+                        [h.titel.id, info.taal, info.tmdbId, info.posterPad, info.omschrijving, info.jaar]);
+                    Object.assign(h.titel, rows[0] || {});
+                }
+            } catch (err) {
+                logger.waarschuwing('Antwoordmetadata niet opgehaald', { titel: h.titel.naam, melding: err.message });
+            }
+        }
+
         // Titel onthullen (de gokfase is voorbij), met alle informatie.
         this.io.to(kamer(state.code)).emit('ronde:onthul', {
             antwoord: this.antwoordInfo(h),
