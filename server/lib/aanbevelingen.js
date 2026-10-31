@@ -75,6 +75,25 @@ const SCHEMA_KERST = {
     },
 };
 
+const CATEGORIEEN = ['film', 'serie', 'disney', 'kerst', 'rock', '80s', '90s', '20s', 'kinder', '100nl'];
+const OMSCHRIJVING = {
+    disney: 'bekende originele Disney-film- of seriemuziek en Disney-liedjes',
+    rock: 'bekende rockmuziek (echte rocknummers)',
+    '80s': 'bekende muziekhits uitgebracht tussen 1980 en 1989',
+    '90s': 'bekende muziekhits uitgebracht tussen 1990 en 1999',
+    '20s': 'bekende muziekhits uitgebracht tussen 2020 en 2029',
+    kinder: 'bekende kinderliedjes voor Nederlandse gezinnen',
+    '100nl': 'bekende Nederlandstalige muziekhits van Nederlandse en Vlaamse artiesten',
+};
+function promptMuziek({ categorie, aantal, bestaand }) {
+    const onderwerp = OMSCHRIJVING[categorie] || 'bekende muziekhits';
+    const uitsluiten = bestaand.length ? `\nSla deze reeds bekende artiest-titelcombinaties over:\n- ${bestaand.slice(-250).join('\n- ')}` : '';
+    return `Stel voor een muziekquiz ${aantal} unieke, breed herkenbare nummers samen in de categorie ${categorie}: ${onderwerp}.
+Geef in kandidaten de exacte tracknaam, artiest, het oorspronkelijke releasejaar van die uitvoering, muziek_genres, youtube_zoekterm, bekendheid (3..5) en een korte reden.
+Kies uitsluitend nummers die aantoonbaar tot de categorie behoren. Wees precies met releasejaren en artiesten. Geen covers verwarren met originele versies.
+Gebruik jouw kennis en zoek waar nodig ter verificatie; verzin niets.${uitsluiten}`;
+}
+
 // -------------------------- prompts --------------------------
 
 function promptFilmSerie({ aantal, taal, bestaand }) {
@@ -130,9 +149,9 @@ Harde eisen:
 
 /** Bestaande titel-/tracknamen om dubbele aanbevelingen te voorkomen. */
 async function bestaandeNamen(soort) {
-    if (soort === 'kerst') {
+    if (soort !== 'film_serie') {
         const { rows } = await pool.query(
-            `SELECT DISTINCT lower(tracknaam || ' - ' || artiest) AS n FROM aanbevelingen WHERE soort='kerst'
+            `SELECT DISTINCT lower(tracknaam || ' - ' || artiest) AS n FROM aanbevelingen WHERE soort IN ('kerst', 'muziek')
              UNION SELECT DISTINCT lower(tracknaam || ' - ' || artiest) FROM tracks`);
         return rows.map((r) => r.n).filter(Boolean);
     }
@@ -148,26 +167,30 @@ async function bestaandeNamen(soort) {
  * @returns {Promise<{ok:boolean, toegevoegd?:number, overgeslagen?:number, error?:string}>}
  */
 async function genereer(opties) {
-    const soort = opties.soort === 'kerst' ? 'kerst' : 'film_serie';
+    const categorie = CATEGORIEEN.includes(opties.categorie) ? opties.categorie : (opties.soort === 'kerst' ? 'kerst' : 'film');
+    const soort = categorie === 'kerst' ? 'kerst' : (categorie === 'film' || categorie === 'serie' ? 'film_serie' : 'muziek');
     const aantal = Math.min(100, Math.max(1, opties.aantal || (100)));
     const minBek = opties.minBekendheid || 3;
 
     const bestaand = await bestaandeNamen(soort);
     const bestaandeSet = new Set(bestaand.map((n) => String(n).trim().toLowerCase()));
 
-    const schema = soort === 'kerst' ? SCHEMA_KERST : SCHEMA_FILM_SERIE;
+    const schema = soort === 'film_serie' ? SCHEMA_FILM_SERIE : SCHEMA_KERST;
 
     // Grote kerstlijsten in kleine batches opvragen: betrouwbaarder dan 100 items in één AI-antwoord.
     const lijst = [];
-    const batchSize = soort === 'kerst' ? 20 : 15;
+    const batchSize = soort !== 'film_serie' ? 20 : 15;
     const aantalBatches = Math.ceil(aantal / batchSize);
     for (let i = 0; i < aantalBatches; i++) {
         const nodig = Math.min(batchSize, aantal - lijst.length);
         if (nodig <= 0) break;
-        const aanvullend = lijst.map((k) => soort === 'kerst' ? `${k.tracknaam} - ${k.artiest}` : k.titel).filter(Boolean);
-        const batchPrompt = soort === 'kerst'
+        const aanvullend = lijst.map((k) => soort !== 'film_serie' ? `${k.tracknaam} - ${k.artiest}` : k.titel).filter(Boolean);
+        const batchPrompt = categorie === 'kerst'
             ? promptKerst({ aantal: nodig, bestaand: [...bestaand, ...aanvullend] })
-            : promptFilmSerie({ aantal: nodig, taal: opties.taal || 'beide', bestaand: [...bestaand, ...aanvullend] });
+            : soort === 'muziek'
+                ? promptMuziek({ categorie, aantal: nodig, bestaand: [...bestaand, ...aanvullend] })
+                : promptFilmSerie({ aantal: nodig, taal: opties.taal || 'beide', bestaand: [...bestaand, ...aanvullend] })
+                    + `\nBELANGRIJK: geef uitsluitend ${categorie === 'film' ? 'films' : 'series'} terug (type moet ${categorie} zijn).`;
         const res = await codex.vraagJson({ prompt: batchPrompt, schema, signal: opties.signal });
         if (!res.ok) {
             if (!lijst.length) return { ok: false, error: res.error };
@@ -176,8 +199,8 @@ async function genereer(opties) {
         }
         const ontvangen = Array.isArray(res.data?.kandidaten) ? res.data.kandidaten : [];
         for (const k of ontvangen) {
-            if (!k) continue;
-            const sleutel = soort === 'kerst' ? `${k.tracknaam || ''} - ${k.artiest || ''}` : k.titel || '';
+            if (!k || (soort === 'film_serie' && k.type !== categorie)) continue;
+            const sleutel = soort !== 'film_serie' ? `${k.tracknaam || ''} - ${k.artiest || ''}` : k.titel || '';
             const genormaliseerd = sleutel.trim().toLowerCase();
             if (!genormaliseerd || bestaandeSet.has(genormaliseerd)) continue;
             bestaandeSet.add(genormaliseerd);
@@ -202,8 +225,8 @@ async function genereer(opties) {
             const r = await pool.query(
                 `INSERT INTO aanbevelingen
                     (soort, titel, type, jaar, genres, tracknaam, artiest,
-                     youtube_zoekterm, bekendheid, reden, themas, studio, muziek_genres, muziek_type, status)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'nieuw')
+                     youtube_zoekterm, bekendheid, reden, themas, studio, muziek_genres, muziek_type, categorie, status)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'nieuw')
                  ON CONFLICT DO NOTHING RETURNING id`,
                 [
                     soort,
@@ -220,6 +243,7 @@ async function genereer(opties) {
                     k.studio || null,
                     Array.isArray(k.muziek_genres) ? k.muziek_genres : [],
                     k.muziek_type || null,
+                    categorie,
                 ],
             );
             if (r.rows[0]) toegevoegd++; else overgeslagen++;
@@ -283,4 +307,4 @@ Wat is wél de originele, algemeen bekende soundtrack / titelmuziek / het herken
     return { ok: true, hersteld };
 }
 
-module.exports = { genereer, herzoekFout, SCHEMA_FILM_SERIE, SCHEMA_KERST };
+module.exports = { genereer, herzoekFout, SCHEMA_FILM_SERIE, SCHEMA_KERST, CATEGORIEEN };
