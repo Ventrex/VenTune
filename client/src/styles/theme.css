@@ -1823,3 +1823,24 @@ select.invoer {
 @media (prefers-reduced-motion: reduce) {
   .ventune-home *, .ventune-home *::before, .ventune-home *::after { animation: none !important; transition: none !important; }
 }
+
+
+/* Compacte spelinstellingen en lobby (2026-10-31). */
+.vt-toggle-row { display:flex; align-items:center; gap:.85rem; min-height:48px; padding:.65rem .85rem; margin:.55rem 0; border:1px solid var(--border); border-radius:14px; background:var(--surface); cursor:pointer; }
+.vt-toggle-row input { width:21px; height:21px; accent-color:var(--red-hot); flex-shrink:0; }
+.vt-setting-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; margin:1.2rem 0; }
+.vt-setting-pair .setup-veld { min-width:0; }
+.vt-range { display:flex; align-items:center; gap:1rem; padding:.6rem .3rem; }
+.vt-range input { flex:1; min-width:0; accent-color:var(--red-hot); }
+.vt-range strong { white-space:nowrap; }
+.vt-lobby-layout { display:flex; flex-direction:column; }
+.vt-lobby-layout .host-wacht-rechts { order:-1; width:100%; display:flex; flex-direction:column; align-items:center; text-align:center; }
+.vt-lobby-layout .host-wacht-links { width:100%; }
+.vt-qr-trigger { appearance:none; cursor:zoom-in; border:1px solid var(--border); background:transparent; padding:.5rem; border-radius:14px; }
+.vt-qr-overlay { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.88); display:grid; place-items:center; padding:1.5rem; }
+.vt-qr-modal { max-width:100%; display:flex; flex-direction:column; align-items:center; gap:1rem; padding:1.5rem; border-radius:18px; background:var(--surface); border:1px solid var(--border); }
+.vt-qr-modal svg { max-width:100%; height:auto; }
+.vt-team-panel { margin:.8rem 0; }
+.vt-team-panel h2 { margin:0 0 .4rem; }
+.lobby-instellingen summary { cursor:pointer; font-weight:600; }
+@media(max-width:600px) { .vt-setting-pair { grid-template-columns:1fr; } }
