@@ -216,14 +216,8 @@ export function useSpel() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessie?.token, isHost]);
 
-    // Als het scorebord langer blijft staan dan de normale overgang, laat
-    // een herstelactie zien. De server kan daarna dezelfde overgang opnieuw
-    // plannen zonder de sessie of de spelers kwijt te raken.
-    useEffect(() => {
-        if (fase !== 'scorebord') return undefined;
-        const timer = setTimeout(() => setHerstelNodig(true), 12000);
-        return () => clearTimeout(timer);
-    }, [fase, ronde?.rondeId]);
+    // Het scorebord blijft bewust staan totdat de host op Doorgaan klikt.
+    // Een normale wachttijd mag daarom nooit als verbindingsfout gelden.
 
     const startSpel = useCallback(() => haalSocket().emit('spel:start'), []);
     const wijzigTeam = useCallback((teamNaam) => haalSocket().emit('lobby:team', { teamNaam }), []);
