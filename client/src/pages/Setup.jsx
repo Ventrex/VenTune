@@ -109,6 +109,7 @@ export default function Setup() {
         periode_start: 1930,
         periode_eind: NU,
         rondes: 10,
+        hints_aan: true,
         speeltijd: 0,
         modus: 'snelste',
         antwoord_modus: 'meerkeuze',
@@ -641,6 +642,12 @@ export default function Setup() {
                             {RONDES.map((r) => <option key={r.waarde} value={r.waarde}>{r.label}</option>)}
                         </select>
                     </div>
+
+                    <label className="keuze klein keuze-schakelaar" style={{ marginTop: '1rem' }}>
+                        <input type="checkbox" checked={filters.hints_aan !== false}
+                            onChange={(e) => zet('hints_aan', e.target.checked)} />
+                        <span><strong>Hints tijdens het raden</strong><span className="dim"> Spelers kunnen aanwijzingen aanvragen.</span></span>
+                    </label>
 
                     {/* Bekendheid */}
                     <p
