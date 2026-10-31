@@ -184,18 +184,13 @@ async function testDubbeleScorebordOvergang() {
     pool.query = async () => ({ rows: [] });
     try {
         await spel.naarScorebord(state);
-        const eersteTimer = state.scorebordTimer;
-        assert.ok(eersteTimer);
-
-        // Een tweede timer/antwoord mag geen tweede overgang plannen.
+        // Nieuwe afspraak: geen automatische overgang, de host beslist.
+        assert.equal(state.scorebordTimer, null);
         await spel.naarScorebord(state);
-        assert.equal(state.scorebordTimer, eersteTimer);
-        assert.equal(emits.filter((event) => event === 'ronde:afgelopen').length, 1);
-
-        // Ook een oude hostklik in deze fase mag de rondenummering niet
-        // veranderen of de automatische overgang omzeilen.
-        await spel.volgende({ data: { lobbyId: state.lobbyId, isHost: true } });
+        assert.equal(emits.filter(event => event === 'ronde:afgelopen').length, 1);
+        // Geen voortgang totdat de host expliciet op doorgaan drukt.
         assert.equal(state.fase, 'scorebord');
+        assert.equal(state.rondenummer, undefined);
     } finally {
         clearTimeout(state.scorebordTimer);
         pool.query = oorspronkelijkeQuery;
