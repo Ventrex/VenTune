@@ -696,7 +696,7 @@ export default function Setup() {
 
             {/* Stap 4: Rondes + telling + presets + start */}
             {stap === 4 && (
-                <section>
+                <section className="vt-compact-setup">
                     <div className="setup-bovenbalk kaart">
                         <label className="kaart-label">Preset</label>
                         <select
