@@ -261,6 +261,9 @@ async function verzamel(soort, type, extraParams, paginas, label, teller, minSte
                 else teller.bestond++;
             } catch (err) {
                 teller.fouten++;
+                // Niet stilzwijgend een mislukte database-import als succesvol tonen.
+                if (!teller.eersteFout) teller.eersteFout = `${label}: ${err.message}`;
+                console.error(`TMDB bewaren mislukt (${label}, ${t.naam}): ${err.message}`);
             }
         }
         if (p >= (data.total_pages || 1)) break;
@@ -744,6 +747,10 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
                 minStemmen,
             );
         }
+    }
+
+    if (teller.fouten > 0 && teller.nieuw === 0 && teller.bestond === 0) {
+        throw new Error(`TMDB heeft geen titels kunnen opslaan (${teller.fouten} fouten). ${teller.eersteFout || 'Controleer database en logs.'}`);
     }
 
     const totaal = await pool.query(
