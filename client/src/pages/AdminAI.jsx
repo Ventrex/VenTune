@@ -630,6 +630,16 @@ export function Genereren() {
         } catch (e) { setBezig(false); setMelding(e.message); }
     }
 
+    async function vulVanuitDatabase() {
+        setMelding('Bekende titels zonder MP3 uit de database naar Swipe plaatsen…');
+        try {
+            const r=await haal('/api/admin/aanbevelingen/catalogus-naar-swipe',{
+                method:'POST',...jsonBody({categorie})});
+            setMelding(r.ok ? (r.toegevoegd+' bekende '+categorie+'-titels aan Swipe toegevoegd.') : (r.error||'Geen nieuwe titels'));
+            await ververs();
+        }catch(err){setMelding('Catalogus naar Swipe mislukt: '+err.message);}
+    }
+
     async function herzoek() {
         setMelding('ChatGPT zoekt de juiste nummers opnieuw…');
         try {
@@ -661,6 +671,7 @@ export function Genereren() {
                 </label>
                 <button className="knop" disabled={!Number.isInteger(Number(aantal)) || Number(aantal) < 1 || Number(aantal) > 10000} onClick={start}>Lijst maken</button>
             </div>
+            {['film','serie'].includes(categorie) && <button className="knop knop-stil" type="button" onClick={vulVanuitDatabase}>100 bekende {categorie === 'film' ? 'films' : 'series'} uit database naar Swipe</button>}
             <p className="dim">Aantal per aanvraag (1–10.000), verwerkt in batches op de server. Films en series zijn apart opgeslagen en kunnen later samen worden geselecteerd.</p>
             <div className="vt-queue"><strong>AI-wachtrij</strong>{wachtrijFout && <p className="waarschuwing">{wachtrijFout}</p>}{wachtrij.slice(0,10).map(t=><p key={t.id}>{t.categorie} · {t.status} · {t.verwerkt}/{t.gevraagd} verwerkt · {t.toegevoegd} toegevoegd{t.fout ? " · " + t.fout : ""}</p>)}</div>
         <div className="ai-tellers" style={{ marginTop: '0.75rem' }}>
