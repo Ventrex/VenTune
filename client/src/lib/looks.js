@@ -52,12 +52,18 @@ function pasEigenKleurenToe(){
     const root=document.documentElement;
     const kleur=leesEigenKleuren();
     if(leesLook()==='eigen'){
-       root.style.setProperty('--achtergrond',kleur.achtergrond);
+       root.style.setProperty('--bg',kleur.achtergrond);
+       root.style.setProperty('--surface',kleur.achtergrond);
+       root.style.setProperty('--red-hot',kleur.accent);
+       root.style.setProperty('--red',kleur.accent);
        root.style.setProperty('--accent',kleur.accent);
        root.style.setProperty('--kleur-accent',kleur.accent);
        root.style.backgroundColor=kleur.achtergrond;
     }else{
-       root.style.removeProperty('--achtergrond');
+       root.style.removeProperty('--bg');
+       root.style.removeProperty('--surface');
+       root.style.removeProperty('--red-hot');
+       root.style.removeProperty('--red');
        root.style.removeProperty('--accent');
        root.style.removeProperty('--kleur-accent');
        root.style.removeProperty('background-color');
