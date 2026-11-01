@@ -168,8 +168,7 @@ export default function AdminSwipe() {
                         <button className="knop knop-stil" onClick={()=>prioriteit(t,'prioriteit')}>Met voorrang MP3 zoeken</button>
                     </div>
                 </div>)}
-            </section> : 
-            {titelReview ? (
+            </section> : titelReview ? (
                 <section className="kaart vt-titel-review">
                     <h2>Nieuwe films en series</h2>
                     <p className="dim">Deze titels komen uit TMDB, los van de muziek-swipes. Goedkeuren voegt de titel toe aan de goedgekeurde catalogus.</p>
@@ -308,7 +307,7 @@ export default function AdminSwipe() {
                     </p>
                 </>
             )}
-            </>}}
+            </>}
         </main>
     );
 }
