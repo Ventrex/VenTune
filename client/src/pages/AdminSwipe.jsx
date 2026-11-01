@@ -196,7 +196,7 @@ export default function AdminSwipe() {
                         </div>
                     </div>
                 </div> : <p>Geen videogames om te swipen.</p>}
-            </section> :             {zonderMp3 ? <section className="kaart vt-titel-review">
+            </section> : zonderMp3 ? <section className="kaart vt-titel-review">
                 <h2>Films en series zonder MP3</h2>
                 <select className="invoer" value={categorie} onChange={e=>setCategorie(e.target.value)}>
                     <option value="film">Films</option><option value="serie">Series</option>
@@ -348,7 +348,7 @@ export default function AdminSwipe() {
                     </p>
                 </>
             )}
-            </>}}
+            </>}
         </main>
     );
 }
