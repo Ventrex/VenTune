@@ -16,6 +16,8 @@
 function bouwFilter(f = {}) {
     const condities = [];
     const params = [];
+    // Definitief afgekeurde titels mogen nooit terugkomen in een spel.
+    condities.push("COALESCE(t.curatie_status::text,'') <> 'uitgesloten'");
 
     // Inhoudstype: films | series | muziek | beide. Collecties zijn aparte
     // labels; Frozen kan dus film + Disney zijn zonder dat het filmtype
