@@ -13,6 +13,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const ytzoek = require('./ytzoek');
+const codex = require('./codex');
 const { mediaWebpad } = require('./media-naming');
 const { pool } = require('../db/pool');
 const logger = require('./logger');
@@ -27,35 +28,65 @@ const MAX_BYTES = 35 * 1024 * 1024;
  * Zoek een voorbeeld-video voor een aanbeveling.
  * @returns {Promise<{videoId:string, titel:string, duurSeconden:number}|null>}
  */
-async function zoekVoorbeeld(aanbeveling) {
-    const titel = String(aanbeveling.titel || '').trim();
-    const track = String(aanbeveling.tracknaam || '').trim();
-    const artiest = String(aanbeveling.artiest || '').trim();
-    const oud = String(aanbeveling.youtube_zoekterm || '').trim();
-    const isSerie = aanbeveling.type === 'serie' || aanbeveling.categorie === 'serie';
-    // Oudere series hebben soms een generieke zoekterm of een onbekende artiest.
-    // Gebruik daarom meerdere onafhankelijke zoekopdrachten en sla geweigerde video's over.
-    const termen = [...new Set([
-        oud,
-        isSerie && titel ? `${titel} tv series original opening theme` : '',
-        isSerie && titel ? `${titel} official theme song soundtrack` : '',
-        titel && track ? `${titel} ${track} original soundtrack` : '',
-        track && artiest && !/^onbekend|titelmuziek$/i.test(artiest) ? `${artiest} ${track} original` : '',
-        titel ? `${titel} ${isSerie ? 'tv series theme' : 'original soundtrack theme'}` : '',
-    ].filter(Boolean))];
-    const afgekeurd = new Set(aanbeveling.afgekeurde_bronnen || []);
-    for (const term of termen) {
-        try {
-            const resultaten = await ytzoek.zoek(term, { limiet: 10 });
-            const beste = (resultaten || []).find((r) => r.videoId && !afgekeurd.has(r.videoId)
-                && ytzoek.isLatijnsSchrift(r.titel)
-                && (!r.duurSeconden || r.duurSeconden < 15 * 60));
-            if (beste) return { videoId: beste.videoId, titel: beste.titel, duurSeconden: beste.duurSeconden || 0 };
-        } catch (err) {
-            logger.waarschuwing('Alternatieve videobron zoeken mislukt', { term, melding: err.message });
+// Eén AI-onderzoek per titel, gecachet in de aanbeveling. Geen herhaalde
+// tokenverbranding bij een YouTube-fout of wanneer hetzelfde nummer terugkomt.
+const aiOnderzocht = new Set();
+async function bepaalHerkenningsmuziek(a) {
+    if (!['film','serie'].includes(a.type) || (a.tracknaam && a.tracknaam.trim())) return a;
+    if (aiOnderzocht.has(a.id)) return a;
+    aiOnderzocht.add(a.id);
+    const schema={type:'object',additionalProperties:false,required:['gevonden','nummer','artiest','zoekterm'],properties:{
+      gevonden:{type:'boolean'},nummer:{type:'string'},artiest:{type:'string'},zoekterm:{type:'string'}}};
+    try {
+        const r=await codex.vraagJson({schema,prompt:
+          'Bepaal de ECHTE herkenbare openingstitel, intro of officiële hoofdthema-muziek van '+a.type+' "'+a.titel+'" ('+(a.jaar||'jaar onbekend')+'). '+
+          'Geef alleen een specifiek, verifieerbaar muziekstuk en uitvoerende artiest/componist. '+
+          'Als de juiste muziek onbekend is: gevonden=false en lege strings. '+
+          'Geen gok, geen willekeurig soundtracknummer. Een korte specifieke YouTube-zoekterm. JSON volgens schema.'});
+        const d=r.data;
+        if(r.ok && d?.gevonden && d.nummer?.trim() && d.zoekterm?.trim()){
+            const info={...a,tracknaam:d.nummer.trim().slice(0,180),artiest:(d.artiest||'').trim().slice(0,180),
+               youtube_zoekterm:d.zoekterm.trim().slice(0,320)};
+            await pool.query('UPDATE aanbevelingen SET tracknaam=$2,artiest=$3,youtube_zoekterm=$4 WHERE id=$1',
+              [a.id,info.tracknaam,info.artiest,info.youtube_zoekterm]);
+            return info;
         }
+        logger.waarschuwing('AI herkent geen betrouwbare titelmuziek',{id:a.id,titel:a.titel,melding:r.error||'onzeker'});
+    }catch(e){logger.waarschuwing('AI-muziekonderzoek mislukt',{id:a.id,melding:e.message});}
+    return a;
+}
+function gelijktOpTitel(video, a){
+    const norm=s=>String(s||'').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,' ').trim();
+    const naam=norm(a.titel), naamVideo=norm(video.titel);
+    if(!naam || !naamVideo)return false;
+    // Geen generieke zoekresultaten accepteren waar de titel niet in staat.
+    const exact=naamVideo.includes(naam);
+    const matchTrack=a.tracknaam && a.tracknaam.trim().length>=5 && naamVideo.includes(norm(a.tracknaam))
+       && /theme|opening|intro|ost|soundtrack|main title|score/i.test(video.titel);
+    const fouteType=/trailer|reaction|review|recap|explained|gameplay|fan edit|cover|tutorial|remix/i.test(video.titel);
+    return !fouteType && (exact || matchTrack)
+       && /theme|opening|intro|title|song|soundtrack|score|music|tune|ost/i.test(video.titel);
+}
+async function zoekVoorbeeld(aanbeveling) {
+    const a=await bepaalHerkenningsmuziek(aanbeveling);
+    const titel=String(a.titel||'').trim(),track=String(a.tracknaam||'').trim();
+    const isSerie=a.type==='serie'||a.categorie==='serie';
+    const termen=[...new Set([
+        track? `"${titel}" "${track}" theme`:'',
+        a.youtube_zoekterm,
+        `"${titel}" ${isSerie?'TV series opening theme':'movie main theme soundtrack'}`
+    ].filter(Boolean))];
+    const afgekeurd=new Set(a.afgekeurde_bronnen||[]);
+    for(const term of termen.slice(0,3)){
+        try{
+            const resultaten=await ytzoek.zoek(term,{limiet:8});
+            const beste=(resultaten||[]).find(r=>r.videoId&&!afgekeurd.has(r.videoId)
+              && ytzoek.isLatijnsSchrift(r.titel)
+              && (!r.duurSeconden || r.duurSeconden<10*60) && gelijktOpTitel(r,a));
+            if(beste)return {videoId:beste.videoId,titel:beste.titel,duurSeconden:beste.duurSeconden||0};
+        }catch(e){logger.waarschuwing('Zoeken titelmuziek mislukt',{term,melding:e.message});}
     }
-    return null;
+    throw new Error('Geen voldoende betrouwbare YouTube-match gevonden voor '+titel+'. Titel blijft in wachtrij; geen willekeurige soundtrack downloaden.');
 }
 
 // Download alleen bij het opvragen van een luistervoorbeeld. Hergebruik het
