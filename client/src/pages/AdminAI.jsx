@@ -555,6 +555,11 @@ export function CatalogusPerJaar() {
         catch(err){setFout(err.message);}
     }
     useEffect(()=>{laad();const timer=setInterval(laad,4000);return ()=>clearInterval(timer);},[]);
+    async function opschonen() {
+        if(!window.confirm('Alleen nog niet goedgekeurde, weinig bekende TMDB-titels zonder MP3 uitsluiten? Bestaande titels en MP3’s worden niet verwijderd.')) return;
+        try {const d=await haal('/api/admin/catalogus/opschonen-bekend',{method:'POST'});setMelding(`${d.uitgesloten} weinig bekende titels uitgesloten. Geen titels of MP3’s verwijderd.`);await laad();}
+        catch(err){setFout(err.message);}
+    }
     async function start() {
         try {
             const r=await haal('/api/admin/tmdb/catalogus',{method:'POST',...jsonBody({})});
@@ -566,7 +571,7 @@ export function CatalogusPerJaar() {
         <h3>Grote film- en seriecatalogus · per jaartal</h3>
         <p className="dim">TMDB haalt films en series op voor ieder jaar vanaf 1980 t/m het huidige jaar, met Nederlandse regio-context. Dit is een aparte catalogusimport: niet beperkt tot wat ChatGPT zelf kan bedenken. TMDB bevestigt niet dat elke serie daadwerkelijk op Nederlandse televisie is uitgezonden.</p>
         <p className="dim">Echte catalogus: {tellingen.map(t=>`${t.type}: ${t.titels} titels · ${t.met_mp3} met MP3 · ${t.te_beoordelen} te beoordelen`).join(' | ') || 'laden…'}. De kleine tellers bovenaan zijn uitsluitend AI-muziekaanbevelingen.</p>
-        <div className="knoprij"><button className="knop" disabled={status?.bezig} onClick={start}>Catalogus 1980–nu ophalen</button><Link className="knop knop-stil" to="/admin">Ontbrekende MP3's: beheer</Link></div>
+        <div className="knoprij"><button className="knop knop-stil" onClick={opschonen}>Onbekende titels veilig opschonen</button><button className="knop" disabled={status?.bezig} onClick={start}>Catalogus 1980–nu ophalen</button><Link className="knop knop-stil" to="/admin">Ontbrekende MP3's: beheer</Link></div>
         {status && <p className="dim">{status.bezig?'Bezig':'Status: '+(status.klaar?'afgerond':'niet gestart')} · {status.fase||status.stap||'catalogus'} · {status.verwerkt||0}/{status.totaal||'—'} verwerkt · {status.nieuw||0} nieuw · {status.bestaand||0} bestaand</p>}
         {status?.fout && <p className="waarschuwing">{status.fout}</p>}
         {mp3Status && <p className="dim">Automatische MP3-aanvulling: {mp3Status.bezig ? 'bezig' : mp3Status.klaar ? 'laatste ronde afgerond' : 'wacht op ronde'} · {mp3Status.stap || 'wachten'} · {mp3Status.verwerkt || 0}/{mp3Status.totaal || '—'} verwerkt{mp3Status.fout ? ' · fout: '+mp3Status.fout : ''}. Controle elke 30 minuten, maximaal 25 zoekopdrachten per ronde.</p>}
