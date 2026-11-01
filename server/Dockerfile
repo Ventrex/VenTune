@@ -18,11 +18,18 @@ RUN npm install --omit=dev
 # expliciet aangewezen video's op; ffmpeg maakt browser-vriendelijke audio.
 # Eigen uploads, waaronder m4a, blijven ook ondersteund via /media.
 RUN apk add --no-cache python3 py3-pip ffmpeg \
-    && python3 -m pip install --no-cache-dir --break-system-packages 'yt-dlp[default]'
+    && python3 -m pip install --no-cache-dir --break-system-packages 'yt-dlp[default]' bgutil-ytdlp-pot-provider
 
 # ChatGPT-aanbevelingen via de officiële Codex CLI (ChatGPT-login van de
 # beheerder, geen API-key). De login komt in CODEX_HOME (een volume), zodat
 # die een rebuild overleeft. Eenmalig inloggen: `docker compose exec server codex login`.
+# yt-dlp leest deze systeemconfig ook bij bestaande import- en downloadtaken.
+# De PO Token Provider draait uitsluitend op het interne Docker-netwerk.
+RUN printf '%s\\n' \\
+    '--extractor-args' \\
+    'youtube:player_client=mweb,web_safari;youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416' \\
+    > /etc/yt-dlp.conf
+
 RUN npm install -g @openai/codex
 
 # Vaste mappen voor audio en de Codex-login die tussen container-restarts
