@@ -502,10 +502,10 @@ export default function Setup() {
                     
                     <div className="vt-category-workspace"><div className="vt-category-left"><div className="vt-hoofdkaarten">
                         {[
-                            {id:'films',naam:'Films & Series',icon:'/category/icon-film.svg',kleur:'#ff328e',beeld:'/category/films-series.svg?v=nov01art2'},
-                            {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:'/category/music.svg?v=nov01art2'},
-                            {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:'/category/games.svg?v=nov01art2'},
-                            {id:'thema',naam:'Thema',icon:'/category/icon-theme.svg',kleur:'#ffae39',beeld:'/category/theme.svg?v=nov01art2'}
+                            {id:'films',naam:'Films & Series',icon:'/category/icon-film.svg',kleur:'#ff328e',beeld:'/category/approved-films.svg?v=20261101a'},
+                            {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:'/category/approved-music.svg?v=20261101a'},
+                            {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:'/category/approved-games.svg?v=20261101a'},
+                            {id:'thema',naam:'Thema',icon:'/category/icon-theme.svg',kleur:'#ffae39',beeld:'/category/approved-theme.svg?v=20261101a'}
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
                                 setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],kindvriendelijk:false}));
