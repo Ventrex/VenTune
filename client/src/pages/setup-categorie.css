@@ -563,3 +563,48 @@
 }
 .vt-game-settings .vt-option-card .vt-option-art{filter:drop-shadow(0 0 8px #ff42ac75)}
 .vt-game-settings .vt-options-panel{background:linear-gradient(145deg,#2a123ccb,#14102edc);border-color:#8051ad95}
+
+
+/* Lobby aligns with the same purple / pink glassmorphism as game setup. */
+.vt-lobby-layout .host-wacht-rechts,
+.vt-lobby-layout .vt-team-panel,
+.vt-lobby-layout .lobby-instellingen{
+ border:1px solid #8d53ba!important;
+ border-radius:20px!important;
+ background:linear-gradient(145deg,#2a143fdc,#16112fef)!important;
+ box-shadow:inset 0 1px #ffffff18,0 8px 25px #0b041c55!important;
+}
+.vt-lobby-layout .speler-kaart{
+ border:1px solid #7b4ba1!important;
+ background:linear-gradient(145deg,#28163d,#1b1233)!important;
+ border-radius:14px!important;
+}
+.vt-lobby-layout .host-tag{border-color:#f72b97!important;color:#ff9dcf!important}
+.vt-lobby-layout .knop,
+.vt-lobby-layout .chip.gekozen,
+.vt-lobby-layout .knop.knop-stil:hover{
+ border-color:#ff79be!important;
+}
+.vt-lobby-layout .host-wacht-links>.stapel .knop{
+ background:linear-gradient(120deg,#fa2999,#c41889)!important;
+ color:#fff!important;
+ font-weight:800;
+ border-radius:18px!important;
+ min-height:56px;
+ box-shadow:0 0 20px #fc2e9655!important;
+}
+.vt-lobby-layout .host-wacht-rechts .lobby-code{color:#fff!important;text-shadow:0 0 12px #ff48a85a}
+.vt-lobby-layout .vt-lobby-choice-row .chip{
+ background:#25143d!important;border:1px solid #754e9d!important;border-radius:13px!important;
+}
+.vt-lobby-layout .vt-lobby-choice-row .chip.gekozen{
+ background:linear-gradient(125deg,#ec2994,#ab176f)!important;color:#fff!important;
+}
+.vt-game-settings .vt-option-art{
+ display:grid;place-items:center;min-width:44px;min-height:44px;
+ border-radius:14px;background:radial-gradient(circle,#f43ba526,#f43ba500 78%);
+ text-shadow:0 0 10px #ff74c780;
+}
+@media(max-width:600px){
+ .vt-lobby-layout .host-wacht-rechts,.vt-lobby-layout .vt-team-panel,.vt-lobby-layout .lobby-instellingen{padding:14px!important}
+}
