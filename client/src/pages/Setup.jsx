@@ -526,7 +526,7 @@ export default function Setup() {
                             <div className="vt-keuzerij">
                                 {[['beide','Film & Serie',['film','serie']],['films','Alleen Films',['film']],['series','Alleen Series',['serie']]].map(([v,label,types])=>
                                 <button type="button" key={v} className={'chip'+(filters.categorie===v?' gekozen':'')}
-                                    onClick={()=>setFilters(f=>({...f,categorie:v,categorieen:types,game_only:false}))}><span className="vt-option-label">{label}</span></button>)}
+                                    onClick={()=>setFilters(f=>({...f,categorie:v,categorieen:types,game_only:false}))}><img className="vt-type-art" src={({beide:"/category/type-film-series.svg",films:"/category/type-films.svg",series:"/category/type-series.svg"})[v]} alt="" /><span className="vt-option-label">{label}</span></button>)}
                             </div>
                         </div>}
                         {(hoofdgroep==='films'||hoofdgroep==='muziek'||hoofdgroep==='games'||hoofdgroep==='thema')&&<div className="vt-subkeuzes">
@@ -553,7 +553,7 @@ export default function Setup() {
                                             ? (categorieBeelden['platform-'+id]
                                                 ? <span className="vt-collectie-pictogram"><img src={categorieBeelden['platform-'+id]} alt="" /></span>
                                                 : null)
-                                            : <span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || ({ "80s": "/category/collection-80s.svg", "90s": "/category/collection-90s.svg", animatie: "/category/collection-animatie.svg", kinder: "/category/collection-kinder.svg", kerst: "/category/icon-theme.svg" })[id] || "/category/icon-music.svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span>}<span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
+                                            : <span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || ({ "80s": "/category/collection-80s.svg", "90s": "/category/collection-90s.svg", animatie: "/category/collection-animatie.svg", kinder: "/category/collection-kinder.svg", kerst: "/category/collection-christmas.svg", alles: "/category/collection-all.svg" })[id] || "/category/icon-music.svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span>}<span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
                             </div>
                         </div>}
                         
