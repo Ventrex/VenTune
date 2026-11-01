@@ -818,7 +818,13 @@ router.get('/api/admin/swipe/mp3-wachtrij',vereisAdmin,async(_req,res)=>{
    FROM swipe_mp3_queue q JOIN aanbevelingen a ON a.id=q.aanbeveling_id
    WHERE q.status <> 'klaar' ORDER BY q.prioriteit DESC,q.bijgewerkt LIMIT 20`);
   const rateLimitTot=Math.max(ytzoek.rateLimitTot(),media.rateLimitTot());
-  res.json({status:rows,volgende:top,rateLimitActief:rateLimitTot>Date.now(),rateLimitTot:rateLimitTot>Date.now()?new Date(rateLimitTot).toISOString():null,wachtMinuten:rateLimitTot>Date.now()?Math.ceil((rateLimitTot-Date.now())/60000):0,workerBezig:mp3Worker});
+  const {rows: ready}=await pool.query(`SELECT count(*)::int AS n FROM aanbevelingen a
+      WHERE a.status IN ('nieuw','blind_nee') AND (
+        EXISTS(SELECT 1 FROM swipe_mp3_queue q WHERE q.aanbeveling_id=a.id AND q.status='klaar')
+        OR EXISTS(SELECT 1 FROM tracks tr WHERE tr.titel_id=a.titel_id AND tr.bron='lokaal'
+          AND tr.werkt=true AND tr.gecontroleerd=true AND tr.download_status='available')
+      )`);
+  res.json({klaarVoorSwipe:ready[0]?.n||0,status:rows,volgende:top,rateLimitActief:rateLimitTot>Date.now(),rateLimitTot:rateLimitTot>Date.now()?new Date(rateLimitTot).toISOString():null,wachtMinuten:rateLimitTot>Date.now()?Math.ceil((rateLimitTot-Date.now())/60000):0,workerBezig:mp3Worker});
  }catch(e){res.status(500).json({fout:e.message});}
 });
 // Lijst om te swipen. fase=blind → status 'nieuw' (ronde 1, zonder naam).
@@ -835,7 +841,12 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
                     youtube_zoekterm, bekendheid, reden, voorbeeld_bron, status
              FROM aanbevelingen
              WHERE ($1::text IS NULL OR categorie = $1) AND status = $2
-               AND EXISTS (SELECT 1 FROM swipe_mp3_queue q WHERE q.aanbeveling_id=aanbevelingen.id AND q.status='klaar')
+               AND (
+                 EXISTS (SELECT 1 FROM swipe_mp3_queue q WHERE q.aanbeveling_id=aanbevelingen.id AND q.status='klaar')
+                 OR EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=aanbevelingen.titel_id
+                     AND tr.bron='lokaal' AND tr.werkt=true AND tr.gecontroleerd=true
+                     AND tr.download_status='available' AND NULLIF(tr.preview_url,'') IS NOT NULL)
+               )
              ORDER BY bekendheid DESC, aangemaakt_op
              LIMIT 100`, [categorie, fase]);
         res.json(rows);
