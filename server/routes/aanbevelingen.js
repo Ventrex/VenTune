@@ -756,7 +756,7 @@ async function runMp3Queue(){
  mp3Worker=true;
  try{
   await initMp3Queue();
-  while(!ytzoek.rateLimitActief()){
+  while(!ytzoek.rateLimitActief() && media.rateLimitTot() <= Date.now()){
    const {rows}=await pool.query(`SELECT q.aanbeveling_id,q.pogingen FROM swipe_mp3_queue q
    JOIN aanbevelingen a ON a.id=q.aanbeveling_id
    WHERE q.status='wachtend' AND q.volgende_poging<=now()
@@ -772,11 +772,12 @@ async function runMp3Queue(){
     await pool.query("UPDATE aanbevelingen SET status='nieuw' WHERE id=$1 AND status='fout'",[id]);
    }catch(e){
     const poging=Number(item.pogingen)+1;
-    const delay=ytzoek.rateLimitActief()?360:Math.min(360,Math.pow(2,Math.min(poging,8))*5);
+    const geblokkeerd=ytzoek.rateLimitActief() || media.rateLimitTot()>Date.now();
+    const delay=geblokkeerd?Math.max(15,Math.ceil((Math.max(ytzoek.rateLimitTot(),media.rateLimitTot())-Date.now())/60000)):Math.min(120,Math.pow(2,Math.min(poging,6))*5);
     await pool.query(`UPDATE swipe_mp3_queue SET status='wachtend',pogingen=$2,
        fout=$3,volgende_poging=now()+($4 * interval '1 minute'),bijgewerkt=now()
        WHERE aanbeveling_id=$1`,[id,poging,String(e.message).slice(0,400),delay]);
-    if(ytzoek.rateLimitActief())break;
+    if(geblokkeerd)break;
    }
   }
  }finally{mp3Worker=false;}
@@ -808,7 +809,7 @@ async function seedMp3Queue(){
  await runMp3Queue();
 }
 setTimeout(()=>seedMp3Queue().catch(e=>logger.waarschuwing('MP3 queue initialisatie',{melding:e.message})),45000).unref();
-setInterval(()=>seedMp3Queue().catch(e=>logger.waarschuwing('MP3 queue vervolgronde',{melding:e.message})),15*60*1000).unref();
+setInterval(()=>seedMp3Queue().catch(e=>logger.waarschuwing('MP3 queue vervolgronde',{melding:e.message})),60*1000).unref();
 router.get('/api/admin/swipe/mp3-wachtrij',vereisAdmin,async(_req,res)=>{
  try{
   await initMp3Queue();
@@ -816,7 +817,8 @@ router.get('/api/admin/swipe/mp3-wachtrij',vereisAdmin,async(_req,res)=>{
   const {rows:top}=await pool.query(`SELECT q.aanbeveling_id,a.titel,a.categorie,q.status,q.pogingen,q.fout
    FROM swipe_mp3_queue q JOIN aanbevelingen a ON a.id=q.aanbeveling_id
    WHERE q.status <> 'klaar' ORDER BY q.prioriteit DESC,q.bijgewerkt LIMIT 20`);
-  res.json({status:rows,volgende:top});
+  const rateLimitTot=Math.max(ytzoek.rateLimitTot(),media.rateLimitTot());
+  res.json({status:rows,volgende:top,rateLimitActief:rateLimitTot>Date.now(),rateLimitTot:rateLimitTot>Date.now()?new Date(rateLimitTot).toISOString():null,wachtMinuten:rateLimitTot>Date.now()?Math.ceil((rateLimitTot-Date.now())/60000):0,workerBezig:mp3Worker});
  }catch(e){res.status(500).json({fout:e.message});}
 });
 // Lijst om te swipen. fase=blind → status 'nieuw' (ronde 1, zonder naam).
