@@ -382,7 +382,7 @@ function Database() {
 
 // ----------------------- ChatGPT koppelen -----------------------
 
-function ChatGptKoppeling() {
+export function ChatGptKoppeling() {
     const [status, setStatus] = useState(null);
     const [login, setLogin] = useState(null); // {status,url,code,error,regels}
     const poll = useRef(null);
@@ -500,7 +500,7 @@ function HandmatigToevoegen() {
     </section>;
 }
 
-function CatalogusPerJaar() {
+export function CatalogusPerJaar() {
     const [status,setStatus]=useState(null);
     const [melding,setMelding]=useState('');
     const [fout,setFout]=useState('');
@@ -527,7 +527,7 @@ function CatalogusPerJaar() {
     </section>;
 }
 
-function Genereren() {
+export function Genereren() {
     const [bezig, setBezig] = useState(false);
     const [wachtrij, setWachtrij] = useState([]);
     const [wachtrijFout, setWachtrijFout] = useState('');
