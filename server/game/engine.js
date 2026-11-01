@@ -1141,7 +1141,7 @@ class SpelBeheer {
     }
 
     bouwHint(nr, titel, ronde = null) {
-        const ai = titel.ai_hints_status === 'goedgekeurd' ? (titel.ai_hints || []).filter(Boolean) : [];
+        const ai = titel.ai_hints_status !== 'afgekeurd' ? (titel.ai_hints || []).filter(Boolean) : [];
         // Per speelronde één willekeurige volgorde; nooit opnieuw schudden per speler/hint.
         if (ai.length && ronde && !ronde.aiHintVolgorde) ronde.aiHintVolgorde = husselArray(ai);
         const hints = ai.length
