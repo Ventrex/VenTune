@@ -134,13 +134,13 @@ export function QuizInhoud() {
             if (!b.bezig && timer.current) { clearInterval(timer.current); timer.current = null; }
         } catch (err) { setFout(err.message); }
     };
-    useEffect(() => { laadBatch(); return () => { if (timer.current) clearInterval(timer.current); }; }, []);
+    useEffect(() => { laadBatch(); timer.current = setInterval(laadBatch, 2500); return () => { if (timer.current) clearInterval(timer.current); }; }, []);
     async function starten() {
         setFout(''); setMelding('');
         try {
             await haal('/api/admin/ai-vragen/start', { method: 'POST', ...jsonBody({limiet: 500}) });
             await laadBatch();
-            timer.current = setInterval(laadBatch, 2500);
+            if (!timer.current) timer.current = setInterval(laadBatch, 2500);
             setMelding('AI-generatie gestart. Titels zonder betrouwbare gegevens blijven op Controle nodig.');
         } catch (err) { setFout(err.message); }
     }
@@ -182,7 +182,7 @@ export function QuizInhoud() {
         <p className="dim">Drie verschillende hints en drie bonusvragen met zes keuzes per film/serie. AI-voorstellen zijn niet automatisch goedgekeurd.</p>
         {batch && <p className="dim">Bibliotheek: {batch.database?.titels ?? '—'} titels · {batch.database?.hints_goedgekeurd ?? 0} met drie goedgekeurde hints · {batch.database?.vragen_goedgekeurd ?? 0} met drie goedgekeurde AI-vragen</p>}
         <button className="knop" disabled={batch?.bezig} onClick={starten}>{batch?.bezig ? 'Generatie loopt…' : 'Ontbrekende hints en vragen genereren'}</button>
-        {batch?.bezig && <p className="dim">Voortgang {batch.verwerkt}/{batch.totaal} · {batch.gelukt} sets aangemaakt · {batch.mislukt} niet gelukt</p>}
+        {batch && <p className="dim">{batch.bezig ? 'Bezig · ' : 'Laatste batch · '}Voortgang {batch.verwerkt}/{batch.totaal} · {batch.gelukt} sets aangemaakt · {batch.mislukt} niet gelukt</p>}
         {!!batch?.fouten?.length && <details><summary>{batch.fouten.length} meldingen</summary>{batch.fouten.map((e,i)=><p key={i}>{e.id}: {e.fout}</p>)}</details>}
         <form className="zoekbalk" onSubmit={zoeken} style={{marginTop:'1rem'}}>
             <input className="invoer" value={zoek} onChange={e=>setZoek(e.target.value)} placeholder="Zoek film of serie…" />
