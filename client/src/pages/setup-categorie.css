@@ -409,3 +409,9 @@
  .vt-category-workspace .vt-categorie-paneel>h2{font-size:1.5rem!important}
 }
 @media(max-width:400px){.vt-hoofdkaart-titel img{height:17px;width:17px}.vt-hoofdkaart-titel{font-size:.8rem!important;gap:3px!important}}
+
+/* Approved generated artwork contains the category labels already.
+   Do not draw a second text/icon layer on top. */
+.vt-category-workspace .vt-hoofdkaart:has(.vt-hoofdkaart-illustratie[src*="approved-"]) .vt-hoofdkaart-titel{display:none!important}
+.vt-category-workspace .vt-hoofdkaart:has(.vt-hoofdkaart-illustratie[src*="approved-"])::after{display:none!important}
+.vt-category-workspace .vt-hoofdkaart:has(.vt-hoofdkaart-illustratie[src*="approved-"]) .vt-hoofdkaart-illustratie{object-fit:fill!important;object-position:center!important;image-rendering:auto}
