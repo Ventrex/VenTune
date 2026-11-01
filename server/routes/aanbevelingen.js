@@ -458,12 +458,16 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
                 titel_id:bestaandTitel.rows[0]?.id ?? null,
                 toelichting:'Titel bestaat al, maar mist een speelbare MP3. Bestaande aanvraag is voor muziekonderzoek in de wachtrij gezet.'});
         }
+        // Nieuwe handmatige titel onmiddellijk in de catalogus en hoogste Swipe-prioriteit.
+        const nieuw=await pool.query(
+            "INSERT INTO titels (naam,type,taal,jaar,curatie_status,nl_tv_bekend,toevoeg_reden,swipe_prioriteit) VALUES ($1,$2,$3,$4,'goedgekeurd',true,'Handmatig toegevoegd',now()) RETURNING id",
+            [titel,type,'en',jaar]);
         const { rows } = await pool.query(
             `INSERT INTO aanbevelingen (soort, categorie, titel, type, jaar, tracknaam, artiest, youtube_zoekterm, bekendheid, reden, status)
              VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'fout')
              RETURNING id`,
             [type, titel, type, jaar, `${titel} original theme soundtrack intro`]);
-        res.json({ ok: true, id: rows[0].id, toelichting: 'Aan herzoekwachtrij toegevoegd. Nog niet speelbaar.' });
+        res.json({ ok: true, id: rows[0].id, titel_id:nieuw.rows[0].id, toelichting: 'Toegevoegd aan de database én bovenaan de Swipe-wachtrij zonder MP3.' });
     } catch (err) { res.status(500).json({ fout: err.message }); }
 });
 router.post('/api/admin/titels/:id/ai-quiz', vereisAdmin, async (req, res) => {
