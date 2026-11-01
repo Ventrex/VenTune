@@ -15,6 +15,7 @@ const { pool } = require('../db/pool');
 const codex = require('../lib/codex');
 const aanbevelingen = require('../lib/aanbevelingen');
 const media = require('../lib/aanbeveling-media');
+const ytzoek = require('../lib/ytzoek');
 const { vereisAdmin } = require('./admin');
 const logger = require('../lib/logger');
 
@@ -635,6 +636,10 @@ router.post('/api/admin/swipe/zonder-mp3/:id', vereisAdmin, async(req,res)=>{
             "UPDATE titels SET swipe_prioriteit=$2, zoek_status=CASE WHEN $3='prioriteit' THEN 'nieuw' ELSE zoek_status END, volgende_poging=CASE WHEN $3='prioriteit' THEN NULL ELSE volgende_poging END WHERE id=$1 AND type IN ('film','serie') RETURNING id,naam",
             [req.params.id,actie==='prioriteit'?new Date():null,actie]);
         if(!rows.length) return res.status(404).json({fout:'Titel niet gevonden'});
+        if(actie==='prioriteit') {
+            const a=await pool.query("SELECT id FROM aanbevelingen WHERE titel_id=$1 AND status IN ('nieuw','blind_nee','fout') ORDER BY id DESC LIMIT 1",[rows[0].id]);
+            if(a.rows[0]) await enqueueMp3(a.rows[0].id,1000);
+        }
         res.json({ok:true,titel:rows[0]});
     }catch(err){res.status(500).json({fout:err.message});}
 });
@@ -976,6 +981,7 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
                 return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
             }
             await media.keurMp3Af(id);
+            await enqueueMp3(id,1000);
             audioTaken.delete(id);
             return res.json({
                 ok: true,
@@ -1012,6 +1018,8 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
             return res.json({ ok: true, status: 'goed', download: true });
         }
         if (keuze === 'fout') {
+            await media.keurMp3Af(id);
+            await enqueueMp3(id,1000);
             // Verkeerd nummer: AI moet later opnieuw zoeken. Bron wissen zodat
             // een herzoek een nieuw voorbeeld oplevert.
             await pool.query(
