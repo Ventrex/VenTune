@@ -25,12 +25,7 @@ RUN apk add --no-cache python3 py3-pip ffmpeg \
 # die een rebuild overleeft. Eenmalig inloggen: `docker compose exec server codex login`.
 # yt-dlp leest deze systeemconfig ook bij bestaande import- en downloadtaken.
 # De PO Token Provider draait uitsluitend op het interne Docker-netwerk.
-RUN printf '%s\\n' \\
-    '--extractor-args' \\
-    'youtube:player_client=mweb,web_safari' \
-    '--extractor-args' \
-    'youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416' \\
-    > /etc/yt-dlp.conf
+RUN printf '%s\n' '--extractor-args' 'youtube:player_client=mweb,web_safari' '--extractor-args' 'youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416' > /etc/yt-dlp.conf
 
 RUN npm install -g @openai/codex
 
