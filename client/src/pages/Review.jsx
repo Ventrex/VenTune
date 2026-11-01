@@ -1,96 +1,74 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, {useEffect,useRef,useState} from 'react';
+import {Link, useSearchParams} from 'react-router-dom';
 import Brand from '../components/Brand.jsx';
 
-// =====================================================================
-// Publieke review-pagina (/review). Deel deze link met vrienden: zij
-// horen een nummer blind (zonder titel) en stemmen of ze het herkennen.
-// Genoeg herkenning → het nummer wordt automatisch goedgekeurd.
-// Geen login nodig; één stem per apparaat per nummer.
-// =====================================================================
-
-function stemmerId() {
-    try {
-        let id = localStorage.getItem('ventune_stemmer');
-        if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('ventune_stemmer', id); }
-        return id;
-    } catch { return 'anon-' + Math.random().toString(36).slice(2); }
+function stemmerId(){
+ try {
+  let id=localStorage.getItem('ventune_stemmer');
+  if(!id){id=Math.random().toString(36).slice(2)+Date.now();localStorage.setItem('ventune_stemmer',id);}
+  return id;
+ }catch{return 'anon-'+Math.random().toString(36).slice(2);}
 }
-
-async function jsonOfNull(r) { try { return await r.json(); } catch { return null; } }
-
-export default function Review() {
-    const stemmer = useRef(stemmerId());
-    const [kaart, setKaart] = useState(null);   // {id, videoId} | null
-    const [klaar, setKlaar] = useState(false);
-    const [laadt, setLaadt] = useState(true);
-    const [geteld, setGeteld] = useState(0);
-
-    async function volgende() {
-        setLaadt(true); setKaart(null);
-        try {
-            const r = await fetch('/api/review/volgende?stemmer=' + encodeURIComponent(stemmer.current));
-            const d = await jsonOfNull(r);
-            if (d && d.klaar) { setKlaar(true); setKaart(null); }
-            else if (d && d.id) { setKaart(d); setKlaar(false); }
-            else setKlaar(true);
-        } catch { setKlaar(true); }
-        setLaadt(false);
-    }
-    useEffect(() => { volgende(); /* eslint-disable-next-line */ }, []);
-
-    async function stem(herkend) {
-        if (!kaart) return;
-        try {
-            await fetch('/api/review/' + kaart.id + '/stem', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stemmer: stemmer.current, herkend }),
-            });
-        } catch { /* */ }
-        setGeteld((n) => n + 1);
-        volgende();
-    }
-
-    return (
-        <main className="scherm admin-swipe">
-            <div className="ai-kop">
-                <Brand link={false} />
-            </div>
-            <h1 style={{ fontSize: 'clamp(1.6rem,6vw,2.2rem)' }}>Help mee</h1>
-            <p className="ondertitel">Hoor je dit nummer wel eens? Jouw stem bepaalt of het in de quiz komt.</p>
-
-            {laadt && <p className="dim">Laden…</p>}
-
-            {klaar && !laadt && (
-                <div className="kaart swipe-leeg">
-                    <p style={{ fontSize: '1.2rem', fontWeight: 600 }}>Bedankt! 🙏</p>
-                    <p className="dim">Je hebt alles beoordeeld wat er nu is{geteld ? ` (${geteld} nummers)` : ''}. Kom later nog eens terug.</p>
-                    <Link className="knop" to="/">Naar VenTune</Link>
-                </div>
-            )}
-
-            {kaart && !laadt && (
-                <>
-                    <div className="swipe-kaart" style={{ cursor: 'default' }}>
-                        <div className="swipe-bek">🎧</div>
-                        <h2 className="swipe-titel">Ken je dit nummer?</h2>
-                        <p className="swipe-sub">Luister even en stem hieronder.</p>
-                        <div className="swipe-voorbeeld">
-                            {kaart.videoId
-                                ? <iframe title="Voorbeeld" width="100%" height="80"
-                                          src={`https://www.youtube.com/embed/${kaart.videoId}?rel=0`}
-                                          frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen />
-                                : <p className="dim">Geen voorbeeld beschikbaar — sla over.</p>}
-                        </div>
-                    </div>
-                    <div className="swipe-knoppen">
-                        <button className="swipe-knop fout" onClick={() => stem(false)} aria-label="Ken ik niet">✕</button>
-                        <button className="swipe-knop goed" onClick={() => stem(true)} aria-label="Ken ik">✓</button>
-                    </div>
-                    <p className="dim swipe-uitleg">✓ = ik ken dit · ✕ = ken ik niet</p>
-                    {geteld > 0 && <p className="dim swipe-teller">{geteld} beoordeeld — bedankt!</p>}
-                </>
-            )}
-        </main>
-    );
+async function api(url,options){
+ const r=await fetch(url,options);
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(d.fout||'Serverfout '+r.status);
+ return d;
+}
+export default function Review(){
+ const [query]=useSearchParams();
+ const categorie=query.get('categorie')||'film';
+ const [fase,setFase]=useState(query.get('fase')==='naam'?'naam':'blind');
+ const stemmer=useRef(stemmerId());
+ const [kaart,setKaart]=useState(null);
+ const [laadt,setLaadt]=useState(true);
+ const [fout,setFout]=useState('');
+ const [aantal,setAantal]=useState(0);
+ async function volgende(){
+  setLaadt(true);setKaart(null);setFout('');
+  try{
+   const d=await api('/api/swipe-delen/volgende?'+new URLSearchParams({categorie,fase,stemmer:stemmer.current}));
+   setKaart(d.klaar?null:d);
+  }catch(e){setFout(e.message);}
+  finally{setLaadt(false);}
+ }
+ useEffect(()=>{volgende();},[categorie,fase]);
+ async function stem(keuze){
+  if(!kaart)return;
+  try{
+   await api('/api/swipe-delen/'+kaart.id+'/stem',{method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({stemmer:stemmer.current,fase,keuze})});
+   setAantal(n=>n+1);await volgende();
+  }catch(e){setFout(e.message);}
+ }
+ return <main className="scherm admin-swipe">
+  <div className="ai-kop"><Brand link={false}/></div>
+  <h1>Help VenTune met muzieknummers beoordelen</h1>
+  <p className="dim">Categorie: {categorie} · {aantal} beoordeeld. Jouw stemmen blijven afzonderlijk bewaard.</p>
+  <div className="swipe-tabs">
+   <button className={'knop'+(fase==='blind'?'':' knop-stil')} onClick={()=>setFase('blind')}>1. Blind</button>
+   <button className={'knop'+(fase==='naam'?'':' knop-stil')} onClick={()=>setFase('naam')}>2. Met naam</button>
+  </div>
+  {fout&&<p className="waarschuwing">{fout}</p>}
+  {laadt?<p>Luisterfragmenten laden…</p>:kaart?<div className="kaart swipe-leeg">
+   <h2>{fase==='blind'?'Welk nummer is dit?':kaart.titel}</h2>
+   {fase==='naam'&&<p className="dim">{kaart.tracknaam||''} {kaart.artiest||''}</p>}
+   <audio key={kaart.id} controls preload="metadata" src={kaart.audioUrl} style={{width:'100%'}}/>
+   <div className="swipe-knoppen">
+    {fase==='blind'?<>
+      <button className="knop" onClick={()=>stem('niet')}>Herken ik niet</button>
+      <button className="knop" onClick={()=>stem('herkend')}>Herken ik</button>
+     </>:<>
+      <button className="knop" onClick={()=>stem('fout')}>Klopt niet</button>
+      <button className="knop" onClick={()=>stem('onbekend')}>Weet ik niet</button>
+      <button className="knop" onClick={()=>stem('goed')}>Klopt</button>
+     </>}
+   </div>
+  </div>:<div className="kaart swipe-leeg">
+    <h2>Er staan momenteel geen andere MP3's klaar.</h2>
+    <p className="dim">Wanneer de beheerder nieuwe nummers voorbereidt, kun je verder stemmen.</p>
+    {fase==='blind'&&<button className="knop" onClick={()=>setFase('naam')}>Verder met naam</button>}
+    <Link className="knop knop-stil" to="/">VenTune</Link>
+  </div>}
+ </main>;
 }
