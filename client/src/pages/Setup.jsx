@@ -556,7 +556,7 @@ export default function Setup() {
                             <h3>🏔 Bergexpeditie — samen naar de top</h3>
                             <p>Iedereen raadt samen. Elk goed nummer brengt jullie omhoog. Een mislukte ronde kost een hartje.</p>
                             <button type="button" className={'chip'+(filters.spelvorm==='bergexpeditie'?' gekozen':'')}
-                                onClick={()=>setFilters(f=>({...f,spelvorm:f.spelvorm==='bergexpeditie'?'tegen_elkaar':'bergexpeditie',modus:'kenner'}))}>
+                                onClick={()=>setFilters(f=>({...f,spelvorm:f.spelvorm==='bergexpeditie'?'tegen_elkaar':'bergexpeditie',modus:'snelste',rondes:f.spelvorm==='bergexpeditie'?10:0,bonusvragen_aan:f.spelvorm==='bergexpeditie'?f.bonusvragen_aan:false}))}>
                                 {filters.spelvorm==='bergexpeditie'?'✓ Bergexpeditie geselecteerd':'Speel Bergexpeditie'}
                             </button>
                             {filters.spelvorm==='bergexpeditie' && <label>Maximaal fouten
