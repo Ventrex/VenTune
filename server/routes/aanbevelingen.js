@@ -460,7 +460,7 @@ router.post('/api/admin/swipe/zonder-mp3/:id', vereisAdmin, async(req,res)=>{
         if(!['prioriteit','overslaan'].includes(actie)) return res.status(400).json({fout:'Ongeldige keuze'});
         await initPrioriteit();
         const {rows}=await pool.query(
-            "UPDATE titels SET swipe_prioriteit=$2, zoek_status=CASE WHEN $3='prioriteit' THEN 'wachtend' ELSE zoek_status END, volgende_poging=CASE WHEN $3='prioriteit' THEN NULL ELSE volgende_poging END WHERE id=$1 AND type IN ('film','serie') RETURNING id,naam",
+            "UPDATE titels SET swipe_prioriteit=$2, zoek_status=CASE WHEN $3='prioriteit' THEN 'nieuw' ELSE zoek_status END, volgende_poging=CASE WHEN $3='prioriteit' THEN NULL ELSE volgende_poging END WHERE id=$1 AND type IN ('film','serie') RETURNING id,naam",
             [req.params.id,actie==='prioriteit'?new Date():null,actie]);
         if(!rows.length) return res.status(404).json({fout:'Titel niet gevonden'});
         res.json({ok:true,titel:rows[0]});
