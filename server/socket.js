@@ -210,6 +210,11 @@ function setupSockets(io) {
                 logger.waarschuwing('Pauzeren mislukt.', { melding: err.message });
             }
         });
+        // Een foutmelding mag ook vanaf een spelersscherm de ronde stilzetten.
+        socket.on('ronde:melding-pauze', () => {
+            try { spel.pauzeer(socket, true); }
+            catch (err) { logger.waarschuwing('Pauzeren voor melding mislukt.', { melding: err.message }); }
+        });
         socket.on('ronde:hervat', () => {
             try {
                 spel.hervat(socket);
