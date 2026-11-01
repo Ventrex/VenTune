@@ -243,12 +243,12 @@ export default function AdminSwipe() {
             {klaar && !lijstFout && (
                 <div className="kaart swipe-leeg">
                     <p style={{ fontSize: '1.2rem', fontWeight: 600 }}>
-                        {fase === 'blind' ? 'Alle nieuwe nummers blind beoordeeld! 🎉' : 'Niets meer om met naam te beoordelen 🎉'}
+                        {fase === 'blind' ? 'Nog geen MP3 klaar om blind te swipen' : 'Nog geen MP3 klaar om met naam te beoordelen'}
                     </p>
                     <p className="dim">
                         {fase === 'blind'
-                            ? 'Ga naar "Met naam" voor de nummers die je niet blind herkende.'
-                            : 'Haal nieuwe aanbevelingen op, of laat foute nummers opnieuw zoeken in het AI-beheer.'}
+                            ? 'VenTune vult de buffer van 10 nummers voor deze categorie. Je ziet nieuwe MP3’s vanzelf verschijnen.'
+                            : 'Nieuwe luisterfragmenten verschijnen vanzelf zodra de download klaar is.'}
                     </p>
                     <Link className="knop" to={fase === 'blind' ? '#' : '/admin/ai'} onClick={() => fase === 'blind' && setFase('naam')}>
                         {fase === 'blind' ? 'Naar "Met naam"' : 'Naar AI-beheer'}
