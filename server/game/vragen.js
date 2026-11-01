@@ -273,7 +273,7 @@ async function haalVraag(titelId, alGebruikt = new Set(), geldig = null) {
           WHERE titel_id = $1
             AND jsonb_array_length(opties) >= 6
             AND soort <> 'type'
-            AND ai_review_status = 'goedgekeurd'
+            AND ai_review_status IN ('goedgekeurd', 'controle_nodig')
           ORDER BY keer_gebruikt ASC, random()
           LIMIT 10`,
         [titelId],
