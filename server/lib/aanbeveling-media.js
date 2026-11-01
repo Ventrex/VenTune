@@ -139,7 +139,7 @@ async function lokaalVoorbeeld(aanbeveling) {
                 if (stat.size < 1 || stat.size > MAX_BYTES) throw new Error('Luistervoorbeeld is leeg of te groot.');
                 await fs.rename(tmp, bestand);
                 await fs.writeFile(marker, 'volledige-audio-v1');
-                await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [id, bron.videoId]);
+                await pool.query('UPDATE aanbevelingen SET voorbeeld_bron=$2, youtube_video_titel=$3 WHERE id=$1', [id, bron.videoId, bron.titel || null]);
                 return { audioUrl: `${url}?v=${Math.floor((await fs.stat(bestand)).mtimeMs)}` };
             } catch (err) {
                 laatsteFout = (err.stderr && err.stderr.trim() ? err.stderr.slice(-900) : err.message);
