@@ -937,6 +937,46 @@ router.post('/api/admin/instellingen/logo', vereisAdmin, upload.single('logo'), 
     res.status(201).json({ thema, pad });
 });
 
+
+const CATEGORIE_BEELDSLEUTELS = new Set([
+    'films', 'muziek', 'games', 'collectie-alles', 'collectie-80s',
+    'collectie-90s', 'collectie-animatie', 'collectie-kinder',
+    'collectie-kerst', 'collectie-rock', 'collectie-100nl',
+]);
+router.get('/api/categorie-beelden', async (_req, res) => {
+    const { rows } = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'categorie_beelden' LIMIT 1");
+    res.json(rows[0]?.waarde || {});
+});
+router.post('/api/admin/categorie-beelden/:sleutel', vereisAdmin, upload.single('afbeelding'), async (req, res) => {
+    const sleutel = req.params.sleutel;
+    if (!CATEGORIE_BEELDSLEUTELS.has(sleutel)) return res.status(400).json({ fout: 'Onbekende afbeeldingspositie.' });
+    const extensies = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' };
+    const ext = extensies[String(req.file?.mimetype || '').toLowerCase()];
+    if (!req.file || !ext) return res.status(415).json({ fout: 'Gebruik PNG, JPG of WebP.' });
+    await fs.mkdir(UPLOAD_DIR, { recursive: true });
+    const naam = 'categorie-' + crypto.randomUUID() + ext;
+    await fs.writeFile(path.join(UPLOAD_DIR, naam), req.file.buffer, { flag: 'wx' });
+    const pad = '/media/uploads/' + naam;
+    const huidig = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'categorie_beelden' LIMIT 1");
+    const beelden = { ...(huidig.rows[0]?.waarde || {}), [sleutel]: pad };
+    await pool.query(
+        "INSERT INTO app_instellingen (sleutel, waarde, bijgewerkt_op) VALUES ('categorie_beelden', $1::jsonb, now()) ON CONFLICT (sleutel) DO UPDATE SET waarde = EXCLUDED.waarde, bijgewerkt_op = now()",
+        [JSON.stringify(beelden)]
+    );
+    res.status(201).json({ beelden });
+});
+router.delete('/api/admin/categorie-beelden/:sleutel', vereisAdmin, async (req, res) => {
+    if (!CATEGORIE_BEELDSLEUTELS.has(req.params.sleutel)) return res.status(400).json({ fout: 'Onbekende afbeeldingspositie.' });
+    const huidig = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'categorie_beelden' LIMIT 1");
+    const beelden = { ...(huidig.rows[0]?.waarde || {}) };
+    delete beelden[req.params.sleutel];
+    await pool.query(
+        "INSERT INTO app_instellingen (sleutel, waarde, bijgewerkt_op) VALUES ('categorie_beelden', $1::jsonb, now()) ON CONFLICT (sleutel) DO UPDATE SET waarde = EXCLUDED.waarde, bijgewerkt_op = now()",
+        [JSON.stringify(beelden)]
+    );
+    res.json({ beelden });
+});
+
 // ---- Database-overzicht en veilige opschoning ----
 router.get('/api/admin/database', vereisAdmin, async (_req, res) => {
     const { rows } = await pool.query(
