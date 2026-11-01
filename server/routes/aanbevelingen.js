@@ -381,6 +381,49 @@ router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) =
 // Bij het starten van de server de onafgemaakte taken oppakken.
 setTimeout(()=>loopAiQueue().catch(err=>logger.fout('AI-wachtrij herstellen mislukt',{melding:err.message})),5000).unref();
 
+// Directe Swipe-wachtrij voor alle bestaande films/series zonder MP3.
+// Handmatig aangedragen titels krijgen altijd voorrang.
+async function initPrioriteit() {
+    await pool.query("ALTER TABLE titels ADD COLUMN IF NOT EXISTS swipe_prioriteit TIMESTAMPTZ");
+}
+router.get('/api/admin/swipe/zonder-mp3', vereisAdmin, async (req,res)=>{
+    try {
+        await initPrioriteit();
+        const type=['film','serie'].includes(req.query.type)?req.query.type:'film';
+        const {rows}=await pool.query(`
+            SELECT t.id,t.naam,t.type::text AS type,t.jaar,t.poster_pad,t.swipe_prioriteit,
+                   t.zoek_status,t.zoek_melding
+            FROM titels t WHERE t.type::text=$1
+              AND t.curatie_status <> 'uitgesloten'
+              AND NOT EXISTS (
+                SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id AND tr.werkt=true
+                  AND tr.bron='lokaal' AND tr.download_status='available'
+                  AND NULLIF(tr.preview_url,'') IS NOT NULL
+              )
+            ORDER BY t.swipe_prioriteit DESC NULLS LAST, t.populariteit DESC, t.id
+            LIMIT 200`,[type]);
+        const {rows:count}=await pool.query(`
+            SELECT count(*)::int AS n FROM titels t WHERE t.type::text=$1
+              AND t.curatie_status <> 'uitgesloten'
+              AND NOT EXISTS(SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id
+                AND tr.werkt=true AND tr.bron='lokaal'
+                AND tr.download_status='available' AND NULLIF(tr.preview_url,'') IS NOT NULL)`,[type]);
+        res.json({kaarten:rows,totaal:count[0].n});
+    }catch(err){res.status(500).json({fout:err.message});}
+});
+router.post('/api/admin/swipe/zonder-mp3/:id', vereisAdmin, async(req,res)=>{
+    try {
+        const actie=req.body?.actie;
+        if(!['prioriteit','overslaan'].includes(actie)) return res.status(400).json({fout:'Ongeldige keuze'});
+        await initPrioriteit();
+        const {rows}=await pool.query(
+            "UPDATE titels SET swipe_prioriteit=$2, zoek_status=CASE WHEN $3='prioriteit' THEN 'wachtend' ELSE zoek_status END, volgende_poging=CASE WHEN $3='prioriteit' THEN NULL ELSE volgende_poging END WHERE id=$1 AND type IN ('film','serie') RETURNING id,naam",
+            [req.params.id,actie==='prioriteit'?new Date():null,actie]);
+        if(!rows.length) return res.status(404).json({fout:'Titel niet gevonden'});
+        res.json({ok:true,titel:rows[0]});
+    }catch(err){res.status(500).json({fout:err.message});}
+});
+
 // Handmatig een ontbrekende film of serie aanmelden voor muziekonderzoek.
 router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) => {
     const titel = String(req.body?.titel || '').trim().slice(0, 160);
@@ -390,6 +433,7 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
         return res.status(400).json({ fout: 'Geef een geldige titel, type en eventueel jaar op.' });
     }
     try {
+        await initPrioriteit();
         const bestaandTitel = await pool.query(
             `SELECT t.id, t.naam, t.type,
                     EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id AND tr.werkt=true
@@ -400,6 +444,7 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
         const bestaandAdvies = await pool.query(
             `SELECT id,status FROM aanbevelingen WHERE lower(trim(titel))=lower($1) AND type=$2
              ORDER BY id DESC LIMIT 1`, [titel,type]);
+        if (bestaandTitel.rows[0]) await pool.query('UPDATE titels SET swipe_prioriteit=now(), zoek_status=CASE WHEN $2 THEN zoek_status ELSE \'wachtend\' END, volgende_poging=CASE WHEN $2 THEN volgende_poging ELSE NULL END WHERE id=$1',[bestaandTitel.rows[0].id,bestaandTitel.rows[0].heeft_mp3]);
         if (bestaandTitel.rows[0]?.heeft_mp3) {
             return res.json({ok:true, bestaand:true, heeft_mp3:true, titel_id:bestaandTitel.rows[0].id,
                 toelichting:'Titel bestaat al en heeft een speelbare lokale MP3. Geen dubbele aanvraag aangemaakt.'});
