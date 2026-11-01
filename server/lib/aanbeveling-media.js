@@ -61,6 +61,9 @@ async function zoekVoorbeeld(aanbeveling) {
 // Download alleen bij het opvragen van een luistervoorbeeld. Hergebruik het
 // bestand bij opnieuw openen; zo hoeft de browser geen YouTube-iframe te laden.
 const previewDownloads = new Map();
+let audioInfrastructuurFout = null;
+let audioInfrastructuurTot = 0;
+function infrastructuurStoring() { return Date.now() < audioInfrastructuurTot ? audioInfrastructuurFout : null; }
 async function lokaalVoorbeeld(aanbeveling) {
     const id = Number(aanbeveling?.id);
     if (!Number.isSafeInteger(id) || id < 1) throw new Error('Ongeldige aanbeveling.');
@@ -82,6 +85,7 @@ async function lokaalVoorbeeld(aanbeveling) {
         return { audioUrl: `${url}?v=${Math.floor(stat.mtimeMs)}` };
     }
     if (previewDownloads.has(id)) return previewDownloads.get(id);
+    if (infrastructuurStoring()) throw new Error('Audiobron tijdelijk niet beschikbaar: ' + audioInfrastructuurFout);
     const taak = (async () => {
         await fs.mkdir(map, { recursive: true });
         const afgekeurd = new Set(aanbeveling.afgekeurde_bronnen || []);
@@ -108,6 +112,13 @@ async function lokaalVoorbeeld(aanbeveling) {
                 return { audioUrl: `${url}?v=${Math.floor((await fs.stat(bestand)).mtimeMs)}` };
             } catch (err) {
                 laatsteFout = (err.stderr && err.stderr.trim() ? err.stderr.slice(-900) : err.message);
+                // Serverbrede storingen (YouTube-blokkade, ffmpeg/yt-dlp ontbreekt)
+                // maken de VIDEO niet fout. Bewaar de bron voor later herstel.
+                if (/sign in|bot|cookies|HTTP Error 403|HTTP Error 429|too many requests|ffmpeg.*not found|ENOENT|no such file or directory|unable to download/i.test(laatsteFout)) {
+                    audioInfrastructuurFout = laatsteFout.slice(0, 350);
+                    audioInfrastructuurTot = Date.now() + 5 * 60 * 1000;
+                    throw new Error('Downloadservice niet beschikbaar: ' + audioInfrastructuurFout);
+                }
                 afgekeurd.add(bron.videoId);
                 logger.waarschuwing('Videobron niet downloadbaar', { id, videoId: bron.videoId, melding: laatsteFout.slice(0, 250) });
                 await pool.query(
