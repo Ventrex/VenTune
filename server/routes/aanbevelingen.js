@@ -798,10 +798,30 @@ async function runMp3Queue(){
   }
  }finally{mp3Worker=false;}
 }
+async function initUitsluitlijst(){
+ await pool.query(`CREATE TABLE IF NOT EXISTS swipe_uitsluitlijst (
+   aanbeveling_id BIGINT PRIMARY KEY REFERENCES aanbevelingen(id) ON DELETE CASCADE,
+   titel_id BIGINT, reden TEXT, uitgesloten_op TIMESTAMPTZ DEFAULT now())`);
+}
+router.post('/api/admin/aanbevelingen/:id/uitsluiten',vereisAdmin,async(req,res)=>{
+ try{
+  await initUitsluitlijst();
+  const id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({fout:'Ongeldig ID'});
+  const {rows}=await pool.query('SELECT id,titel_id FROM aanbevelingen WHERE id=$1',[id]);
+  if(!rows.length)return res.status(404).json({fout:'Niet gevonden'});
+  await pool.query("INSERT INTO swipe_uitsluitlijst(aanbeveling_id,titel_id,reden) VALUES($1,$2,'Handmatig afgekeurd') ON CONFLICT DO NOTHING",[id,rows[0].titel_id]);
+  await pool.query("DELETE FROM swipe_mp3_queue WHERE aanbeveling_id=$1",[id]);
+  await pool.query("UPDATE aanbevelingen SET status='fout',beoordeeld_op=now() WHERE id=$1",[id]);
+  if(rows[0].titel_id)await pool.query("UPDATE titels SET curatie_status='uitgesloten' WHERE id=$1",[rows[0].titel_id]);
+  res.json({ok:true,uitgesloten:true});
+ }catch(e){res.status(500).json({fout:e.message});}
+});
 // Download uitsluitend voor de geselecteerde categorie; maximaal 10 klaarstaande items.
 let actieveSwipe = null;
 async function vulSwipeBuffer(categorie,fase='blind'){
  await initMp3Queue();
+ await initUitsluitlijst();
  if(!categorie || !['film','serie','games','disney','kerst','rock','80s','90s','20s','kinder','100nl'].includes(categorie))return;
  actieveSwipe={categorie,fase};
  if(categorie==='games')await vulGameMuziekSwipe();
@@ -814,6 +834,7 @@ async function vulSwipeBuffer(categorie,fase='blind'){
   const {rows}=await pool.query(`SELECT a.id FROM aanbevelingen a
    LEFT JOIN swipe_mp3_queue q ON q.aanbeveling_id=a.id
    WHERE a.categorie=$1 AND a.status=$2 AND q.aanbeveling_id IS NULL
+    AND NOT EXISTS(SELECT 1 FROM swipe_uitsluitlijst bl WHERE bl.aanbeveling_id=a.id)
    ORDER BY a.aangemaakt_op LIMIT $3`,[categorie,status,nodig]);
   for(const r of rows)await pool.query(`INSERT INTO swipe_mp3_queue(aanbeveling_id)
    VALUES($1) ON CONFLICT DO NOTHING`,[r.id]);
@@ -849,6 +870,7 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
         const categorie = req.query.categorie === 'games' ? 'games' : aanbevelingen.CATEGORIEEN.includes(req.query.categorie) ? req.query.categorie : null;
         if (categorie === 'games') await vulGameMuziekSwipe();
         await initMp3Queue();
+        await initUitsluitlijst();
         const soort = req.query.soort === 'kerst' ? 'kerst' : req.query.soort === 'muziek' ? 'muziek' : 'film_serie';
         const fase = req.query.fase === 'naam' ? 'blind_nee' : 'nieuw';
         const { rows } = await pool.query(
@@ -856,6 +878,7 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
                     youtube_zoekterm, bekendheid, reden, voorbeeld_bron, status
              FROM aanbevelingen
              WHERE ($1::text IS NULL OR categorie = $1) AND status = $2
+               AND NOT EXISTS(SELECT 1 FROM swipe_uitsluitlijst bl WHERE bl.aanbeveling_id=aanbevelingen.id)
                AND (
                  EXISTS (SELECT 1 FROM swipe_mp3_queue q WHERE q.aanbeveling_id=aanbevelingen.id AND q.status='klaar')
                  OR EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=aanbevelingen.titel_id
