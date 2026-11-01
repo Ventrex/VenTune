@@ -1731,7 +1731,15 @@ function Uiterlijk({ onMelding }) {
                         ['collectie-rock','Muziek · Rock'], ['collectie-100nl','Muziek · 100% NL'],
                         ['platform-nintendo','Videogames · Nintendo'], ['platform-sega','Videogames · Sega'],
                         ['platform-playstation','Videogames · PlayStation'], ['platform-xbox','Videogames · Xbox'],
-                        ['platform-pc','Videogames · PC']
+                        ['platform-pc','Videogames · PC'],
+                        ['setup-rondes-kort','Rondes · Kort'], ['setup-rondes-medium','Rondes · Medium'],
+                        ['setup-rondes-lang','Rondes · Lang'], ['setup-rondes-oneindig','Rondes · Oneindig'],
+                        ['setup-spel-kindvriendelijk','Spelopties · Kindvriendelijk'], ['setup-spel-hints','Spelopties · Hints'],
+                        ['setup-spel-bonus','Spelopties · Bonusvragen'], ['setup-spel-info','Spelopties · Film- en serie-info'],
+                        ['setup-spel-tegen_elkaar','Wie speelt · Tegen elkaar'], ['setup-spel-om_en_om','Wie speelt · Om en om'],
+                        ['setup-spel-teams','Wie speelt · Teams'], ['setup-spel-bergexpeditie','Wie speelt · Bergexpeditie'],
+                        ['setup-modus-snelste','Spelsoort · Snelste'], ['setup-modus-kenner','Spelsoort · Kenner'],
+                        ['setup-antwoord-typen','Antwoordwijze · Typen'], ['setup-antwoord-meerkeuze','Antwoordwijze · 6 opties']
                     ].map(([sleutel, titel]) => <div className="vt-admin-category-image" key={sleutel}>
                         <strong>{titel}</strong>
                         {categorieBeelden[sleutel] ? <img src={categorieBeelden[sleutel]} alt={titel} /> : <small>Standaardbeeld / tekst</small>}
