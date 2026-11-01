@@ -50,6 +50,23 @@ function bouwFilter(f = {}) {
         condities.push("NOT ('Videogames' = ANY(t.muziek_genres) OR 'Videogames' = ANY(t.genres))");
     }
 
+    // Consoles/fabrikanten zijn afzonderlijke catalogustags; de selectie
+    // toont nooit nummers uit een andere fabrikant als er één is gekozen.
+    if ((f.game_only === true || f.categorie === 'games') && Array.isArray(f.platformen) && f.platformen.length) {
+        const geldig = f.platformen.filter(v => ['nintendo','sega','playstation','xbox','pc'].includes(v));
+        if (geldig.length) {
+            params.push([...new Set(geldig)]);
+            condities.push(`EXISTS (
+                SELECT 1 FROM unnest(
+                    COALESCE(t.themas, '{}'::text[]) ||
+                    COALESCE(t.muziek_genres, '{}'::text[]) ||
+                    COALESCE(t.genres, '{}'::text[])
+                ) AS platform(naam)
+                WHERE lower(platform.naam) = ANY(${params.length}::text[])
+            )`);
+        }
+    }
+
     const gekozenCollecties = Array.isArray(f.collecties) && f.collecties.length
         ? f.collecties
         : (f.collectie && f.collectie !== 'alles' ? [f.collectie] : []);
