@@ -2211,3 +2211,20 @@ body {
 .vt-game-platforms label {display:flex;align-items:center;gap:.4rem;font-size:.85rem;padding:.25rem;cursor:pointer}
 .vt-game-platforms input[type=checkbox] {width:16px;height:16px;accent-color:var(--red-hot)}
 .vt-titel-review .vt-review-row .knop {min-height:34px;padding:.3rem .65rem}
+
+/* Fix: .invoer had flex-basis:12rem, in een verticale .stapel werd dat 192px HOOG. */
+.admin-ai .stapel > .invoer,
+.admin-ai .stapel > input.invoer,
+.admin-ai .stapel > select.invoer,
+.admin-ai .stapel > textarea.invoer,
+.scherm .stapel > .invoer {
+  flex: 0 0 auto !important;
+  width: 100%;
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px;
+  box-sizing: border-box;
+  padding: .35rem .7rem !important;
+}
+.admin-ai .stapel > textarea.invoer { height: 80px !important; max-height: 140px; }
+.admin-ai .stapel { align-items: stretch; }
