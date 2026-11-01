@@ -217,3 +217,13 @@
 .vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .chip{height:75px;font-size:.62rem;padding:4px}
 .vt-collectie-pictogram{font-size:1.7rem}
 }
+
+/* Neon equalizer ornaments from the approved design */
+.vt-top-brand{display:inline-flex;align-items:center;gap:4px}
+.vt-top-brand .vt-top-equalizer{width:47px;height:43px;object-fit:contain}
+.vt-top-brand strong{font-weight:800;font-family:Montserrat,Arial,sans-serif}
+.vt-top-brand strong span{color:#ff54b7}
+.vt-categorie-scherm>h1{position:relative;display:flex;align-items:center;justify-content:center;gap:clamp(10px,2.1vw,30px)}
+.vt-categorie-scherm>h1:before,.vt-categorie-scherm>h1:after{content:'';display:block;flex:0 1 160px;height:73px;background:url('/category/equalizer.svg') no-repeat center/contain;filter:drop-shadow(0 0 9px #f22dacbb)}
+.vt-categorie-scherm>h1:after{transform:scaleX(-1)}
+@media(max-width:600px){.vt-categorie-scherm>h1:before,.vt-categorie-scherm>h1:after{flex:0 1 64px;height:47px}.vt-top-brand .vt-top-equalizer{width:34px;height:33px}}
