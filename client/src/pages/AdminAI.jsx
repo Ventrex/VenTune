@@ -75,6 +75,7 @@ function Paneel() {
                 <ChatGptKoppeling />
                 <Genereren />
             </div>
+            <CatalogusPerJaar />
             <QuizInhoud />
             <HerkenbaarheidBeheer />
             <MetadataVerrijken />
@@ -496,6 +497,33 @@ function HandmatigToevoegen() {
             <button className="knop" disabled={bezig}>Toevoegen aan muziekwachtrij</button>
         </form>
         {melding && <p className="feedback neutraal">{melding}</p>}
+    </section>;
+}
+
+function CatalogusPerJaar() {
+    const [status,setStatus]=useState(null);
+    const [melding,setMelding]=useState('');
+    const [fout,setFout]=useState('');
+    async function laad() {
+        try {const d=await haal('/api/admin/tmdb/catalogus/status');setStatus(d);setFout('');}
+        catch(err){setFout(err.message);}
+    }
+    useEffect(()=>{laad();const timer=setInterval(laad,4000);return ()=>clearInterval(timer);},[]);
+    async function start() {
+        try {
+            const r=await haal('/api/admin/tmdb/catalogus',{method:'POST',...jsonBody({})});
+            setMelding(r.gestart?'Catalogusimport op de server gestart; je kunt deze pagina verlaten.':('Andere taak actief: '+(r.taak||'onbekend')));
+            await laad();
+        }catch(err){setFout(err.message);}
+    }
+    return <section className="kaart ai-kaart">
+        <h3>Grote film- en seriecatalogus · per jaartal</h3>
+        <p className="dim">TMDB haalt films en series op voor ieder jaar vanaf 1980 t/m het huidige jaar, met Nederlandse regio-context. Dit is een aparte catalogusimport: niet beperkt tot wat ChatGPT zelf kan bedenken. TMDB bevestigt niet dat elke serie daadwerkelijk op Nederlandse televisie is uitgezonden.</p>
+        <div className="knoprij"><button className="knop" disabled={status?.bezig} onClick={start}>Catalogus 1980–nu ophalen</button><Link className="knop knop-stil" to="/admin">Ontbrekende MP3's: beheer</Link></div>
+        {status && <p className="dim">{status.bezig?'Bezig':'Status: '+(status.klaar?'afgerond':'niet gestart')} · {status.fase||status.stap||'catalogus'} · {status.verwerkt||0}/{status.totaal||'—'} verwerkt · {status.nieuw||0} nieuw · {status.bestaand||0} bestaand</p>}
+        {status?.fout && <p className="waarschuwing">{status.fout}</p>}
+        {melding && <p className="dim">{melding}</p>}
+        {fout && <p className="waarschuwing">{fout}</p>}
     </section>;
 }
 
