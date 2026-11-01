@@ -149,6 +149,36 @@ router.get('/api/admin/herkenbaarheid', vereisAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ fout: err.message }); }
 });
 
+// Controle van quizmateriaal: alleen lokale speelbare MP3's tellen mee.
+// Suggesties in controle zijn apart van definitief goedgekeurde inhoud.
+router.get('/api/admin/quiz-gezondheid', vereisAdmin, async (_req, res) => {
+    try {
+        const { rows } = await pool.query(`
+            SELECT t.id, t.naam, t.type::text AS type, t.jaar,
+                COALESCE(array_length(t.ai_hints, 1),0)::int AS hints,
+                t.ai_hints_status,
+                (SELECT count(*)::int FROM vragen v WHERE v.titel_id=t.id AND v.soort='ai') AS vragen,
+                (SELECT count(*)::int FROM vragen v WHERE v.titel_id=t.id AND v.soort='ai' AND v.ai_review_status='goedgekeurd') AS vragen_goedgekeurd,
+                EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id
+                    AND tr.werkt=true AND tr.bron='lokaal'
+                    AND tr.download_status='available'
+                    AND tr.preview_url IS NOT NULL AND tr.preview_url <> '') AS heeft_mp3
+            FROM titels t WHERE t.type IN ('film','serie')
+            ORDER BY t.id`);
+        const problemen = rows.filter(t => !t.heeft_mp3 || t.hints < 3 || t.vragen < 3 ||
+            t.ai_hints_status !== 'goedgekeurd' || t.vragen_goedgekeurd < 3);
+        res.json({
+            totaal: rows.length,
+            zonder_mp3: rows.filter(t => !t.heeft_mp3).length,
+            zonder_3_hints: rows.filter(t => t.hints < 3).length,
+            hints_ter_controle: rows.filter(t => t.hints >= 3 && t.ai_hints_status !== 'goedgekeurd').length,
+            zonder_3_vragen: rows.filter(t => t.vragen < 3).length,
+            vragen_ter_controle: rows.filter(t => t.vragen >= 3 && t.vragen_goedgekeurd < 3).length,
+            problemen: problemen.slice(0, 250)
+        });
+    } catch (err) { res.status(500).json({ fout: err.message }); }
+});
+
 // AI-vragenbank: voortgang, bulk-generatie en expliciete controle door beheerder.
 const quizBatch = { bezig: false, totaal: 0, verwerkt: 0, gelukt: 0, controle_nodig: 0, mislukt: 0, fouten: [] };
 router.get('/api/admin/ai-vragen/status', vereisAdmin, async (_req, res) => {
