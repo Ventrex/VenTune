@@ -644,3 +644,114 @@
   width:23px;height:23px;flex-basis:23px;
  }
 }
+
+
+/* Reference-inspired mobile cards: poster imagery and readable controls.
+   Keep two-panel composition, but eliminate dead space and tiny square art. */
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films{
+ border-color:#b256df!important;
+ background:linear-gradient(135deg,#451451bb,#161036f2 68%)!important;
+ box-shadow:0 0 24px #a01db02b,inset 0 1px #fff2!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>h2{
+ font-family:Montserrat,Arial,sans-serif!important;
+ font-weight:850!important;letter-spacing:-.025em;
+ border-bottom:1px solid #b955db66!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes{
+ background:linear-gradient(150deg,#2a1046,#110d2e)!important;
+ border-color:#a05bd1!important;border-radius:18px!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes>p{
+ font-size:clamp(.95rem,3.4vw,1.15rem)!important;font-weight:850!important;color:#fff;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{
+ display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .chip{
+ position:relative!important;isolation:isolate;
+ min-height:126px!important;height:clamp(128px,21vw,178px)!important;
+ padding:6px!important;display:flex!important;
+ flex-direction:column!important;justify-content:flex-end!important;
+ border:1px solid #bb61e9!important;border-radius:17px!important;
+ background:linear-gradient(160deg,#27103e,#100c29)!important;
+ box-shadow:inset 0 1px #fff2,0 6px 18px #0004!important;
+ overflow:hidden!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .chip.gekozen{
+ border:2px solid #ffbce7!important;box-shadow:0 0 20px #ff31938c!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .chip .vt-collectie-pictogram{
+ display:block!important;visibility:visible!important;
+ position:absolute!important;inset:0!important;z-index:-1!important;
+ width:100%!important;height:100%!important;
+ min-height:0!important;flex:none!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .chip .vt-collectie-pictogram img{
+ width:100%!important;height:100%!important;max-width:none!important;
+ object-fit:cover!important;object-position:center!important;filter:none!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .chip:before{
+ content:'';position:absolute;inset:38% 0 0;z-index:-1;
+ background:linear-gradient(transparent,#070518dd 75%);
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .chip .vt-collectie-label{
+ font-size:clamp(.92rem,3.7vw,1.2rem)!important;
+ font-weight:850!important;color:white!important;
+ text-shadow:0 2px 8px #060212,0 0 12px #080316!important;
+ z-index:1!important;position:relative!important;
+ overflow-wrap:normal!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .chip small{
+ z-index:1;font-size:.68rem!important;line-height:1.15;text-shadow:0 2px 5px black;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:first-of-type .chip{
+ border:1px solid #8453b2!important;
+ background:linear-gradient(145deg,#29123f,#14102f)!important;
+ box-shadow:inset 0 1px #ffffff17!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:first-of-type .chip.gekozen{
+ background:linear-gradient(135deg,#f62a99,#a71579)!important;
+ border-color:#ffd3ec!important;box-shadow:0 0 15px #f6339a88!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:first-of-type .chip .vt-type-art{
+ width:44px!important;height:44px!important;flex:0 0 44px!important;
+ border-radius:10px!important;object-fit:cover!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films .vt-selection-summary{
+ font-size:clamp(.76rem,2.6vw,.98rem)!important;padding:14px!important;
+ background:#572b7475!important;border:1px solid #9c54be55!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films .vt-startknop{
+ width:100%!important;max-width:none!important;min-height:66px!important;
+ background:linear-gradient(100deg,#fd2b9b,#ce0c84)!important;
+ border:1px solid #ff86ca!important;box-shadow:0 0 24px #ff27916c!important;
+ font-size:clamp(1.15rem,4.1vw,1.55rem)!important;
+}
+@media(max-width:620px){
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films{
+  grid-template-columns:minmax(0,41%) minmax(0,59%)!important;gap:9px!important;padding:12px!important;
+ }
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes{
+  min-width:0!important;padding:10px 8px!important;
+ }
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:first-of-type .chip{
+  min-height:70px!important;height:auto!important;padding:8px 5px!important;gap:5px!important;
+  font-size:clamp(.8rem,2.7vw,.97rem)!important;
+ }
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:first-of-type .chip .vt-type-art{
+  width:33px!important;height:33px!important;flex-basis:33px!important;
+ }
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .chip{
+  height:clamp(121px,20vw,157px)!important;min-height:121px!important;
+ }
+}
+@media(max-width:380px){
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films{
+  grid-template-columns:minmax(0,40%) minmax(0,60%)!important;gap:6px!important;
+ }
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes{padding:7px 5px!important}
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films>.vt-subkeuzes:first-of-type .chip .vt-type-art{
+  width:27px!important;height:27px!important;flex-basis:27px!important;
+ }
+}
