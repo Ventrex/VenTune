@@ -42,6 +42,12 @@ function bouwFilter(f = {}) {
         condities.push(`t.type IN ('film', 'serie')`);
     }
 
+    if (f.game_only === true || f.categorie === 'games') {
+        condities.push("t.type = 'muziek' AND ('Videogames' = ANY(t.muziek_genres) OR 'Videogames' = ANY(t.genres))");
+    } else if (categorieen.includes('muziek') && !categorieen.includes('film') && !categorieen.includes('serie')) {
+        condities.push("NOT ('Videogames' = ANY(t.muziek_genres) OR 'Videogames' = ANY(t.genres))");
+    }
+
     const gekozenCollecties = Array.isArray(f.collecties) && f.collecties.length
         ? f.collecties
         : (f.collectie && f.collectie !== 'alles' ? [f.collectie] : []);
