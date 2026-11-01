@@ -48,7 +48,7 @@ async function wachtOpRateLimit() {
 function markeerRateLimit(status) {
     if (status !== 429 && status !== 403) return;
     youtubeBlokkadePogingen = Math.min(6, youtubeBlokkadePogingen + 1);
-    const wacht = Math.min(6 * 60 * 60 * 1000, 30 * 60 * 1000 * (2 ** (youtubeBlokkadePogingen - 1)));
+    const wacht = Math.min(2 * 60 * 60 * 1000, 15 * 60 * 1000 * (2 ** (youtubeBlokkadePogingen - 1)));
     youtubeBlokkadeTot = Date.now() + wacht + Math.floor(Math.random() * 1500);
 }
 
