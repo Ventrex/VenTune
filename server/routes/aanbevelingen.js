@@ -754,7 +754,7 @@ function initMp3Queue(){
    pogingen INTEGER NOT NULL DEFAULT 0,
    volgende_poging TIMESTAMPTZ NOT NULL DEFAULT now(),
    fout TEXT, bijgewerkt TIMESTAMPTZ NOT NULL DEFAULT now()
- )`).then(()=>pool.query("UPDATE swipe_mp3_queue SET status='wachtend' WHERE status='bezig'"));
+ )`).then(()=>pool.query("ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS youtube_video_titel TEXT")).then(()=>pool.query("UPDATE swipe_mp3_queue SET status='wachtend' WHERE status='bezig'"));
  return mp3Init;
 }
 async function enqueueMp3(id,prioriteit=0){
@@ -875,7 +875,7 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
         const fase = req.query.fase === 'naam' ? 'blind_nee' : 'nieuw';
         const { rows } = await pool.query(
             `SELECT id, soort, titel, type, jaar, genres, tracknaam, artiest,
-                    youtube_zoekterm, bekendheid, reden, voorbeeld_bron, status
+                    youtube_zoekterm, bekendheid, reden, voorbeeld_bron, youtube_video_titel, status
              FROM aanbevelingen
              WHERE ($1::text IS NULL OR categorie = $1) AND status = $2
                AND NOT EXISTS(SELECT 1 FROM swipe_uitsluitlijst bl WHERE bl.aanbeveling_id=aanbevelingen.id)
