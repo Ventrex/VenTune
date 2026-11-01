@@ -501,3 +501,9 @@
 .vt-home-action .knop{min-height:43px}
 .vt-home-continue .terug{font-size:.75rem}
 @media(max-width:800px){.vt-home-actions{grid-template-columns:1fr}.vt-home-action{min-height:170px}.vt-home-new{min-height:215px}.vt-home-action-heading .vt-option-art{font-size:2.1rem}}
+
+.vt-saved-games{display:grid;gap:7px;max-height:230px;overflow-y:auto;width:100%;padding:2px}
+.vt-saved-game{display:flex;align-items:center;gap:6px;background:#100c2a;border:1px solid #7856ab;border-radius:12px;padding:5px}
+.vt-saved-resume{display:flex;flex-direction:column;align-items:flex-start;gap:2px;flex:1;min-width:0;border:0;background:none;color:#fff;padding:6px;cursor:pointer;text-align:left}
+.vt-saved-resume strong{font-size:.9rem}.vt-saved-resume small{font-size:.7rem}
+.vt-saved-remove{background:#4a2344;color:#ffc5da;border:1px solid #bc588f;border-radius:9px;font-size:1.1rem;padding:4px 11px;cursor:pointer}
