@@ -5,6 +5,7 @@ import { wisSessie } from '../lib/sessie.js';
 import Visualizer from '../components/Visualizer.jsx';
 import { AntwoordInfo } from './Host.jsx';
 import Timer from '../components/Timer.jsx';
+import IssueReport from '../components/IssueReport.jsx';
 import { dienBonusVraagIn } from '../lib/api.js';
 
 // Spelerscherm (telefoon). Geen audio, geen titel — alleen de visualizer
@@ -177,6 +178,8 @@ export default function Play() {
                     </p>
                 </>
             )}
+
+            {fase === 'raden' && ronde && <IssueReport key={ronde.rondeId} spel={spel} tijdensRonde />}
 
             {/* Raden */}
             {fase === 'raden' && ronde && (
