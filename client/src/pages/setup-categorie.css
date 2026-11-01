@@ -773,3 +773,44 @@
  .vt-game-settings .vt-option-card{min-height:126px}
  .vt-game-settings .vt-setting-switch .vt-setting-art{width:34px;height:34px;flex-basis:34px}
 }
+
+
+/* Compact one-view game settings on phones, preserving neon purple/pink UI.
+   No hidden settings or internal scroll: full list remains readable. */
+@media(max-width:760px){
+ .setup-scherm:has(.vt-compact-setup){padding:8px 10px 20px!important;width:100%!important;max-width:100%!important}
+ .vt-compact-setup{width:100%;max-width:100%;margin:0!important}
+ .vt-compact-setup>h1{font-size:clamp(1.2rem,5.2vw,1.65rem)!important;line-height:1.1!important;margin:5px 0 9px!important}
+ .vt-compact-setup .setup-bovenbalk{padding:7px 10px!important;margin:0 0 5px!important;display:flex;align-items:center;gap:8px}
+ .vt-compact-setup .setup-bovenbalk .kaart-label{margin:0!important;font-size:.75rem}
+ .vt-compact-setup .setup-bovenbalk select{flex:1;min-width:0;max-width:100%;min-height:35px!important;height:35px!important;padding:4px 8px!important;font-size:.78rem}
+ .vt-compact-setup .vt-game-settings{gap:7px!important;margin:0!important}
+ .vt-compact-setup .vt-options-panel{padding:9px 10px!important;border-radius:14px!important;margin:0!important;background:linear-gradient(145deg,#28123dc7,#11112ad9)!important;border:1px solid #7948a983!important}
+ .vt-compact-setup .vt-options-panel h2{font-size:.9rem!important;margin:0 0 6px!important}
+ .vt-compact-setup .vt-choice-grid,.vt-compact-setup .vt-choice-grid.vt-four{gap:6px!important}
+ .vt-compact-setup .vt-choice-grid.vt-four{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+ .vt-compact-setup .vt-option-card{min-height:66px!important;padding:5px 3px!important;gap:1px!important;border-radius:11px!important;justify-content:center}
+ .vt-compact-setup .vt-option-card strong{font-size:clamp(.64rem,2.6vw,.82rem)!important;line-height:1.15!important}
+ .vt-compact-setup .vt-option-card small{font-size:.58rem!important;line-height:1.1!important}
+ .vt-compact-setup .vt-setup-art{width:25px!important;height:25px!important;margin:0 auto 2px!important}
+ .vt-compact-setup .vt-switch-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important}
+ .vt-compact-setup .vt-setting-switch{padding:7px!important;gap:5px!important;min-height:51px!important;border-radius:10px!important}
+ .vt-compact-setup .vt-setting-switch .vt-setting-art{width:20px!important;height:20px!important;flex:0 0 20px!important}
+ .vt-compact-setup .vt-setting-switch strong{font-size:.68rem!important;line-height:1.12}
+ .vt-compact-setup .vt-setting-switch small{font-size:.58rem!important;line-height:1.1}
+ .vt-compact-setup .vt-switch-track{flex-basis:31px!important;height:19px!important}
+ .vt-compact-setup .vt-switch-track:before{width:13px!important;height:13px!important;top:2px!important;left:2px!important}
+ .vt-compact-setup .vt-setting-switch input:checked+.vt-switch-track:before{transform:translateX(12px)!important}
+ .vt-compact-setup .vt-settings-pair{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+ .vt-compact-setup .vt-settings-pair .vt-choice-grid.vt-two{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .vt-compact-setup .vt-settings-pair .vt-option-card{min-height:63px!important}
+ .vt-compact-setup .vt-duration-slider{padding:5px 9px!important;gap:3px!important}
+ .vt-compact-setup .vt-select-duration{margin-top:5px!important}
+ .vt-compact-setup .vt-duration-grid{margin-top:6px!important}
+ .vt-compact-setup .vt-setting-switch:focus-within,.vt-compact-setup .vt-option-card:focus-visible{outline:2px solid #ffc4e6;outline-offset:1px}
+}
+@media(max-width:390px){
+ .vt-compact-setup .vt-setting-switch .vt-setting-art{display:none!important}
+ .vt-compact-setup .vt-setting-switch strong{font-size:.64rem!important}
+ .vt-compact-setup .vt-option-card small{display:none!important}
+}
