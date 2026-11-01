@@ -24,6 +24,10 @@ const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body
 
 export default function AdminSwipe() {
     const [titelReview, setTitelReview] = useState(false);
+    const [zonderMp3, setZonderMp3] = useState(false);
+    const [mp3Kaarten,setMp3Kaarten]=useState([]);
+    const [mp3Totaal,setMp3Totaal]=useState(0);
+    const [mp3Fout,setMp3Fout]=useState('');
     const [titelKaarten, setTitelKaarten] = useState([]);
     const [titelFout, setTitelFout] = useState('');
     const [titelBezig, setTitelBezig] = useState(null);
@@ -70,6 +74,19 @@ export default function AdminSwipe() {
         finally { setTitelBezig(null); }
     }
 
+    async function laadZonderMp3() {
+        try {
+            const r=await haal('/api/admin/swipe/zonder-mp3?type='+categorie);
+            setMp3Kaarten(r.kaarten||[]);setMp3Totaal(r.totaal||0);setMp3Fout('');
+        }catch(err){setMp3Fout(err.message);}
+    }
+    useEffect(()=>{if(zonderMp3)laadZonderMp3();},[zonderMp3,categorie]);
+    async function prioriteit(t,actie) {
+        try {
+            await haal('/api/admin/swipe/zonder-mp3/'+t.id,{method:'POST',...jsonBody({actie})});
+            await laadZonderMp3();
+        } catch(err){setMp3Fout(err.message);}
+    }
     const huidige = kaarten[index];
     const klaar = !laadt && !huidige;
 
@@ -134,9 +151,24 @@ export default function AdminSwipe() {
             </div>
 
             <div className="swipe-tabs">
-                <button className={'knop' + (!titelReview ? '' : ' knop-stil')} onClick={() => setTitelReview(false)}>Muziek swipen</button>
-                <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => setTitelReview(true)}>Films/series goedkeuren</button>
+                <button className={'knop' + (!titelReview && !zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(false);}}>Muziek swipen</button>
+                <button className={'knop' + (zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(true);}}>Zonder MP3 · hele database</button>
+                <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => {setTitelReview(true);setZonderMp3(false);}}>Nieuwe titels beoordelen</button>
             </div>
+            {zonderMp3 ? <section className="kaart vt-titel-review">
+                <h2>Films en series zonder MP3</h2>
+                <select className="invoer" value={categorie} onChange={e=>setCategorie(e.target.value)}>
+                    <option value="film">Films</option><option value="serie">Series</option>
+                </select>
+                <p className="dim">{mp3Totaal} titels zonder lokale MP3 · eerste 200 zichtbaar. Handmatige aanvragen staan bovenaan en worden automatisch gezocht.</p>
+                {mp3Fout && <p className="waarschuwing">{mp3Fout}</p>}
+                {mp3Kaarten.map(t=><div className="vt-review-row" key={t.id}>
+                    {t.poster_pad && <img src={'https://image.tmdb.org/t/p/w185'+t.poster_pad} loading="lazy" alt="" />}
+                    <div><strong>{t.naam}</strong><p className="dim">{t.type} · {t.jaar||'—'} · {t.zoek_status||'niet gezocht'}{t.swipe_prioriteit?' · voorrang':''}</p>
+                        <button className="knop knop-stil" onClick={()=>prioriteit(t,'prioriteit')}>Met voorrang MP3 zoeken</button>
+                    </div>
+                </div>)}
+            </section> : 
             {titelReview ? (
                 <section className="kaart vt-titel-review">
                     <h2>Nieuwe films en series</h2>
@@ -276,7 +308,7 @@ export default function AdminSwipe() {
                     </p>
                 </>
             )}
-            </>}
+            </>}}
         </main>
     );
 }
