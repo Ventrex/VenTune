@@ -4,7 +4,7 @@ import * as api from '../lib/api.js';
 import { audioBron } from '../lib/api.js';
 import { haalVideoId } from '../lib/youtube.js';
 import Brand from '../components/Brand.jsx';
-import { QuizInhoud, HerkenbaarheidBeheer, ChatGptKoppeling, Genereren, CatalogusPerJaar } from './AdminAI.jsx';
+import { QuizInhoud, HerkenbaarheidBeheer, ChatGptKoppeling, Genereren, CatalogusPerJaar, GamesCatalogus } from './AdminAI.jsx';
 
 // ---------------------------------------------------------------------
 // Indeling van het beheerportaal.
@@ -698,7 +698,7 @@ function Beheer({ onUit }) {
                 />
             )}
 
-            {tab === 'ai-generator' && <><div className="ai-grid"><ChatGptKoppeling /><Genereren /></div><CatalogusPerJaar /><p><Link className="knop knop-stil" to="/admin/swipe">Ga naar Swipe →</Link></p><QuizInhoud /><HerkenbaarheidBeheer /></>}
+            {tab === 'ai-generator' && <><div className="ai-grid"><ChatGptKoppeling /><Genereren /></div><CatalogusPerJaar /><GamesCatalogus /><p><Link className="knop knop-stil" to="/admin/swipe">Ga naar Swipe →</Link></p><QuizInhoud /><HerkenbaarheidBeheer /></>}
             {tab === 'ai-generator' && <section className="kaart"><h2>AI · Vragen en hints</h2><p className="dim">Genereer bonusvragen uit beschikbare titelmetadata. Geldige hints en vragen zijn direct speelbaar; spelers kunnen fouten melden.</p><button className="knop" type="button" disabled={bezigVragen} onClick={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Bonusvragen aanvullen…', 'Vragen klaar.')}>{bezigVragen?'Genereren…':'Bonusvragen aanvullen'}</button><p className="dim">Drie onafhankelijk gecontroleerde hints en vragen per titel zijn nog niet gegarandeerd.</p></section>}
             {tab === 'vragen' && (
                 <VraagSuggesties
