@@ -175,7 +175,7 @@ export default function AdminSwipe() {
             </div>
 
             <div className="swipe-tabs">
-                <button className={'knop' + (!titelReview && !zonderMp3 && !gameSwipe ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(false);}}>Muziek swipen</button>
+                <button className={'knop' + (!titelReview && !zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(false);}}>Muziek swipen</button>
                 <button className={'knop' + (zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(true);}}>Zonder MP3 · hele database</button>
                 <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => {setTitelReview(true);setZonderMp3(false);}}>Nieuwe titels beoordelen</button>
             </div>
