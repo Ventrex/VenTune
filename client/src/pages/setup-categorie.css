@@ -114,3 +114,64 @@
 @media(max-width:1050px){.vt-category-workspace{grid-template-columns:minmax(0,1fr) 225px;gap:10px}.vt-category-workspace .vt-categorie-paneel:has(>.vt-subkeuzes + .vt-subkeuzes){grid-template-columns:1fr}.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{grid-template-columns:repeat(5,minmax(0,1fr))}.vt-category-workspace .vt-hoofdkaart{height:150px}.vt-category-workspace .vt-uiterlijk-paneel .thema-knop{min-height:82px}.vt-category-workspace .vt-uiterlijk-paneel .thema-emoji{height:45px}}
 @media(max-width:760px){.vt-category-workspace{grid-template-columns:1fr}.vt-category-workspace .vt-hoofdkaarten{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.vt-category-workspace .vt-hoofdkaart{height:155px}.vt-category-workspace .vt-categorie-aside{display:grid;grid-template-columns:1fr 1fr}.vt-category-workspace .vt-uiterlijk-paneel{min-height:0}.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .chip{height:100px}.vt-collectie-pictogram{font-size:2rem}}
 @media(max-width:480px){.vt-category-workspace .vt-categorie-aside{grid-template-columns:1fr}.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{grid-template-columns:repeat(3,minmax(0,1fr))}.vt-category-workspace .vt-hoofdkaart{height:135px}.vt-selection-summary{font-size:.68rem}}
+
+/* Approved mobile layout: cards, themes, controls, expedition, visual preferences */
+.vt-opties-onder{display:grid;grid-template-columns:minmax(0,1fr) 265px;gap:16px;margin-top:16px;padding:15px 0 0;border-top:2px solid #dd39cb80}
+.vt-opties-onder h3{font-size:.9rem;margin:0 0 10px;text-align:left;color:#f4e5ff}
+.vt-achtergrond-lijst{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:8px}
+.vt-achtergrond-tile,.vt-font-tile{position:relative;min-width:0;min-height:94px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;overflow:hidden;color:#fff;background:#110c2a;border:1px solid #8563b5;border-radius:12px;cursor:pointer;padding:5px 3px;font-size:.61rem;gap:3px}
+.vt-achtergrond-tile.gekozen,.vt-font-tile.gekozen{border:2px solid #ff309c;box-shadow:0 0 14px #ff26969c}
+.vt-bg-preview{width:100%;height:65px;display:grid;place-items:center;font-size:2.3rem;border-radius:7px;background:var(--bg-art);color:#f9dcff}
+.vt-bg-standaard{--bg-art:radial-gradient(ellipse at 50% 90%,#fa2798,#360d68 62%,#100b29)}
+.vt-bg-neon{--bg-art:repeating-linear-gradient(125deg,#0d103a,#1937ac 9px,#fc279a 13px,#060f37 22px,#13caff 26px)}
+.vt-bg-bioscoop{--bg-art:repeating-linear-gradient(90deg,#410a1b,#ce2243 18%,#340a16 35%,#17050e 50%)}
+.vt-bg-retro{--bg-art:linear-gradient(180deg,#f5a44d 0%,#ed498c 48%,#4f206e 51%,#0b103c)}
+.vt-bg-game{--bg-art:radial-gradient(circle,#0563ac,#090f34)}
+.vt-bg-kerst{--bg-art:radial-gradient(circle,#a71937,#082a27)}
+.vt-bg-winters{--bg-art:linear-gradient(160deg,#cfe9ff,#4e99de,#15326d)}
+.vt-bg-space{--bg-art:radial-gradient(ellipse,#d772d5,#371577,#050b35)}
+.vt-bg-natuur{--bg-art:linear-gradient(#a6d6f3,#469d7b,#11412f)}
+.vt-bg-donker{--bg-art:linear-gradient(130deg,#020408,#1f2532)}
+.vt-bg-licht{--bg-art:linear-gradient(145deg,#e8f5ff,#99c7ec)}
+.vt-bg-licht .vt-bg-preview{color:#304661}
+.vt-achtergrond-check,.vt-font-tile i{position:absolute;top:2px;right:4px;border-radius:50%;background:#ff2994;color:#fff;padding:1px 5px;font-size:.7rem}
+.vt-font-lijst{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.vt-font-tile{min-height:94px;justify-content:center;font-size:.7rem}
+.vt-font-tile b{font-size:2rem}.vt-font-tile:nth-child(2){font-family:'Poppins',sans-serif}.vt-font-tile:nth-child(3){font-family:Roboto,Arial,sans-serif}
+:root[data-lettertype='poppins'] .vt-categorie-scherm{font-family:'Poppins',Arial,sans-serif}
+:root[data-lettertype='roboto'] .vt-categorie-scherm{font-family:Roboto,Arial,sans-serif}
+:root[data-lettertype='montserrat'] .vt-categorie-scherm{font-family:Montserrat,'Arial',sans-serif}
+:root[data-achtergrond='neon'] .setup-scherm:has(.vt-categorie-scherm){background:radial-gradient(ellipse at 90% 5%,#062c72aa,transparent 60%),radial-gradient(ellipse at 12% 100%,#791361aa,transparent 62%),#09051d}
+:root[data-achtergrond='bioscoop'] .setup-scherm:has(.vt-categorie-scherm){background:radial-gradient(ellipse at top,#5c1026,transparent 70%),#10030b}
+:root[data-achtergrond='retro'] .setup-scherm:has(.vt-categorie-scherm){background:linear-gradient(140deg,#371064,#1d0f4b 55%,#511a5e)}
+:root[data-achtergrond='game'] .setup-scherm:has(.vt-categorie-scherm){background:radial-gradient(circle at top,#082e6b,#08071d 72%)}
+:root[data-achtergrond='kerst'] .setup-scherm:has(.vt-categorie-scherm){background:radial-gradient(ellipse at top,#1b473c,#090e15 74%)}
+:root[data-achtergrond='winters'] .setup-scherm:has(.vt-categorie-scherm){background:linear-gradient(140deg,#071d46,#275c8d,#0d1236)}
+:root[data-achtergrond='space'] .setup-scherm:has(.vt-categorie-scherm){background:radial-gradient(ellipse at 70% 15%,#74378c,#0d0a2b 62%,#03050f)}
+:root[data-achtergrond='natuur'] .setup-scherm:has(.vt-categorie-scherm){background:linear-gradient(150deg,#0b3c42,#133e31,#061a23)}
+:root[data-achtergrond='donker'] .setup-scherm:has(.vt-categorie-scherm){background:#050509}
+:root[data-achtergrond='licht'] .setup-scherm:has(.vt-categorie-scherm){background:linear-gradient(135deg,#718cad,#a6b4d1,#445d88)}
+@media(max-width:1250px){.vt-achtergrond-lijst{grid-template-columns:repeat(6,minmax(0,1fr))}.vt-opties-onder{grid-template-columns:minmax(0,1fr) 230px}}
+@media(max-width:760px){
+.vt-category-workspace,.vt-category-left,.vt-category-workspace .vt-categorie-aside{display:contents}
+.vt-categorie-scherm{display:flex;flex-direction:column}
+.vt-category-workspace .vt-hoofdkaarten{order:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.vt-category-workspace .vt-uiterlijk-paneel{order:2;margin-bottom:12px}
+.vt-category-workspace .vt-categorie-paneel{order:3;margin-bottom:12px}
+.vt-category-workspace .vt-berg-paneel{order:4;margin-bottom:12px}
+.vt-opties-onder{order:5;grid-template-columns:minmax(0,1fr);gap:14px}
+.vt-category-workspace .vt-uiterlijk-paneel .thema-kiezer{grid-template-columns:repeat(6,minmax(0,1fr))}
+.vt-category-workspace .vt-categorie-paneel:has(>.vt-subkeuzes + .vt-subkeuzes){grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:9px}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{grid-template-columns:repeat(2,minmax(0,1fr))}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .chip{height:90px}
+.vt-achtergrond-lijst{grid-template-columns:repeat(6,minmax(0,1fr))}
+.vt-category-workspace .vt-hoofdkaart{height:clamp(135px,25vw,195px)}
+}
+@media(max-width:480px){
+.vt-category-workspace .vt-uiterlijk-paneel .thema-kiezer{grid-template-columns:repeat(3,minmax(0,1fr))}
+.vt-category-workspace .vt-categorie-paneel:has(>.vt-subkeuzes + .vt-subkeuzes){grid-template-columns:1fr}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:first-of-type .vt-keuzerij{grid-template-columns:1fr}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{grid-template-columns:repeat(3,minmax(0,1fr))}
+.vt-achtergrond-lijst{grid-template-columns:repeat(4,minmax(0,1fr))}
+.vt-selection-summary{flex-direction:column;align-items:flex-start}
+}
