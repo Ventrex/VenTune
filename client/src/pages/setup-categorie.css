@@ -608,3 +608,39 @@
 @media(max-width:600px){
  .vt-lobby-layout .host-wacht-rechts,.vt-lobby-layout .vt-team-panel,.vt-lobby-layout .lobby-instellingen{padding:14px!important}
 }
+
+
+/* FIX 2026-11-01: narrow Type area on phones must never use 3 skinny columns.
+   Use full-width readable rows beside the collection tiles. */
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films > .vt-subkeuzes:first-of-type .vt-keuzerij{
+ display:flex!important;flex-direction:column!important;grid-template-columns:none!important;
+ align-items:stretch!important;gap:9px!important;min-width:0!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films > .vt-subkeuzes:first-of-type .vt-keuzerij > .chip{
+ width:100%!important;min-width:0!important;max-width:100%!important;
+ min-height:61px!important;height:auto!important;
+ padding:12px 10px!important;border-radius:14px!important;
+ white-space:normal!important;overflow-wrap:normal!important;
+ font-size:clamp(.83rem,3.5vw,1rem)!important;line-height:1.25!important;
+ display:flex!important;align-items:center!important;justify-content:flex-start!important;
+ text-align:left!important;gap:9px!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films > .vt-subkeuzes:first-of-type .chip .vt-option-label{
+ display:block!important;white-space:normal!important;word-break:normal!important;
+ font-size:inherit!important;line-height:1.2!important;
+}
+.vt-category-workspace .vt-categorie-paneel.vt-categorie-films > .vt-subkeuzes:first-of-type .chip .vt-type-art{
+ width:30px;height:30px;flex:0 0 30px;object-fit:contain;
+ filter:drop-shadow(0 0 5px #ff48bb80);
+}
+@media(max-width:440px){
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films > .vt-subkeuzes:first-of-type .vt-keuzerij{
+  display:flex!important;flex-direction:column!important;grid-template-columns:none!important;
+ }
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films > .vt-subkeuzes:first-of-type .vt-keuzerij > .chip{
+  min-height:55px!important;padding:9px 6px!important;font-size:.8rem!important;
+ }
+ .vt-category-workspace .vt-categorie-paneel.vt-categorie-films > .vt-subkeuzes:first-of-type .chip .vt-type-art{
+  width:23px;height:23px;flex-basis:23px;
+ }
+}
