@@ -175,3 +175,25 @@
 .vt-achtergrond-lijst{grid-template-columns:repeat(4,minmax(0,1fr))}
 .vt-selection-summary{flex-direction:column;align-items:flex-start}
 }
+
+/* Match the approved mobile screenshot without the redundant desktop nav */
+.setup-scherm:has(.vt-categorie-scherm)>.merk-link{display:none}
+.vt-category-workspace .vt-berg-paneel{background:linear-gradient(145deg,#20133d,#14224c)!important;background-image:url('/category/mountain.svg')!important;background-position:center bottom!important;background-size:cover!important}
+.vt-category-workspace .vt-berg-paneel p{max-width:74%;text-shadow:0 1px 4px #090824}
+.vt-category-workspace .vt-berg-icon{display:none}
+@media(max-width:760px){
+.vt-category-topnav{justify-content:space-between!important;flex-wrap:nowrap!important;padding:12px!important;margin:0 -12px 12px!important;width:calc(100% + 24px)!important}
+.vt-category-topnav .vt-top-links{display:none!important}
+.vt-category-topnav .vt-top-brand{font-size:clamp(1.2rem,5.2vw,1.8rem)}
+.vt-category-topnav .vt-top-user{margin-left:auto}
+.vt-categorie-scherm>h1{font-size:clamp(1.65rem,6.7vw,2.6rem);white-space:normal;text-align:center;margin:5px 0 0}
+.vt-category-workspace .vt-berg-paneel{height:180px!important}
+.vt-category-workspace .vt-categorie-paneel{background:linear-gradient(115deg,#4b174fa8,#1b1044a8)!important}
+.vt-category-workspace .vt-uiterlijk-paneel{border:1px solid #c352edbd}
+.vt-category-workspace .vt-uiterlijk-paneel .thema-knop{min-height:90px}
+.vt-opties-onder{margin-top:0}
+}
+@media(max-width:480px){
+.vt-category-workspace .vt-uiterlijk-paneel .thema-kiezer{grid-template-columns:repeat(3,minmax(0,1fr))}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
