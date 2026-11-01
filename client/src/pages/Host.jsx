@@ -25,6 +25,7 @@ export default function Host() {
         bonus,
         bonusResultaat,
         scorebord,
+        berg,
         spelers,
         teams,
         lobbyInstellingen,
@@ -345,6 +346,13 @@ export default function Host() {
                     {qrGroot && <div className="vt-qr-overlay" role="dialog" aria-modal="true" aria-label="Vergrote QR-code" onClick={() => setQrGroot(false)}><div className="vt-qr-modal" onClick={e=>e.stopPropagation()}><button className="knop knop-stil" type="button" onClick={() => setQrGroot(false)}>Sluiten ×</button><p className="lobby-code">{sessie.code}</p><QRCodeSVG value={joinUrl} size={320} bgColor="#ffffff" fgColor="#111111" includeMargin/><p>Scan om mee te doen</p></div></div>}
                 </>
             )}
+
+            {lobbyInstellingen?.spelvorm === 'bergexpeditie' && fase !== 'wachten' && <section className="vt-berg-voortgang" aria-live="polite">
+                <strong>🏔 Bergexpeditie · {berg?.hoogte ?? 0} etappes geklommen</strong>
+                <span>{'♥'.repeat(Math.max(0,(berg?.maxFouten ?? lobbyInstellingen?.berg_fouten_max ?? 3)-(berg?.fouten ?? 0)))}{'♡'.repeat(berg?.fouten ?? 0)} · {berg?.fouten ?? 0} fout(en)</span>
+                <div className="vt-berg-klimlijn"><span style={{width: ((berg?.hoogte ?? 0)/Math.max(1,ronde?.totaal || 30)*100)+'%'}} /></div>
+                {berg?.fouten >= berg?.maxFouten && <p>De expeditie is voorbij. Bekijk de eindstand of start opnieuw.</p>}
+            </section>}
 
             {fase === 'raden' && ronde && <IssueReport key={ronde.rondeId} spel={spel} tijdensRonde />}
 
