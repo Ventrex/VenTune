@@ -247,7 +247,9 @@ async function verzamel(soort, type, extraParams, paginas, label, teller, minSte
             });
         } catch (err) {
             if (err.code === 'ONGELDIGE_SLEUTEL') throw err; // meteen stoppen
-            console.log(`  ${label} pagina ${p}: ${err.message}`);
+            console.error(`  ${label} pagina ${p}: ${err.message}`);
+            if (!teller.eersteApiFout) teller.eersteApiFout = `${label}: ${err.message}`;
+            teller.apiFouten = (teller.apiFouten || 0) + 1;
             break;
         }
         const resultaten = data.results || [];
@@ -749,8 +751,8 @@ async function importeerTmdb({ paginas = PAGINAS, minStemmen = MIN_STEMMEN, type
         }
     }
 
-    if (teller.fouten > 0 && teller.nieuw === 0 && teller.bestond === 0) {
-        throw new Error(`TMDB heeft geen titels kunnen opslaan (${teller.fouten} fouten). ${teller.eersteFout || 'Controleer database en logs.'}`);
+    if ((teller.fouten > 0 || teller.apiFouten > 0) && teller.nieuw === 0 && teller.bestond === 0) {
+        throw new Error(`TMDB heeft geen titels kunnen importeren. ${teller.eersteFout || teller.eersteApiFout || 'Controleer TMDB en database.'}`);
     }
 
     const totaal = await pool.query(
