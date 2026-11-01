@@ -402,6 +402,10 @@ export default function Play() {
                 </div>
             )}
 
+            {fase === 'onthul' && antwoord && <IssueReport key={'onthul-' + ronde?.rondeId} spel={spel} />}
+            {fase === 'bonus' && antwoord && <IssueReport key={'bonus-' + ronde?.rondeId} spel={spel} />}
+            {fase === 'scorebord' && antwoord && <IssueReport key={'score-' + ronde?.rondeId} spel={spel} />}
+
             {/* Titel onthuld (korte tussenfase voor de bonus) */}
             {fase === 'onthul' && antwoord && (
                 <>
