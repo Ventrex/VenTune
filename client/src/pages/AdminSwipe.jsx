@@ -25,7 +25,6 @@ const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body
 export default function AdminSwipe() {
     const [titelReview, setTitelReview] = useState(false);
     const [zonderMp3, setZonderMp3] = useState(false);
-    const [gameSwipe,setGameSwipe]=useState(false);
     const [games,setGames]=useState([]);
     const [gameAudio,setGameAudio]=useState('');
     const [gameFout,setGameFout]=useState('');
@@ -37,7 +36,8 @@ export default function AdminSwipe() {
     const [titelBezig, setTitelBezig] = useState(null);
     const [fase, setFase] = useState('blind');       // blind | naam
     const [categorie, setCategorie] = useState('film');
-    const categorieen = [['film', 'Films'], ['serie', 'Series'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
+    const gameSwipe = categorie === 'games' && !zonderMp3 && !titelReview;
+    const categorieen = [['film', 'Films'], ['serie', 'Series'], ['games', 'Videogames'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
     const [kaarten, setKaarten] = useState([]);
     const [index, setIndex] = useState(0);
     const [audioUrl, setAudioUrl] = useState(null);
@@ -175,11 +175,17 @@ export default function AdminSwipe() {
             </div>
 
             <div className="swipe-tabs">
-                <button className={'knop' + (gameSwipe ? '' : ' knop-stil')} onClick={()=>{setGameSwipe(true);setTitelReview(false);setZonderMp3(false);}}>Videogames</button>
-                <button className={'knop' + (!titelReview && !zonderMp3 && !gameSwipe ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(false);setGameSwipe(false);}}>Muziek swipen</button>
-                <button className={'knop' + (zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(true);setGameSwipe(false);}}>Zonder MP3 · hele database</button>
-                <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => {setTitelReview(true);setZonderMp3(false);setGameSwipe(false);}}>Nieuwe titels beoordelen</button>
+                <button className={'knop' + (!titelReview && !zonderMp3 && !gameSwipe ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(false);}}>Muziek swipen</button>
+                <button className={'knop' + (zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(true);}}>Zonder MP3 · hele database</button>
+                <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => {setTitelReview(true);setZonderMp3(false);}}>Nieuwe titels beoordelen</button>
             </div>
+            {!zonderMp3 && !titelReview && <div className="swipe-tabs" style={{marginTop:'.25rem'}}>
+                <label style={{width:'100%'}}>Muziekcategorie
+                    <select className="invoer" value={categorie} onChange={e=>setCategorie(e.target.value)}>
+                        {categorieen.map(([waarde,naam])=><option value={waarde} key={waarde}>{naam}</option>)}
+                    </select>
+                </label>
+            </div>}
             {gameSwipe ? <section className="kaart vt-titel-review">
                 <h2>Videogames · Muziek-Swipe</h2>
                 <p className="dim">Luister naar de originele gamemuziek. Keur alleen correcte muziek en herkenbare games goed.</p>
@@ -236,11 +242,6 @@ export default function AdminSwipe() {
                 <button className={'knop' + (fase === 'naam' ? '' : ' knop-stil')} onClick={() => setFase('naam')}>
                     2. Met naam
                 </button>
-            </div>
-            <div className="swipe-tabs" style={{ marginTop: '-0.5rem' }}>
-                <select className="invoer" value={categorie} onChange={(e) => setCategorie(e.target.value)}>
-                    {categorieen.map(([waarde, naam]) => <option key={waarde} value={waarde}>{naam}</option>)}
-                </select>
             </div>
 
             <p className="dim swipe-uitleg" style={{ marginTop: 0 }}>
