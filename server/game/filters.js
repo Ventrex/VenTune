@@ -86,6 +86,16 @@ function bouwFilter(f = {}) {
         );
     }
 
+    // Directe categorie-filtering: deze keuzekaarten mogen niet afhangen van
+    // handmatig aangemaakte collecties (die mogelijk nog leeg zijn).
+    if (f.speciale_keuze === 'rock') {
+        condities.push("('Rock' = ANY(t.muziek_genres) OR 'Rock' = ANY(t.genres))");
+    } else if (f.speciale_keuze === '100nl') {
+        condities.push("t.taal::text = 'nl' AND t.type::text = 'muziek'");
+    } else if (f.speciale_keuze === 'kerst') {
+        condities.push("('Kerst' = ANY(t.themas) OR 'Kerst' = ANY(t.genres) OR 'kerst' = ANY(t.themas))");
+    }
+    
     // Taal: nl | en | us | beide. `us` gebruikt land, omdat Amerikaans
     // geen aparte gesproken-taalwaarde is in de catalogus.
     if (f.taal === 'nl') {
