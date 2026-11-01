@@ -531,7 +531,6 @@ function Genereren() {
             setAantallen(s.aantallen || {});
             setPerCategorie(s.perCategorie || {});
             if (s.run && !s.run.bezig) {
-                setBezig(false);
                 clearInterval(poll.current);
                 if (s.run.fout) setMelding(s.run.fout);
                 else if (s.run.resultaat) setMelding(`Klaar: ${s.run.resultaat.toegevoegd} toegevoegd.`);
@@ -579,7 +578,7 @@ function Genereren() {
                     <input className="invoer" type="number" min="1" max="10000" value={aantal}
                         onChange={(e) => setAantal(e.target.value)} style={{ display: 'block', width: '100%' }} />
                 </label>
-                <button className="knop" disabled={bezig || !Number.isInteger(Number(aantal)) || Number(aantal) < 1 || Number(aantal) > 10000} onClick={start}>Lijst maken</button>
+                <button className="knop" disabled={!Number.isInteger(Number(aantal)) || Number(aantal) < 1 || Number(aantal) > 10000} onClick={start}>Lijst maken</button>
             </div>
             <p className="dim">Aantal per aanvraag (1–10.000), verwerkt in batches op de server. Films en series zijn apart opgeslagen en kunnen later samen worden geselecteerd.</p>
             <div className="vt-queue"><strong>AI-wachtrij</strong>{wachtrijFout && <p className="waarschuwing">{wachtrijFout}</p>}{wachtrij.slice(0,10).map(t=><p key={t.id}>{t.categorie} · {t.status} · {t.verwerkt}/{t.gevraagd} verwerkt · {t.toegevoegd} toegevoegd{t.fout ? " · " + t.fout : ""}</p>)}</div>
