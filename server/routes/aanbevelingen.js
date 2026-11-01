@@ -892,7 +892,13 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
                     beoordeeld_op = now()
                  WHERE id = $1 AND status = $2
                  RETURNING id, fout_aantal`, [id, verwacht]);
-            if (!rows[0]) return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
+            if (!rows[0]) {
+                // Een mislukte MP3 kan al automatisch op fout zijn gezet.
+                // Oranje overslaan moet ook dan gewoon naar de volgende kaart gaan.
+                const status=await pool.query("SELECT status FROM aanbevelingen WHERE id=$1",[id]);
+                if(status.rows[0]?.status==='fout') return res.json({ok:true,status:'fout',opnieuw:false});
+                return res.status(404).json({ fout: 'Niet gevonden of al beoordeeld.' });
+            }
             await media.keurMp3Af(id);
             audioTaken.delete(id);
             return res.json({
