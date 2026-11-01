@@ -518,7 +518,7 @@ export default function Setup() {
                             <span className="vt-hoofdkaart-titel">{g.icon} {g.naam}</span>
                         </button>)}
                     </div>
-                    <div className="vt-categorie-paneel">
+                    <div className={"vt-categorie-paneel vt-categorie-"+hoofdgroep}>
                         <h2><span className="vt-panel-film-icon" aria-hidden="true">▦</span> {({films:'Films & Series',muziek:'Muziek',games:'Videogames',thema:'Thema'})[hoofdgroep]}</h2>
                         {hoofdgroep==='films'&&<div className="vt-subkeuzes">
                             <p>▱ &nbsp; Type</p>
@@ -547,7 +547,7 @@ export default function Setup() {
                                                 collecties:hoofdgroep==='games'?[]:id==='alles'||id==='80s'||id==='90s'||id==='kinder'||id==='animatie'?[]:[id],
                                                 met_genres:id==='animatie'?['Animatie','Animation']:[],
                                                 zonder_genres:[]}));
-                                        }}><span className="vt-collectie-pictogram" aria-hidden="true">{({alles:"▷", "80s":"▤", "90s":"▣",animatie:"♜",kinder:"✦",rock:"♫","100nl":"🇳🇱",kerst:"❄"})[id] || "◆"}</span><span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"")}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
+                                        }}><span className="vt-collectie-pictogram" aria-hidden="true">{({alles:"▷", "80s":"▤", "90s":"▣",animatie:"♜",kinder:"✦",rock:"♫","100nl":"🇳🇱",kerst:"❄"})[id] || "◆"}</span><span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
                             </div>
                         </div>}
                         
