@@ -294,7 +294,7 @@ export default function Host() {
                                             return <button key={genre} type="button" className={'chip' + (gekozen ? ' gekozen' : '')}
                                                 onClick={() => setLobbyWijziging((oud) => ({ ...oud, met_genres: gekozen
                                                     ? (oud?.met_genres || []).filter((g) => g !== genre)
-                                                    : [...(oud?.met_genres || []), genre] }))}>{genre}</button>;
+                                                    : [...(oud?.met_genres || []), genre] }))}><span aria-hidden="true">{({Actie:'💥',Komedie:'🎭',Drama:'🎬',Horror:'👻',Thriller:'🔍',Sciencefiction:'🚀',Fantasy:'🪄',Animatie:'🏰',Avontuur:'🧭',Romantiek:'❤️',Musical:'🎤'})[genre]||'🎞️'}</span> {genre}</button>;
                                         })}
                                     </div>
                                 </div>
