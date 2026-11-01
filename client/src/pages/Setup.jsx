@@ -99,7 +99,7 @@ const PERIODE_SNEL = [
 export default function Setup() {
     const navigate = useNavigate();
     // Stap 0 is de editiekeuze: kies een kant-en-klare quiz, of stel zelf in.
-    const [stap, setStap] = useState(0);
+    const [stap, setStap] = useState(1);
     const [quizzen, setQuizzen] = useState([]);
     const [quizSleutel, setQuizSleutel] = useState(null);
     const [quizGroep, setQuizGroep] = useState(null);
@@ -374,7 +374,7 @@ export default function Setup() {
         }
     }
 
-    const terug = () => (stap > 0 ? setStap(stap - 1) : navigate('/'));
+    const terug = () => (stap === 1 || stap === 0 ? navigate('/') : setStap(stap - 1));
     const verder = () => setStap(Math.min(stap + 1, 4));
 
     return (
@@ -486,6 +486,7 @@ export default function Setup() {
                 <section className="vt-categorie-scherm">
                     <h1>Kies een categorie</h1>
                     <p className="dim">Maak je eigen muziekquiz. Kies eerst een wereld en daarna wat je wilt horen.</p>
+                    <button className="knop knop-stil" type="button" onClick={()=>setStap(0)} style={{marginBottom:"1rem"}}>Of kies een kant-en-klare quiz</button>
                     <div className="vt-hoofdkaarten">
                         {[
                             {id:'films',naam:'Films & Series',icon:'🎬',kleur:'#ff328e',beeld:'/category/films-series.svg'},
