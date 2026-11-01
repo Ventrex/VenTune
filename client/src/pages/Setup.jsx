@@ -14,6 +14,7 @@ import {
 import { bewaarSessie } from '../lib/sessie.js';
 import Brand from '../components/Brand.jsx';
 import ThemaKiezer from '../components/ThemaKiezer.jsx';
+import './setup-categorie.css';
 
 const NU = new Date().getFullYear();
 
