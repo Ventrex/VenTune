@@ -488,10 +488,10 @@ export default function Setup() {
                     <p className="dim">Maak je eigen muziekquiz. Kies eerst een wereld en daarna wat je wilt horen.</p>
                     <div className="vt-hoofdkaarten">
                         {[
-                            {id:'films',naam:'Films & Series',icon:'🎬',kleur:'#ff328e',beeld:'🍿'},
-                            {id:'muziek',naam:'Muziek',icon:'🎵',kleur:'#17daf3',beeld:'🎸'},
-                            {id:'games',naam:'Videogames',icon:'🎮',kleur:'#7e66ff',beeld:'🕹️'},
-                            {id:'thema',naam:'Thema',icon:'✨',kleur:'#ffae39',beeld:'🎄'}
+                            {id:'films',naam:'Films & Series',icon:'🎬',kleur:'#ff328e',beeld:'/category/films-series.svg'},
+                            {id:'muziek',naam:'Muziek',icon:'🎵',kleur:'#17daf3',beeld:'/category/music.svg'},
+                            {id:'games',naam:'Videogames',icon:'🎮',kleur:'#7e66ff',beeld:'/category/games.svg'},
+                            {id:'thema',naam:'Thema',icon:'✨',kleur:'#ffae39',beeld:'/category/theme.svg'}
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
                                 setHoofdgroep(g.id);setSubkeuze('alles');
@@ -500,7 +500,7 @@ export default function Setup() {
                                 if(g.id==='games')setFilters(f=>({...f,categorie:'games',categorieen:['muziek'],game_only:true,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='thema')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                             }}>
-                            <span className="vt-hoofdkaart-illustratie" aria-hidden="true">{g.beeld}</span>
+                            <img className="vt-hoofdkaart-illustratie" src={g.beeld} alt="" loading="eager" />
                             <span className="vt-hoofdkaart-titel">{g.icon} {g.naam}</span>
                         </button>)}
                     </div>
