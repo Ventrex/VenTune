@@ -1,0 +1,38 @@
+/* VenTune category dashboard — responsive neon, preserving existing game settings */
+.setup-scherm:has(.vt-categorie-scherm){max-width:1600px;width:min(98%,1600px);padding:1.1rem 1.2rem 2rem;background:radial-gradient(ellipse 60% 38% at 50% 5%,#641c6140,transparent 75%),var(--bg)}
+.vt-categorie-scherm{width:100%;margin:0 auto}
+.vt-categorie-scherm>h1{text-align:center;font-size:clamp(2rem,3.9vw,3.15rem);margin:.15rem 0 .1rem;letter-spacing:-.045em}
+.vt-categorie-scherm>.dim{text-align:center;margin:0 auto .85rem;font-size:clamp(.86rem,1.25vw,1rem)}
+.vt-preset-link{background:none;border:0;color:var(--text-dim);font-size:.78rem;cursor:pointer;margin:0 0 .7rem;padding:0;text-decoration:underline;text-underline-offset:3px}
+.vt-hoofdkaarten{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(8px,1vw,16px);margin-bottom:18px}
+.vt-hoofdkaart{--kaartkleur:#ff2d95;position:relative;min-height:clamp(145px,15vw,215px);overflow:hidden;border:2px solid var(--kaartkleur);border-radius:23px;background:#150e31;color:white;padding:0;cursor:pointer;box-shadow:0 0 16px color-mix(in srgb,var(--kaartkleur) 35%,transparent),inset 0 -45px 50px #080415ab;transition:transform .2s,box-shadow .2s}
+.vt-hoofdkaart:hover,.vt-hoofdkaart:focus-visible{transform:translateY(-3px);box-shadow:0 0 25px var(--kaartkleur),inset 0 -45px 55px #080415}
+.vt-hoofdkaart.actief{box-shadow:0 0 8px #fff,0 0 23px var(--kaartkleur);border-color:#fff}
+.vt-hoofdkaart-illustratie{width:100%;height:100%;position:absolute;inset:0;object-fit:cover;object-position:center}
+.vt-hoofdkaart:after{content:'';position:absolute;inset:45% 0 0;background:linear-gradient(transparent,#0b0519d9 82%)}
+.vt-hoofdkaart-titel{position:absolute;z-index:1;bottom:12px;left:4px;right:4px;font-size:clamp(.94rem,1.6vw,1.47rem);font-weight:800;text-shadow:0 3px 9px #000,0 0 6px #000;text-align:center}
+.vt-categorie-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,260px);gap:16px;align-items:start}
+.vt-categorie-paneel,.vt-categorie-aside>div{border:1px solid #7939c78f;background:linear-gradient(120deg,#290f3ae8,#14102dea);border-radius:22px;box-shadow:inset 0 1px #ffffff12,0 8px 25px #0003}
+.vt-categorie-paneel{padding:clamp(13px,2vw,25px);min-height:330px;display:flex;flex-direction:column}
+.vt-categorie-paneel h2{font-size:clamp(1.3rem,2.2vw,1.8rem);margin:0 0 12px;text-align:left}
+.vt-subkeuzes{margin-bottom:15px;text-align:left}
+.vt-subkeuzes>p{font-size:.85rem;font-weight:750;margin:0 0 9px}
+.vt-keuzerij{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:9px}
+.vt-keuzerij .chip{min-width:0;max-width:none;min-height:54px;white-space:normal;line-height:1.2;font-size:.82rem;border:1px solid #603f947c;border-radius:14px;background:linear-gradient(150deg,#2c1742,#120a27);color:var(--text);cursor:pointer;transition:transform .15s,box-shadow .15s}
+.vt-keuzerij .chip.gekozen{background:linear-gradient(130deg,#fc238c,#d01473);border-color:#ffb8e4;color:white;box-shadow:0 0 17px #ff25888a}
+.vt-keuzerij .chip:hover{transform:translateY(-2px)}
+.vt-categorie-aside{display:grid;gap:15px}
+.vt-categorie-aside>div{padding:15px}
+.vt-categorie-aside h3{font-size:1rem;text-align:left;margin:0 0 4px}
+.vt-categorie-aside .dim{font-size:.74rem;text-align:left;margin:0 0 12px}
+.vt-categorie-aside .thema-kiezer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.vt-categorie-aside .thema-knop{min-width:0;padding:7px 3px;font-size:.64rem;min-height:75px;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.vt-categorie-aside .thema-emoji{font-size:1.4rem}
+.vt-berg-paneel{background:linear-gradient(145deg,#251744,#10244c)!important;position:relative;min-height:175px;overflow:hidden;text-align:left}
+.vt-berg-paneel p{font-size:.77rem;line-height:1.45;margin:.7rem 0 2rem}
+.vt-berg-icon{position:absolute;right:14px;bottom:6px;font-size:3.3rem;opacity:.9}
+.vt-berg-paneel small{position:absolute;bottom:12px;left:15px;font-size:.67rem;color:#c1b6e7}
+.vt-startknop{margin-top:auto;align-self:center;min-width:min(95%,320px);padding:13px 26px!important;border-radius:999px!important;font-weight:800!important;background:linear-gradient(135deg,#ff2a9b,#d6147e)!important;box-shadow:0 0 18px #fe298d70!important}
+@media(max-width:850px){.vt-categorie-main{grid-template-columns:1fr}.vt-categorie-aside{grid-template-columns:1fr 1fr}.vt-hoofdkaart{min-height:175px}.vt-categorie-aside .thema-knop{min-height:70px}}
+@media(max-width:620px){.setup-scherm:has(.vt-categorie-scherm){padding:.65rem}.vt-hoofdkaarten{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-hoofdkaart{min-height:160px;border-radius:16px}.vt-hoofdkaart-titel{font-size:1rem}.vt-categorie-main{gap:10px}.vt-categorie-aside{grid-template-columns:1fr}.vt-categorie-paneel{padding:12px}.vt-keuzerij{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-categorie-aside .thema-knop{min-height:65px}.vt-berg-paneel{min-height:145px}}
+@media(prefers-reduced-motion:reduce){.vt-hoofdkaart,.vt-keuzerij .chip{transition:none}}
