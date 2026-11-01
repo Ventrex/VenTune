@@ -32,8 +32,10 @@ const MAX_BYTES = 35 * 1024 * 1024;
 // tokenverbranding bij een YouTube-fout of wanneer hetzelfde nummer terugkomt.
 const aiOnderzocht = new Set();
 async function bepaalHerkenningsmuziek(a) {
-    if (!['film','serie'].includes(a.type) || (a.tracknaam && a.tracknaam.trim())) return a;
-    if (aiOnderzocht.has(a.id)) return a;
+    if (!['film','serie'].includes(a.type)) return a;
+    if (a.ai_muziek_gecontroleerd === true) return a;
+    await pool.query('ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS ai_muziek_gecontroleerd BOOLEAN NOT NULL DEFAULT false');
+    if (aiOnderzocht.has(a.id)) throw new Error('AI-muziekonderzoek heeft deze titel nog niet kunnen valideren.');
     aiOnderzocht.add(a.id);
     const schema={type:'object',additionalProperties:false,required:['gevonden','nummer','artiest','zoekterm'],properties:{
       gevonden:{type:'boolean'},nummer:{type:'string'},artiest:{type:'string'},zoekterm:{type:'string'}}};
@@ -47,13 +49,13 @@ async function bepaalHerkenningsmuziek(a) {
         if(r.ok && d?.gevonden && d.nummer?.trim() && d.zoekterm?.trim()){
             const info={...a,tracknaam:d.nummer.trim().slice(0,180),artiest:(d.artiest||'').trim().slice(0,180),
                youtube_zoekterm:d.zoekterm.trim().slice(0,320)};
-            await pool.query('UPDATE aanbevelingen SET tracknaam=$2,artiest=$3,youtube_zoekterm=$4 WHERE id=$1',
+            await pool.query('UPDATE aanbevelingen SET tracknaam=$2,artiest=$3,youtube_zoekterm=$4,ai_muziek_gecontroleerd=true WHERE id=$1',
               [a.id,info.tracknaam,info.artiest,info.youtube_zoekterm]);
             return info;
         }
         logger.waarschuwing('AI herkent geen betrouwbare titelmuziek',{id:a.id,titel:a.titel,melding:r.error||'onzeker'});
     }catch(e){logger.waarschuwing('AI-muziekonderzoek mislukt',{id:a.id,melding:e.message});}
-    return a;
+    throw new Error('AI kon de juiste herkenbare titelmuziek niet betrouwbaar vaststellen; geen willekeurige MP3 downloaden.');
 }
 function gelijktOpTitel(video, a){
     const norm=s=>String(s||'').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,' ').trim();
