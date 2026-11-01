@@ -615,7 +615,8 @@ export function Genereren() {
     const [perCategorie, setPerCategorie] = useState({});
     const [categorie, setCategorie] = useState('film');
     const [aantal, setAantal] = useState(500);
-    const categorieen = [['film', 'Films'], ['serie', 'Series'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s (2020–2029)'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
+    const [aantalGames,setAantalGames]=useState(0);
+    const categorieen = [['film', 'Films'], ['serie', 'Series'], ['games', 'Videogames'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s (2020–2029)'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
     const poll = useRef(null);
 
     async function ververs() {
@@ -623,6 +624,7 @@ export function Genereren() {
             const s = await haal('/api/admin/aanbevelingen/status');
             setAantallen(s.aantallen || {});
             setPerCategorie(s.perCategorie || {});
+            haal('/api/admin/games').then(x=>setAantalGames(x.length)).catch(()=>{});
             if (s.run && !s.run.bezig) {
                 clearInterval(poll.current);
                 if (s.run.fout) setMelding(s.run.fout);
@@ -635,6 +637,12 @@ export function Genereren() {
     async function start() {
         setBezig(true); setMelding('ChatGPT denkt na… dit kan even duren.');
         try {
+            if(categorie==='games') {
+                await haal('/api/admin/games/ai-genereren',{method:'POST',...jsonBody({aantal:Math.min(30,Number(aantal))})});
+                setMelding('AI zoekt bekende videogames. De nieuwe games verschijnen in Videogame-Swipe.');
+                setBezig(false);
+                return;
+            }
             await haal('/api/admin/aanbevelingen/genereer', { method: 'POST', ...jsonBody({ categorie, soort: categorie === 'kerst' ? 'kerst' : 'film_serie', aantal: Number(aantal) }) });
             await verversWachtrij();
             clearInterval(poll.current);
@@ -684,11 +692,11 @@ export function Genereren() {
                 <button className="knop" disabled={!Number.isInteger(Number(aantal)) || Number(aantal) < 1 || Number(aantal) > 10000} onClick={start}>Lijst maken</button>
             </div>
             {['film','serie'].includes(categorie) && <button className="knop knop-stil" type="button" onClick={vulVanuitDatabase}>100 bekende {categorie === 'film' ? 'films' : 'series'} uit database naar Swipe</button>}
-            <p className="dim">Aantal per aanvraag (1–10.000), verwerkt in batches op de server. Films en series zijn apart opgeslagen en kunnen later samen worden geselecteerd.</p>
+            <p className="dim">Aantal per aanvraag (1–10.000 voor films en series; maximaal 30 per AI-gameaanvraag). Films en series zijn apart opgeslagen en kunnen later samen worden geselecteerd.</p>
             <div className="vt-queue"><strong>AI-wachtrij</strong>{wachtrijFout && <p className="waarschuwing">{wachtrijFout}</p>}{wachtrij.slice(0,10).map(t=><p key={t.id}>{t.categorie} · {t.status} · {t.verwerkt}/{t.gevraagd} verwerkt · {t.toegevoegd} toegevoegd{t.fout ? " · " + t.fout : ""}</p>)}</div>
         <div className="ai-tellers" style={{ marginTop: '0.75rem' }}>
                 {categorieen.map(([waarde, naam]) =>
-                    <Teller key={waarde} label={naam} n={perCategorie[waarde]?.totaal || 0} />)}
+                    <Teller key={waarde} label={naam} n={waarde==='games'?aantalGames:(perCategorie[waarde]?.totaal || 0)} />)}
             </div>
 
             {melding && <p className={bezig ? 'dim' : 'feedback neutraal'} style={{ marginTop: '1rem' }}>{melding}</p>}
