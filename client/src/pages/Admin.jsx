@@ -139,6 +139,18 @@ function Beheer({ onUit }) {
     const [vraagSuggesties, setVraagSuggesties] = useState([]);
     const [bezigSuggesties, setBezigSuggesties] = useState(false);
 
+    const [curatieBezig, setCuratieBezig] = useState(null);
+    async function beoordeelTitel(t, status) {
+        setCuratieBezig(t.id);
+        try {
+            await api.adminUpdateTitel(t.id, { ...naarPayload(naarForm(t)), curatie_status: status, nl_tv_bekend: status === 'goedgekeurd' });
+            setMelding('Titel ' + (status === 'goedgekeurd' ? 'goedgekeurd' : 'uitgesloten') + ': ' + t.naam);
+            await laadTitels();
+            await laadOverzicht();
+        } catch (err) { setMelding('Beoordelen mislukt: ' + err.message); }
+        finally { setCuratieBezig(null); }
+    }
+
     async function laadTitels(zoekOverride = zoek, filterOverride = titelFilter, taalOverride = titelTaal) {
         try {
             setTitels(await api.adminTitels(zoekOverride, filterOverride, taalOverride));
@@ -1024,6 +1036,12 @@ function Beheer({ onUit }) {
                 </button>
             )}
 
+            <div className="kaart" style={{ marginTop: '.75rem', padding: '.75rem' }}>
+                <strong>Goedkeuring films en series</strong>
+                <p className="dim">Nieuwe TMDB-titels worden eerst ter beoordeling aangeboden. Er wordt niets automatisch goedgekeurd.</p>
+                <button className="knop knop-stil" type="button" onClick={() => openTab('titels', { filter: 'te-beoordelen', zoek: '', taal: '' })}>Toon wachtrij ter goedkeuring</button>
+                {titelFilter === 'te-beoordelen' && <p className="dim">{titels.length} titels in deze weergave. Keur hieronder per titel goed of sluit deze uit.</p>}
+            </div>
             <NieuweTitel onKlaar={laadTitels} />
 
             <p className="kaart-label" style={{ textAlign: 'left', marginTop: '1.5rem' }}>
@@ -1054,6 +1072,12 @@ function Beheer({ onUit }) {
                                 {!!t.open_meldingen && <span className="bron-pill melding">⚠ {t.open_meldingen}</span>}
                             </span>
                         </div>
+                        {t.curatie_status === 'te_beoordelen' && (
+                            <div className="knoprij" style={{ margin: '.25rem 0 .55rem' }}>
+                                <button className="knop" type="button" disabled={curatieBezig === t.id} onClick={() => beoordeelTitel(t, 'goedgekeurd')}>Goedkeuren</button>
+                                <button className="knop knop-stil" type="button" disabled={curatieBezig === t.id} onClick={() => beoordeelTitel(t, 'uitgesloten')}>Afwijzen</button>
+                            </div>
+                        )}
                         {open === t.id && (
                             <TitelDetail titel={t} onWijzig={() => laadTitels()} />
                         )}
