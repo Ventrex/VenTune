@@ -25,6 +25,7 @@ const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body
 export default function AdminSwipe() {
     const [titelReview, setTitelReview] = useState(false);
     const [zonderMp3, setZonderMp3] = useState(false);
+    const [mp3Queue,setMp3Queue]=useState(null);
     const [mp3Kaarten,setMp3Kaarten]=useState([]);
     const [mp3Totaal,setMp3Totaal]=useState(0);
     const [mp3Fout,setMp3Fout]=useState('');
@@ -53,6 +54,12 @@ export default function AdminSwipe() {
         setLaadt(false);
     }
     useEffect(() => { laad(); /* eslint-disable-next-line */ }, [categorie, fase]);
+    useEffect(() => {
+        const update=()=>haal('/api/admin/swipe/mp3-wachtrij').then(setMp3Queue).catch(()=>{});
+        update();
+        const timer=setInterval(update,10000);
+        return ()=>clearInterval(timer);
+    }, []);
 
     async function laadTitelReview() {
         try {
@@ -154,6 +161,7 @@ export default function AdminSwipe() {
                 <button className={'knop' + (zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(true);}}>Zonder MP3 · hele database</button>
                 <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => {setTitelReview(true);setZonderMp3(false);}}>Nieuwe titels beoordelen</button>
             </div>
+            {mp3Queue && <p className="dim" style={{margin:'.5rem 0'}}>MP3-wachtrij · {(mp3Queue.status||[]).map(s=>s.status+': '+s.aantal).join(' · ') || 'leeg'} · alleen klaargezette MP3's verschijnen bij muziek swipen.</p>}
             {!zonderMp3 && !titelReview && <div className="swipe-tabs" style={{marginTop:'.25rem'}}>
                 <label style={{width:'100%'}}>Muziekcategorie
                     <select className="invoer" value={categorie} onChange={e=>setCategorie(e.target.value)}>
