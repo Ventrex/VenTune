@@ -25,15 +25,16 @@ const MAX_SECONDEN = 45 * 60;
 let youtubeBlokkadeTot = 0;
 let youtubeBlokkadePogingen = 0;
 const YOUTUBE_MIN_INTERVAL_MS = Math.max(
-    100,
-    Number(process.env.YOUTUBE_MIN_INTERVAL_MS) || 250,
+    3000,
+    Number(process.env.YOUTUBE_MIN_INTERVAL_MS) || 8000,
 );
 let youtubeVolgendeVerzoek = 0;
 let youtubeRateLimitKeten = Promise.resolve();
 
 async function wachtOpRateLimit() {
     const ticket = youtubeRateLimitKeten.then(async () => {
-        const doel = Math.max(youtubeBlokkadeTot, youtubeVolgendeVerzoek);
+        const doel = youtubeVolgendeVerzoek;
+        if (youtubeBlokkadeTot > Date.now()) throw new Error('YouTube rate limit actief; probeer later opnieuw.');
         const resterend = doel - Date.now();
         if (resterend > 0) {
             await new Promise((resolve) => setTimeout(resolve, resterend));
@@ -47,7 +48,7 @@ async function wachtOpRateLimit() {
 function markeerRateLimit(status) {
     if (status !== 429 && status !== 403) return;
     youtubeBlokkadePogingen = Math.min(6, youtubeBlokkadePogingen + 1);
-    const wacht = Math.min(5 * 60 * 1000, 4000 * (2 ** (youtubeBlokkadePogingen - 1)));
+    const wacht = Math.min(6 * 60 * 60 * 1000, 30 * 60 * 1000 * (2 ** (youtubeBlokkadePogingen - 1)));
     youtubeBlokkadeTot = Date.now() + wacht + Math.floor(Math.random() * 1500);
 }
 
@@ -757,4 +758,7 @@ module.exports = {
     zoektermenVoor,
     duurNaarSeconden,
     viewsNaarGetal,
+    rateLimitActief: () => youtubeBlokkadeTot > Date.now(),
+    rateLimitTot: () => youtubeBlokkadeTot,
+    markeerRateLimit,
 };
