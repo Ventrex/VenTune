@@ -30,8 +30,8 @@ assert.deepEqual(
     {
         jaren: 47,
         nederlandstaligeJaren: 77,
-        films: 2350,
-        series: 1175,
+        films: 1645,
+        series: 705,
         nederlandstaligeFilms: 770,
         nederlandstaligeSeries: 770,
         cultClassics: 24,
