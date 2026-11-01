@@ -381,7 +381,7 @@ export default function Setup() {
     return (
         <main className="scherm setup-scherm">
             {stap === 1 && <nav className="vt-category-topnav" aria-label="VenTune navigatie">
-                <Link className="vt-top-brand" to="/">♫ <strong>VenTune</strong></Link>
+                <Link className="vt-top-brand" to="/"><img className="vt-top-equalizer" src="/category/equalizer.svg" alt="" /><strong><span>Ven</span>Tune</strong></Link>
                 <div className="vt-top-links">
                     <Link className="vt-top-active" to="/setup">♧ Spelen</Link>
                     <Link to="/">♜ Scores</Link>
