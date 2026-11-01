@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 280" role="img" aria-label="Bergexpeditie met besneeuwde bergen en roze vlag">
+<defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#101537"/><stop offset="1" stop-color="#114a83"/></linearGradient><linearGradient id="peak" x2="1" y2="1"><stop stop-color="#e9faff"/><stop offset=".45" stop-color="#81c4ff"/><stop offset="1" stop-color="#195198"/></linearGradient><linearGradient id="deep" x2="0.4" y2="1"><stop stop-color="#c8edff"/><stop offset="1" stop-color="#2868b1"/></linearGradient></defs>
+<rect width="700" height="280" rx="20" fill="url(#sky)"/><g fill="#e8f7ff" opacity=".84"><path d="m120 56 6 14 14 6-14 5-6 15-5-15-14-5 14-6z"/><path d="m510 34 4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/><circle cx="605" cy="70" r="3"/><circle cx="395" cy="43" r="2"/><circle cx="455" cy="97" r="2"/></g>
+<path d="M0 280 130 180 210 250 365 70 510 243 575 148 700 265 700 280Z" fill="url(#deep)"/>
+<path d="m240 280 125-210 145 173-70-39-38 11-37-98-38 81-37-10Z" fill="url(#peak)"/>
+<path d="m365 70 53 62-23-9-30 7-34-6Z" fill="#fff"/>
+<path d="m470 280 117-153 113 133v20Z" fill="#5ea5e4"/><path d="m587 127 52 61-37-14-21 11-23-14Z" fill="#f3fcff"/>
+<path d="M0 270 125 224 170 269 290 243 370 280Z" fill="#1c407b"/><path d="m430 280 94-63 68 49 74-34 34 48Z" fill="#173e72"/>
+<path d="M365 71V7" stroke="#ffe3fb" stroke-width="5"/><path d="M367 11q32-10 58 5l-18 13 18 15q-31-6-58 0Z" fill="#ff3193"/>
+</svg>
