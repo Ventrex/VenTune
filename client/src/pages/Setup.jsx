@@ -144,6 +144,8 @@ export default function Setup() {
     const [host, setHost] = useState(null);
     const [collecties, setCollecties] = useState([]);
     const [tellingFout, setTellingFout] = useState('');
+    const [categorieBeelden, setCategorieBeelden] = useState({});
+    useEffect(() => { fetch("/api/categorie-beelden").then(r=>r.ok?r.json():{}).then(setCategorieBeelden).catch(()=>{}); }, []);
 
     // Ook bij rechtstreeks openen van /setup blijft de hostaccount verplicht.
     useEffect(() => {
@@ -502,9 +504,9 @@ export default function Setup() {
                     
                     <div className="vt-category-workspace"><div className="vt-category-left"><div className="vt-hoofdkaarten">
                         {[
-                            {id:'films',naam:'Films & Series',icon:'/category/icon-film.svg',kleur:'#ff328e',beeld:'/category/approved-films.svg?v=hd840-20261101'},
-                            {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:'/category/approved-music.svg?v=hd840-20261101'},
-                            {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:'/category/approved-games.svg?v=hd840-20261101'},
+                            {id:'films',naam:'Films & Series',icon:'/category/icon-film.svg',kleur:'#ff328e',beeld:categorieBeelden.films || '/category/approved-films.svg?v=hd840-20261101'},
+                            {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:categorieBeelden.muziek || '/category/approved-music.svg?v=hd840-20261101'},
+                            {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:categorieBeelden.games || '/category/approved-games.svg?v=hd840-20261101'},
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
                                 setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],kindvriendelijk:false}));
@@ -530,7 +532,7 @@ export default function Setup() {
                         {(hoofdgroep==='films'||hoofdgroep==='muziek'||hoofdgroep==='games'||hoofdgroep==='thema')&&<div className="vt-subkeuzes">
                             <p>{hoofdgroep==='films'?'▱  Collectie':hoofdgroep==='muziek'?'Welk muziekgenre?':hoofdgroep==='games'?'Kies één of meerdere fabrikanten': 'Kies een thema'}</p>
                             <div className="vt-keuzerij">
-                                {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder']]
+                                {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder'],['kerst','🎄 Kerst']]
                                 :hoofdgroep==='muziek'?[['alles','🎧 Alles'],['rock','🎸 Rock'],['100nl','🇳🇱 100% NL']]
                                 :hoofdgroep==='games'?[['alles','🎮 Alle games'],['nintendo','🕹️ Nintendo'],['sega','💫 Sega'],['playstation','🔵 PlayStation'],['xbox','🟢 Xbox'],['pc','💻 PC']]
                                 :[['alles','✨ Alle thema’s'],['kerst','🎄 Kerst']]).map(([id,label])=>
@@ -546,7 +548,7 @@ export default function Setup() {
                                                 collecties:hoofdgroep==='games'?[]:id==='alles'||id==='80s'||id==='90s'||id==='kinder'||id==='animatie'?[]:[id],
                                                 met_genres:id==='animatie'?['Animatie','Animation']:[],
                                                 zonder_genres:[]}));
-                                        }}><span className="vt-collectie-pictogram" aria-hidden="true">{({alles:"▷", "80s":"▤", "90s":"▣",animatie:"♜",kinder:"✦",rock:"♫","100nl":"🇳🇱",kerst:"❄"})[id] || "◆"}</span><span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
+                                        }}><span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || "/category/icon-"+(id==="kerst"?"theme":id==="animatie"?"film":id==="kinder"?"game":"music")+".svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span><span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
                             </div>
                         </div>}
                         
@@ -766,7 +768,7 @@ export default function Setup() {
                                 <input type="checkbox" checked={filters.speeltijd>0} onChange={e=>zet('speeltijd',e.target.checked?60:0)}/><span className="vt-switch-track" aria-hidden="true"/>
                             </label>
                             {filters.speeltijd>0&&<div className="vt-choice-grid vt-duration-grid">
-                                {[10,15,20,30,60,120,180].map(n=><button key={n} type="button" className={'vt-duration-pill'+(filters.speeltijd===n?' selected':'')} onClick={()=>zet('speeltijd',n)}>{n<60?n+' sec':n===60?'1 minuut':n/60+' minuten'}</button>)}
+                                <label className="vt-duration-slider"><span>Speeltijd: <strong>{filters.speeltijd >= 60 ? `${Math.floor(filters.speeltijd/60)} min${filters.speeltijd%60 ? ` ${filters.speeltijd%60} sec` : ""}` : `${filters.speeltijd} sec`}</strong></span><input type="range" min="10" max="180" step="10" value={filters.speeltijd} onChange={e=>zet("speeltijd",Number(e.target.value))} /><span className="vt-duration-ends"><small>10 seconden</small><small>3 minuten</small></span></label>
                             </div>}
                         </section>
                     </div>
