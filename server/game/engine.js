@@ -293,7 +293,7 @@ class SpelBeheer {
                 rondeId: h.rondeId,
                 rondenummer: state.rondenummer,
                 totaal: state.totaalRondes,
-                durationMs: state.modus === 'kenner'
+                durationMs: (state.modus === 'kenner' || Number(state.instellingen?.speeltijd) === 0)
                     ? null
                     : gepauzeerd
                       ? h.restMs
@@ -882,7 +882,7 @@ class SpelBeheer {
                     rondeId: state.huidige.rondeId,
                     rondenummer: state.rondenummer,
                     totaal: state.totaalRondes,
-                    durationMs: state.modus === 'kenner' ? null : state.rondeDuurMs,
+                    durationMs: (state.modus === 'kenner' || Number(state.instellingen?.speeltijd) === 0) ? null : state.rondeDuurMs,
                     startTs: state.huidige.startTijd,
                     modus: state.modus,
                     antwoordModus: state.antwoordModus,
@@ -924,7 +924,7 @@ class SpelBeheer {
 
                 // In kennersmodus loopt er geen klok: de host klikt op
                 // 'Volgende'.
-                if (state.modus !== 'kenner') {
+                if (state.modus !== 'kenner' && Number(state.instellingen?.speeltijd) !== 0) {
                     state.huidige.timer = setTimeout(() => {
                         this.onthulEnBonus(state).catch((err) =>
                             this.rapporteerOvergangsfout(state, err, 'ronde timer'),
@@ -1583,9 +1583,9 @@ class SpelBeheer {
                 toelichting ? String(toelichting).slice(0, 500) : null,
             ],
         );
-        // Deze track zakt in de rangorde; bij drie meldingen wordt hij niet
+        // Alleen audioproblemen mogen een track automatisch afkeuren.\n        // Inhoudelijke meldingen (poster, hint, vraag, jaar) zijn geen bewijs van kapotte audio.\n        const audioProbleem = ['geen_geluid', 'verkeerd_nummer'].includes(soortSchoon)\n            || (soortSchoon === 'fout' && !/^\\[(poster|hint|vraag|jaartal|titel|overig)\\]/i.test(String(toelichting || '')));\n        // Deze track zakt in de rangorde; bij drie meldingen wordt hij niet
         // meer gespeeld. Zo verdwijnen slechte nummers automatisch.
-        const bij = await pool.query(
+        const bij = audioProbleem ? await pool.query(
             `UPDATE tracks
                 SET fout_aantal = fout_aantal + 1,
                     -- Een expliciete melding "verkeerd nummer" is direct
@@ -1597,7 +1597,7 @@ class SpelBeheer {
               WHERE id = $1
               RETURNING fout_aantal, werkt`,
             [state.huidige.track.id, soortSchoon],
-        );
+        ) : { rows: [] };
         logger.info('Melding ontvangen.', {
             code: state.code,
             titel: state.huidige.titel.naam,
