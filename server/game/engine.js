@@ -318,6 +318,7 @@ class SpelBeheer {
             return true;
         }
 
+        if (state.berg) socket.emit('berg:status', {...state.berg, ronde:state.rondenummer});
         if (['onthul', 'bonus', 'scorebord'].includes(state.fase)) {
             socket.emit('ronde:onthul', { antwoord: this.antwoordInfo(h) });
         }
@@ -515,7 +516,7 @@ class SpelBeheer {
             code,
             instellingen: spelInstellingen,
             rondeDuurMs: rondeDuurUit(spelInstellingen),
-            modus: spelInstellingen.spelvorm === 'teams' && spelInstellingen.team_modus === 'kenner'
+            modus: spelInstellingen.spelvorm === 'bergexpeditie' ? 'snelste' : spelInstellingen.spelvorm === 'teams' && spelInstellingen.team_modus === 'kenner'
                 ? 'kenner' : modusUit(spelInstellingen),
             antwoordModus: antwoordModusUit(spelInstellingen),
             pool: pool_,
@@ -527,8 +528,9 @@ class SpelBeheer {
             gebruikteTrackIds: new Set(),
             leeftijden: new Map(spelers.map((s) => [s.id, Number(s.leeftijd)])),
             solo: spelers.filter((speler) => speler.verbonden !== false).length === 1,
-            spelvorm: ['tegen_elkaar','om_en_om','teams'].includes(spelInstellingen.spelvorm) ? spelInstellingen.spelvorm : 'tegen_elkaar',
+            spelvorm: ['tegen_elkaar','om_en_om','teams','bergexpeditie'].includes(spelInstellingen.spelvorm) ? spelInstellingen.spelvorm : 'tegen_elkaar',
             teamModus: ['snelste','kenner','om_en_om'].includes(spelInstellingen.team_modus) ? spelInstellingen.team_modus : 'snelste',
+            berg: spelInstellingen.spelvorm === 'bergexpeditie' ? { hoogte:0, fouten:0, maxFouten: [1,3,5].includes(Number(spelInstellingen.berg_fouten_max)) ? Number(spelInstellingen.berg_fouten_max) : 3 } : null,
             beurtSpelers: spelers.filter(p => p.verbonden !== false).map(p => ({id:p.id, naam:p.naam,team:p.team_naam})),
             // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
             // titel niet twee keer dezelfde bonusvraag geeft.
@@ -779,6 +781,9 @@ class SpelBeheer {
             // dezelfde overgang zoeken, zodat meerdere onbruikbare titels
             // geen concurrerende recursieve overgang kunnen starten.
             while (true) {
+                if (state.berg && state.berg.fouten >= state.berg.maxFouten) {
+                    return await this.eindigSpel(state);
+                }
                 state.rondenummer += 1;
                 if (state.rondenummer > state.totaalRondes) {
                     return await this.eindigSpel(state);
@@ -1398,6 +1403,11 @@ class SpelBeheer {
         if (!h || state.fase === 'scorebord' || state.fase === 'einde') return;
         if (state.fase !== 'onthul' && state.fase !== 'bonus') return;
         state.fase = 'scorebord';
+        if (state.berg) {
+            if (h.antwoorden.size > 0) state.berg.hoogte++;
+            else state.berg.fouten++;
+            this.io.to(kamer(state.code)).emit('berg:status', {...state.berg, ronde:state.rondenummer, mislukt:h.antwoorden.size===0});
+        }
         await pool.query(`UPDATE rondes SET status = 'afgelopen' WHERE id = $1`, [
             h.rondeId,
         ]);
@@ -1418,7 +1428,7 @@ class SpelBeheer {
             state.lobbyId,
         ]);
         const scorebord = await this.haalScorebord(state);
-        this.io.to(kamer(state.code)).emit('spel:einde', { scorebord });
+        this.io.to(kamer(state.code)).emit('spel:einde', { scorebord, berg: state.berg, bergGeslaagd:!!state.berg && state.berg.fouten < state.berg.maxFouten });
         this.spellen.delete(state.lobbyId);
         logger.info('Spel afgelopen.', { code: state.code });
     }
