@@ -473,12 +473,13 @@ export function GamesCatalogus() {
     const [games,setGames]=useState([]);
     const [naam,setNaam]=useState('');
     const [jaar,setJaar]=useState('');
-    const [gekozen,setGekozen]=useState(['PC']);
+    const [gekozen,setGekozen]=useState([]);
     const [melding,setMelding]=useState('');
     async function laad() {
         try {
             const [p,g]=await Promise.all([haal('/api/admin/games/platformen'),haal('/api/admin/games')]);
             setPlatformen(p);setGames(g);
+            setGekozen(old=>old.length?old:p);
         }catch(err){setMelding(err.message);}
     }
     useEffect(()=>{laad();},[]);
@@ -503,7 +504,7 @@ export function GamesCatalogus() {
     }
     return <section className="kaart ai-kaart">
         <h3>Videogames · Consoles en PC</h3>
-        <p className="dim">Eigen categorie, los van films en series. Kies alle platformen waarop het spel uitkwam. Muziek en gamefragmenten zijn nog niet gekoppeld aan de spelronde.</p>
+        <p className="dim">Eigen categorie, los van films en series. Kies alle platformen waarop het spel uitkwam. Selecteer standaard alle platforms of filter snel per fabrikant.</p>
         <div className="knoprij">
             <button className="knop" onClick={aiZoeken}>AI: 20 bekende games zoeken</button>
             <Link className="knop knop-stil" to="/admin/swipe">Naar videogame-Swipe</Link>
@@ -512,6 +513,18 @@ export function GamesCatalogus() {
         <form onSubmit={voegToe} className="stapel">
             <input className="invoer" placeholder="Naam van het spel" value={naam} onChange={e=>setNaam(e.target.value)} required />
             <input className="invoer" placeholder="Uitgavejaar (optioneel)" type="number" min="1970" max="2100" value={jaar} onChange={e=>setJaar(e.target.value)} />
+            <div className="knoprij" style={{flexWrap:'wrap'}}>
+                <button className="knop knop-stil" type="button" onClick={()=>setGekozen([...platformen])}>Alles selecteren</button>
+                <button className="knop knop-stil" type="button" onClick={()=>setGekozen([])}>Alles uit</button>
+                {[
+                    ['Nintendo',/nintendo|game boy|gamecube|\bnes\b|\bsnes\b|\bwii\b|\b64\b/i],
+                    ['PlayStation / Sony',/playstation|\bpsp\b|ps vita/i],
+                    ['Xbox / Microsoft',/xbox/i],
+                    ['Sega',/sega|dreamcast|saturn|mega drive/i],
+                    ['PC',/^pc$/i],
+                    ['Overig',/atari|arcade|overig/i]
+                ].map(([groep,patroon])=><button key={groep} className="knop knop-stil" type="button" onClick={()=>setGekozen(platformen.filter(p=>patroon.test(p)))}>{groep}</button>)}
+            </div>
             <div className="vt-game-platforms">{platformen.map(p=><label key={p}><input type="checkbox" checked={gekozen.includes(p)} onChange={e=>setGekozen(old=>e.target.checked?[...old,p]:old.filter(x=>x!==p))} /> {p}</label>)}</div>
             <button className="knop" disabled={!gekozen.length}>Videogame toevoegen</button>
         </form>
