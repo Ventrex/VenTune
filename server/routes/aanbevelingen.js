@@ -692,11 +692,33 @@ router.post('/api/admin/titels/:id/ai-quiz', vereisAdmin, async (req, res) => {
     } catch (err) { return res.status(500).json({ fout: err.message }); }
 });
 
+// Gamecatalogus naar de normale blinde muziek-Swipe, zonder naam op de kaart.
+// Deze synchronisatie maakt geen speelbare tracks aan vóór de muziek is beluisterd.
+async function vulGameMuziekSwipe(){
+    await initGames();
+    const {rows}=await pool.query(`
+        SELECT g.id,g.naam,g.jaar FROM game_catalogus g
+        WHERE g.status='nieuw'
+          AND NOT EXISTS (SELECT 1 FROM aanbevelingen a
+              WHERE a.categorie='games' AND lower(trim(a.titel))=lower(trim(g.naam)))
+        ORDER BY g.id LIMIT 100`);
+    for(const g of rows){
+        await pool.query(`
+            INSERT INTO aanbevelingen
+              (soort,categorie,titel,jaar,tracknaam,artiest,youtube_zoekterm,
+               bekendheid,reden,status,muziek_genres)
+            VALUES ('muziek','games',$1,$2,$1,'',$3,4,
+                    'Bekende videogame; originele gamemuziek beoordelen','nieuw',ARRAY['Videogames'])
+            ON CONFLICT DO NOTHING`,
+            [g.naam,g.jaar,g.naam+' video game original main theme soundtrack']);
+    }
+}
 // Lijst om te swipen. fase=blind → status 'nieuw' (ronde 1, zonder naam).
 // fase=naam → status 'blind_nee' (ronde 2, met naam).
 router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
     try {
-        const categorie = aanbevelingen.CATEGORIEEN.includes(req.query.categorie) ? req.query.categorie : null;
+        const categorie = req.query.categorie === 'games' ? 'games' : aanbevelingen.CATEGORIEEN.includes(req.query.categorie) ? req.query.categorie : null;
+        if (categorie === 'games') await vulGameMuziekSwipe();
         const soort = req.query.soort === 'kerst' ? 'kerst' : req.query.soort === 'muziek' ? 'muziek' : 'film_serie';
         const fase = req.query.fase === 'naam' ? 'blind_nee' : 'nieuw';
         const { rows } = await pool.query(
