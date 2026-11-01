@@ -1484,7 +1484,7 @@ class SpelBeheer {
             h.timer = null;
         }
         // Bewaar hoeveel tijd er nog over was.
-        h.restMs = Math.max(0, h.startTijd + state.rondeDuurMs - Date.now());
+        h.restMs = Number(state.instellingen?.speeltijd) === 0 ? null : Math.max(0, h.startTijd + state.rondeDuurMs - Date.now());
         h.gepauzeerdOp = Date.now();
         h.gepauzeerd = true;
 
@@ -1506,7 +1506,7 @@ class SpelBeheer {
         h.gepauzeerd = false;
         h.gepauzeerdOp = null;
 
-        if (state.modus !== 'kenner' && h.restMs > 0) {
+        if (state.modus !== 'kenner' && Number(state.instellingen?.speeltijd) !== 0 && h.restMs > 0) {
             h.timer = setTimeout(() => {
                 this.onthulEnBonus(state).catch((err) =>
                     this.rapporteerOvergangsfout(state, err, 'hervatte ronde timer'),
