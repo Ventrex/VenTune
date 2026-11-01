@@ -20,6 +20,7 @@ const CATEGORIEEN = [
     { waarde: 'beide', label: 'Films & Series', logo: '/logos/films-series.svg', uitleg: 'Hitster voor intro’s, themes en soundtracks' },
     { waarde: 'films', label: 'Films', logo: '/logos/films.svg', uitleg: 'Alleen films' },
     { waarde: 'series', label: 'Series', logo: '/logos/series.svg', uitleg: 'Alleen series' },
+    { waarde: 'games', label: 'Videogames', logo: '/logos/music.svg', uitleg: 'Herken de muziek van bekende games op PC en consoles' },
     { waarde: 'muziek', label: 'Muziek', logo: '/logos/music.svg', uitleg: 'Muziekedities later uitbreiden' },
 ];
 const TALEN = [
@@ -214,6 +215,7 @@ export default function Setup() {
     // klopt de naam van de gekozen editie niet meer. Rondes, speeltijd en
     // antwoordwijze veranderen de inhoud niet en laten de naam dus staan.
     const INHOUDSFILTERS = new Set([
+        'game_only',
         'categorie', 'categorieen', 'collecties', 'met_genres', 'studios',
         'taal', 'periode_start', 'periode_eind', 'zonder_genres',
         'kindvriendelijk', 'leeftijd_max',
@@ -489,11 +491,12 @@ export default function Setup() {
                                 }
                                 onClick={() => {
                                     zet('categorie', c.waarde);
+                                    zet('game_only', c.waarde === 'games');
                                     zet('categorieen', c.waarde === 'films'
                                         ? ['film']
                                         : c.waarde === 'series'
                                           ? ['serie']
-                                          : c.waarde === 'muziek'
+                                          : c.waarde === 'muziek' || c.waarde === 'games'
                                             ? ['muziek']
                                             : ['film', 'serie']);
                                     verder();
