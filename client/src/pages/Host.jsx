@@ -130,8 +130,8 @@ export default function Host() {
     }
 
     function verlaten() {
-        wisSessie();
-        navigate('/');
+        // Bewaar het token om een onderbroken lobby later weer te openen.
+        navigate('/setup');
     }
 
     return (
