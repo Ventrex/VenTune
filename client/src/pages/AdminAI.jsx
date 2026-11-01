@@ -80,6 +80,7 @@ function Paneel() {
             <HerkenbaarheidBeheer />
             <MetadataVerrijken />
             <HandmatigToevoegen />
+            <GamesCatalogus />
             <Database />
         </main>
     );
@@ -466,6 +467,49 @@ export function ChatGptKoppeling() {
 }
 
 // ------------------------- Aanbevelingen -------------------------
+
+export function GamesCatalogus() {
+    const [platformen,setPlatformen]=useState([]);
+    const [games,setGames]=useState([]);
+    const [naam,setNaam]=useState('');
+    const [jaar,setJaar]=useState('');
+    const [gekozen,setGekozen]=useState(['PC']);
+    const [melding,setMelding]=useState('');
+    async function laad() {
+        try {
+            const [p,g]=await Promise.all([haal('/api/admin/games/platformen'),haal('/api/admin/games')]);
+            setPlatformen(p);setGames(g);
+        }catch(err){setMelding(err.message);}
+    }
+    useEffect(()=>{laad();},[]);
+    async function voegToe(e) {
+        e.preventDefault();
+        try {
+            await haal('/api/admin/games',{method:'POST',...jsonBody({naam,jaar:jaar||null,platformen:gekozen})});
+            setMelding('Videogame toegevoegd aan de videogamecatalogus.');
+            setNaam('');setJaar('');await laad();
+        }catch(err){setMelding(err.message);}
+    }
+    async function beoordeel(id,status) {
+        try{await haal('/api/admin/games/'+id,{method:'PATCH',...jsonBody({status})});await laad();}
+        catch(err){setMelding(err.message);}
+    }
+    return <section className="kaart ai-kaart">
+        <h3>Videogames · Consoles en PC</h3>
+        <p className="dim">Eigen categorie, los van films en series. Kies alle platformen waarop het spel uitkwam. Muziek en gamefragmenten zijn nog niet gekoppeld aan de spelronde.</p>
+        <form onSubmit={voegToe} className="stapel">
+            <input className="invoer" placeholder="Naam van het spel" value={naam} onChange={e=>setNaam(e.target.value)} required />
+            <input className="invoer" placeholder="Uitgavejaar (optioneel)" type="number" min="1970" max="2100" value={jaar} onChange={e=>setJaar(e.target.value)} />
+            <div className="vt-game-platforms">{platformen.map(p=><label key={p}><input type="checkbox" checked={gekozen.includes(p)} onChange={e=>setGekozen(old=>e.target.checked?[...old,p]:old.filter(x=>x!==p))} /> {p}</label>)}</div>
+            <button className="knop" disabled={!gekozen.length}>Videogame toevoegen</button>
+        </form>
+        {melding && <p className="dim">{melding}</p>}
+        <details><summary>Videogames ({games.length} getoond)</summary><div className="vt-health-list">{games.map(g=><p key={g.id}><strong>{g.naam}</strong> ({g.jaar||'—'}) · {g.platformen.join(', ')} · {g.status} {g.status==='nieuw' && <>
+            <button className="knop knop-stil" onClick={()=>beoordeel(g.id,'goedgekeurd')}>Goed</button>
+            <button className="knop knop-stil" onClick={()=>beoordeel(g.id,'uitgesloten')}>Afwijzen</button>
+        </>}</p>)}</div></details>
+    </section>;
+}
 
 function HandmatigToevoegen() {
     const [titel, setTitel] = useState('');
