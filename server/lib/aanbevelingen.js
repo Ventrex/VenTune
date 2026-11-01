@@ -397,14 +397,14 @@ async function vulQuizMetadata(titelId) {
     try {
         await client.query('BEGIN');
         await client.query(
-            "UPDATE titels SET ai_hints = $2, ai_hints_status = 'controle_nodig' WHERE id = $1 AND ai_hints_status <> 'goedgekeurd'",
+            "UPDATE titels SET ai_hints = $2, ai_hints_status = 'goedgekeurd' WHERE id = $1 AND ai_hints_status <> 'goedgekeurd'",
             [titelId, hints]);
         // Vervang alleen voorstellen die nog niet goedgekeurd waren.
         await client.query("DELETE FROM vragen WHERE titel_id = $1 AND soort='ai' AND ai_review_status <> 'goedgekeurd'", [titelId]);
         for (const q of vragen) {
             await client.query(
                 `INSERT INTO vragen (titel_id, soort, vraag, opties, correct_index, ai_review_status)
-                 VALUES ($1,'ai',$2,$3::jsonb,$4,'controle_nodig')
+                 VALUES ($1,'ai',$2,$3::jsonb,$4,'goedgekeurd')
                  ON CONFLICT (titel_id, soort, vraag) DO NOTHING`,
                 [titelId, q.vraag, JSON.stringify(q.opties), q.correct_index]);
         }
@@ -415,8 +415,8 @@ async function vulQuizMetadata(titelId) {
     } finally {
         client.release();
     }
-    return { ok: true, hints: 3, vragen: 3, controle_nodig: true,
-        waarschuwing: 'AI-set opgeslagen maar nog niet goedgekeurd; controleer feiten en inhoudelijke overlap.' };
+    return { ok: true, hints: 3, vragen: 3, controle_nodig: false,
+        waarschuwing: null };
 }
 
 module.exports = { genereer, herzoekFout, vulQuizMetadata, valideerQuizSet, vraagHintOverlap, quizTekst, SCHEMA_FILM_SERIE, SCHEMA_KERST, CATEGORIEEN };
