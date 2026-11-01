@@ -161,7 +161,12 @@ export default function AdminSwipe() {
                 <button className={'knop' + (zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(true);}}>Zonder MP3 · hele database</button>
                 <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => {setTitelReview(true);setZonderMp3(false);}}>Nieuwe titels beoordelen</button>
             </div>
-            {mp3Queue && <p className="dim" style={{margin:'.5rem 0'}}>MP3-wachtrij · {(mp3Queue.status||[]).map(s=>s.status+': '+s.aantal).join(' · ') || 'leeg'} · alleen klaargezette MP3's verschijnen bij muziek swipen.</p>}
+            {mp3Queue && <div className="kaart" style={{padding:'.65rem',margin:'.5rem 0'}}>
+                <strong>MP3-downloadwachtrij</strong>
+                {mp3Queue.rateLimitActief && <p style={{fontWeight:700,color:'var(--red-hot)'}}>YouTube-rate-limit actief · nog ongeveer {mp3Queue.wachtMinuten} minuten wachten</p>}
+                <p className="dim" style={{margin:'.35rem 0'}}>Status: {mp3Queue.rateLimitActief?'gepauzeerd':mp3Queue.workerBezig?'downloaden':'wachten op volgende taak'} · {(mp3Queue.status||[]).map(s=>s.status+': '+s.aantal).join(' · ')||'wachtrij leeg'}</p>
+                <p className="dim" style={{margin:'.25rem 0'}}>In Muziek swipen verschijnen alleen klaargezette MP3's. De queue probeert automatisch opnieuw zodra YouTube beschikbaar is.</p>
+            </div>}
             {!zonderMp3 && !titelReview && <div className="swipe-tabs" style={{marginTop:'.25rem'}}>
                 <label style={{width:'100%'}}>Muziekcategorie
                     <select className="invoer" value={categorie} onChange={e=>setCategorie(e.target.value)}>
