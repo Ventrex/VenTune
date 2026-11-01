@@ -36,3 +36,14 @@
 @media(max-width:850px){.vt-categorie-main{grid-template-columns:1fr}.vt-categorie-aside{grid-template-columns:1fr 1fr}.vt-hoofdkaart{min-height:175px}.vt-categorie-aside .thema-knop{min-height:70px}}
 @media(max-width:620px){.setup-scherm:has(.vt-categorie-scherm){padding:.65rem}.vt-hoofdkaarten{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-hoofdkaart{min-height:160px;border-radius:16px}.vt-hoofdkaart-titel{font-size:1rem}.vt-categorie-main{gap:10px}.vt-categorie-aside{grid-template-columns:1fr}.vt-categorie-paneel{padding:12px}.vt-keuzerij{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-categorie-aside .thema-knop{min-height:65px}.vt-berg-paneel{min-height:145px}}
 @media(prefers-reduced-motion:reduce){.vt-hoofdkaart,.vt-keuzerij .chip{transition:none}}
+
+/* Screenshot navigation, without altering other game screens */
+.setup-scherm:has(.vt-categorie-scherm)>.merk,.setup-scherm:has(.vt-categorie-scherm)>.account-balk,.setup-scherm:has(.vt-categorie-scherm)>.stappen,.setup-scherm:has(.vt-categorie-scherm)>p:has(>.terug){display:none}
+.vt-category-topnav{display:flex;align-items:center;justify-content:space-between;gap:1rem;width:calc(100% + 2.4rem);margin:-1.1rem -1.2rem .8rem;padding:.55rem 1.15rem;border-bottom:1px solid #ff319745;background:#0b071acc}
+.vt-top-brand{font-size:1.5rem;color:#ff66b6;text-decoration:none;white-space:nowrap;font-weight:750;letter-spacing:-.04em}
+.vt-top-brand strong{font-weight:850}
+.vt-top-links{display:flex;align-items:center;gap:clamp(4px,1.4vw,24px);justify-content:center}
+.vt-top-links a{display:inline-flex;align-items:center;justify-content:center;padding:.46rem .7rem;color:#eee5fb;text-decoration:none;border-radius:30px;font-size:.83rem;font-weight:650;white-space:nowrap}
+.vt-top-links .vt-top-active{background:linear-gradient(125deg,#ff279c,#b91574);box-shadow:0 0 12px #ff27887b;color:white}
+.vt-top-user{color:var(--text);font-size:.83rem;text-decoration:none;white-space:nowrap;border:1px solid #dd399b8b;border-radius:30px;padding:.4rem .65rem}
+@media(max-width:740px){.vt-category-topnav{flex-wrap:wrap;justify-content:center;gap:.4rem;width:calc(100% + 1.3rem);margin:-.65rem -.65rem .6rem;padding:.5rem}.vt-top-brand{font-size:1.15rem}.vt-top-links{order:3;width:100%;gap:0;justify-content:space-around}.vt-top-links a{font-size:.73rem;padding:.36rem}.vt-top-user{font-size:.72rem}}
