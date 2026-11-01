@@ -27,6 +27,14 @@ services:
       timeout: 5s
       retries: 10
 
+  # Gratis automatische YouTube PO Token-generatie.
+  # Alleen bereikbaar binnen Docker; geen publieke poorten.
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:2.0.2
+    restart: unless-stopped
+    expose:
+      - "4416"
+
   # -------------------------------------------------------------------
   # Backend (Node + Express + Socket.IO)
   # -------------------------------------------------------------------
@@ -38,6 +46,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      bgutil-provider:
+        condition: service_started
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3000}
