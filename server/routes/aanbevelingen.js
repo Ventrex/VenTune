@@ -760,6 +760,7 @@ async function runMp3Queue(){
     const a=(await pool.query('SELECT * FROM aanbevelingen WHERE id=$1',[id])).rows[0];
     await media.lokaalVoorbeeld(a);
     await pool.query("UPDATE swipe_mp3_queue SET status='klaar',fout=NULL,bijgewerkt=now() WHERE aanbeveling_id=$1",[id]);
+    await pool.query("UPDATE aanbevelingen SET status='nieuw' WHERE id=$1 AND status='fout'",[id]);
    }catch(e){
     const poging=Number(item.pogingen)+1;
     const delay=ytzoek.rateLimitActief()?360:Math.min(360,Math.pow(2,Math.min(poging,8))*5);
@@ -773,6 +774,23 @@ async function runMp3Queue(){
 }
 async function seedMp3Queue(){
  await initMp3Queue();
+ // Maak kandidaat-aanbevelingen aan voor de bestaande films en series
+ // zonder lokale muziek, ook als er nog geen AI-aanbeveling voor bestaat.
+ await pool.query(`
+    INSERT INTO aanbevelingen(soort,categorie,titel,type,jaar,tracknaam,
+      artiest,youtube_zoekterm,bekendheid,reden,status,titel_id)
+    SELECT 'film_serie',t.type::text,t.naam,t.type::text,t.jaar,'','',
+      t.naam||' original theme soundtrack intro',3,
+      'Automatische downloadwachtrij vanuit catalogus','nieuw',t.id
+    FROM titels t
+    WHERE t.type IN ('film','serie') AND t.curatie_status <> 'uitgesloten'
+      AND NOT EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id
+          AND tr.bron='lokaal' AND tr.werkt=true AND tr.download_status='available')
+      AND NOT EXISTS (SELECT 1 FROM aanbevelingen a WHERE a.titel_id=t.id)
+    ORDER BY t.swipe_prioriteit DESC NULLS LAST,t.populariteit DESC
+    LIMIT 100
+ `);
+
  await pool.query(`INSERT INTO swipe_mp3_queue(aanbeveling_id,prioriteit)
  SELECT a.id,CASE WHEN t.swipe_prioriteit IS NOT NULL THEN 100 ELSE 0 END
  FROM aanbevelingen a LEFT JOIN titels t ON t.id=a.titel_id
