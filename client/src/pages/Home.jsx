@@ -44,7 +44,16 @@ export default function Home() {
 
     return (
         <main className="scherm ventune-home">
-            <Brand link={false} />
+            <nav className="vt-category-topnav vt-home-topnav" aria-label="VenTune navigatie">
+                <Link className="vt-top-brand" to="/setup"><img className="vt-top-equalizer" src="/category/equalizer.svg" alt=""/><strong><span>Ven</span>Tune</strong></Link>
+                <div className="vt-top-links">
+                    <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt=""/>Spelen</Link>
+                    <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>Scores</Link>
+                    <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>Profielen</Link>
+                    <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>Beheer</Link>
+                </div>
+                <Link className="vt-top-user" to="/host/profile"><span className="vt-avatar-ring">♫</span>Profiel</Link>
+            </nav>
             <header className="vt-home-hero">
                 <h1>Kies je volgende quiz</h1>
                 <p>Start een nieuw spel, doe mee met vrienden of ga verder waar je was gebleven.</p>
