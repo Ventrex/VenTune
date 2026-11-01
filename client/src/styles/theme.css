@@ -61,6 +61,26 @@
     color-scheme: dark;
 }
 
+/* Additional approved visual looks. Shared design tokens change throughout VenTune. */
+:root[data-thema='laser'] {
+    --bg:#070b24;--surface:#0c1c39;--border:#254d92;
+    --red:#8c28e3;--red-hot:#15c9fd;--red-glow:rgba(21,201,253,.48);
+    --accent:#16d6ff;--accent-2:#ff35bb;--text:#f4f8ff;--text-dim:#a0bed9;
+    color-scheme:dark;
+}
+:root[data-thema='retro'] {
+    --bg:#1b0b42;--surface:#28174b;--border:#783c91;
+    --red:#c42c99;--red-hot:#ff4aa2;--red-glow:rgba(255,74,162,.4);
+    --accent:#ffc052;--accent-2:#ff429f;--text:#ffeefc;--text-dim:#c6a8df;
+    color-scheme:dark;
+}
+:root[data-thema='game'] {
+    --bg:#060c25;--surface:#10194b;--border:#3057a2;
+    --red:#056ac9;--red-hot:#00d4ff;--red-glow:rgba(0,212,255,.4);
+    --accent:#00dfff;--accent-2:#d342ff;--text:#eaf8ff;--text-dim:#9ab8ef;
+    color-scheme:dark;
+}
+
 *,
 *::before,
 *::after {
