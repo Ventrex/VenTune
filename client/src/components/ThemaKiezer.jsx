@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LOOKS, leesLook, zetLook } from '../lib/looks.js';
 
-// Kleine themakiezer: drie knoppen (Neon / Noir / Kerst). De keuze blijft
+// Themategels: zes looks. De keuze blijft
 // bewaard in de browser en past meteen de hele app aan.
 export default function ThemaKiezer() {
     const [actief, setActief] = useState(leesLook());
