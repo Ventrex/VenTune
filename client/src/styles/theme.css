@@ -2181,3 +2181,27 @@ body {
 .vt-issue-form textarea.invoer { min-height: 64px; resize: vertical; }
 .vt-issue-form p { margin: 0; }
 .vt-issue-form .knop { justify-self: start; min-height: 42px; }
+
+/* Compact admin including the manually-added title form and Swipe. */
+.admin-ai .kaart, .admin-swipe .kaart, .admin-panel .kaart { padding: .7rem; }
+.admin-ai .invoer, .admin-swipe .invoer, .admin-panel .invoer,
+.admin-ai textarea.invoer, .admin-panel textarea.invoer {
+  min-height: 38px; height: auto; font-size: .9rem; padding: .35rem .6rem;
+}
+.admin-ai .knop, .admin-swipe .knop, .admin-panel .knop {
+  min-height: 38px; font-size: .9rem; padding: .35rem .65rem;
+}
+.admin-ai .stapel, .admin-panel .stapel { gap: .4rem; }
+.admin-ai .ai-grid { gap: .65rem; }
+.vt-health h3 { margin: 0 0 .3rem; font-size: 1.05rem; }
+.vt-health-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.45rem; }
+.vt-health-grid span { display:flex; justify-content:space-between; gap:.4rem; border:1px solid var(--border); padding:.4rem .55rem; border-radius:8px; font-size:.85rem; }
+.vt-health-list { max-height:280px; overflow:auto; }
+.vt-health-list p { margin:.3rem 0; font-size:.85rem; }
+.vt-review-row { display:grid; grid-template-columns:64px minmax(0,1fr); align-items:center; gap:.65rem; padding:.5rem 0; border-bottom:1px solid var(--border); }
+.vt-review-row img { width:64px; max-height:96px; object-fit:cover; border-radius:7px; }
+.vt-review-row p { margin:.2rem 0; }
+.vt-review-row .knoprij { margin-top:.25rem; }
+@media(min-width:700px) {
+  .admin-ai, .admin-swipe { max-width:min(1100px,96vw); }
+}
