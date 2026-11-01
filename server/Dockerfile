@@ -27,7 +27,9 @@ RUN apk add --no-cache python3 py3-pip ffmpeg \
 # De PO Token Provider draait uitsluitend op het interne Docker-netwerk.
 RUN printf '%s\\n' \\
     '--extractor-args' \\
-    'youtube:player_client=mweb,web_safari;youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416' \\
+    'youtube:player_client=mweb,web_safari' \
+    '--extractor-args' \
+    'youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416' \\
     > /etc/yt-dlp.conf
 
 RUN npm install -g @openai/codex
