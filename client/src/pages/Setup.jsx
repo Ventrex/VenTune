@@ -379,6 +379,16 @@ export default function Setup() {
 
     return (
         <main className="scherm setup-scherm">
+            {stap === 1 && <nav className="vt-category-topnav" aria-label="VenTune navigatie">
+                <Link className="vt-top-brand" to="/">♫ <strong>VenTune</strong></Link>
+                <div className="vt-top-links">
+                    <Link className="vt-top-active" to="/setup">♧ Spelen</Link>
+                    <Link to="/">♜ Scores</Link>
+                    <Link to="/host/profile">♙ Profielen</Link>
+                    <Link to="/admin">⚙ Beheer</Link>
+                </div>
+                <Link className="vt-top-user" to="/host/profile">{host?.display_naam || 'Profiel'} ▾</Link>
+            </nav>}
             <Brand compact />
             {host && (
                 <div className="account-balk">
