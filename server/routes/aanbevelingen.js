@@ -307,6 +307,41 @@ router.post('/api/admin/aanbevelingen/login/uit', vereisAdmin, (req, res) => {
     res.json(codex.logUit());
 });
 
+// Als ChatGPT geen onbekende titels meer bedenkt, gebruik de al gevulde
+// TMDB-catalogus als bron voor swipe-kandidaten. Kies bekende titels,
+// voorkom dubbelen en raak handmatige selecties nooit kwijt.
+async function vulSwipeVanuitCatalogus(categorie, aantal=100) {
+    if (!['film','serie'].includes(categorie)) return {ok:false,error:'Geen catalogusfallback voor deze categorie'};
+    const {rows}=await pool.query(`
+      SELECT t.id,t.naam,t.type::text AS type,t.jaar,t.genres,t.populariteit,
+             t.swipe_prioriteit
+      FROM titels t
+      WHERE t.type::text=$1
+        AND t.curatie_status <> 'uitgesloten'
+        AND (t.swipe_prioriteit IS NOT NULL OR t.curatie_status='goedgekeurd'
+             OR COALESCE(t.stemmen,0)>=250)
+        AND NOT EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id
+             AND tr.werkt=true AND tr.bron='lokaal' AND tr.download_status='available')
+        AND NOT EXISTS (SELECT 1 FROM aanbevelingen a
+             WHERE a.type=$1 AND lower(trim(a.titel))=lower(trim(t.naam)))
+      ORDER BY t.swipe_prioriteit DESC NULLS LAST,
+               CASE WHEN t.curatie_status='goedgekeurd' THEN 0 ELSE 1 END,
+               t.stemmen DESC,t.populariteit DESC
+      LIMIT $2`,[categorie,Math.max(1,Math.min(100,aantal))]);
+    let toegevoegd=0;
+    for(const t of rows) {
+        const q=await pool.query(`
+          INSERT INTO aanbevelingen(soort,categorie,titel,type,jaar,genres,
+               tracknaam,artiest,youtube_zoekterm,bekendheid,reden,status,titel_id)
+          VALUES('film_serie',$1,$2,$3,$4,$5,'','',$6,4,
+                 'Bekende titel uit bestaande database; zoek het juiste originele herkenningsnummer','nieuw',$7)
+          ON CONFLICT DO NOTHING RETURNING id`,
+          [categorie,t.naam,t.type,t.jaar,t.genres||[],t.naam+' official theme soundtrack intro',t.id]);
+        toegevoegd+=q.rowCount;
+    }
+    return {ok:toegevoegd>0,toegevoegd,overgeslagen:0,
+      error:toegevoegd?'':('Geen nieuwe '+categorie+'-titels zonder MP3 beschikbaar in de bestaande catalogus.')};
+}
 // Persistente AI-wachtrij. Nieuwe requests worden opgeslagen in PostgreSQL;
 // een paginawissel onderbreekt het werk niet en na serverstart worden taken hervat.
 let queueWorkerRunning = false;
@@ -343,9 +378,13 @@ async function loopAiQueue() {
                 try {
                     const stap=Math.min(100,Number(taak.gevraagd)-verwerkt);
                     const resultaat=await aanbevelingen.genereer({soort:taak.soort,categorie:taak.categorie,taal:taak.taal,aantal:stap});
-                    if (!resultaat.ok) { fout=resultaat.error || 'AI leverde geen nieuwe kandidaten.'; break; }
-                    toegevoegd+=Number(resultaat.toegevoegd||0);
-                    overgeslagen+=Number(resultaat.overgeslagen||0);
+                    let werkelijk=resultaat;
+                    if(!resultaat.ok && ['film','serie'].includes(taak.categorie)) {
+                        werkelijk=await vulSwipeVanuitCatalogus(taak.categorie,stap);
+                    }
+                    if (!werkelijk.ok) { fout=werkelijk.error || resultaat.error || 'Geen nieuwe kandidaten gevonden.'; break; }
+                    toegevoegd+=Number(werkelijk.toegevoegd||0);
+                    overgeslagen+=Number(werkelijk.overgeslagen||0);
                     verwerkt+=stap;
                     await pool.query("UPDATE ai_aanbeveling_taken SET verwerkt=$2,toegevoegd=$3,overgeslagen=$4,bijgewerkt_op=now() WHERE id=$1",
                         [taak.id,verwerkt,toegevoegd,overgeslagen]);
@@ -357,6 +396,14 @@ async function loopAiQueue() {
     } catch(err) { logger.fout('AI-wachtrij mislukt', {melding:err.message}); }
     finally { queueWorkerRunning=false; }
 }
+router.post('/api/admin/aanbevelingen/catalogus-naar-swipe',vereisAdmin,async(req,res)=>{
+    try{
+        const categorie=req.body?.categorie;
+        if(!['film','serie'].includes(categorie))return res.status(400).json({fout:'Kies films of series.'});
+        const resultaat=await vulSwipeVanuitCatalogus(categorie,100);
+        res.json(resultaat);
+    }catch(err){res.status(500).json({fout:err.message});}
+});
 router.get('/api/admin/aanbevelingen/wachtrij', vereisAdmin, async (_req,res)=>{
     try {
         await initAiQueue();
