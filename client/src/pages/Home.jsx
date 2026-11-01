@@ -3,7 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { haalRanking } from '../lib/api.js';
 import Brand from '../components/Brand.jsx';
 import Icon from '../components/Icon.jsx';
-import ThemaKiezer from '../components/ThemaKiezer.jsx';
+import { leesSessie, wisSessie } from '../lib/sessie.js';
+import './setup-categorie.css';
 import { ThemaContext } from '../lib/thema.js';
 
 // Startscherm: nieuw spel maken (host) of meedoen met een code.
@@ -11,6 +12,7 @@ export default function Home() {
     const navigate = useNavigate();
     const thema = useContext(ThemaContext);
     const [code, setCode] = useState('');
+    const [vorigeSessie, setVorigeSessie] = useState(leesSessie);
     const [fout, setFout] = useState('');
     const [ranking, setRanking] = useState({
         beste_gemiddeld: [],
@@ -26,7 +28,7 @@ export default function Home() {
     function nieuwSpel() {
         // Een host moet eerst een account hebben; het account-scherm stuurt
         // ingelogde hosts direct door naar het filtermenu.
-        navigate('/host/login?return=/setup');
+        navigate('/host/login?return=/setup/new');
     }
 
     function meedoen(e) {
@@ -42,41 +44,31 @@ export default function Home() {
     return (
         <main className="scherm ventune-home">
             <Brand link={false} />
-            <div className="home-hero-icon"><Icon name="music" size={28} /><Icon name="sparkles" size={18} /></div><h1>De browser-muziekquiz</h1>
-            <p className="ondertitel">{thema.ondertitel || 'Muziekquiz over films en series'}</p>
-            <p className="dim start-uitleg">
-                Host? Log in of maak een hostaccount. Speler? Doe gratis mee met
-                de lobbycode.
-            </p>
-
+            <header className="vt-home-hero">
+                <h1>Kies je volgende quiz</h1>
+                <p>Start een nieuw spel, doe mee met vrienden of ga verder waar je was gebleven.</p>
+            </header>
             {fout && <p className="waarschuwing">{fout}</p>}
-
-            <div className="stapel">
-                <button className="knop" onClick={nieuwSpel}>
-                    <Icon name="play" /> Nieuw spel <Icon name="arrow" size={17} />
+            <div className="vt-home-actions">
+                <button type="button" className="vt-home-action vt-home-new" onClick={nieuwSpel}>
+                    <img src="/category/approved-films.svg?v=hd840-20261101" alt="" />
+                    <span><strong>Nieuw spel</strong><small>Stel je quiz samen</small></span>
                 </button>
-
-                <form onSubmit={meedoen} className="stapel" style={{ gap: '0.75rem' }}>
-                    <label className="kaart-label" style={{ textAlign: 'left' }}>
-                        Meedoen met een code
-                    </label>
-                    <div className="zoekbalk" style={{ margin: 0 }}>
-                        <input
-                            className="invoer code-invoer"
-                            value={code}
-                            onChange={(e) => setCode(e.target.value.toUpperCase())}
-                            placeholder="ABCD"
-                            maxLength={4}
-                            autoCapitalize="characters"
-                            aria-label="Lobbycode"
-                        />
-                        <button className="knop knop-stil" type="submit">
-                            <Icon name="users" size={18} /> Meedoen
-                        </button>
+                <form onSubmit={meedoen} className="vt-home-action vt-home-join">
+                    <div className="vt-home-action-heading"><span className="vt-option-art">📱</span><strong>Spel joinen</strong><small>Voer de lobbycode in</small></div>
+                    <div className="zoekbalk">
+                        <input className="invoer code-invoer" value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
+                            placeholder="ABCD" maxLength={4} autoCapitalize="characters" aria-label="Lobbycode"/>
+                        <button className="knop" type="submit">Joinen</button>
                     </div>
                 </form>
+                <div className="vt-home-action vt-home-continue">
+                    <div className="vt-home-action-heading"><span className="vt-option-art">↻</span><strong>Doorgaan vorig spel</strong>
+                        <small>{vorigeSessie?.code ? 'Lobby '+vorigeSessie.code : 'Geen onderbroken spel op dit apparaat'}</small></div>
+                    <button className="knop knop-stil" type="button" disabled={!vorigeSessie?.token} onClick={()=>navigate(vorigeSessie?.is_host?'/host':'/play')}>Doorgaan</button>
+                    {vorigeSessie?.code && <button type="button" className="terug als-link" onClick={()=>{wisSessie();setVorigeSessie(null)}}>Oude sessie wissen</button>}
+                </div>
             </div>
-
             {(ranking.beste_gemiddeld?.length > 0 || ranking.meeste_spellen?.length > 0 || ranking.punten_gemiddeld?.length > 0) && (
                 <div style={{ marginTop: '2.5rem' }}>
                     <p className="kaart-label" style={{ textAlign: 'left' }}>
@@ -89,13 +81,6 @@ export default function Home() {
                     </div>
                 </div>
             )}
-
-            <div style={{ marginTop: '2.5rem' }}>
-                <p className="kaart-label" style={{ textAlign: 'left' }}>
-                    Uiterlijk
-                </p>
-                <ThemaKiezer />
-            </div>
 
             <p style={{ marginTop: '1rem', display: 'flex', gap: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Link className="terug" to="/changelog">
