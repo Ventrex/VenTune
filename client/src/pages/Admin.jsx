@@ -1728,7 +1728,10 @@ function Uiterlijk({ onMelding }) {
                         ['collectie-alles','Collectie · Alles'], ['collectie-80s','Collectie · 80’s'],
                         ['collectie-90s','Collectie · 90’s'], ['collectie-animatie','Collectie · Animatie'],
                         ['collectie-kinder','Collectie · Kinder'], ['collectie-kerst','Collectie · Kerst'],
-                        ['collectie-rock','Muziek · Rock'], ['collectie-100nl','Muziek · 100% NL']
+                        ['collectie-rock','Muziek · Rock'], ['collectie-100nl','Muziek · 100% NL'],
+                        ['platform-nintendo','Videogames · Nintendo'], ['platform-sega','Videogames · Sega'],
+                        ['platform-playstation','Videogames · PlayStation'], ['platform-xbox','Videogames · Xbox'],
+                        ['platform-pc','Videogames · PC']
                     ].map(([sleutel, titel]) => <div className="vt-admin-category-image" key={sleutel}>
                         <strong>{titel}</strong>
                         {categorieBeelden[sleutel] ? <img src={categorieBeelden[sleutel]} alt={titel} /> : <small>Standaardbeeld / tekst</small>}
