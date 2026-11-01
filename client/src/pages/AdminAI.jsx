@@ -504,8 +504,9 @@ export function CatalogusPerJaar() {
     const [status,setStatus]=useState(null);
     const [melding,setMelding]=useState('');
     const [fout,setFout]=useState('');
+    const [tellingen,setTellingen]=useState([]);
     async function laad() {
-        try {const d=await haal('/api/admin/tmdb/catalogus/status');setStatus(d);setFout('');}
+        try {const [d,t]=await Promise.all([haal('/api/admin/tmdb/catalogus/status'),haal('/api/admin/catalogus-tellingen')]);setStatus(d);setTellingen(t.categorieen||[]);setFout('');}
         catch(err){setFout(err.message);}
     }
     useEffect(()=>{laad();const timer=setInterval(laad,4000);return ()=>clearInterval(timer);},[]);
@@ -519,6 +520,7 @@ export function CatalogusPerJaar() {
     return <section className="kaart ai-kaart">
         <h3>Grote film- en seriecatalogus · per jaartal</h3>
         <p className="dim">TMDB haalt films en series op voor ieder jaar vanaf 1980 t/m het huidige jaar, met Nederlandse regio-context. Dit is een aparte catalogusimport: niet beperkt tot wat ChatGPT zelf kan bedenken. TMDB bevestigt niet dat elke serie daadwerkelijk op Nederlandse televisie is uitgezonden.</p>
+        <p className="dim">Echte catalogus: {tellingen.map(t=>`${t.type}: ${t.titels} titels · ${t.met_mp3} met MP3 · ${t.te_beoordelen} te beoordelen`).join(' | ') || 'laden…'}. De kleine tellers bovenaan zijn uitsluitend AI-muziekaanbevelingen.</p>
         <div className="knoprij"><button className="knop" disabled={status?.bezig} onClick={start}>Catalogus 1980–nu ophalen</button><Link className="knop knop-stil" to="/admin">Ontbrekende MP3's: beheer</Link></div>
         {status && <p className="dim">{status.bezig?'Bezig':'Status: '+(status.klaar?'afgerond':'niet gestart')} · {status.fase||status.stap||'catalogus'} · {status.verwerkt||0}/{status.totaal||'—'} verwerkt · {status.nieuw||0} nieuw · {status.bestaand||0} bestaand</p>}
         {status?.fout && <p className="waarschuwing">{status.fout}</p>}
