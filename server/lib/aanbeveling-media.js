@@ -149,6 +149,22 @@ async function zoekMuziekCover(tracknaam, artiest) {
 
 /** Vind of maak de titel die bij een aanbeveling hoort. */
 async function vindOfMaakTitel(a) {
+    if (a.categorie === 'games') {
+        const {rows: bestaande}=await pool.query(
+            "SELECT id FROM titels WHERE lower(naam)=lower($1) AND type='muziek' LIMIT 1",[a.titel]);
+        if(bestaande[0]){
+            await pool.query(`UPDATE titels SET
+                genres=CASE WHEN 'Videogames'=ANY(genres) THEN genres ELSE array_append(genres,'Videogames') END,
+                muziek_genres=CASE WHEN 'Videogames'=ANY(muziek_genres) THEN muziek_genres ELSE array_append(muziek_genres,'Videogames') END
+                WHERE id=$1`,[bestaande[0].id]);
+            return bestaande[0].id;
+        }
+        const {rows}=await pool.query(`
+            INSERT INTO titels(naam,type,taal,jaar,genres,muziek_genres,themas,curatie_status)
+            VALUES($1,'muziek','en',$2,ARRAY['Videogames'],ARRAY['Videogames'],ARRAY['games'],'goedgekeurd')
+            RETURNING id`,[a.titel,a.jaar]);
+        return rows[0].id;
+    }
     if (a.soort !== 'film_serie') {
         // Een kerstnummer is zelf de te raden titel (type 'muziek').
         const naam = a.tracknaam;
