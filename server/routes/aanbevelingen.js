@@ -765,36 +765,49 @@ async function enqueueMp3(id,prioriteit=0){
  status='wachtend',volgende_poging=now(),bijgewerkt=now()`,[id,prioriteit]);
  setImmediate(()=>runMp3Queue().catch(e=>logger.fout('MP3 queue',{melding:e.message})));
 }
+// Eén worker voor voorgrond en achtergrond. Prioriteit: geselecteerde Swipe-buffer.
+let laatsteDownloadPoging=0;
+const MIN_DOWNLOAD_PAUZE_MS=Number(process.env.VENTUNE_MP3_PAUZE_MS)||45000;
 async function runMp3Queue(){
- if(mp3Worker || !actieveSwipe)return;
+ if(mp3Worker)return;
  mp3Worker=true;
  try{
   await initMp3Queue();
-  while(!ytzoek.rateLimitActief() && media.rateLimitTot() <= Date.now()){
-   const {rows:[bezet]}=await pool.query(`SELECT count(*)::int AS n FROM aanbevelingen a JOIN swipe_mp3_queue q ON q.aanbeveling_id=a.id WHERE a.categorie=$1 AND a.status=$2 AND q.status='klaar'`,[actieveSwipe.categorie,actieveSwipe.fase==='naam'?'blind_nee':'nieuw']);
-   if(bezet.n>=10)break;
+  await initUitsluitlijst();
+  while(!ytzoek.rateLimitActief() && media.rateLimitTot()<=Date.now()){
+   const verstreken=Date.now()-laatsteDownloadPoging;
+   if(verstreken<MIN_DOWNLOAD_PAUZE_MS)break;
+   const faseStatus=actieveSwipe?.fase==='naam'?'blind_nee':'nieuw';
    const {rows}=await pool.query(`SELECT q.aanbeveling_id,q.pogingen FROM swipe_mp3_queue q
-   JOIN aanbevelingen a ON a.id=q.aanbeveling_id
-   WHERE q.status='wachtend' AND q.volgende_poging<=now()
-     AND a.categorie=$1 AND a.status=$2
-   ORDER BY q.prioriteit DESC,q.bijgewerkt ASC LIMIT 1`,[actieveSwipe.categorie,actieveSwipe.fase==='naam'?'blind_nee':'nieuw']);
+     JOIN aanbevelingen a ON a.id=q.aanbeveling_id
+     WHERE q.status='wachtend' AND q.volgende_poging<=now()
+       AND a.status IN ('nieuw','blind_nee')
+       AND NOT EXISTS(SELECT 1 FROM swipe_uitsluitlijst bl WHERE bl.aanbeveling_id=a.id)
+       AND (a.titel_id IS NULL OR NOT EXISTS(
+         SELECT 1 FROM titels t WHERE t.id=a.titel_id AND t.curatie_status='uitgesloten'))
+     ORDER BY CASE WHEN a.categorie=$1 AND a.status=$2 THEN 0 ELSE 1 END,
+       q.prioriteit DESC,q.bijgewerkt ASC LIMIT 1`,
+       [actieveSwipe?.categorie||'',faseStatus]);
    if(!rows.length)break;
-   const item=rows[0], id=item.aanbeveling_id;
+   const item=rows[0],id=item.aanbeveling_id;
    await pool.query("UPDATE swipe_mp3_queue SET status='bezig',bijgewerkt=now() WHERE aanbeveling_id=$1",[id]);
+   laatsteDownloadPoging=Date.now();
    try{
-    const a=(await pool.query('SELECT * FROM aanbevelingen WHERE id=$1',[id])).rows[0];
-    await media.lokaalVoorbeeld(a);
+    const {rows:advies}=await pool.query('SELECT * FROM aanbevelingen WHERE id=$1',[id]);
+    if(!advies[0])continue;
+    await media.lokaalVoorbeeld(advies[0]);
     await pool.query("UPDATE swipe_mp3_queue SET status='klaar',fout=NULL,bijgewerkt=now() WHERE aanbeveling_id=$1",[id]);
-    await pool.query("UPDATE aanbevelingen SET status='nieuw' WHERE id=$1 AND status='fout'",[id]);
    }catch(e){
     const poging=Number(item.pogingen)+1;
-    const geblokkeerd=ytzoek.rateLimitActief() || media.rateLimitTot()>Date.now();
-    const delay=geblokkeerd?Math.max(15,Math.ceil((Math.max(ytzoek.rateLimitTot(),media.rateLimitTot())-Date.now())/60000)):Math.min(120,Math.pow(2,Math.min(poging,6))*5);
+    const geblokkeerd=ytzoek.rateLimitActief()||media.rateLimitTot()>Date.now();
+    const delay=geblokkeerd?Math.max(15,Math.ceil((Math.max(ytzoek.rateLimitTot(),media.rateLimitTot())-Date.now())/60000)):Math.min(1440,Math.pow(2,Math.min(poging,8))*5);
     await pool.query(`UPDATE swipe_mp3_queue SET status='wachtend',pogingen=$2,
-       fout=$3,volgende_poging=now()+($4 * interval '1 minute'),bijgewerkt=now()
-       WHERE aanbeveling_id=$1`,[id,poging,String(e.message).slice(0,400),delay]);
+      fout=$3,volgende_poging=now()+($4 * interval '1 minute'),bijgewerkt=now()
+      WHERE aanbeveling_id=$1`,[id,poging,String(e.message).slice(0,400),delay]);
     if(geblokkeerd)break;
    }
+   // Geen tweede download in dezelfde worker-call; timer hervat met rustpauze.
+   break;
   }
  }finally{mp3Worker=false;}
 }
@@ -842,6 +855,39 @@ async function vulSwipeBuffer(categorie,fase='blind'){
  setImmediate(()=>runMp3Queue().catch(e=>logger.waarschuwing('Swipe buffer',{melding:e.message})));
 }
 setInterval(()=>{if(actieveSwipe)vulSwipeBuffer(actieveSwipe.categorie,actieveSwipe.fase).catch(e=>logger.waarschuwing('Swipe hervatten',{melding:e.message}));},60*1000).unref();
+
+let catalogusVullenBezig=false;
+async function vulAchtergrondCatalogus(){
+ if(catalogusVullenBezig)return;
+ catalogusVullenBezig=true;
+ try{
+  await initMp3Queue();
+  await initUitsluitlijst();
+  // Catalogus bevat ook oude titels waarvan de MP3 nooit is gecontroleerd.
+  // Maak alleen een nieuwe beoordelingskandidaat; verwijder of vervang nooit een bestaande track.
+  await pool.query(`INSERT INTO aanbevelingen
+    (soort,categorie,titel,type,jaar,tracknaam,artiest,youtube_zoekterm,bekendheid,reden,status,titel_id)
+   SELECT 'film_serie',t.type::text,t.naam,t.type::text,t.jaar,'','',
+     '',3,'AI controle van herkenbare titelmuziek','nieuw',t.id
+   FROM titels t
+   WHERE t.type IN ('film','serie') AND t.curatie_status <> 'uitgesloten'
+     AND NOT EXISTS(SELECT 1 FROM aanbevelingen a WHERE a.titel_id=t.id)
+     AND NOT EXISTS(SELECT 1 FROM swipe_uitsluitlijst bl WHERE bl.titel_id=t.id)
+   ORDER BY t.swipe_prioriteit DESC NULLS LAST,t.populariteit DESC,t.id
+   LIMIT 30`);
+  await pool.query(`INSERT INTO swipe_mp3_queue(aanbeveling_id,prioriteit)
+   SELECT a.id,0 FROM aanbevelingen a
+   WHERE a.status IN ('nieuw','blind_nee')
+     AND NOT EXISTS(SELECT 1 FROM swipe_uitsluitlijst bl WHERE bl.aanbeveling_id=a.id)
+     AND (a.titel_id IS NULL OR NOT EXISTS(SELECT 1 FROM titels t WHERE t.id=a.titel_id AND t.curatie_status='uitgesloten'))
+   ORDER BY a.aangemaakt_op LIMIT 200
+   ON CONFLICT(aanbeveling_id) DO NOTHING`);
+  await runMp3Queue();
+ }finally{catalogusVullenBezig=false;}
+}
+setTimeout(()=>vulAchtergrondCatalogus().catch(e=>logger.waarschuwing('Achtergrond MP3',{melding:e.message})),15000).unref();
+setInterval(()=>vulAchtergrondCatalogus().catch(e=>logger.waarschuwing('Achtergrond MP3',{melding:e.message})),60*1000).unref();
+
 router.post('/api/admin/swipe/buffer',vereisAdmin,async(req,res)=>{
  try{await vulSwipeBuffer(req.body?.categorie,req.body?.fase);res.json({ok:true});}
  catch(e){res.status(500).json({fout:e.message});}
