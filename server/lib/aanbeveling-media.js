@@ -85,7 +85,7 @@ async function lokaalVoorbeeld(aanbeveling) {
         return { audioUrl: `${url}?v=${Math.floor(stat.mtimeMs)}` };
     }
     if (previewDownloads.has(id)) return previewDownloads.get(id);
-    if (infrastructuurStoring()) throw new Error('Audiobron tijdelijk niet beschikbaar: ' + audioInfrastructuurFout);
+    if (infrastructuurStoring() || ytzoek.rateLimitActief()) throw new Error('YouTube rate limit: luisterfragmenten tijdelijk gepauzeerd.');
     const taak = (async () => {
         await fs.mkdir(map, { recursive: true });
         const afgekeurd = new Set(aanbeveling.afgekeurde_bronnen || []);
@@ -115,6 +115,7 @@ async function lokaalVoorbeeld(aanbeveling) {
                 // Serverbrede storingen (YouTube-blokkade, ffmpeg/yt-dlp ontbreekt)
                 // maken de VIDEO niet fout. Bewaar de bron voor later herstel.
                 if (/sign in|bot|cookies|HTTP Error 403|HTTP Error 429|too many requests|ffmpeg.*not found|ENOENT|no such file or directory/i.test(laatsteFout)) {
+                    if (/HTTP Error 429|too many requests/i.test(laatsteFout)) ytzoek.markeerRateLimit(429);
                     audioInfrastructuurFout = laatsteFout.slice(0, 350);
                     audioInfrastructuurTot = Date.now() + (/HTTP Error 429|too many requests/i.test(laatsteFout) ? 6 * 60 * 60 * 1000 : 30 * 60 * 1000);
                     throw new Error('Downloadservice niet beschikbaar: ' + audioInfrastructuurFout);
