@@ -118,6 +118,49 @@ export function HerkenbaarheidBeheer() {
     </section>;
 }
 
+function QuizGezondheid() {
+    const [data, setData] = useState(null);
+    const [fout, setFout] = useState('');
+    const [actief, setActief] = useState(false);
+    async function check() {
+        try { setData(await haal('/api/admin/quiz-gezondheid')); setFout(''); }
+        catch (err) { setFout(err.message); }
+    }
+    useEffect(() => { check(); }, []);
+    async function herstelInhoud() {
+        setActief(true);
+        try {
+            await haal('/api/admin/ai-vragen/start', { method:'POST', ...jsonBody({ limiet:500 }) });
+            setFout('Generatie gestart op de server. Ga gerust naar een andere pagina; controleer later opnieuw.');
+        } catch (err) { setFout(err.message); }
+        finally { setActief(false); }
+    }
+    return <section className="kaart vt-health">
+        <h3>Database controleren en herstellen</h3>
+        <p className="dim">Ook reeds gegenereerde, maar nog niet goedgekeurde hints en vragen worden afzonderlijk geteld.</p>
+        <div className="vt-health-grid">
+            <span>Zonder lokale MP3 <strong>{data?.zonder_mp3 ?? '—'}</strong></span>
+            <span>Minder dan 3 hints <strong>{data?.zonder_3_hints ?? '—'}</strong></span>
+            <span>Hints ter controle <strong>{data?.hints_ter_controle ?? '—'}</strong></span>
+            <span>Minder dan 3 vragen <strong>{data?.zonder_3_vragen ?? '—'}</strong></span>
+            <span>Vragen ter controle <strong>{data?.vragen_ter_controle ?? '—'}</strong></span>
+        </div>
+        <div className="knoprij">
+            <button className="knop knop-stil" onClick={check}>Opnieuw controleren</button>
+            <button className="knop knop-stil" disabled={actief} onClick={herstelInhoud}>Ontbrekende hints/vragen aanvullen</button>
+            <Link className="knop knop-stil" to="/admin">MP3 herstellen in beheer</Link>
+        </div>
+        {fout && <p className="dim">{fout}</p>}
+        {!!data?.problemen?.length && <details><summary>{data.problemen.length} titels met aandachtspunten (maximaal 250)</summary>
+            <div className="vt-health-list">{data.problemen.map(t => <p key={t.id}>
+                <strong>{t.naam}</strong> · {!t.heeft_mp3 ? 'geen MP3 · ' : ''}
+                {t.hints}/3 hints {t.ai_hints_status !== 'goedgekeurd' ? '(controle nodig)' : ''} ·
+                {t.vragen}/3 vragen ({t.vragen_goedgekeurd} goedgekeurd)
+            </p>)}</div>
+        </details>}
+    </section>;
+}
+
 export function QuizInhoud() {
     const [zoek, setZoek] = useState('');
     const [data, setData] = useState([]);
@@ -179,6 +222,7 @@ export function QuizInhoud() {
     }
     return <section className="kaart ai-kaart" style={{ marginTop:'1rem' }}>
         <h2>AI · Hints en bonusvragen</h2>
+        <QuizGezondheid />
         <p className="dim">Drie verschillende hints en drie bonusvragen met zes keuzes per film/serie. AI-voorstellen zijn niet automatisch goedgekeurd.</p>
         {batch && <p className="dim">Bibliotheek: {batch.database?.titels ?? '—'} titels · {batch.database?.hints_goedgekeurd ?? 0} met drie goedgekeurde hints · {batch.database?.vragen_goedgekeurd ?? 0} met drie goedgekeurde AI-vragen</p>}
         <button className="knop" disabled={batch?.bezig} onClick={starten}>{batch?.bezig ? 'Generatie loopt…' : 'Ontbrekende hints en vragen genereren'}</button>
