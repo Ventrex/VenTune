@@ -863,6 +863,8 @@ async function vulAchtergrondCatalogus(){
  try{
   await initMp3Queue();
   await initUitsluitlijst();
+  // Gamecatalogus loopt mee in dezelfde rustige achtergrondwachtrij.
+  await vulGameMuziekSwipe();
   // Catalogus bevat ook oude titels waarvan de MP3 nooit is gecontroleerd.
   // Maak alleen een nieuwe beoordelingskandidaat; verwijder of vervang nooit een bestaande track.
   await pool.query(`INSERT INTO aanbevelingen
