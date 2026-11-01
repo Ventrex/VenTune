@@ -782,6 +782,20 @@ router.get('/api/admin/aanbevelingen/:id/audio', vereisAdmin, async (req, res) =
     try {
         const { rows } = await pool.query('SELECT * FROM aanbevelingen WHERE id = $1', [id]);
         if (!rows[0]) return res.status(404).json({ fout: 'Aanbeveling niet gevonden.' });
+        // Hergebruik de gecontroleerde lokale MP3 van dezelfde film/serie.
+        if (rows[0].categorie !== 'games') {
+            const {rows: lokaal}=await pool.query(`
+                SELECT tr.preview_url FROM tracks tr
+                JOIN titels t ON t.id=tr.titel_id
+                WHERE (t.id=$1 OR (lower(trim(t.naam))=lower(trim($2))
+                    AND t.type::text=$3))
+                  AND tr.bron='lokaal' AND tr.werkt=true
+                  AND tr.gecontroleerd=true AND tr.download_status='available'
+                  AND NULLIF(tr.preview_url,'') IS NOT NULL
+                ORDER BY tr.id DESC LIMIT 1`,
+                [rows[0].titel_id||null,rows[0].titel||'',rows[0].type||'film']);
+            if(lokaal[0]?.preview_url) return res.json({audioUrl:lokaal[0].preview_url,bestaand:true});
+        }
         let taak = audioTaken.get(id);
         // Fouten blijven kort zichtbaar en kunnen daarna opnieuw worden geprobeerd.
         if (taak?.status === 'fout' && Date.now() - taak.sinds > 30000) {
