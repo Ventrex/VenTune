@@ -381,6 +381,49 @@ router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) =
 // Bij het starten van de server de onafgemaakte taken oppakken.
 setTimeout(()=>loopAiQueue().catch(err=>logger.fout('AI-wachtrij herstellen mislukt',{melding:err.message})),5000).unref();
 
+// Videogames: een eigen catalogus met platformen; films/series blijven gescheiden.
+const GAME_PLATFORMS=['PC','PlayStation 1','PlayStation 2','PlayStation 3','PlayStation 4','PlayStation 5','PSP','PS Vita','Xbox','Xbox 360','Xbox One','Xbox Series X/S','NES','SNES','Nintendo 64','GameCube','Wii','Wii U','Nintendo Switch','Nintendo Switch 2','Game Boy','Game Boy Color','Game Boy Advance','Nintendo DS','Nintendo 3DS','Sega Mega Drive','Sega Dreamcast','Atari','Arcade','Overig'];
+let gameReady=null;
+function initGames(){
+    if(!gameReady) gameReady=pool.query(`CREATE TABLE IF NOT EXISTS game_catalogus (
+        id BIGSERIAL PRIMARY KEY, naam TEXT NOT NULL, jaar INTEGER,
+        platformen TEXT[] NOT NULL DEFAULT '{}', opmerking TEXT,
+        status TEXT NOT NULL DEFAULT 'nieuw',
+        aangemaakt_op TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(naam,jaar)
+    )`);
+    return gameReady;
+}
+router.get('/api/admin/games/platformen',vereisAdmin,(_req,res)=>res.json(GAME_PLATFORMS));
+router.get('/api/admin/games',vereisAdmin,async(_req,res)=>{
+    try {await initGames();const {rows}=await pool.query('SELECT * FROM game_catalogus ORDER BY CASE WHEN status=\'nieuw\' THEN 0 ELSE 1 END, id DESC LIMIT 500');res.json(rows);}
+    catch(err){res.status(500).json({fout:err.message});}
+});
+router.post('/api/admin/games',vereisAdmin,async(req,res)=>{
+    try{
+        await initGames();
+        const naam=String(req.body?.naam||'').trim().slice(0,150);
+        const jaar=req.body?.jaar ? Number(req.body.jaar) : null;
+        const platformen=[...new Set(Array.isArray(req.body?.platformen)?req.body.platformen:[])].filter(x=>GAME_PLATFORMS.includes(x));
+        if(!naam||!platformen.length||jaar!==null&&(!Number.isInteger(jaar)||jaar<1970||jaar>2100))
+            return res.status(400).json({fout:'Naam, minstens één platform en een geldig jaartal zijn vereist.'});
+        const {rows}=await pool.query(`INSERT INTO game_catalogus(naam,jaar,platformen,opmerking)
+            VALUES($1,$2,$3,$4) ON CONFLICT(naam,jaar) DO UPDATE SET
+            platformen=(SELECT ARRAY(SELECT DISTINCT unnest(game_catalogus.platformen || EXCLUDED.platformen)))
+            RETURNING *`,[naam,jaar,platformen,String(req.body?.opmerking||'').slice(0,500)]);
+        res.json(rows[0]);
+    }catch(err){res.status(500).json({fout:err.message});}
+});
+router.patch('/api/admin/games/:id',vereisAdmin,async(req,res)=>{
+    try{
+        await initGames();
+        if(!['goedgekeurd','uitgesloten'].includes(req.body?.status)) return res.status(400).json({fout:'Ongeldige status'});
+        const {rows}=await pool.query('UPDATE game_catalogus SET status=$2 WHERE id=$1 RETURNING *',[req.params.id,req.body.status]);
+        if(!rows.length)return res.status(404).json({fout:'Game niet gevonden'});
+        res.json(rows[0]);
+    }catch(err){res.status(500).json({fout:err.message});}
+});
+
 // Directe Swipe-wachtrij voor alle bestaande films/series zonder MP3.
 // Handmatig aangedragen titels krijgen altijd voorrang.
 async function initPrioriteit() {
