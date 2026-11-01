@@ -180,16 +180,13 @@ function adminToken() {
 }
 
 function isIngelogd(req) {
+    if (!process.env.ADMIN_PASSWORD) return false;
     const jar = cookies.parse(req.headers.cookie);
-    return (
-        !!process.env.ADMIN_PASSWORD &&
-        jar[COOKIE] &&
-        // Constante-tijd vergelijking.
-        crypto.timingSafeEqual(
-            Buffer.from(jar[COOKIE]),
-            Buffer.from(adminToken()),
-        )
-    );
+    const ontvangen = jar[COOKIE];
+    if (typeof ontvangen !== 'string' || !/^[a-f0-9]{64}$/.test(ontvangen)) return false;
+    const verwacht = adminToken();
+    // timingSafeEqual vereist buffers van precies dezelfde lengte.
+    return crypto.timingSafeEqual(Buffer.from(ontvangen, 'utf8'), Buffer.from(verwacht, 'utf8'));
 }
 
 function vereisAdmin(req, res, next) {
