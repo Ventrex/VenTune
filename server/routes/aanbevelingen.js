@@ -718,14 +718,15 @@ async function vulGameMuziekSwipe(){
               WHERE a.categorie='games' AND lower(trim(a.titel))=lower(trim(g.naam)))
         ORDER BY g.id LIMIT 100`);
     for(const g of rows){
-        await pool.query(`
+        const added=await pool.query(`
             INSERT INTO aanbevelingen
               (soort,categorie,titel,jaar,tracknaam,artiest,youtube_zoekterm,
                bekendheid,reden,status,muziek_genres)
             VALUES ('muziek','games',$1,$2,$1,'',$3,4,
                     'Bekende videogame; originele gamemuziek beoordelen','nieuw',ARRAY['Videogames'])
-            ON CONFLICT DO NOTHING`,
+            ON CONFLICT DO NOTHING RETURNING id`,
             [g.naam,g.jaar,g.naam+' video game original main theme soundtrack']);
+        if(added.rows[0]) await enqueueMp3(added.rows[0].id,0);
     }
 }
 // Eén persistente MP3-voorbereidingswachtrij voor alle muziekcategorieën.
