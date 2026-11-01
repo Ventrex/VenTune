@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700;900&display=swap');
 /* VenTune category dashboard — responsive neon, preserving existing game settings */
 .setup-scherm:has(.vt-categorie-scherm){max-width:1600px;width:min(98%,1600px);padding:1.1rem 1.2rem 2rem;background:radial-gradient(ellipse 60% 38% at 50% 5%,#641c6140,transparent 75%),var(--bg)}
 .vt-categorie-scherm{width:100%;margin:0 auto}
@@ -196,4 +197,23 @@
 @media(max-width:480px){
 .vt-category-workspace .vt-uiterlijk-paneel .thema-kiezer{grid-template-columns:repeat(3,minmax(0,1fr))}
 .vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+.vt-thema-container{display:grid;gap:9px}
+.vt-eigen-thema{display:block;width:100%;padding:.65rem 5px;border-radius:16px;border:1px solid #c767d9;background:linear-gradient(130deg,#52245e,#281135);color:#ffecfa;font:inherit;font-size:.77rem;font-weight:750;cursor:pointer}
+.vt-eigen-thema:hover{box-shadow:0 0 12px #f12d9e95}
+.vt-eigen-kleuren{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.vt-eigen-kleuren label{display:grid;gap:3px;font-size:.67rem;text-align:center}
+.vt-eigen-kleuren input{max-width:100%;min-height:35px;cursor:pointer;background:#1a0e32;border:1px solid #673e84;border-radius:7px}
+@media(max-width:480px) and (min-width:355px){
+.vt-category-workspace .vt-uiterlijk-paneel .thema-kiezer{grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+.vt-category-workspace .vt-uiterlijk-paneel .thema-knop{font-size:.58rem;min-height:72px;border-radius:8px}
+.vt-category-workspace .vt-uiterlijk-paneel .thema-emoji{height:43px;font-size:1.45rem}
+.vt-category-workspace .vt-uiterlijk-paneel .thema-knop span:last-child{font-size:.52rem}
+.vt-category-workspace .vt-categorie-paneel:has(>.vt-subkeuzes + .vt-subkeuzes){grid-template-columns:minmax(0,40%) minmax(0,60%);gap:6px}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes{padding:7px}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:first-of-type .chip{padding:6px;font-size:.7rem}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.vt-category-workspace .vt-categorie-paneel>.vt-subkeuzes:nth-of-type(2) .chip{height:75px;font-size:.62rem;padding:4px}
+.vt-collectie-pictogram{font-size:1.7rem}
 }
