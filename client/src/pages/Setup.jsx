@@ -116,6 +116,7 @@ export default function Setup() {
         periode_eind: NU,
         rondes: 10,
         spelvorm: 'tegen_elkaar',
+        berg_fouten_max: 3,
         team_modus: 'snelste',
         hints_aan: true,
         speeltijd: 0,
@@ -332,6 +333,7 @@ export default function Setup() {
             periode_eind: p.periode_eind,
             rondes: p.rondes,
             spelvorm: p.extra_instellingen?.spelvorm || 'tegen_elkaar',
+            berg_fouten_max: p.extra_instellingen?.berg_fouten_max || 3,
             team_modus: p.extra_instellingen?.team_modus || 'snelste',
             speeltijd: p.speeltijd ?? 0,
             modus: p.modus || 'snelste',
@@ -550,7 +552,20 @@ export default function Setup() {
                         </div>}
                         
                         <button className="vt-preset-link vt-preset-inline" type="button" onClick={()=>setStap(0)}>Of kies een kant-en-klare quiz</button>
-                        <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema"})[hoofdgroep]} · {filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
+                        {hoofdgroep==='thema' && <div className="vt-berg-choice">
+                            <h3>🏔 Bergexpeditie — samen naar de top</h3>
+                            <p>Iedereen raadt samen. Elk goed nummer brengt jullie omhoog. Een mislukte ronde kost een hartje.</p>
+                            <button type="button" className={'chip'+(filters.spelvorm==='bergexpeditie'?' gekozen':'')}
+                                onClick={()=>setFilters(f=>({...f,spelvorm:f.spelvorm==='bergexpeditie'?'tegen_elkaar':'bergexpeditie',modus:'kenner'}))}>
+                                {filters.spelvorm==='bergexpeditie'?'✓ Bergexpeditie geselecteerd':'Speel Bergexpeditie'}
+                            </button>
+                            {filters.spelvorm==='bergexpeditie' && <label>Maximaal fouten
+                                <select className="invoer" value={filters.berg_fouten_max || 3} onChange={e=>zet('berg_fouten_max',Number(e.target.value))}>
+                                    <option value={1}>1 fout — extra spannend</option><option value={3}>3 fouten — standaard</option><option value={5}>5 fouten — ontspannen</option>
+                                </select>
+                            </label>}
+                        </div>}
+                        <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema"})[hoofdgroep]} · {hoofdgroep==="games"?"Games":filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
                         <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}>▶ Start de quiz</button>
                     </div>
                     </div><aside className="vt-categorie-aside"><div className="vt-uiterlijk-paneel"><h3>Thema & uiterlijk</h3><p className="dim">Kies een thema dat bij jou past.</p><ThemaKiezer /></div><div className="vt-berg-paneel"><h3>Wat is Bergexpeditie?</h3><p>Een toekomstige spelvorm waarin jullie samen een berg beklimmen. Goed beantwoorde vragen brengen je steeds hoger.</p><span className="vt-berg-icon" aria-hidden="true">🏔️</span><small>Binnenkort</small></div></aside></div>
@@ -710,6 +725,7 @@ export default function Setup() {
                                 <option value="tegen_elkaar">Tegen elkaar</option>
                                 <option value="om_en_om">Om en om</option>
                                 <option value="teams">Teams tegen elkaar</option>
+                                <option value="bergexpeditie">Bergexpeditie (samen)</option>
                             </select>
                         </label>
                         {filters.spelvorm === 'teams' && <label className="setup-veld"><span className="kaart-label">Teamspel</span>
