@@ -515,6 +515,35 @@ router.patch('/api/admin/games/:id',vereisAdmin,async(req,res)=>{
         if(!['goedgekeurd','uitgesloten'].includes(req.body?.status)) return res.status(400).json({fout:'Ongeldige status'});
         const {rows}=await pool.query('UPDATE game_catalogus SET status=$2 WHERE id=$1 RETURNING *',[req.params.id,req.body.status]);
         if(!rows.length)return res.status(404).json({fout:'Game niet gevonden'});
+        if(req.body.status==='goedgekeurd') {
+            // Maak van een goedgekeurde game een echte speelbare muziektitel.
+            // De bestaande downloadpipeline doet alle bronvalidatie en MP3-opslag.
+            const g=rows[0];
+            const existing=await pool.query("SELECT id FROM titels WHERE lower(naam)=lower($1) AND type='muziek' LIMIT 1",[g.naam]);
+            let titelId=existing.rows[0]?.id;
+            if(!titelId) {
+                const gemaakt=await pool.query(`INSERT INTO titels(naam,type,taal,jaar,genres,muziek_genres,themas,curatie_status)
+                    VALUES($1,'muziek','en',$2,ARRAY['Videogames'],ARRAY['Videogames'],ARRAY['games'],'goedgekeurd') RETURNING id`,[g.naam,g.jaar]);
+                titelId=gemaakt.rows[0].id;
+            } else {
+                await pool.query(`UPDATE titels SET muziek_genres=array_append(muziek_genres,'Videogames'),
+                    genres=array_append(genres,'Videogames') WHERE id=$1 AND NOT ('Videogames'=ANY(muziek_genres))`,[titelId]);
+            }
+            const {rows:found}=await pool.query(`
+                SELECT id FROM aanbevelingen WHERE titel_id=$1 AND categorie='games' LIMIT 1`,[titelId]);
+            let adviesId=found[0]?.id;
+            if(!adviesId) {
+                const x=await pool.query(`INSERT INTO aanbevelingen(soort,categorie,titel,jaar,
+                    tracknaam,artiest,youtube_zoekterm,bekendheid,reden,status,titel_id,muziek_genres)
+                    VALUES('muziek','games',$1,$2,$1,'',$3,4,'Game soundtrack goedgekeurd in Swipe','goed',$4,ARRAY['Videogames']) RETURNING id`,
+                    [g.naam,g.jaar,g.naam+' video game original main theme soundtrack',titelId]);
+                adviesId=x.rows[0].id;
+            }
+            // Idempotent: geen dubbele track starten als al lokale muziek bestaat.
+            const {rows:tracks}=await pool.query(`SELECT id FROM tracks WHERE titel_id=$1 AND werkt=true
+                AND bron='lokaal' AND download_status='available' LIMIT 1`,[titelId]);
+            if(!tracks.length) startDownload(adviesId);
+        }
         res.json(rows[0]);
     }catch(err){res.status(500).json({fout:err.message});}
 });
