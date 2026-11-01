@@ -114,9 +114,9 @@ async function lokaalVoorbeeld(aanbeveling) {
                 laatsteFout = (err.stderr && err.stderr.trim() ? err.stderr.slice(-900) : err.message);
                 // Serverbrede storingen (YouTube-blokkade, ffmpeg/yt-dlp ontbreekt)
                 // maken de VIDEO niet fout. Bewaar de bron voor later herstel.
-                if (/sign in|bot|cookies|HTTP Error 403|HTTP Error 429|too many requests|ffmpeg.*not found|ENOENT|no such file or directory|unable to download/i.test(laatsteFout)) {
+                if (/sign in|bot|cookies|HTTP Error 403|HTTP Error 429|too many requests|ffmpeg.*not found|ENOENT|no such file or directory/i.test(laatsteFout)) {
                     audioInfrastructuurFout = laatsteFout.slice(0, 350);
-                    audioInfrastructuurTot = Date.now() + 5 * 60 * 1000;
+                    audioInfrastructuurTot = Date.now() + (/HTTP Error 429|too many requests/i.test(laatsteFout) ? 6 * 60 * 60 * 1000 : 30 * 60 * 1000);
                     throw new Error('Downloadservice niet beschikbaar: ' + audioInfrastructuurFout);
                 }
                 afgekeurd.add(bron.videoId);
