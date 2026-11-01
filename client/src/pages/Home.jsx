@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { haalRanking } from '../lib/api.js';
 import Brand from '../components/Brand.jsx';
 import Icon from '../components/Icon.jsx';
-import { leesSessie, wisSessie } from '../lib/sessie.js';
+import { leesSessie, wisSessie, bewaarSessie, leesOpgeslagenSpellen, verwijderOpgeslagenSpel } from '../lib/sessie.js';
 import './setup-categorie.css';
 import { ThemaContext } from '../lib/thema.js';
 
