@@ -942,6 +942,7 @@ const CATEGORIE_BEELDSLEUTELS = new Set([
     'films', 'muziek', 'games', 'collectie-alles', 'collectie-80s',
     'collectie-90s', 'collectie-animatie', 'collectie-kinder',
     'collectie-kerst', 'collectie-rock', 'collectie-100nl',
+    'platform-nintendo', 'platform-sega', 'platform-playstation', 'platform-xbox', 'platform-pc',
 ]);
 router.get('/api/categorie-beelden', async (_req, res) => {
     const { rows } = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'categorie_beelden' LIMIT 1");
