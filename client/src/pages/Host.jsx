@@ -5,6 +5,7 @@ import { useSpel } from '../lib/useSpel.js';
 import { wisSessie } from '../lib/sessie.js';
 import HostPlayer from '../components/HostPlayer.jsx';
 import Timer from '../components/Timer.jsx';
+import IssueReport from '../components/IssueReport.jsx';
 import Brand from '../components/Brand.jsx';
 
 // Host-scherm (het grote scherm). Speelt de muziek af en toont de QR,
@@ -344,6 +345,8 @@ export default function Host() {
                     {qrGroot && <div className="vt-qr-overlay" role="dialog" aria-modal="true" aria-label="Vergrote QR-code" onClick={() => setQrGroot(false)}><div className="vt-qr-modal" onClick={e=>e.stopPropagation()}><button className="knop knop-stil" type="button" onClick={() => setQrGroot(false)}>Sluiten ×</button><p className="lobby-code">{sessie.code}</p><QRCodeSVG value={joinUrl} size={320} bgColor="#ffffff" fgColor="#111111" includeMargin/><p>Scan om mee te doen</p></div></div>}
                 </>
             )}
+
+            {fase === 'raden' && ronde && <IssueReport key={ronde.rondeId} spel={spel} tijdensRonde />}
 
             {/* Ronde bezig */}
             {fase === 'raden' && ronde && (
