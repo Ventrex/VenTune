@@ -291,26 +291,79 @@ router.post('/api/admin/aanbevelingen/login/uit', vereisAdmin, (req, res) => {
     res.json(codex.logUit());
 });
 
-router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) => {
-    if (run.bezig) return res.status(409).json({ fout: 'Er loopt al een generatie.' });
-    const soort = req.body && req.body.soort === 'kerst' ? 'kerst' : 'film_serie';
-    const aantal = Math.min(100, Math.max(1, Math.floor(Number(req.body && req.body.aantal) || 100)));
-    const categorie = aanbevelingen.CATEGORIEEN.includes(req.body?.categorie) ? req.body.categorie : (soort === 'kerst' ? 'kerst' : 'film');
-    const taal = (req.body && req.body.taal) || 'beide';
-
-    run = { bezig: true, soort, categorie, gestart: new Date().toISOString(), klaar: null, resultaat: null, fout: null };
-    res.json({ gestart: true, soort, categorie, aantal });
-
-    // Achtergrond.
-    aanbevelingen.genereer({ soort, categorie, aantal, taal })
-        .then((r) => {
-            run = { ...run, bezig: false, klaar: new Date().toISOString(), resultaat: r.ok ? r : null, fout: r.ok ? null : r.error };
-        })
-        .catch((err) => {
-            logger.fout('Aanbevelingen genereren mislukt', { melding: err.message });
-            run = { ...run, bezig: false, klaar: new Date().toISOString(), fout: err.message };
-        });
+// Persistente AI-wachtrij. Nieuwe requests worden opgeslagen in PostgreSQL;
+// een paginawissel onderbreekt het werk niet en na serverstart worden taken hervat.
+let queueWorkerRunning = false;
+let queueReady = null;
+function initAiQueue() {
+    if (!queueReady) queueReady = pool.query(`
+        CREATE TABLE IF NOT EXISTS ai_aanbeveling_taken (
+          id BIGSERIAL PRIMARY KEY,
+          categorie TEXT NOT NULL, soort TEXT NOT NULL, taal TEXT NOT NULL DEFAULT 'beide',
+          gevraagd INTEGER NOT NULL, verwerkt INTEGER NOT NULL DEFAULT 0,
+          toegevoegd INTEGER NOT NULL DEFAULT 0, overgeslagen INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'wachtend',
+          fout TEXT, aangemaakt_op TIMESTAMPTZ NOT NULL DEFAULT now(),
+          gestart_op TIMESTAMPTZ, bijgewerkt_op TIMESTAMPTZ NOT NULL DEFAULT now(),
+          afgerond_op TIMESTAMPTZ
+        )`).then(() => pool.query("UPDATE ai_aanbeveling_taken SET status='wachtend' WHERE status='bezig'"));
+    return queueReady;
+}
+async function loopAiQueue() {
+    if (queueWorkerRunning) return;
+    queueWorkerRunning = true;
+    try {
+        await initAiQueue();
+        while (true) {
+            const {rows} = await pool.query("SELECT * FROM ai_aanbeveling_taken WHERE status='wachtend' ORDER BY id LIMIT 1");
+            const taak=rows[0];
+            if (!taak) break;
+            await pool.query("UPDATE ai_aanbeveling_taken SET status='bezig', gestart_op=COALESCE(gestart_op,now()), bijgewerkt_op=now() WHERE id=$1",[taak.id]);
+            let verwerkt=Number(taak.verwerkt), toegevoegd=Number(taak.toegevoegd), overgeslagen=Number(taak.overgeslagen);
+            let fout=null;
+            // Elke stap is maximaal 100 stuks en wordt afzonderlijk opgeslagen.
+            // Herstarten kan vanaf de laatst afgeronde stap.
+            while (verwerkt < Number(taak.gevraagd)) {
+                try {
+                    const stap=Math.min(100,Number(taak.gevraagd)-verwerkt);
+                    const resultaat=await aanbevelingen.genereer({soort:taak.soort,categorie:taak.categorie,taal:taak.taal,aantal:stap});
+                    if (!resultaat.ok) { fout=resultaat.error || 'AI leverde geen nieuwe kandidaten.'; break; }
+                    toegevoegd+=Number(resultaat.toegevoegd||0);
+                    overgeslagen+=Number(resultaat.overgeslagen||0);
+                    verwerkt+=stap;
+                    await pool.query("UPDATE ai_aanbeveling_taken SET verwerkt=$2,toegevoegd=$3,overgeslagen=$4,bijgewerkt_op=now() WHERE id=$1",
+                        [taak.id,verwerkt,toegevoegd,overgeslagen]);
+                } catch(err) { fout=err.message; break; }
+            }
+            await pool.query("UPDATE ai_aanbeveling_taken SET status=$2,fout=$3,verwerkt=$4,toegevoegd=$5,overgeslagen=$6,afgerond_op=now(),bijgewerkt_op=now() WHERE id=$1",
+                [taak.id,fout?'fout':'klaar',fout,verwerkt,toegevoegd,overgeslagen]);
+        }
+    } catch(err) { logger.fout('AI-wachtrij mislukt', {melding:err.message}); }
+    finally { queueWorkerRunning=false; }
+}
+router.get('/api/admin/aanbevelingen/wachtrij', vereisAdmin, async (_req,res)=>{
+    try {
+        await initAiQueue();
+        const {rows}=await pool.query("SELECT * FROM ai_aanbeveling_taken ORDER BY id DESC LIMIT 30");
+        res.json({taken:rows});
+    } catch(err) {res.status(500).json({fout:err.message});}
 });
+router.post('/api/admin/aanbevelingen/genereer', vereisAdmin, async (req, res) => {
+    const soort = req.body?.soort === 'kerst' ? 'kerst' : 'film_serie';
+    const categorie = aanbevelingen.CATEGORIEEN.includes(req.body?.categorie) ? req.body.categorie : (soort === 'kerst' ? 'kerst' : 'film');
+    const aantal = Math.min(10000, Math.max(1, Math.floor(Number(req.body?.aantal) || 100)));
+    const taal = ['nl','en','beide'].includes(req.body?.taal) ? req.body.taal : 'beide';
+    try {
+        await initAiQueue();
+        const {rows}=await pool.query(
+            "INSERT INTO ai_aanbeveling_taken(categorie,soort,taal,gevraagd) VALUES($1,$2,$3,$4) RETURNING id,status,gevraagd",
+            [categorie,soort,taal,aantal]);
+        res.json({gestart:true,queue:true,taak_id:rows[0].id,aantal,status:'wachtend'});
+        setImmediate(()=>loopAiQueue().catch(err=>logger.fout('AI-worker fout',{melding:err.message})));
+    } catch(err) {res.status(500).json({fout:err.message});}
+});
+// Bij het starten van de server de onafgemaakte taken oppakken.
+setTimeout(()=>loopAiQueue().catch(err=>logger.fout('AI-wachtrij herstellen mislukt',{melding:err.message})),5000).unref();
 
 // Handmatig een ontbrekende film of serie aanmelden voor muziekonderzoek.
 router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) => {
