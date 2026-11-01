@@ -56,16 +56,16 @@ export default function AdminSwipe() {
     }
     useEffect(() => {
         let actief=true;
-        const update=async()=>{
+        // Alleen opnieuw laden bij een daadwerkelijke categorie- of fasewissel.
+        // Nooit de huidige afspeelkaart vervangen tijdens het luisteren.
+        const start=async()=>{
             try {
                 await haal('/api/admin/swipe/buffer',{method:'POST',...jsonBody({categorie,fase})});
                 if(actief) await laad();
             }catch(err){if(actief)setLijstFout(err.message);}
         };
-        update();
-        // De werkende MP3-download draait apart; toon nieuwe kaarten automatisch.
-        const timer=setInterval(update,12000);
-        return ()=>{actief=false;clearInterval(timer);};
+        start();
+        return ()=>{actief=false;};
         // eslint-disable-next-line react-hooks/exhaustive-deps
     },[categorie,fase]);
     useEffect(() => {
@@ -110,6 +110,13 @@ export default function AdminSwipe() {
     }
     const huidige = kaarten[index];
     const klaar = !laadt && !huidige;
+
+    useEffect(() => {
+        if (laadt || huidige || lijstFout || titelReview || zonderMp3) return undefined;
+        const timer=setTimeout(()=>laad(),12000);
+        return ()=>clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    },[laadt,huidige?.id,lijstFout,titelReview,zonderMp3,kaarten.length]);
 
     // Download op server draait op de achtergrond. Poll zonder lange HTTP-wachttijd.
     useEffect(() => {
