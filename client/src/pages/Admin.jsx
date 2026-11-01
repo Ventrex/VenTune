@@ -1629,6 +1629,29 @@ function Uiterlijk({ onMelding }) {
     };
     const [thema, setThema] = useState(standaard);
     const [logo, setLogo] = useState(null);
+    const [categorieBeelden, setCategorieBeelden] = useState({});
+    const [bezigBeeld, setBezigBeeld] = useState('');
+    useEffect(() => { api.adminCategorieBeelden().then(setCategorieBeelden).catch(() => {}); }, []);
+    async function kiesCategorieBeeld(sleutel, bestand) {
+        if (!bestand) return;
+        setBezigBeeld(sleutel);
+        try {
+            const resultaat = await api.adminUploadCategorieBeeld(sleutel, bestand);
+            setCategorieBeelden(resultaat.beelden || {});
+            onMelding('Afbeelding opgeslagen voor ' + sleutel + '.');
+        } catch (err) { onMelding(err.message); }
+        finally { setBezigBeeld(''); }
+    }
+    async function wisCategorieBeeld(sleutel) {
+        setBezigBeeld(sleutel);
+        try {
+            const resultaat = await api.adminVerwijderCategorieBeeld(sleutel);
+            setCategorieBeelden(resultaat.beelden || {});
+            onMelding('Eigen afbeelding voor ' + sleutel + ' verwijderd; standaardweergave actief.');
+        } catch (err) { onMelding(err.message); }
+        finally { setBezigBeeld(''); }
+    }
+
     const [bezig, setBezig] = useState(false);
 
     useEffect(() => {
@@ -1695,6 +1718,26 @@ function Uiterlijk({ onMelding }) {
                 <input className="invoer" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => setLogo(e.target.files?.[0] || null)} />
                 {thema.logoPad && <img src={thema.logoPad} alt="Huidig VenTune-logo" className="admin-logo-preview" />}
                 <button className="knop knop-stil" disabled={bezig || !logo} onClick={upload}>Logo uploaden</button>
+            </div>
+            <div className="kaart" style={{ marginTop: '1rem' }}>
+                <p className="kaart-label">Afbeeldingen voor spelcategorieën en collecties</p>
+                <p className="dim">Upload later je eigen PNG, JPG of WebP. Tot die tijd blijven de standaardbeelden of tekst zichtbaar. Uploaden verandert geen spelgegevens.</p>
+                <div className="vt-admin-category-images">
+                    {[
+                        ['films','Films & Series'], ['muziek','Muziek'], ['games','Videogames'],
+                        ['collectie-alles','Collectie · Alles'], ['collectie-80s','Collectie · 80’s'],
+                        ['collectie-90s','Collectie · 90’s'], ['collectie-animatie','Collectie · Animatie'],
+                        ['collectie-kinder','Collectie · Kinder'], ['collectie-kerst','Collectie · Kerst'],
+                        ['collectie-rock','Muziek · Rock'], ['collectie-100nl','Muziek · 100% NL']
+                    ].map(([sleutel, titel]) => <div className="vt-admin-category-image" key={sleutel}>
+                        <strong>{titel}</strong>
+                        {categorieBeelden[sleutel] ? <img src={categorieBeelden[sleutel]} alt={titel} /> : <small>Standaardbeeld / tekst</small>}
+                        <input type="file" accept="image/png,image/jpeg,image/webp" aria-label={'Afbeelding ' + titel}
+                            disabled={Boolean(bezigBeeld)}
+                            onChange={e => { const bestand=e.target.files?.[0]; e.target.value=''; kiesCategorieBeeld(sleutel,bestand); }} />
+                        {categorieBeelden[sleutel] && <button type="button" className="knop knop-stil" disabled={Boolean(bezigBeeld)} onClick={() => wisCategorieBeeld(sleutel)}>Standaard herstellen</button>}
+                    </div>)}
+                </div>
             </div>
         </section>
     );
