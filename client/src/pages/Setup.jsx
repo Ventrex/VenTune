@@ -494,7 +494,7 @@ export default function Setup() {
                             {id:'thema',naam:'Thema',icon:'✨',kleur:'#ffae39',beeld:'/category/theme.svg'}
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
-                                setHoofdgroep(g.id);setSubkeuze('alles');
+                                setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],kindvriendelijk:false}));
                                 if(g.id==='films')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='muziek')setFilters(f=>({...f,categorie:'muziek',categorieen:['muziek'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='games')setFilters(f=>({...f,categorie:'games',categorieen:['muziek'],game_only:true,collecties:[],periode_start:1930,periode_eind:NU}));
@@ -525,6 +525,7 @@ export default function Setup() {
                                         onClick={()=>{
                                             setSubkeuze(id);
                                             setFilters(f=>({...f,
+                                                speciale_keuze:id==='alles'?'':id,
                                                 platformen:hoofdgroep==='games'?(id==='alles'?[]:(f.platformen||[]).includes(id)?(f.platformen||[]).filter(x=>x!==id):[...(f.platformen||[]),id]):[],
                                                 periode_start:id==='80s'?1980:id==='90s'?1990:1930,
                                                 periode_eind:id==='80s'?1989:id==='90s'?1999:NU,
