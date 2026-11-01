@@ -497,7 +497,7 @@ export default function Setup() {
                 <section className="vt-categorie-scherm">
                     <h1>Kies een categorie</h1>
                     <p className="dim">Maak je eigen muziekquiz. Kies eerst een wereld en daarna wat je wilt horen.</p>
-                    <button className="vt-preset-link" type="button" onClick={()=>setStap(0)}>Of kies een kant-en-klare quiz</button>
+                    
                     <div className="vt-category-workspace"><div className="vt-category-left"><div className="vt-hoofdkaarten">
                         {[
                             {id:'films',naam:'Films & Series',icon:'🎬',kleur:'#ff328e',beeld:'/category/films-series.svg'},
@@ -549,6 +549,7 @@ export default function Setup() {
                             </div>
                         </div>}
                         
+                        <button className="vt-preset-link vt-preset-inline" type="button" onClick={()=>setStap(0)}>Of kies een kant-en-klare quiz</button>
                         <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema"})[hoofdgroep]} · {filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
                         <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}>▶ Start de quiz</button>
                     </div>
