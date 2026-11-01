@@ -766,7 +766,7 @@ async function enqueueMp3(id,prioriteit=0){
  setImmediate(()=>runMp3Queue().catch(e=>logger.fout('MP3 queue',{melding:e.message})));
 }
 async function runMp3Queue(){
- if(mp3Worker)return;
+ if(mp3Worker || !actieveSwipe)return;
  mp3Worker=true;
  try{
   await initMp3Queue();
@@ -774,8 +774,8 @@ async function runMp3Queue(){
    const {rows}=await pool.query(`SELECT q.aanbeveling_id,q.pogingen FROM swipe_mp3_queue q
    JOIN aanbevelingen a ON a.id=q.aanbeveling_id
    WHERE q.status='wachtend' AND q.volgende_poging<=now()
-     AND a.status IN ('nieuw','blind_nee','fout')
-   ORDER BY q.prioriteit DESC,q.bijgewerkt ASC LIMIT 1`);
+     AND a.categorie=$1 AND a.status=$2
+   ORDER BY q.prioriteit DESC,q.bijgewerkt ASC LIMIT 1`,[actieveSwipe.categorie,actieveSwipe.fase==='naam'?'blind_nee':'nieuw']);
    if(!rows.length)break;
    const item=rows[0], id=item.aanbeveling_id;
    await pool.query("UPDATE swipe_mp3_queue SET status='bezig',bijgewerkt=now() WHERE aanbeveling_id=$1",[id]);
@@ -796,34 +796,33 @@ async function runMp3Queue(){
   }
  }finally{mp3Worker=false;}
 }
-async function seedMp3Queue(){
+// Download uitsluitend voor de geselecteerde categorie; maximaal 10 klaarstaande items.
+let actieveSwipe = null;
+async function vulSwipeBuffer(categorie,fase='blind'){
  await initMp3Queue();
- // Maak kandidaat-aanbevelingen aan voor de bestaande films en series
- // zonder lokale muziek, ook als er nog geen AI-aanbeveling voor bestaat.
- await pool.query(`
-    INSERT INTO aanbevelingen(soort,categorie,titel,type,jaar,tracknaam,
-      artiest,youtube_zoekterm,bekendheid,reden,status,titel_id)
-    SELECT 'film_serie',t.type::text,t.naam,t.type::text,t.jaar,'','',
-      t.naam||' original theme soundtrack intro',3,
-      'Automatische downloadwachtrij vanuit catalogus','nieuw',t.id
-    FROM titels t
-    WHERE t.type IN ('film','serie') AND t.curatie_status <> 'uitgesloten'
-      AND NOT EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id
-          AND tr.bron='lokaal' AND tr.werkt=true AND tr.download_status='available')
-      AND NOT EXISTS (SELECT 1 FROM aanbevelingen a WHERE a.titel_id=t.id)
-    ORDER BY t.swipe_prioriteit DESC NULLS LAST,t.populariteit DESC
-    LIMIT 100
- `);
-
- await pool.query(`INSERT INTO swipe_mp3_queue(aanbeveling_id,prioriteit)
- SELECT a.id,CASE WHEN t.swipe_prioriteit IS NOT NULL THEN 100 ELSE 0 END
- FROM aanbevelingen a LEFT JOIN titels t ON t.id=a.titel_id
- WHERE a.status IN ('nieuw','blind_nee','fout')
- ON CONFLICT(aanbeveling_id) DO NOTHING`);
- await runMp3Queue();
+ if(!categorie || !['film','serie','games','disney','kerst','rock','80s','90s','20s','kinder','100nl'].includes(categorie))return;
+ actieveSwipe={categorie,fase};
+ if(categorie==='games')await vulGameMuziekSwipe();
+ const status=fase==='naam'?'blind_nee':'nieuw';
+ const {rows:[count]}=await pool.query(`SELECT count(*)::int AS n FROM aanbevelingen a
+ JOIN swipe_mp3_queue q ON q.aanbeveling_id=a.id
+ WHERE a.categorie=$1 AND a.status=$2 AND q.status IN ('klaar','bezig','wachtend')`,[categorie,status]);
+ const nodig=Math.max(0,10-count.n);
+ if(nodig){
+  const {rows}=await pool.query(`SELECT a.id FROM aanbevelingen a
+   LEFT JOIN swipe_mp3_queue q ON q.aanbeveling_id=a.id
+   WHERE a.categorie=$1 AND a.status=$2 AND q.aanbeveling_id IS NULL
+   ORDER BY a.aangemaakt_op LIMIT $3`,[categorie,status,nodig]);
+  for(const r of rows)await pool.query(`INSERT INTO swipe_mp3_queue(aanbeveling_id)
+   VALUES($1) ON CONFLICT DO NOTHING`,[r.id]);
+ }
+ setImmediate(()=>runMp3Queue().catch(e=>logger.waarschuwing('Swipe buffer',{melding:e.message})));
 }
-setTimeout(()=>seedMp3Queue().catch(e=>logger.waarschuwing('MP3 queue initialisatie',{melding:e.message})),45000).unref();
-setInterval(()=>seedMp3Queue().catch(e=>logger.waarschuwing('MP3 queue vervolgronde',{melding:e.message})),60*1000).unref();
+setInterval(()=>{if(actieveSwipe)vulSwipeBuffer(actieveSwipe.categorie,actieveSwipe.fase).catch(e=>logger.waarschuwing('Swipe hervatten',{melding:e.message}));},60*1000).unref();
+router.post('/api/admin/swipe/buffer',vereisAdmin,async(req,res)=>{
+ try{await vulSwipeBuffer(req.body?.categorie,req.body?.fase);res.json({ok:true});}
+ catch(e){res.status(500).json({fout:e.message});}
+});
 router.get('/api/admin/swipe/mp3-wachtrij',vereisAdmin,async(_req,res)=>{
  try{
   await initMp3Queue();
@@ -862,7 +861,7 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
                      AND tr.download_status='available' AND NULLIF(tr.preview_url,'') IS NOT NULL)
                )
              ORDER BY bekendheid DESC, aangemaakt_op
-             LIMIT 100`, [categorie, fase]);
+             LIMIT 10`, [categorie, fase]);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ fout: err.message });
