@@ -269,22 +269,19 @@ export default function Host() {
 </section>
                             <details className="kaart lobby-instellingen"><summary>Lobbyinstellingen aanpassen</summary>
                                 <p className="kaart-label">Lobby aanpassen</p>
-                                <div className="velden">
-                                    <select
-                                        className="invoer"
-                                        value={lobbyWijziging?.antwoord_modus || 'meerkeuze'}
-                                        onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, antwoord_modus: e.target.value })}
-                                    >
-                                        <option value="typen">Typen</option>
-                                        <option value="meerkeuze">6 opties</option>
-                                    </select>
-                                    <select
-                                        className="invoer"
-                                        value={String(lobbyWijziging?.speeltijd ?? 0)}
-                                        onChange={(e) => setLobbyWijziging({ ...lobbyWijziging, speeltijd: Number(e.target.value) })}
-                                    >
-                                        <option value="0">Heel nummer</option><option value="30">30 seconden</option><option value="60">1 minuut</option>
-                                    </select>
+                                <div className="vt-lobby-choices">
+                                    <p className="kaart-label">Antwoordwijze</p>
+                                    <div className="vt-lobby-choice-row">
+                                        {[['typen','⌨️','Typen'],['meerkeuze','🔠','6 antwoorden']].map(([id,icoon,label])=>
+                                            <button type="button" key={id} className={'chip'+((lobbyWijziging?.antwoord_modus||'meerkeuze')===id?' gekozen':'')}
+                                                onClick={()=>setLobbyWijziging(oud=>({...oud,antwoord_modus:id}))}>{icoon} {label}</button>)}
+                                    </div>
+                                    <p className="kaart-label">Speeltijd</p>
+                                    <div className="vt-lobby-choice-row">
+                                        {[[0,'Heel nummer'],[10,'10 sec'],[15,'15 sec'],[20,'20 sec'],[30,'30 sec'],[60,'1 min'],[120,'2 min'],[180,'3 min']].map(([waarde,label])=>
+                                            <button type="button" key={waarde} className={'chip'+((lobbyWijziging?.speeltijd??0)===waarde?' gekozen':'')}
+                                                onClick={()=>setLobbyWijziging(oud=>({...oud,speeltijd:waarde}))}>{label}</button>)}
+                                    </div>
                                 </div>
                                 <div style={{ marginTop: '0.75rem' }}>
                                     <label className="kaart-label">Genres films en series (leeg = alle genres)</label>
