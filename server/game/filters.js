@@ -50,25 +50,6 @@ function bouwFilter(f = {}) {
         condities.push("NOT ('Videogames' = ANY(t.muziek_genres) OR 'Videogames' = ANY(t.genres))");
     }
 
-    // Keuze op fabrikant bij videogames. De bestaande gamecatalogus bewaart
-    // de platforms per titel. Alleen relevant voor de Videogames-categorie.
-    if ((f.game_only === true || f.categorie === 'games') && Array.isArray(f.platformen) && f.platformen.length) {
-        const groepen = {
-            nintendo:['Nintendo','NES','SNES','Game Boy','Nintendo 64','GameCube','Wii','Wii U','Nintendo Switch','Nintendo Switch 2','Nintendo DS','Nintendo 3DS'],
-            sega:['Sega','Mega Drive','Sega Mega Drive','Sega Saturn','Dreamcast','Game Gear'],
-            playstation:['PlayStation','PlayStation 1','PlayStation 2','PlayStation 3','PlayStation 4','PlayStation 5','PSP','PS Vita'],
-            xbox:['Xbox','Xbox 360','Xbox One','Xbox Series X/S'],
-            pc:['PC']
-        };
-        const namen=[...new Set(f.platformen.filter(x=>Object.hasOwn(groepen,x)).flatMap(x=>groepen[x]))];
-        if(namen.length){
-            params.push(namen);
-            condities.push(`EXISTS(SELECT 1 FROM game_catalogus gc
-               WHERE lower(trim(gc.naam))=lower(trim(t.naam))
-                 AND gc.platformen && ${params.length}::text[])`);
-        }
-    }
-
     const gekozenCollecties = Array.isArray(f.collecties) && f.collecties.length
         ? f.collecties
         : (f.collectie && f.collectie !== 'alles' ? [f.collectie] : []);
@@ -86,16 +67,6 @@ function bouwFilter(f = {}) {
         );
     }
 
-    // Directe categorie-filtering: deze keuzekaarten mogen niet afhangen van
-    // handmatig aangemaakte collecties (die mogelijk nog leeg zijn).
-    if (f.speciale_keuze === 'rock') {
-        condities.push("('Rock' = ANY(t.muziek_genres) OR 'Rock' = ANY(t.genres))");
-    } else if (f.speciale_keuze === '100nl') {
-        condities.push("t.taal::text = 'nl' AND t.type::text = 'muziek'");
-    } else if (f.speciale_keuze === 'kerst') {
-        condities.push("('Kerst' = ANY(t.themas) OR 'Kerst' = ANY(t.genres) OR 'kerst' = ANY(t.themas))");
-    }
-    
     // Taal: nl | en | us | beide. `us` gebruikt land, omdat Amerikaans
     // geen aparte gesproken-taalwaarde is in de catalogus.
     if (f.taal === 'nl') {
