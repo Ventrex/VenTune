@@ -326,21 +326,25 @@ export default function Host() {
                         </div>
 
                         <div className="kaart host-kaart host-wacht-rechts">
-                            <p className="kaart-label">Scan om mee te doen</p>
+                            <p className="kaart-label">Doe mee · scan of deel</p>
                             <p className="lobby-code">{sessie.code}</p>
                             <button type="button" className="qr-doos vt-qr-trigger" aria-label="Vergroot QR-code" onClick={() => setQrGroot(true)}>
                                 <QRCodeSVG
                                     value={joinUrl}
-                                    size={200}
+                                    size={112}
                                     bgColor="#000000"
                                     fgColor="#f5f5f5"
                                     level="M"
                                     includeMargin
                                 />
                             </button>
-                            <p className="dim" style={{ wordBreak: 'break-all' }}>
-                                {joinUrl}
-                            </p>
+                            <div className="vt-lobby-share">
+                                <button type="button" className="knop knop-stil" onClick={() => {
+                                    if (navigator.share) navigator.share({title:'Doe mee met VenTune',text:'Doe mee met onze quiz! Code: '+sessie.code,url:joinUrl}).catch(()=>{});
+                                    else if (navigator.clipboard) navigator.clipboard.writeText(joinUrl).catch(()=>{});
+                                }}>Delen / uitnodigen</button>
+                                <a href={'https://wa.me/?text='+encodeURIComponent('Speel mee met VenTune! Code: '+sessie.code+' '+joinUrl)} target="_blank" rel="noopener noreferrer" className="knop knop-stil">WhatsApp</a>
+                            </div>
                         </div>
                     </div>
                     {qrGroot && <div className="vt-qr-overlay" role="dialog" aria-modal="true" aria-label="Vergrote QR-code" onClick={() => setQrGroot(false)}><div className="vt-qr-modal" onClick={e=>e.stopPropagation()}><button className="knop knop-stil" type="button" onClick={() => setQrGroot(false)}>Sluiten ×</button><p className="lobby-code">{sessie.code}</p><QRCodeSVG value={joinUrl} size={320} bgColor="#ffffff" fgColor="#111111" includeMargin/><p>Scan om mee te doen</p></div></div>}
