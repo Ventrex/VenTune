@@ -694,7 +694,7 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
         if (bestaandAdvies.rows[0]) {
             const a=bestaandAdvies.rows[0];
             if (a.status !== 'nieuw' && a.status !== 'blind_nee') {
-                await pool.query("UPDATE aanbevelingen SET status='fout', beoordeeld_op=NULL WHERE id=$1",[a.id]);
+                await pool.query("UPDATE aanbevelingen SET status='nieuw', beoordeeld_op=NULL WHERE id=$1",[a.id]);
             }
             await enqueueMp3(a.id,1000);
             return res.json({ok:true,bestaand:true,heeft_mp3:false,id:a.id,
@@ -707,7 +707,7 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
             [titel,type,'en',jaar]);
         const { rows } = await pool.query(
             `INSERT INTO aanbevelingen (soort, categorie, titel, type, jaar, tracknaam, artiest, youtube_zoekterm, bekendheid, reden, status)
-             VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'fout')
+             VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'nieuw')
              RETURNING id`,
             [type, titel, type, jaar, `${titel} original theme soundtrack intro`]);
         await enqueueMp3(rows[0].id,1000);
