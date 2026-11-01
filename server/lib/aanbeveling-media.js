@@ -90,13 +90,14 @@ async function lokaalVoorbeeld(aanbeveling) {
         for (let poging = 0; poging < 5; poging++) {
             const bron = await zoekVoorbeeld({ ...aanbeveling, afgekeurde_bronnen: [...afgekeurd] });
             if (!bron) break;
-            const tmp = path.join(map, `aanbeveling-${id}-${Date.now()}-${poging}.mp3`);
+            const tmpBasis = path.join(map, `aanbeveling-${id}-${Date.now()}-${poging}`);
+            const tmp = `${tmpBasis}.mp3`;
             try {
                 await execFileAsync('yt-dlp', [
                     '--js-runtimes', 'node',
                     '--no-playlist', '--extract-audio',
                     '--audio-format', 'mp3', '--audio-quality', '5',
-                    '--no-part', '--output', tmp,
+                    '--no-part', '--output', `${tmpBasis}.%(ext)s`,
                     `https://www.youtube.com/watch?v=${bron.videoId}`,
                 ], { timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
                 const stat = await fs.stat(tmp);
@@ -106,7 +107,7 @@ async function lokaalVoorbeeld(aanbeveling) {
                 await pool.query('UPDATE aanbevelingen SET voorbeeld_bron = $2 WHERE id = $1', [id, bron.videoId]);
                 return { audioUrl: `${url}?v=${Math.floor((await fs.stat(bestand)).mtimeMs)}` };
             } catch (err) {
-                laatsteFout = err.stderr?.slice(-500) || err.message;
+                laatsteFout = (err.stderr && err.stderr.trim() ? err.stderr.slice(-900) : err.message);
                 afgekeurd.add(bron.videoId);
                 logger.waarschuwing('Videobron niet downloadbaar', { id, videoId: bron.videoId, melding: laatsteFout.slice(0, 250) });
                 await pool.query(
@@ -116,7 +117,7 @@ async function lokaalVoorbeeld(aanbeveling) {
                 await fs.rm(tmp, { force: true }).catch(() => {});
             }
         }
-        throw new Error('Geen van de beschikbare videobronnen kon worden gedownload. ' + laatsteFout.slice(0, 250));
+        throw new Error('Geen van de beschikbare videobronnen kon worden gedownload. ' + (laatsteFout || 'YouTube-zoekfunctie heeft geen geschikte video opgeleverd.').slice(0, 500));
     })();
     previewDownloads.set(id, taak);
     try { return await taak; }
