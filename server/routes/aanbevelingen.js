@@ -773,7 +773,12 @@ router.get('/api/admin/aanbevelingen/:id/audio', vereisAdmin, async (req, res) =
                 .then((result) => Object.assign(taak, { status: 'klaar', audioUrl: result.audioUrl }))
                 .catch((err) => {
                     logger.waarschuwing('Luistervoorbeeld downloaden mislukt', { id, melding: err.message });
-                    Object.assign(taak, { status: 'fout', fout: String(err.message).slice(0, 500), sinds: Date.now() });
+                    const melding = String(err.message).slice(0, 500);
+                    Object.assign(taak, { status: 'fout', fout: melding, sinds: Date.now() });
+                    // Zonder luisterbare MP3 hoort deze kaart niet in Swipe.
+                    // Behoud de titel en de aanvraag voor later muziekonderzoek.
+                    pool.query("UPDATE aanbevelingen SET status='fout', beoordeeld_op=now() WHERE id=$1 AND status IN ('nieuw','blind_nee')", [id])
+                        .catch(e => logger.waarschuwing('Audioprobleem markeren mislukt', { id, melding: e.message }));
                 });
         }
         if (taak.status === 'fout') return res.status(502).json({ fout: taak.fout });
