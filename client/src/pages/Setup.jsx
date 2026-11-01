@@ -719,7 +719,7 @@ export default function Setup() {
                             <h2>Rondes</h2>
                             <div className="vt-choice-grid vt-four">
                                 {RONDES.map((r,i)=><button type="button" key={r.waarde} className={'vt-option-card'+(filters.rondes===r.waarde?' selected':'')} onClick={()=>zet('rondes',r.waarde)}>
-                                    <span className="vt-option-art">{['⚡','🎵','🎬','∞'][i]}</span>
+                                    <img className="vt-setup-art" src={categorieBeelden["setup-rondes-"+["kort","medium","lang","oneindig"][i]] || "/setup-icons/rondes-"+["kort","medium","lang","oneindig"][i]+".svg"} alt="" />
                                     <strong>{['Kort','Medium','Lang','Oneindig'][i]}</strong><small>{r.waarde ? r.waarde+' rondes':'Tot je stopt'}</small>
                                 </button>)}
                             </div>
@@ -732,7 +732,7 @@ export default function Setup() {
                                     ['hints_aan','Hints tijdens het raden','Hints verschijnen tijdens het luisteren',true],
                                     ['bonusvragen_aan','Bonusvragen','Extra vragen na het raden',true],
                                     ['info_aan','Film- en serie-info','Poster en achtergrondinformatie na de ronde',true]
-                                ].map(([key,titel,uitleg,aan])=><label className="vt-setting-switch" key={key}><span><strong>{titel}</strong><small>{uitleg}</small></span>
+                                ].map(([key,titel,uitleg,aan])=><label className="vt-setting-switch" key={key}><img className="vt-setting-art" src={categorieBeelden["setup-spel-"+({kindvriendelijk:"kindvriendelijk",hints_aan:"hints",bonusvragen_aan:"bonus",info_aan:"info"})[key]] || "/setup-icons/spel-"+({kindvriendelijk:"kindvriendelijk",hints_aan:"hints",bonusvragen_aan:"bonus",info_aan:"info"})[key]+".svg"} alt="" /><span><strong>{titel}</strong><small>{uitleg}</small></span>
                                     <input type="checkbox" checked={aan?filters[key]!==false:filters[key]===true}
                                         onChange={e=>key==='kindvriendelijk'?setFilters(f=>({...f,kindvriendelijk:e.target.checked,leeftijd_max:e.target.checked?12:0})):zet(key,e.target.checked)}/>
                                     <span className="vt-switch-track" aria-hidden="true"/>
@@ -748,7 +748,7 @@ export default function Setup() {
                                     ['teams','👥','Teams','Speel samen tegen andere teams'],
                                     ['bergexpeditie','🏔️','Bergexpeditie','Samen zo hoog mogelijk klimmen']
                                 ].map(([id,icoon,titel,uitleg])=><button type="button" key={id} className={'vt-option-card'+(filters.spelvorm===id?' selected':'')} onClick={()=>zet('spelvorm',id)}>
-                                    <span className="vt-option-art">{icoon}</span><strong>{titel}</strong><small>{uitleg}</small>
+                                    <img className="vt-setup-art" src={categorieBeelden["setup-spel-"+id] || "/setup-icons/spel-"+id+".svg"} alt="" /><strong>{titel}</strong><small>{uitleg}</small>
                                 </button>)}
                             </div>
                             {filters.spelvorm==='teams'&&<div className="vt-choice-grid vt-three">
@@ -759,12 +759,12 @@ export default function Setup() {
                         <div className="vt-settings-pair">
                             <section className="vt-options-panel">
                                 <h2>Spelsoort</h2><div className="vt-choice-grid vt-two">
-                                    {MODI.map((m,i)=><button key={m.waarde} type="button" className={'vt-option-card'+(filters.modus===m.waarde?' selected':'')} onClick={()=>zet('modus',m.waarde)}><span className="vt-option-art">{i===0?'⚡':'🧠'}</span><strong>{m.label}</strong><small>{m.uitleg}</small></button>)}
+                                    {MODI.map((m,i)=><button key={m.waarde} type="button" className={'vt-option-card'+(filters.modus===m.waarde?' selected':'')} onClick={()=>zet('modus',m.waarde)}><img className="vt-setup-art" src={categorieBeelden["setup-modus-"+m.waarde] || "/setup-icons/modus-"+m.waarde+".svg"} alt="" /><strong>{m.label}</strong><small>{m.uitleg}</small></button>)}
                                 </div>
                             </section>
                             <section className="vt-options-panel">
                                 <h2>Antwoordwijze</h2><div className="vt-choice-grid vt-two">
-                                    {ANTWOORD_MODI.map((m,i)=><button key={m.waarde} type="button" className={'vt-option-card'+(filters.antwoord_modus===m.waarde?' selected':'')} onClick={()=>zet('antwoord_modus',m.waarde)}><span className="vt-option-art">{i===0?'⌨️':'🔠'}</span><strong>{m.label}</strong><small>{m.uitleg}</small></button>)}
+                                    {ANTWOORD_MODI.map((m,i)=><button key={m.waarde} type="button" className={'vt-option-card'+(filters.antwoord_modus===m.waarde?' selected':'')} onClick={()=>zet('antwoord_modus',m.waarde)}><img className="vt-setup-art" src={categorieBeelden["setup-antwoord-"+m.waarde] || "/setup-icons/antwoord-"+(m.waarde==="meerkeuze"?"meerkeuze":"typen")+".svg"} alt="" /><strong>{m.label}</strong><small>{m.uitleg}</small></button>)}
                                 </div>
                             </section>
                         </div>
