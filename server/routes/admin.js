@@ -2891,6 +2891,44 @@ function startPlaylistPlanner() {
     }, 60 * 1000);
     playlistPlannerTimer.unref?.();
 }
+// Zelfstandige, begrensde aanvulling van ontbrekende lokale MP3's.
+// Draait ook wanneer OUDE_PIPELINE uit staat. Bestaande back-off en
+// 'opgegeven'-status uit seed/import.js voorkomen eindeloos herzoeken.
+let ontbrekendeMp3Timer = null;
+function startAutomatischeMp3Aanvulling() {
+    if (ontbrekendeMp3Timer) return;
+    const voerUit = () => {
+        if (actieveAdminTaak || lokaleAanvullingStatus.bezig) return;
+        startAdminScript(
+            'automatische-mp3-aanvulling',
+            lokaleAanvullingStatus,
+            (v) => { lokaleAanvullingStatus = v; },
+            async ({ isGeannuleerd = () => false } = {}) => {
+                lokaleAanvullingStatus = { ...lokaleAanvullingStatus, stap: 'zoeken' };
+                const zoek = await importeer({
+                    force: false, alleenDb: true, youtubeAlleen: true,
+                    alleenZonderLokaal: true, limiet: 25,
+                    isGeannuleerd,
+                    onProgress: (v) => { lokaleAanvullingStatus = { ...lokaleAanvullingStatus, stap: 'zoeken', ...v }; },
+                });
+                if (isGeannuleerd()) return { geannuleerd: true, zoek };
+                lokaleAanvullingStatus = { ...lokaleAanvullingStatus, stap: 'downloaden' };
+                const downloads = await downloadTracksVooruit({
+                    alleenYoutube: true, alleenZonderLokaal: true,
+                    controleer: true, limiet: 50, isGeannuleerd,
+                    onProgress: (v) => { lokaleAanvullingStatus = { ...lokaleAanvullingStatus, stap: 'downloaden', ...v }; },
+                });
+                return { zoek, downloads };
+            },
+        );
+    };
+    ontbrekendeMp3Timer = setInterval(voerUit, 30 * 60 * 1000);
+    ontbrekendeMp3Timer.unref();
+    const eersteRun = setTimeout(voerUit, 20 * 1000);
+    eersteRun.unref();
+}
+startAutomatischeMp3Aanvulling();
+
 // Het oude automatische systeem (dagelijkse keten database→YouTube→lokaal,
 // TMDB, bulk-downloads) staat standaard UIT. Het veroorzaakte duizenden
 // downloadfouten en de TMDB-401. Zet OUDE_PIPELINE=true in .env om het
