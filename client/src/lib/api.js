@@ -586,3 +586,16 @@ export async function joinLobby(code, naam, leeftijd = null, specialiteit = null
     if (!resp.ok) throw new Error(data?.fout || 'Meedoen mislukt.');
     return data;
 }
+
+
+export async function adminCategorieBeelden() {
+    return adminFetch('/api/categorie-beelden');
+}
+export async function adminUploadCategorieBeeld(sleutel, bestand) {
+    const form = new FormData();
+    form.append('afbeelding', bestand);
+    return adminFetch('/api/admin/categorie-beelden/' + encodeURIComponent(sleutel), { method: 'POST', body: form });
+}
+export async function adminVerwijderCategorieBeeld(sleutel) {
+    return adminFetch('/api/admin/categorie-beelden/' + encodeURIComponent(sleutel), { method: 'DELETE' });
+}
