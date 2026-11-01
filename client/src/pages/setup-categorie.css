@@ -463,3 +463,19 @@
 @media(max-width:780px){.vt-choice-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-settings-pair{grid-template-columns:1fr}.vt-duration-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.vt-option-card{min-height:94px}.vt-switch-grid{grid-template-columns:1fr}}
 @media(max-width:440px){.setup-scherm:has(.vt-game-settings){width:100%;padding:14px 10px}.vt-options-panel{padding:12px}.vt-choice-grid.vt-four{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-choice-grid.vt-three{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-duration-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.vt-option-card small{font-size:.69rem}}
 @media(prefers-reduced-motion:reduce){.vt-option-card,.vt-switch-track,.vt-switch-track:before{transition:none}}
+
+/* Three actual quiz categories; appearance lives under host profile */
+.vt-category-workspace .vt-hoofdkaarten{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.vt-category-workspace .vt-categorie-aside{display:block!important}
+.vt-profiel-appearance{padding:20px;border:1px solid #8f4cc4;border-radius:20px;background:linear-gradient(135deg,#261139,#0d1134)}
+.vt-profiel-appearance .thema-kiezer{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.vt-profiel-appearance .vt-opties-onder{display:grid;grid-template-columns:1fr;gap:14px}
+.vt-profiel-appearance .vt-achtergrond-lijst{grid-template-columns:repeat(6,minmax(0,1fr))}
+.vt-lobby-share{display:flex;gap:9px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:10px}
+.vt-lobby-share .knop{flex:1 1 125px;font-size:.8rem;min-height:40px;text-decoration:none}
+@media(max-width:760px){
+ .vt-category-workspace .vt-hoofdkaarten{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .vt-category-workspace .vt-categorie-aside{display:contents!important}
+ .vt-profiel-appearance .thema-kiezer{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .vt-profiel-appearance .vt-achtergrond-lijst{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
