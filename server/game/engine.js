@@ -1473,9 +1473,9 @@ class SpelBeheer {
     }
 
     /** Host pauzeert: klok stilzetten en de muziek stoppen. */
-    pauzeer(socket) {
+    pauzeer(socket, voorMelding = false) {
         const state = this.spellen.get(socket.data.lobbyId);
-        if (!state || !socket.data.isHost || !state.huidige) return;
+        if (!state || (!socket.data.isHost && !voorMelding) || !state.huidige || state.fase !== 'raden') return;
         const h = state.huidige;
         if (h.gepauzeerd) return;
 
