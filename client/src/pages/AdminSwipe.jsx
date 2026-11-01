@@ -23,6 +23,10 @@ async function haal(pad, opties = {}) {
 const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) });
 
 export default function AdminSwipe() {
+    const [titelReview, setTitelReview] = useState(false);
+    const [titelKaarten, setTitelKaarten] = useState([]);
+    const [titelFout, setTitelFout] = useState('');
+    const [titelBezig, setTitelBezig] = useState(null);
     const [fase, setFase] = useState('blind');       // blind | naam
     const [categorie, setCategorie] = useState('film');
     const categorieen = [['film', 'Films'], ['serie', 'Series'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
@@ -45,6 +49,26 @@ export default function AdminSwipe() {
         setLaadt(false);
     }
     useEffect(() => { laad(); /* eslint-disable-next-line */ }, [categorie, fase]);
+
+    async function laadTitelReview() {
+        try {
+            const lijst = await haal('/api/admin/titels?filter=te-beoordelen');
+            setTitelKaarten((lijst || []).filter(t => ['film','serie'].includes(t.type)));
+            setTitelFout('');
+        } catch (err) { setTitelFout(err.message); }
+    }
+    useEffect(() => { if (titelReview) laadTitelReview(); }, [titelReview]);
+    async function keurTitel(t, status) {
+        setTitelBezig(t.id);
+        try {
+            // Alleen de curatiestatus wijzigen. Geen bestaande titelmetadata overschrijven.
+            await haal('/api/admin/titels/' + t.id + '/curatie', {
+                method: 'PATCH', ...jsonBody({ status }),
+            });
+            setTitelKaarten(v => v.filter(x => x.id !== t.id));
+        } catch(err) { setTitelFout(err.message); }
+        finally { setTitelBezig(null); }
+    }
 
     const huidige = kaarten[index];
     const klaar = !laadt && !huidige;
@@ -109,6 +133,29 @@ export default function AdminSwipe() {
                 <Link className="terug" to="/admin/ai">← AI-beheer</Link>
             </div>
 
+            <div className="swipe-tabs">
+                <button className={'knop' + (!titelReview ? '' : ' knop-stil')} onClick={() => setTitelReview(false)}>Muziek swipen</button>
+                <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => setTitelReview(true)}>Films/series goedkeuren</button>
+            </div>
+            {titelReview ? (
+                <section className="kaart vt-titel-review">
+                    <h2>Nieuwe films en series</h2>
+                    <p className="dim">Deze titels komen uit TMDB, los van de muziek-swipes. Goedkeuren voegt de titel toe aan de goedgekeurde catalogus.</p>
+                    <p className="dim">{titelKaarten.length} wachten op beoordeling</p>
+                    {titelFout && <p className="waarschuwing">{titelFout}</p>}
+                    {titelKaarten.map(t => (
+                        <div className="vt-review-row" key={t.id}>
+                            {t.poster_pad && <img src={'https://image.tmdb.org/t/p/w185' + t.poster_pad} alt="" loading="lazy" />}
+                            <div><strong>{t.naam}</strong><p className="dim">{t.type} · {t.jaar || 'jaar onbekend'}</p>
+                                <div className="knoprij">
+                                    <button className="knop" disabled={titelBezig === t.id} onClick={() => keurTitel(t,'goedgekeurd')}>Goedkeuren</button>
+                                    <button className="knop knop-stil" disabled={titelBezig === t.id} onClick={() => keurTitel(t,'uitgesloten')}>Afwijzen</button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </section>
+            ) : <>
             {/* Fase-keuze */}
             <div className="swipe-tabs">
                 <button className={'knop' + (fase === 'blind' ? '' : ' knop-stil')} onClick={() => setFase('blind')}>
@@ -229,6 +276,7 @@ export default function AdminSwipe() {
                     </p>
                 </>
             )}
+            </>}
         </main>
     );
 }
