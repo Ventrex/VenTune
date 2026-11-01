@@ -24,6 +24,20 @@ const router = express.Router();
 // Achtergrondstatus van de laatste generatie-run.
 let run = { bezig: false, soort: null, gestart: null, klaar: null, resultaat: null, fout: null };
 
+router.get('/api/admin/aanbevelingen/speelbaar-telling',vereisAdmin,async(_req,res)=>{
+ try {
+  await initMp3Queue();
+  const {rows}=await pool.query(`
+   SELECT a.categorie,a.status,count(*)::int AS aantal FROM aanbevelingen a
+   WHERE a.status IN ('nieuw','blind_nee') AND (
+      EXISTS(SELECT 1 FROM swipe_mp3_queue q WHERE q.aanbeveling_id=a.id AND q.status='klaar')
+      OR EXISTS(SELECT 1 FROM tracks tr WHERE tr.titel_id=a.titel_id
+        AND tr.bron='lokaal' AND tr.werkt=true AND tr.gecontroleerd=true
+        AND tr.download_status='available' AND NULLIF(tr.preview_url,'') IS NOT NULL)
+   ) GROUP BY a.categorie,a.status`);
+  res.json({aantallen:rows});
+ }catch(e){res.status(500).json({fout:e.message});}
+});
 router.get('/api/admin/aanbevelingen/status', vereisAdmin, async (_req, res) => {
     try {
         const login = await codex.loginStatus();
