@@ -31,6 +31,7 @@ export function useSpel() {
     const [bonus, setBonus] = useState(null); // {vraag, opties, durationMs:null}
     const [bonusResultaat, setBonusResultaat] = useState(null);
     const [scorebord, setScorebord] = useState([]);
+    const [berg, setBerg] = useState(null);
     const [winnaarId, setWinnaarId] = useState(null);
     const [gepauzeerd, setGepauzeerd] = useState(false);
     const [melded, setMelded] = useState(false);
@@ -150,7 +151,9 @@ export function useSpel() {
             setHerstelBezig(false);
         };
         const bijScores = (sb) => setScorebord(sb);
-        const bijEinde = ({ scorebord: sb }) => {
+        const bijBerg = (status) => setBerg(status);
+        const bijEinde = ({ scorebord: sb, berg: bergEinde }) => {
+            if (bergEinde) setBerg(bergEinde);
             setAudio(null);
             setScorebord(sb);
             setFase('einde');
@@ -184,6 +187,7 @@ export function useSpel() {
         socket.on('ronde:bonus-resultaat', bijBonusResultaat);
         socket.on('ronde:afgelopen', bijAfgelopen);
         socket.on('spel:scores', bijScores);
+        socket.on('berg:status', bijBerg);
         socket.on('spel:einde', bijEinde);
         socket.on('spel:herstel-nodig', bijHerstelNodig);
 
@@ -215,6 +219,7 @@ export function useSpel() {
             socket.off('ronde:bonus-resultaat', bijBonusResultaat);
             socket.off('ronde:afgelopen', bijAfgelopen);
             socket.off('spel:scores', bijScores);
+            socket.off('berg:status', bijBerg);
             socket.off('spel:einde', bijEinde);
             socket.off('spel:herstel-nodig', bijHerstelNodig);
         };
@@ -296,6 +301,7 @@ export function useSpel() {
         bonus,
         bonusResultaat,
         scorebord,
+        berg,
         audio,
         winnaarId,
         gepauzeerd,
