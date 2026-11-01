@@ -2891,6 +2891,49 @@ function startPlaylistPlanner() {
     }, 60 * 1000);
     playlistPlannerTimer.unref?.();
 }
+// Elke week de brede NL-regio-catalogus vanaf 1980 verversen.
+// Laatste poging staat in PostgreSQL: bij een containerherstart geen
+// steeds opnieuw beginnende volledige TMDB-import.
+let automatischeCatalogusTimer = null;
+let catalogusAutoBezig = false;
+async function automatischeCatalogusCheck() {
+    if (catalogusAutoBezig || actieveAdminTaak || !(process.env.TMDB_API_KEY || process.env.TMDB_ACCESS_TOKEN)) return;
+    catalogusAutoBezig = true;
+    try {
+        await pool.query(`CREATE TABLE IF NOT EXISTS tmdb_catalogus_planning (
+            sleutel TEXT PRIMARY KEY, laatste_poging TIMESTAMPTZ, laatste_succes TIMESTAMPTZ, laatste_fout TEXT
+        )`);
+        const {rows} = await pool.query("SELECT laatste_poging FROM tmdb_catalogus_planning WHERE sleutel='1980-nu'");
+        if (rows[0]?.laatste_poging && Date.now() - new Date(rows[0].laatste_poging).getTime() < 7 * 24 * 3600000) return;
+        await pool.query(`INSERT INTO tmdb_catalogus_planning(sleutel,laatste_poging)
+            VALUES('1980-nu',now()) ON CONFLICT(sleutel) DO UPDATE SET laatste_poging=now()`);
+        startAdminScript('tmdb-catalogus-auto',catalogusImportStatus,
+            (v)=>{catalogusImportStatus=v;},
+            async () => {
+                try {
+                    const resultaat=await importeerJaarCatalogus({
+                        startJaar:1980, eindJaar:new Date().getUTCFullYear(),
+                        opProgress:(v)=>{catalogusImportStatus={...catalogusImportStatus,...v};}
+                    });
+                    await pool.query("UPDATE tmdb_catalogus_planning SET laatste_succes=now(),laatste_fout=NULL WHERE sleutel='1980-nu'");
+                    return resultaat;
+                }catch(err) {
+                    await pool.query("UPDATE tmdb_catalogus_planning SET laatste_fout=$1 WHERE sleutel='1980-nu'",[err.message]).catch(()=>{});
+                    throw err;
+                }
+            });
+    } catch(err){logger.waarschuwing('Automatische TMDB-catalogus kon niet starten',{melding:err.message});}
+    finally{catalogusAutoBezig=false;}
+}
+function startAutomatischeCatalogus() {
+    if (automatischeCatalogusTimer) return;
+    automatischeCatalogusTimer=setInterval(()=>automatischeCatalogusCheck(),60*60*1000);
+    automatischeCatalogusTimer.unref();
+    const eerste=setTimeout(()=>automatischeCatalogusCheck(),60*1000);
+    eerste.unref();
+}
+startAutomatischeCatalogus();
+
 // Zelfstandige, begrensde aanvulling van ontbrekende lokale MP3's.
 // Draait ook wanneer OUDE_PIPELINE uit staat. Bestaande back-off en
 // 'opgegeven'-status uit seed/import.js voorkomen eindeloos herzoeken.
