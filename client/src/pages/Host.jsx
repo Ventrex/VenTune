@@ -623,11 +623,12 @@ export function AntwoordInfo({ antwoord }) {
     const type = antwoord.type === 'serie' ? 'Serie' : antwoord.type === 'muziek' ? 'Muziek' : 'Film';
     const taal = antwoord.taal === 'nl' ? 'Nederlands' : antwoord.taal === 'en' ? 'Engels' : antwoord.taal === 'us' ? 'Engels' : null;
     return (
-        <div className="antwoord-compact">
+        <div className="antwoord-compact vt-answer-summary">
             {antwoord.poster && (
-                <img className="poster" src={antwoord.poster} alt="" loading="lazy" />
+                <img className="poster vt-small-poster" src={antwoord.poster} alt="" loading="lazy" />
             )}
             <div className="antwoord-tekst">
+            <details className="vt-info-toggle"><summary aria-label="Meer informatie over deze film of serie">ⓘ Info over {antwoord.type === 'serie' ? 'de serie' : 'de film'}</summary>
             <div className="info-rij">
                 <span className="info-chip">{type}</span>
                 {antwoord.jaar && <span className="info-chip">{antwoord.jaar}</span>}
@@ -648,6 +649,7 @@ export function AntwoordInfo({ antwoord }) {
                 {antwoord.tracknaam}
                 {antwoord.artiest ? ` — ${antwoord.artiest}` : ''}
             </p>
+            </details>
             </div>
         </div>
     );
