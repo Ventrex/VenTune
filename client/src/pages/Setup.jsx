@@ -14,6 +14,7 @@ import {
 import { bewaarSessie } from '../lib/sessie.js';
 import Brand from '../components/Brand.jsx';
 import ThemaKiezer from '../components/ThemaKiezer.jsx';
+import UiterlijkOpties from '../components/UiterlijkOpties.jsx';
 import './setup-categorie.css';
 
 const NU = new Date().getFullYear();
@@ -552,6 +553,7 @@ export default function Setup() {
                         <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}>▶ Start de quiz</button>
                     </div>
                     </div><aside className="vt-categorie-aside"><div className="vt-uiterlijk-paneel"><h3>Thema & uiterlijk</h3><p className="dim">Kies een thema dat bij jou past.</p><ThemaKiezer /></div><div className="vt-berg-paneel"><h3>Wat is Bergexpeditie?</h3><p>Een toekomstige spelvorm waarin jullie samen een berg beklimmen. Goed beantwoorde vragen brengen je steeds hoger.</p><span className="vt-berg-icon" aria-hidden="true">🏔️</span><small>Binnenkort</small></div></aside></div>
+                    <UiterlijkOpties />
                 </section>
             )}
 
