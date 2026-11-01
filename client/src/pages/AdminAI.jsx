@@ -224,7 +224,7 @@ export function QuizInhoud() {
         <h2>AI · Hints en bonusvragen</h2>
         <QuizGezondheid />
         <p className="dim">Drie verschillende hints en drie bonusvragen met zes keuzes per film/serie. AI-voorstellen zijn niet automatisch goedgekeurd.</p>
-        {batch && <p className="dim">Bibliotheek: {batch.database?.titels ?? '—'} titels · {batch.database?.hints_goedgekeurd ?? 0} met drie goedgekeurde hints · {batch.database?.vragen_goedgekeurd ?? 0} met drie goedgekeurde AI-vragen</p>}
+        {batch && <p className="dim">Bibliotheek: {batch.database?.titels ?? '—'} titels · {batch.database?.hints_gegenereerd ?? 0} met 3 gegenereerde hints ({batch.database?.hints_goedgekeurd ?? 0} goedgekeurd) · {batch.database?.vragen_gegenereerd ?? 0} met 3 gegenereerde AI-vragen ({batch.database?.vragen_goedgekeurd ?? 0} goedgekeurd)</p>}
         <button className="knop" disabled={batch?.bezig} onClick={starten}>{batch?.bezig ? 'Generatie loopt…' : 'Ontbrekende hints en vragen genereren'}</button>
         {batch && <p className="dim">{batch.bezig ? 'Bezig · ' : 'Laatste batch · '}Voortgang {batch.verwerkt}/{batch.totaal} · {batch.gelukt} sets aangemaakt · {batch.mislukt} niet gelukt</p>}
         {!!batch?.fouten?.length && <details><summary>{batch.fouten.length} meldingen</summary>{batch.fouten.map((e,i)=><p key={i}>{e.id}: {e.fout}</p>)}</details>}
