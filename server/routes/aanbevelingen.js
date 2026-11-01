@@ -441,6 +441,54 @@ function initGames(){
     )`);
     return gameReady;
 }
+// Eigen gameswipe met audiovoorbeeld (tijdelijk previewbestand, geen vervuiling van films).
+router.get('/api/admin/games/swipe',vereisAdmin,async(_req,res)=>{
+    try {
+        await initGames();
+        const {rows}=await pool.query("SELECT * FROM game_catalogus WHERE status='nieuw' ORDER BY aangemaakt_op LIMIT 100");
+        res.json(rows);
+    }catch(err){res.status(500).json({fout:err.message});}
+});
+router.get('/api/admin/games/:id/audio',vereisAdmin,async(req,res)=>{
+    try {
+        await initGames();
+        const {rows}=await pool.query("SELECT * FROM game_catalogus WHERE id=$1",[req.params.id]);
+        if(!rows.length)return res.status(404).json({fout:'Game niet gevonden'});
+        const g=rows[0];
+        const fake={id:1000000000+Number(g.id),titel:g.naam,tracknaam:'main theme',
+                    artiest:'',type:'game',categorie:'game',
+                    youtube_zoekterm:g.naam+' video game original main theme soundtrack'};
+        const result=await media.lokaalVoorbeeld(fake);
+        res.json(result);
+    }catch(err){res.status(502).json({fout:err.message});}
+});
+router.post('/api/admin/games/ai-genereren',vereisAdmin,async(req,res)=>{
+    try {
+        await initGames();
+        const aantal=Math.min(30,Math.max(1,Math.floor(Number(req.body?.aantal)||15)));
+        const schema={type:'object',additionalProperties:false,required:['games'],properties:{
+            games:{type:'array',items:{type:'object',additionalProperties:false,
+                required:['naam','jaar','platformen'],properties:{
+                    naam:{type:'string'},jaar:{type:'integer'},
+                    platformen:{type:'array',items:{type:'string'}}}}}}};
+        res.json({gestart:true,aantal});
+        // Achtergrond, los van de HTTP-response.
+        Promise.resolve().then(async()=>{
+            const prompt='Geef '+aantal+' zeer bekende iconische videogames (klassiek en modern), geen obscure spellen. Elk spel exact één keer met introductiejaar en lijst van oorspronkelijke platformen. Alleen echte spellen. JSON volgens schema. Namen van platformen uitsluitend uit: '+GAME_PLATFORMS.join(', ')+'.';
+            const r=await codex.vraagJson({prompt,schema});
+            if(!r.ok)throw Error(r.error||'AI-games mislukt');
+            for(const g of r.data?.games||[]){
+                if(!g.naam||!Number.isInteger(g.jaar))continue;
+                const platforms=(g.platformen||[]).filter(x=>GAME_PLATFORMS.includes(x));
+                if(!platforms.length)continue;
+                await pool.query(`INSERT INTO game_catalogus(naam,jaar,platformen)
+                    VALUES($1,$2,$3) ON CONFLICT(naam,jaar) DO UPDATE SET
+                    platformen=(SELECT ARRAY(SELECT DISTINCT unnest(game_catalogus.platformen || EXCLUDED.platformen)))`,
+                    [g.naam.slice(0,150),g.jaar,platforms]);
+            }
+        }).catch(err=>logger.fout('AI-games genereren mislukt',{melding:err.message}));
+    }catch(err){res.status(500).json({fout:err.message});}
+});
 router.get('/api/admin/games/platformen',vereisAdmin,(_req,res)=>res.json(GAME_PLATFORMS));
 router.get('/api/admin/games',vereisAdmin,async(_req,res)=>{
     try {await initGames();const {rows}=await pool.query('SELECT * FROM game_catalogus ORDER BY CASE WHEN status=\'nieuw\' THEN 0 ELSE 1 END, id DESC LIMIT 500');res.json(rows);}
