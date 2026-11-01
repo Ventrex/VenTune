@@ -338,9 +338,8 @@ async function haalTopVoorJaar(soort, type, jaar, limiet) {
         ? { region: 'NL', with_release_type: '2|3' }
         : { region: 'NL', watch_region: 'NL' };
 
-    for (const stemdrempel of [100, 25, 1]) {
-        const minimum = type === 'serie' ? 10 : 1;
-        if (stemdrempel === 1 && gevonden.length >= minimum) break;
+    for (const stemdrempel of [250, 100]) {
+        // Geen aanvulling met obscure titels met slechts enkele stemmen.
         for (let pagina = 1; pagina <= 8 && gevonden.length < limiet; pagina++) {
             const data = await haal(`/discover/${soort}`, {
                 ...datum,
@@ -434,8 +433,8 @@ function berekenCatalogusOmvang({ startJaar = 1980, eindJaar = new Date().getUTC
     return {
         jaren,
         nederlandstaligeJaren,
-        films: jaren * 100,
-        series: jaren * 60,
+        films: jaren * 35,
+        series: jaren * 15,
         nederlandstaligeFilms: nederlandstaligeJaren * 10,
         nederlandstaligeSeries: nederlandstaligeJaren * 10,
         cultClassics: CULT_CLASSICS.length,
@@ -581,7 +580,7 @@ async function importeerJaarCatalogus({
     }
 
     for (let jaar = Math.max(1980, van); jaar <= tot; jaar++) {
-        for (const [soort, type, collectie, limiet] of [['movie', 'film', 'top100-films', 100], ['tv', 'serie', 'top100-series', 60]]) {
+        for (const [soort, type, collectie, limiet] of [['movie', 'film', 'top100-films', 35], ['tv', 'serie', 'top100-series', 15]]) {
             const lijst = await haalTopVoorJaar(soort, type, jaar, limiet);
             await verwerk(
                 lijst,
