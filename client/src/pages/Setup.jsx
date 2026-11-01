@@ -505,7 +505,6 @@ export default function Setup() {
                             {id:'films',naam:'Films & Series',icon:'/category/icon-film.svg',kleur:'#ff328e',beeld:'/category/approved-films.svg?v=hd840-20261101'},
                             {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:'/category/approved-music.svg?v=hd840-20261101'},
                             {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:'/category/approved-games.svg?v=hd840-20261101'},
-                            {id:'thema',naam:'Thema',icon:'/category/icon-theme.svg',kleur:'#ffae39',beeld:'/category/approved-theme.svg?v=hd840-20261101'}
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
                                 setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],kindvriendelijk:false}));
