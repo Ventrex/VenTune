@@ -755,3 +755,21 @@
   width:27px!important;height:27px!important;flex-basis:27px!important;
  }
 }
+
+
+/* Setup icons: consistent illustrated neon artwork instead of platform emoji. */
+.vt-game-settings .vt-setup-art{
+ display:block;width:62px;height:62px;max-width:75%;object-fit:contain;
+ margin:1px auto 4px;filter:drop-shadow(0 0 11px #fe40bc7a);
+}
+.vt-game-settings .vt-option-card{gap:5px;min-height:136px}
+.vt-game-settings .vt-setting-switch .vt-setting-art{
+ width:43px;height:43px;flex:0 0 43px;object-fit:contain;
+ filter:drop-shadow(0 0 7px #fe40bc60);
+}
+.vt-game-settings .vt-setting-switch>span:first-of-type{flex:1}
+@media(max-width:600px){
+ .vt-game-settings .vt-setup-art{width:51px;height:51px}
+ .vt-game-settings .vt-option-card{min-height:126px}
+ .vt-game-settings .vt-setting-switch .vt-setting-art{width:34px;height:34px;flex-basis:34px}
+}
