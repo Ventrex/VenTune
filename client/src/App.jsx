@@ -37,7 +37,8 @@ export default function App() {
             <BrowserRouter>
                 <Routes>
                     <Route path="/" element={<Home />} />
-                    <Route path="/setup" element={<Setup />} />
+                    <Route path="/setup" element={<Home />} />
+                    <Route path="/setup/new" element={<Setup />} />
                     <Route path="/host/login" element={<HostAuth />} />
                     <Route path="/host/profile" element={<HostProfile />} />
                     <Route path="/join/:code" element={<Join />} />
