@@ -26,7 +26,7 @@ export default function ThemaKiezer() {
     function kiesKleur(sleutel, kleur) {
         const volgende = {...kleuren,[sleutel]:kleur};
         setKleuren(volgende);
-        try { localStorage.setItem(EIGEN_SLEUTEL, JSON.stringify(volgende)); } catch { /* */ }
+        try { localStorage.setItem(EIGEN_SLEUTEL, JSON.stringify(volgende)); localStorage.setItem('ventune_custom_active', 'true'); } catch { /* */ }
         pasKleurenToe(volgende);
     }
     return <div className="vt-thema-container">
