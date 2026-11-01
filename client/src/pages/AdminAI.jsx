@@ -613,6 +613,7 @@ export function Genereren() {
     const [melding, setMelding] = useState('');
     const [aantallen, setAantallen] = useState({});
     const [perCategorie, setPerCategorie] = useState({});
+    const [speelbaar,setSpeelbaar]=useState([]);
     const [categorie, setCategorie] = useState('film');
     const [aantal, setAantal] = useState(500);
     const [aantalGames,setAantalGames]=useState(0);
@@ -625,6 +626,7 @@ export function Genereren() {
             const s = await haal('/api/admin/aanbevelingen/status');
             setAantallen(s.aantallen || {});
             setPerCategorie(s.perCategorie || {});
+            haal('/api/admin/aanbevelingen/speelbaar-telling').then(x=>setSpeelbaar(x.aantallen||[])).catch(()=>setSpeelbaar([]));
             haal('/api/admin/games').then(x=>setAantalGames(x.length)).catch(()=>{});
             haal('/api/admin/games/ai-status').then(x=>setGameTaken(x.taken||[])).catch(()=>{});
             if (s.run && !s.run.bezig) {
@@ -706,8 +708,8 @@ export function Genereren() {
             {melding && <p className={bezig ? 'dim' : 'feedback neutraal'} style={{ marginTop: '1rem' }}>{melding}</p>}
 
             <div className="ai-tellers">
-                <Teller label="Blind te swipen" n={(fs.nieuw || 0) + (k.nieuw || 0)} />
-                <Teller label="Met naam" n={(fs.blind_nee || 0) + (k.blind_nee || 0)} />
+                <Teller label="Blind te swipen · MP3 klaar" n={speelbaar.filter(x=>x.status==='nieuw').reduce((n,x)=>n+x.aantal,0)} />
+                <Teller label="Met naam · MP3 klaar" n={speelbaar.filter(x=>x.status==='blind_nee').reduce((n,x)=>n+x.aantal,0)} />
                 <Teller label="Goedgekeurd" n={(fs.goed || 0) + (k.goed || 0) + (fs.toegevoegd || 0) + (k.toegevoegd || 0)} />
             </div>
             <div className="ai-tellers" style={{ gridTemplateColumns: 'repeat(2,1fr)', marginTop: '0.5rem' }}>
