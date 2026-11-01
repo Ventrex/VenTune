@@ -549,7 +549,11 @@ export default function Setup() {
                                                 collecties:hoofdgroep==='games'?[]:id==='alles'||id==='80s'||id==='90s'||id==='kinder'||id==='animatie'?[]:[id],
                                                 met_genres:id==='animatie'?['Animatie','Animation']:[],
                                                 zonder_genres:[]}));
-                                        }}><span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || ({ "80s": "/category/collection-80s.svg", "90s": "/category/collection-90s.svg", animatie: "/category/collection-animatie.svg", kinder: "/category/collection-kinder.svg", kerst: "/category/icon-theme.svg" })[id] || "/category/icon-music.svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span><span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
+                                        }}>{hoofdgroep === 'games'
+                                            ? (categorieBeelden['platform-'+id]
+                                                ? <span className="vt-collectie-pictogram"><img src={categorieBeelden['platform-'+id]} alt="" /></span>
+                                                : null)
+                                            : <span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || ({ "80s": "/category/collection-80s.svg", "90s": "/category/collection-90s.svg", animatie: "/category/collection-animatie.svg", kinder: "/category/collection-kinder.svg", kerst: "/category/icon-theme.svg" })[id] || "/category/icon-music.svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span>}<span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
                             </div>
                         </div>}
                         
