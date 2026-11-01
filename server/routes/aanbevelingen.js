@@ -639,6 +639,14 @@ router.post('/api/admin/swipe/zonder-mp3/:id', vereisAdmin, async(req,res)=>{
         if(actie==='prioriteit') {
             const a=await pool.query("SELECT id FROM aanbevelingen WHERE titel_id=$1 AND status IN ('nieuw','blind_nee','fout') ORDER BY id DESC LIMIT 1",[rows[0].id]);
             if(a.rows[0]) await enqueueMp3(a.rows[0].id,1000);
+            else {
+                const info=(await pool.query("SELECT naam,type::text AS type,jaar FROM titels WHERE id=$1",[rows[0].id])).rows[0];
+                const nieuw=await pool.query(`INSERT INTO aanbevelingen
+                   (soort,categorie,titel,type,jaar,tracknaam,artiest,youtube_zoekterm,bekendheid,reden,status,titel_id)
+                   VALUES('film_serie',$1,$2,$1,$3,'','',$4,4,'Handmatige prioriteit','nieuw',$5) RETURNING id`,
+                   [info.type,info.naam,info.jaar,info.naam+' original theme soundtrack intro',rows[0].id]);
+                await enqueueMp3(nieuw.rows[0].id,1000);
+            }
         }
         res.json({ok:true,titel:rows[0]});
     }catch(err){res.status(500).json({fout:err.message});}
