@@ -199,8 +199,8 @@ router.post('/api/admin/ai-vragen/start', vereisAdmin, async (req, res) => {
     const { rows } = await pool.query(`
        SELECT t.id FROM titels t WHERE t.type IN ('film','serie')
          AND (coalesce(array_length(t.ai_hints,1),0) < 3
-           OR t.ai_hints_status <> 'goedgekeurd'
-           OR (SELECT count(*) FROM vragen v WHERE v.titel_id=t.id AND v.soort='ai' AND v.ai_review_status='goedgekeurd') < 3)
+           OR t.ai_hints_status = 'afgekeurd'
+           OR (SELECT count(*) FROM vragen v WHERE v.titel_id=t.id AND v.soort='ai' AND v.ai_review_status IN ('goedgekeurd','controle_nodig')) < 3)
        ORDER BY t.id LIMIT $1`, [maximaal]);
     Object.assign(quizBatch, { bezig: true, totaal: rows.length, verwerkt: 0, gelukt: 0, controle_nodig: 0, mislukt: 0, fouten: [] });
     res.json({ gestart: true, totaal: rows.length });
