@@ -40,6 +40,7 @@ export default function AdminSwipe() {
     const [audioUrl, setAudioUrl] = useState(null);
     const [audioFout, setAudioFout] = useState('');
     const [laadt, setLaadt] = useState(true);
+    const [lijstFout,setLijstFout]=useState('');
     const [sleep, setSleep] = useState({ dx: 0, actief: false });
     const start = useRef(null);
     const speler = useRef(null);
@@ -49,8 +50,8 @@ export default function AdminSwipe() {
         setLaadt(true);
         try {
             const lijst = await haal(`/api/admin/aanbevelingen?categorie=${categorie}&fase=${fase}`);
-            setKaarten(lijst); setIndex(0);
-        } catch { setKaarten([]); }
+            setKaarten(lijst); setIndex(0); setLijstFout('');
+        } catch(err) { setLijstFout(err.message); setKaarten([]); }
         setLaadt(false);
     }
     useEffect(() => { laad(); /* eslint-disable-next-line */ }, [categorie, fase]);
@@ -164,7 +165,7 @@ export default function AdminSwipe() {
             {mp3Queue && <div className="kaart" style={{padding:'.65rem',margin:'.5rem 0'}}>
                 <strong>MP3-downloadwachtrij</strong>
                 {mp3Queue.rateLimitActief && <p style={{fontWeight:700,color:'var(--red-hot)'}}>YouTube-rate-limit actief · nog ongeveer {mp3Queue.wachtMinuten} minuten wachten</p>}
-                <p className="dim" style={{margin:'.35rem 0'}}>Status: {mp3Queue.rateLimitActief?'gepauzeerd':mp3Queue.workerBezig?'downloaden':'wachten op volgende taak'} · {(mp3Queue.status||[]).map(s=>s.status+': '+s.aantal).join(' · ')||'wachtrij leeg'}</p>
+                <p className="dim" style={{margin:'.35rem 0'}}>Klaar voor Swipe: {mp3Queue.klaarVoorSwipe ?? 0} · Status: {mp3Queue.rateLimitActief?'gepauzeerd':mp3Queue.workerBezig?'downloaden':'wachten op volgende taak'} · {(mp3Queue.status||[]).map(s=>s.status+': '+s.aantal).join(' · ')||'wachtrij leeg'}</p>
                 <p className="dim" style={{margin:'.25rem 0'}}>In Muziek swipen verschijnen alleen klaargezette MP3's. De queue probeert automatisch opnieuw zodra YouTube beschikbaar is.</p>
             </div>}
             {!zonderMp3 && !titelReview && <div className="swipe-tabs" style={{marginTop:'.25rem'}}>
@@ -222,9 +223,10 @@ export default function AdminSwipe() {
                     : 'Nu mét de titel erbij. Klopt dit nummer bij de titel?'}
             </p>
 
+            {lijstFout && <p className="waarschuwing">Swipe ophalen mislukt: {lijstFout} <button type="button" className="knop knop-stil" onClick={laad}>Opnieuw laden</button></p>}
             {laadt && <p className="dim">Laden…</p>}
 
-            {klaar && (
+            {klaar && !lijstFout && (
                 <div className="kaart swipe-leeg">
                     <p style={{ fontSize: '1.2rem', fontWeight: 600 }}>
                         {fase === 'blind' ? 'Alle nieuwe nummers blind beoordeeld! 🎉' : 'Niets meer om met naam te beoordelen 🎉'}
