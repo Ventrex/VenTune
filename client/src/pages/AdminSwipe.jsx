@@ -113,12 +113,8 @@ export default function AdminSwipe() {
         return () => { actief = false; clearTimeout(timer); };
     }, [huidige?.id]);
 
-    // De volgende twee nummers in de downloadwachtrij zetten.
-    useEffect(() => {
-        kaarten.slice(index + 1, index + 3).forEach((kaart) => {
-            haal('/api/admin/aanbevelingen/' + kaart.id + '/audio').catch(() => {});
-        });
-    }, [kaarten, index]);
+    // Geen gelijktijdige achtergrondprefetch: meerdere yt-dlp downloads
+    // overbelastten de backend en veroorzaakten 502 bij bestaande kaarten.
 
     async function swipe(keuze) {
         if (!huidige || (keuze !== 'verkeerde_mp3' && (!audioUrl || audioFout || !magAfspelen))) return;
