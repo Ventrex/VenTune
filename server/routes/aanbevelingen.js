@@ -811,13 +811,13 @@ router.get('/api/admin/aanbevelingen/:id/audio', vereisAdmin, async (req, res) =
                     logger.waarschuwing('Luistervoorbeeld downloaden mislukt', { id, melding: err.message });
                     const melding = String(err.message).slice(0, 500);
                     Object.assign(taak, { status: 'fout', fout: melding, sinds: Date.now() });
-                    // Zonder luisterbare MP3 hoort deze kaart niet in Swipe.
-                    // Behoud de titel en de aanvraag voor later muziekonderzoek.
-                    pool.query("UPDATE aanbevelingen SET status='fout', beoordeeld_op=now() WHERE id=$1 AND status IN ('nieuw','blind_nee')", [id])
-                        .catch(e => logger.waarschuwing('Audioprobleem markeren mislukt', { id, melding: e.message }));
+                    // Een serverbreed yt-dlp/ffmpeg/YouTube-probleem mag NIET
+                    // tientallen geldige series als foutieve MP3 afkeuren.
+                    // Houd de kandidaten vast voor een nieuwe poging na herstel.
+                    logger.waarschuwing('Luistervoorbeeld mislukt; titel blijft in wachtrij', { id, melding });
                 });
         }
-        if (taak.status === 'fout') return res.status(502).json({ fout: taak.fout });
+        if (taak.status === 'fout') return res.status(502).json({ fout: 'Audio kon niet worden gemaakt: '+taak.fout+' Controleer yt-dlp en ffmpeg in de backend-container.' });
         if (taak.status === 'klaar') return res.json({ audioUrl: taak.audioUrl });
         return res.status(202).json({ bezig: true, id });
     } catch (err) {
