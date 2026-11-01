@@ -417,6 +417,20 @@ router.post('/api/admin/titels', vereisAdmin, async (req, res) => {
     res.json(rows[0]);
 });
 
+// Swipe-curatie: wijzig uitsluitend de goedkeuringsstatus, nooit metadata of tracks.
+router.patch('/api/admin/titels/:id/curatie', vereisAdmin, async (req, res) => {
+    try {
+        const status = req.body?.status;
+        if (!['goedgekeurd', 'uitgesloten'].includes(status)) return res.status(400).json({ fout: 'Ongeldige status.' });
+        const { rows } = await pool.query(
+            "UPDATE titels SET curatie_status=$2, nl_tv_bekend=$3 WHERE id=$1 AND type IN ('film','serie') AND curatie_status='te_beoordelen' RETURNING id, naam, curatie_status",
+            [req.params.id, status, status === 'goedgekeurd'],
+        );
+        if (!rows.length) return res.status(404).json({ fout: 'Titel niet meer in de wachtrij.' });
+        return res.json(rows[0]);
+    } catch (err) { return res.status(500).json({ fout: err.message }); }
+});
+
 router.put('/api/admin/titels/:id', vereisAdmin, async (req, res) => {
     const b = req.body || {};
     if (!b.naam || !['film', 'serie', 'muziek'].includes(b.type) || !['nl', 'en'].includes(b.taal)) {
