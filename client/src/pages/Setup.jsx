@@ -148,9 +148,9 @@ export default function Setup() {
     // Ook bij rechtstreeks openen van /setup blijft de hostaccount verplicht.
     useEffect(() => {
         authSessie().then((s) => {
-            if (!s.ingelogd) navigate('/host/login?return=/setup', { replace: true });
+            if (!s.ingelogd) navigate('/host/login?return=/setup/new', { replace: true });
             else setHost(s.gebruiker);
-        }).catch(() => navigate('/host/login?return=/setup', { replace: true }));
+        }).catch(() => navigate('/host/login?return=/setup/new', { replace: true }));
     }, [navigate]);
 
     // Presets laden bij binnenkomst.
