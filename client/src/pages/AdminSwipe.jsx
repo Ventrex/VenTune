@@ -325,6 +325,8 @@ export default function AdminSwipe() {
                                         <p className="swipe-sub">{huidige.tracknaam} — {huidige.artiest}{huidige.jaar ? ` · ${huidige.jaar}` : ''}</p>
                                     </>
                                 )}
+                                <p className="swipe-reden"><strong>YouTube-videotitel:</strong> {huidige.youtube_video_titel || 'Niet opgeslagen bij dit fragment (eerder gedownload)'}</p>
+                                {huidige.voorbeeld_bron && <a className="knop knop-stil" href={'https://www.youtube.com/watch?v='+encodeURIComponent(huidige.voorbeeld_bron)} target="_blank" rel="noopener noreferrer">Bekijk de oorspronkelijke YouTube-video</a>}
                                 {huidige.reden && <p className="swipe-reden">{huidige.reden}</p>}
                             </>
                         )}
