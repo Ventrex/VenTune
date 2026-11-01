@@ -482,6 +482,13 @@ export function GamesCatalogus() {
         }catch(err){setMelding(err.message);}
     }
     useEffect(()=>{laad();},[]);
+    async function aiZoeken() {
+        setMelding('AI zoekt bekende videogames. Dit loopt door op de server zolang deze draait.');
+        try {
+            await haal('/api/admin/games/ai-genereren',{method:'POST',...jsonBody({aantal:20})});
+            setMelding('AI-opdracht gestart. Ververs de gamelijst later; de server verwerkt de resultaten.');
+        }catch(err){setMelding('AI-opdracht mislukt: '+err.message);}
+    }
     async function voegToe(e) {
         e.preventDefault();
         try {
@@ -497,6 +504,11 @@ export function GamesCatalogus() {
     return <section className="kaart ai-kaart">
         <h3>Videogames · Consoles en PC</h3>
         <p className="dim">Eigen categorie, los van films en series. Kies alle platformen waarop het spel uitkwam. Muziek en gamefragmenten zijn nog niet gekoppeld aan de spelronde.</p>
+        <div className="knoprij">
+            <button className="knop" onClick={aiZoeken}>AI: 20 bekende games zoeken</button>
+            <Link className="knop knop-stil" to="/admin/swipe">Naar videogame-Swipe</Link>
+            <button className="knop knop-stil" onClick={laad}>Games verversen</button>
+        </div>
         <form onSubmit={voegToe} className="stapel">
             <input className="invoer" placeholder="Naam van het spel" value={naam} onChange={e=>setNaam(e.target.value)} required />
             <input className="invoer" placeholder="Uitgavejaar (optioneel)" type="number" min="1970" max="2100" value={jaar} onChange={e=>setJaar(e.target.value)} />
