@@ -462,33 +462,81 @@ router.get('/api/admin/games/:id/audio',vereisAdmin,async(req,res)=>{
         res.json(result);
     }catch(err){res.status(502).json({fout:err.message});}
 });
-router.post('/api/admin/games/ai-genereren',vereisAdmin,async(req,res)=>{
-    try {
-        await initGames();
-        const aantal=Math.min(30,Math.max(1,Math.floor(Number(req.body?.aantal)||15)));
-        const schema={type:'object',additionalProperties:false,required:['games'],properties:{
-            games:{type:'array',items:{type:'object',additionalProperties:false,
-                required:['naam','jaar','platformen'],properties:{
-                    naam:{type:'string'},jaar:{type:'integer'},
-                    platformen:{type:'array',items:{type:'string'}}}}}}};
-        res.json({gestart:true,aantal});
-        // Achtergrond, los van de HTTP-response.
-        Promise.resolve().then(async()=>{
-            const prompt='Geef '+aantal+' zeer bekende iconische videogames (klassiek en modern), geen obscure spellen. Elk spel exact één keer met introductiejaar en lijst van oorspronkelijke platformen. Alleen echte spellen. JSON volgens schema. Namen van platformen uitsluitend uit: '+GAME_PLATFORMS.join(', ')+'.';
-            const r=await codex.vraagJson({prompt,schema});
-            if(!r.ok)throw Error(r.error||'AI-games mislukt');
-            for(const g of r.data?.games||[]){
-                if(!g.naam||!Number.isInteger(g.jaar))continue;
-                const platforms=(g.platformen||[]).filter(x=>GAME_PLATFORMS.includes(x));
-                if(!platforms.length)continue;
-                await pool.query(`INSERT INTO game_catalogus(naam,jaar,platformen)
-                    VALUES($1,$2,$3) ON CONFLICT(naam,jaar) DO UPDATE SET
-                    platformen=(SELECT ARRAY(SELECT DISTINCT unnest(game_catalogus.platformen || EXCLUDED.platformen)))`,
-                    [g.naam.slice(0,150),g.jaar,platforms]);
-            }
-        }).catch(err=>logger.fout('AI-games genereren mislukt',{melding:err.message}));
+// Status blijft in PostgreSQL beschikbaar bij verlaten van de pagina.
+let gameWorkerRunning=false;
+async function initGameTasks(){
+    await initGames();
+    await pool.query(`CREATE TABLE IF NOT EXISTS game_ai_taken (
+        id BIGSERIAL PRIMARY KEY, gevraagd INTEGER NOT NULL,
+        verwerkt INTEGER NOT NULL DEFAULT 0, toegevoegd INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'wachtend', fout TEXT,
+        aangemaakt_op TIMESTAMPTZ NOT NULL DEFAULT now(),
+        bijgewerkt_op TIMESTAMPTZ NOT NULL DEFAULT now())`);
+}
+async function runGameTasks(){
+    if(gameWorkerRunning)return;
+    gameWorkerRunning=true;
+    try{
+        await initGameTasks();
+        await pool.query("UPDATE game_ai_taken SET status='wachtend' WHERE status='bezig'");
+        while(true){
+            const {rows}=await pool.query("SELECT * FROM game_ai_taken WHERE status='wachtend' ORDER BY id LIMIT 1");
+            if(!rows.length)break;
+            const taak=rows[0];
+            await pool.query("UPDATE game_ai_taken SET status='bezig',bijgewerkt_op=now() WHERE id=$1",[taak.id]);
+            let toegevoegd=Number(taak.toegevoegd),verwerkt=Number(taak.verwerkt),fout=null;
+            try{
+                const schema={type:'object',additionalProperties:false,required:['games'],properties:{
+                    games:{type:'array',items:{type:'object',additionalProperties:false,
+                        required:['naam','jaar','platformen'],properties:{
+                            naam:{type:'string'},jaar:{type:'integer'},
+                            platformen:{type:'array',items:{type:'string'}}}}}}};
+                while(verwerkt<Number(taak.gevraagd)){
+                    const stap=Math.min(20,Number(taak.gevraagd)-verwerkt);
+                    const {rows:existing}=await pool.query("SELECT naam FROM game_catalogus ORDER BY id DESC LIMIT 200");
+                    const uitsluiten=existing.map(x=>x.naam).slice(0,100).join(', ');
+                    const prompt='Geef '+stap+' zeer bekende iconische videogames (klassiek en modern), geen obscure spellen. Alleen echte spellen. Vermijd bestaande games: '+uitsluiten+'. Elk spel één keer met uitgavejaar en oorspronkelijke consoles/PC. Alleen platformnamen uit: '+GAME_PLATFORMS.join(', ')+'. Antwoord volgens JSON schema.';
+                    const r=await codex.vraagJson({prompt,schema});
+                    if(!r.ok)throw Error(r.error||'AI gaf geen videogames terug');
+                    const lijst=r.data?.games||[];
+                    if(!lijst.length)throw Error('AI gaf nul videogames terug');
+                    for(const g of lijst){
+                        if(!g.naam||!Number.isInteger(g.jaar))continue;
+                        const platforms=(g.platformen||[]).filter(x=>GAME_PLATFORMS.includes(x));
+                        if(!platforms.length)continue;
+                        const q=await pool.query(`INSERT INTO game_catalogus(naam,jaar,platformen)
+                            VALUES($1,$2,$3) ON CONFLICT(naam,jaar) DO UPDATE SET
+                            platformen=(SELECT ARRAY(SELECT DISTINCT unnest(game_catalogus.platformen || EXCLUDED.platformen)))
+                            RETURNING (xmax = 0) AS nieuw`,
+                            [g.naam.slice(0,150),g.jaar,platforms]);
+                        if(q.rows[0]?.nieuw)toegevoegd++;
+                    }
+                    verwerkt+=stap;
+                    await pool.query("UPDATE game_ai_taken SET verwerkt=$2,toegevoegd=$3,bijgewerkt_op=now() WHERE id=$1",[taak.id,verwerkt,toegevoegd]);
+                }
+            }catch(err){fout=err.message;logger.fout('AI-games genereren mislukt',{melding:err.message});}
+            await pool.query("UPDATE game_ai_taken SET status=$2,fout=$3,bijgewerkt_op=now() WHERE id=$1",[taak.id,fout?'fout':'klaar',fout]);
+        }
+    }catch(err){logger.fout('Game AI-worker mislukt',{melding:err.message});}
+    finally{gameWorkerRunning=false;}
+}
+router.get('/api/admin/games/ai-status',vereisAdmin,async(_req,res)=>{
+    try{
+        await initGameTasks();
+        const {rows}=await pool.query("SELECT * FROM game_ai_taken ORDER BY id DESC LIMIT 10");
+        res.json({taken:rows});
     }catch(err){res.status(500).json({fout:err.message});}
 });
+router.post('/api/admin/games/ai-genereren',vereisAdmin,async(req,res)=>{
+    try{
+        await initGameTasks();
+        const aantal=Math.min(500,Math.max(1,Math.floor(Number(req.body?.aantal)||20)));
+        const {rows}=await pool.query("INSERT INTO game_ai_taken(gevraagd) VALUES($1) RETURNING id",[aantal]);
+        res.json({gestart:true,taak_id:rows[0].id,aantal});
+        setImmediate(()=>runGameTasks().catch(err=>logger.fout('Game AI-worker fout',{melding:err.message})));
+    }catch(err){res.status(500).json({fout:err.message});}
+});
+setTimeout(()=>runGameTasks().catch(err=>logger.fout('Game AI-herstel mislukt',{melding:err.message})),7000).unref();
 router.get('/api/admin/games/platformen',vereisAdmin,(_req,res)=>res.json(GAME_PLATFORMS));
 router.get('/api/admin/games',vereisAdmin,async(_req,res)=>{
     try {await initGames();const {rows}=await pool.query('SELECT * FROM game_catalogus ORDER BY CASE WHEN status=\'nieuw\' THEN 0 ELSE 1 END, id DESC LIMIT 500');res.json(rows);}
