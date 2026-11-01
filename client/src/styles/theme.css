@@ -2145,3 +2145,29 @@ body {
 .vt-team-panel h2 { margin:0 0 .4rem; }
 .lobby-instellingen summary { cursor:pointer; font-weight:600; }
 @media(max-width:600px) { .vt-setting-pair { grid-template-columns:1fr; } }
+
+
+/* VenTune compact tablet/phone layout: avoid oversized form controls. */
+@media (min-width: 600px) {
+  .scherm { max-width: min(1100px, 96vw); padding: 1rem 1.25rem 1.5rem; }
+  .host-scherm { max-width: min(1120px, 96vw); }
+}
+.scherm .kaart { padding: clamp(.75rem, 2vw, 1.1rem); }
+.scherm .stapel { gap: .7rem; }
+.scherm .knop { min-height: 42px; padding: .4rem .85rem; font-size: .98rem; }
+.scherm .invoer { min-height: 42px; height: auto; padding: .5rem .75rem; font-size: 1rem; }
+.scherm select.invoer { height: 44px; }
+.scherm .zoekbalk { gap: .45rem; margin: .4rem 0; }
+.scherm .kaart-label { margin-bottom: .35rem; }
+.scherm .melding-formulier { margin-top: .5rem !important; }
+.scherm .melding-details { margin-top: .4rem !important; gap: .45rem; }
+.antwoord-compact { display: grid; grid-template-columns: minmax(0, 130px) minmax(0, 1fr); align-items: start; gap: .9rem; }
+.antwoord-compact .poster { width: 100%; max-width: 130px; height: auto; margin: 0; }
+.antwoord-compact .antwoord-tekst { min-width: 0; }
+.antwoord-compact .antwoord-tekst p { margin: .35rem 0; }
+.antwoord-compact .info-rij { margin: 0 0 .5rem; }
+@media (max-width: 440px) {
+  .scherm { padding: .65rem .7rem 1rem; }
+  .antwoord-compact { grid-template-columns: 90px minmax(0, 1fr); gap: .5rem; }
+  .antwoord-compact .poster { max-width: 90px; }
+}
