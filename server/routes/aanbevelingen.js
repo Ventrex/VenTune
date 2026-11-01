@@ -669,6 +669,7 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
             if (a.status !== 'nieuw' && a.status !== 'blind_nee') {
                 await pool.query("UPDATE aanbevelingen SET status='fout', beoordeeld_op=NULL WHERE id=$1",[a.id]);
             }
+            await enqueueMp3(a.id,1000);
             return res.json({ok:true,bestaand:true,heeft_mp3:false,id:a.id,
                 titel_id:bestaandTitel.rows[0]?.id ?? null,
                 toelichting:'Titel bestaat al, maar mist een speelbare MP3. Bestaande aanvraag is voor muziekonderzoek in de wachtrij gezet.'});
@@ -682,6 +683,7 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
              VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'fout')
              RETURNING id`,
             [type, titel, type, jaar, `${titel} original theme soundtrack intro`]);
+        await enqueueMp3(rows[0].id,1000);
         res.json({ ok: true, id: rows[0].id, titel_id:nieuw.rows[0].id, toelichting: 'Toegevoegd aan de database én bovenaan de Swipe-wachtrij zonder MP3.' });
     } catch (err) { res.status(500).json({ fout: err.message }); }
 });
@@ -713,12 +715,85 @@ async function vulGameMuziekSwipe(){
             [g.naam,g.jaar,g.naam+' video game original main theme soundtrack']);
     }
 }
+// Eén persistente MP3-voorbereidingswachtrij voor alle muziekcategorieën.
+let mp3Worker=false;
+let mp3Init=null;
+function initMp3Queue(){
+ if(!mp3Init) mp3Init=pool.query(`CREATE TABLE IF NOT EXISTS swipe_mp3_queue(
+   aanbeveling_id BIGINT PRIMARY KEY REFERENCES aanbevelingen(id) ON DELETE CASCADE,
+   prioriteit INTEGER NOT NULL DEFAULT 0,
+   status TEXT NOT NULL DEFAULT 'wachtend',
+   pogingen INTEGER NOT NULL DEFAULT 0,
+   volgende_poging TIMESTAMPTZ NOT NULL DEFAULT now(),
+   fout TEXT, bijgewerkt TIMESTAMPTZ NOT NULL DEFAULT now()
+ )`).then(()=>pool.query("UPDATE swipe_mp3_queue SET status='wachtend' WHERE status='bezig'"));
+ return mp3Init;
+}
+async function enqueueMp3(id,prioriteit=0){
+ await initMp3Queue();
+ await pool.query(`INSERT INTO swipe_mp3_queue(aanbeveling_id,prioriteit,status,volgende_poging)
+ VALUES($1,$2,'wachtend',now()) ON CONFLICT(aanbeveling_id) DO UPDATE SET
+ prioriteit=GREATEST(swipe_mp3_queue.prioriteit,EXCLUDED.prioriteit),
+ status='wachtend',volgende_poging=now(),bijgewerkt=now()`,[id,prioriteit]);
+ setImmediate(()=>runMp3Queue().catch(e=>logger.fout('MP3 queue',{melding:e.message})));
+}
+async function runMp3Queue(){
+ if(mp3Worker)return;
+ mp3Worker=true;
+ try{
+  await initMp3Queue();
+  while(!ytzoek.rateLimitActief()){
+   const {rows}=await pool.query(`SELECT q.aanbeveling_id,q.pogingen FROM swipe_mp3_queue q
+   JOIN aanbevelingen a ON a.id=q.aanbeveling_id
+   WHERE q.status='wachtend' AND q.volgende_poging<=now()
+     AND a.status IN ('nieuw','blind_nee','fout')
+   ORDER BY q.prioriteit DESC,q.bijgewerkt ASC LIMIT 1`);
+   if(!rows.length)break;
+   const item=rows[0], id=item.aanbeveling_id;
+   await pool.query("UPDATE swipe_mp3_queue SET status='bezig',bijgewerkt=now() WHERE aanbeveling_id=$1",[id]);
+   try{
+    const a=(await pool.query('SELECT * FROM aanbevelingen WHERE id=$1',[id])).rows[0];
+    await media.lokaalVoorbeeld(a);
+    await pool.query("UPDATE swipe_mp3_queue SET status='klaar',fout=NULL,bijgewerkt=now() WHERE aanbeveling_id=$1",[id]);
+   }catch(e){
+    const poging=Number(item.pogingen)+1;
+    const delay=ytzoek.rateLimitActief()?360:Math.min(360,Math.pow(2,Math.min(poging,8))*5);
+    await pool.query(`UPDATE swipe_mp3_queue SET status='wachtend',pogingen=$2,
+       fout=$3,volgende_poging=now()+($4 * interval '1 minute'),bijgewerkt=now()
+       WHERE aanbeveling_id=$1`,[id,poging,String(e.message).slice(0,400),delay]);
+    if(ytzoek.rateLimitActief())break;
+   }
+  }
+ }finally{mp3Worker=false;}
+}
+async function seedMp3Queue(){
+ await initMp3Queue();
+ await pool.query(`INSERT INTO swipe_mp3_queue(aanbeveling_id,prioriteit)
+ SELECT a.id,CASE WHEN t.swipe_prioriteit IS NOT NULL THEN 100 ELSE 0 END
+ FROM aanbevelingen a LEFT JOIN titels t ON t.id=a.titel_id
+ WHERE a.status IN ('nieuw','blind_nee','fout')
+ ON CONFLICT(aanbeveling_id) DO NOTHING`);
+ await runMp3Queue();
+}
+setTimeout(()=>seedMp3Queue().catch(e=>logger.waarschuwing('MP3 queue initialisatie',{melding:e.message})),45000).unref();
+setInterval(()=>seedMp3Queue().catch(e=>logger.waarschuwing('MP3 queue vervolgronde',{melding:e.message})),15*60*1000).unref();
+router.get('/api/admin/swipe/mp3-wachtrij',vereisAdmin,async(_req,res)=>{
+ try{
+  await initMp3Queue();
+  const {rows}=await pool.query(`SELECT status,count(*)::int AS aantal FROM swipe_mp3_queue GROUP BY status`);
+  const {rows:top}=await pool.query(`SELECT q.aanbeveling_id,a.titel,a.categorie,q.status,q.pogingen,q.fout
+   FROM swipe_mp3_queue q JOIN aanbevelingen a ON a.id=q.aanbeveling_id
+   WHERE q.status <> 'klaar' ORDER BY q.prioriteit DESC,q.bijgewerkt LIMIT 20`);
+  res.json({status:rows,volgende:top});
+ }catch(e){res.status(500).json({fout:e.message});}
+});
 // Lijst om te swipen. fase=blind → status 'nieuw' (ronde 1, zonder naam).
 // fase=naam → status 'blind_nee' (ronde 2, met naam).
 router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
     try {
         const categorie = req.query.categorie === 'games' ? 'games' : aanbevelingen.CATEGORIEEN.includes(req.query.categorie) ? req.query.categorie : null;
         if (categorie === 'games') await vulGameMuziekSwipe();
+        await initMp3Queue();
         const soort = req.query.soort === 'kerst' ? 'kerst' : req.query.soort === 'muziek' ? 'muziek' : 'film_serie';
         const fase = req.query.fase === 'naam' ? 'blind_nee' : 'nieuw';
         const { rows } = await pool.query(
@@ -726,6 +801,7 @@ router.get('/api/admin/aanbevelingen', vereisAdmin, async (req, res) => {
                     youtube_zoekterm, bekendheid, reden, voorbeeld_bron, status
              FROM aanbevelingen
              WHERE ($1::text IS NULL OR categorie = $1) AND status = $2
+               AND EXISTS (SELECT 1 FROM swipe_mp3_queue q WHERE q.aanbeveling_id=aanbevelingen.id AND q.status='klaar')
              ORDER BY bekendheid DESC, aangemaakt_op
              LIMIT 100`, [categorie, fase]);
         res.json(rows);
