@@ -515,21 +515,22 @@ export default function Setup() {
                             </div>
                         </div>}
                         {(hoofdgroep==='films'||hoofdgroep==='muziek'||hoofdgroep==='games'||hoofdgroep==='thema')&&<div className="vt-subkeuzes">
-                            <p>{hoofdgroep==='films'?'Kies een collectie of tijdperk':hoofdgroep==='muziek'?'Welk muziekgenre?':hoofdgroep==='games'?'Kies een fabrikant (meerdere mogelijk via collecties)': 'Kies een thema'}</p>
+                            <p>{hoofdgroep==='films'?'Kies een collectie of tijdperk':hoofdgroep==='muziek'?'Welk muziekgenre?':hoofdgroep==='games'?'Kies één of meerdere fabrikanten': 'Kies een thema'}</p>
                             <div className="vt-keuzerij">
                                 {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder']]
                                 :hoofdgroep==='muziek'?[['alles','🎧 Alles'],['rock','🎸 Rock'],['100nl','🇳🇱 100% NL']]
                                 :hoofdgroep==='games'?[['alles','🎮 Alle games'],['nintendo','🕹️ Nintendo'],['sega','💫 Sega'],['playstation','🔵 PlayStation'],['xbox','🟢 Xbox'],['pc','💻 PC']]
                                 :[['alles','✨ Alle thema’s'],['kerst','🎄 Kerst']]).map(([id,label])=>
-                                    <button type="button" key={id} className={'chip'+(subkeuze===id?' gekozen':'')}
+                                    <button type="button" key={id} className={'chip'+((hoofdgroep==='games'? (id==='alles'?!(filters.platformen||[]).length:(filters.platformen||[]).includes(id)) :subkeuze===id)?' gekozen':'')}
                                         onClick={()=>{
                                             setSubkeuze(id);
                                             setFilters(f=>({...f,
+                                                platformen:hoofdgroep==='games'?(id==='alles'?[]:(f.platformen||[]).includes(id)?(f.platformen||[]).filter(x=>x!==id):[...(f.platformen||[]),id]):[],
                                                 periode_start:id==='80s'?1980:id==='90s'?1990:1930,
                                                 periode_eind:id==='80s'?1989:id==='90s'?1999:NU,
                                                 kindvriendelijk:id==='kinder',
-                                                collecties:id==='alles'||id==='80s'||id==='90s'||id==='kinder'?[]:[id],
-                                                met_genres:id==='animatie'?['Animatie']:[],
+                                                collecties:hoofdgroep==='games'?[]:id==='alles'||id==='80s'||id==='90s'||id==='kinder'||id==='animatie'?[]:[id],
+                                                met_genres:id==='animatie'?['Animatie','Animation']:[],
                                                 zonder_genres:[]}));
                                         }}>{label}</button>)}
                             </div>
