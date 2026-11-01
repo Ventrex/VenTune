@@ -54,7 +54,20 @@ export default function AdminSwipe() {
         } catch(err) { setLijstFout(err.message); setKaarten([]); }
         setLaadt(false);
     }
-    useEffect(() => { laad(); /* eslint-disable-next-line */ }, [categorie, fase]);
+    useEffect(() => {
+        let actief=true;
+        const update=async()=>{
+            try {
+                await haal('/api/admin/swipe/buffer',{method:'POST',...jsonBody({categorie,fase})});
+                if(actief) await laad();
+            }catch(err){if(actief)setLijstFout(err.message);}
+        };
+        update();
+        // De werkende MP3-download draait apart; toon nieuwe kaarten automatisch.
+        const timer=setInterval(update,12000);
+        return ()=>{actief=false;clearInterval(timer);};
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    },[categorie,fase]);
     useEffect(() => {
         const update=()=>haal('/api/admin/swipe/mp3-wachtrij').then(setMp3Queue).catch(()=>{});
         update();
@@ -132,7 +145,8 @@ export default function AdminSwipe() {
             await haal('/api/admin/aanbevelingen/' + id + '/swipe', {
                 method: 'POST', ...jsonBody({ keuze, fase }),
             });
-            setIndex((i) => i + 1);
+            await haal('/api/admin/swipe/buffer',{method:'POST',...jsonBody({categorie,fase})});
+            await laad();
         } catch (err) {
             // Een niet opgeslagen beoordeling mag de kaart niet laten verdwijnen.
             setAudioFout('Beoordeling niet opgeslagen: ' + err.message);
