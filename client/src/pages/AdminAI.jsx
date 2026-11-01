@@ -501,11 +501,27 @@ function HandmatigToevoegen() {
 
 function Genereren() {
     const [bezig, setBezig] = useState(false);
+    const [wachtrij, setWachtrij] = useState([]);
+    const [wachtrijFout, setWachtrijFout] = useState('');
+    async function verversWachtrij() {
+        try {
+            const d=await haal('/api/admin/aanbevelingen/wachtrij');
+            setWachtrij(d.taken || []);
+            setBezig((d.taken || []).some(t=>['wachtend','bezig'].includes(t.status)));
+            setWachtrijFout('');
+        } catch(err) {setWachtrijFout(err.message);}
+    }
+    useEffect(()=>{
+        verversWachtrij();
+        const t=setInterval(verversWachtrij,3500);
+        return ()=>clearInterval(t);
+    },[]);
+
     const [melding, setMelding] = useState('');
     const [aantallen, setAantallen] = useState({});
     const [perCategorie, setPerCategorie] = useState({});
     const [categorie, setCategorie] = useState('film');
-    const [aantal, setAantal] = useState(50);
+    const [aantal, setAantal] = useState(500);
     const categorieen = [['film', 'Films'], ['serie', 'Series'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s (2020–2029)'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
     const poll = useRef(null);
 
@@ -528,6 +544,7 @@ function Genereren() {
         setBezig(true); setMelding('ChatGPT denkt na… dit kan even duren.');
         try {
             await haal('/api/admin/aanbevelingen/genereer', { method: 'POST', ...jsonBody({ categorie, soort: categorie === 'kerst' ? 'kerst' : 'film_serie', aantal: Number(aantal) }) });
+            await verversWachtrij();
             clearInterval(poll.current);
             poll.current = setInterval(ververs, 3000);
         } catch (e) { setBezig(false); setMelding(e.message); }
@@ -559,13 +576,14 @@ function Genereren() {
                     </select>
                 </label>
                 <label style={{ flex: '1 1 120px' }}>Aantal nummers
-                    <input className="invoer" type="number" min="1" max="100" value={aantal}
+                    <input className="invoer" type="number" min="1" max="10000" value={aantal}
                         onChange={(e) => setAantal(e.target.value)} style={{ display: 'block', width: '100%' }} />
                 </label>
-                <button className="knop" disabled={bezig || !Number.isInteger(Number(aantal)) || Number(aantal) < 1 || Number(aantal) > 100} onClick={start}>Lijst maken</button>
+                <button className="knop" disabled={bezig || !Number.isInteger(Number(aantal)) || Number(aantal) < 1 || Number(aantal) > 10000} onClick={start}>Lijst maken</button>
             </div>
-            <p className="dim">Aantal per aanvraag (1–100). Films en series zijn apart opgeslagen en kunnen later samen worden geselecteerd.</p>
-            <div className="ai-tellers" style={{ marginTop: '0.75rem' }}>
+            <p className="dim">Aantal per aanvraag (1–10.000), verwerkt in batches op de server. Films en series zijn apart opgeslagen en kunnen later samen worden geselecteerd.</p>
+            <div className="vt-queue"><strong>AI-wachtrij</strong>{wachtrijFout && <p className="waarschuwing">{wachtrijFout}</p>}{wachtrij.slice(0,10).map(t=><p key={t.id}>{t.categorie} · {t.status} · {t.verwerkt}/{t.gevraagd} verwerkt · {t.toegevoegd} toegevoegd{t.fout ? " · " + t.fout : ""}</p>)}</div>
+        <div className="ai-tellers" style={{ marginTop: '0.75rem' }}>
                 {categorieen.map(([waarde, naam]) =>
                     <Teller key={waarde} label={naam} n={perCategorie[waarde]?.totaal || 0} />)}
             </div>
