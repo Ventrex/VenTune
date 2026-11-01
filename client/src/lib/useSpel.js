@@ -236,6 +236,7 @@ export function useSpel() {
     const herhaal = useCallback(() => haalSocket().emit('ronde:herhaal'), []);
     const pauzeer = useCallback(() => haalSocket().emit('ronde:pauzeer'), []);
     const hervat = useCallback(() => haalSocket().emit('ronde:hervat'), []);
+    const pauzeVoorMelding = useCallback(() => haalSocket().emit('ronde:melding-pauze'), []);
     const meldFout = useCallback(
         (soort = 'fout', toelichting = null) =>
             haalSocket().emit('ronde:melden', { soort, toelichting }),
@@ -313,6 +314,7 @@ export function useSpel() {
         pauzeer,
         hervat,
         meldFout,
+        pauzeVoorMelding,
         beoordeelTrack,
         gok,
         vraagHint,
