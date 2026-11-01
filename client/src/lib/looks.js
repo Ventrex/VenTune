@@ -12,9 +12,12 @@ const SLEUTEL = 'ventune_look';
 const STANDAARD = 'neon';
 
 export const LOOKS = [
-    { id: 'neon', naam: 'Neon Arcade', emoji: '🕹️' },
-    { id: 'noir', naam: 'OLED Noir', emoji: '🎬' },
-    { id: 'kerst', naam: 'Kerst Cozy', emoji: '🎄' },
+    { id: 'neon', naam: 'Standaard', emoji: '◉' },
+    { id: 'laser', naam: 'Neon', emoji: '╱' },
+    { id: 'noir', naam: 'Bioscoop', emoji: '▥' },
+    { id: 'retro', naam: 'Retro 80’s', emoji: '▤' },
+    { id: 'game', naam: 'Game', emoji: '✦' },
+    { id: 'kerst', naam: 'Kerst', emoji: '❄' },
 ];
 
 export function leesLook() {
