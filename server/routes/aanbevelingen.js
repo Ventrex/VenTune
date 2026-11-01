@@ -706,10 +706,10 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
             "INSERT INTO titels (naam,type,taal,jaar,curatie_status,nl_tv_bekend,toevoeg_reden,swipe_prioriteit) VALUES ($1,$2,$3,$4,'goedgekeurd',true,'Handmatig toegevoegd',now()) RETURNING id",
             [titel,type,'en',jaar]);
         const { rows } = await pool.query(
-            `INSERT INTO aanbevelingen (soort, categorie, titel, type, jaar, tracknaam, artiest, youtube_zoekterm, bekendheid, reden, status)
-             VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'nieuw')
+            `INSERT INTO aanbevelingen (soort, categorie, titel, type, jaar, tracknaam, artiest, youtube_zoekterm, bekendheid, reden, status, titel_id)
+             VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'nieuw', $6)
              RETURNING id`,
-            [type, titel, type, jaar, `${titel} original theme soundtrack intro`]);
+            [type, titel, type, jaar, `${titel} original theme soundtrack intro`, nieuw.rows[0].id]);
         await enqueueMp3(rows[0].id,1000);
         res.json({ ok: true, id: rows[0].id, titel_id:nieuw.rows[0].id, toelichting: 'Toegevoegd aan de database én bovenaan de Swipe-wachtrij zonder MP3.' });
     } catch (err) { res.status(500).json({ fout: err.message }); }
