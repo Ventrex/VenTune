@@ -568,8 +568,8 @@ export default function Setup() {
                         <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema"})[hoofdgroep]} · {hoofdgroep==="games"?"Games":filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
                         <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}><span className="vt-play-text"><img src="/category/icon-play.svg" alt="" />Start de quiz</span></button>
                     </div>
-                    </div><aside className="vt-categorie-aside"><div className="vt-uiterlijk-paneel"><h3>Thema & uiterlijk</h3><p className="dim">Kies een thema dat bij jou past.</p><ThemaKiezer /></div><div className="vt-berg-paneel"><h3>Wat is Bergexpeditie?</h3><p>Een spelmodus waarin jullie samen een berg beklimmen. Elk goed antwoord brengt je hoger. Ideaal voor langere quizsessies.</p><span className="vt-berg-icon" aria-hidden="true">🏔️</span></div></aside></div>
-                    <UiterlijkOpties />
+                    </div><aside className="vt-categorie-aside"><div className="vt-berg-paneel"><h3>Wat is Bergexpeditie?</h3><p>Een spelmodus waarin jullie samen een berg beklimmen. Elk goed antwoord brengt je hoger. Ideaal voor langere quizsessies.</p><span className="vt-berg-icon" aria-hidden="true">🏔️</span></div></aside></div>
+
                 </section>
             )}
 
