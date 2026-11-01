@@ -28,6 +28,7 @@ export default function Play() {
         bonus,
         bonusResultaat,
         scorebord,
+        berg,
         spelers,
         teams,
         verbonden,
@@ -406,6 +407,11 @@ export default function Play() {
             {fase === 'bonus' && antwoord && <IssueReport key={'bonus-' + ronde?.rondeId} spel={spel} />}
             {fase === 'scorebord' && antwoord && <IssueReport key={'score-' + ronde?.rondeId} spel={spel} />}
 
+            {lobbyInstellingen?.spelvorm === 'bergexpeditie' && fase !== 'wachten' && <section className="vt-berg-voortgang" aria-live="polite">
+                <strong>🏔 Samen naar de top · {berg?.hoogte ?? 0} goed</strong>
+                <span>{'♥'.repeat(Math.max(0,(berg?.maxFouten ?? lobbyInstellingen.berg_fouten_max ?? 3)-(berg?.fouten ?? 0)))}{'♡'.repeat(berg?.fouten ?? 0)}</span>
+                {berg?.mislukt && fase === 'scorebord' && <p>Niemand had het goed: een hartje verloren.</p>}
+            </section>}
             {/* Titel onthuld (korte tussenfase voor de bonus) */}
             {fase === 'onthul' && antwoord && (
                 <>
