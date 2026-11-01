@@ -117,7 +117,7 @@ async function lokaalVoorbeeld(aanbeveling) {
                 if (/sign in|bot|cookies|HTTP Error 403|HTTP Error 429|too many requests|ffmpeg.*not found|ENOENT|no such file or directory/i.test(laatsteFout)) {
                     if (/HTTP Error 429|too many requests/i.test(laatsteFout)) ytzoek.markeerRateLimit(429);
                     audioInfrastructuurFout = laatsteFout.slice(0, 350);
-                    audioInfrastructuurTot = Date.now() + (/HTTP Error 429|too many requests/i.test(laatsteFout) ? 6 * 60 * 60 * 1000 : 30 * 60 * 1000);
+                    audioInfrastructuurTot = Date.now() + (/HTTP Error 429|too many requests/i.test(laatsteFout) ? 15 * 60 * 1000 : 30 * 60 * 1000);
                     throw new Error('Downloadservice niet beschikbaar: ' + audioInfrastructuurFout);
                 }
                 afgekeurd.add(bron.videoId);
@@ -360,4 +360,4 @@ async function herstelGoedgekeurdeAudio({ voortgang } = {}) {
     return resultaat;
 }
 
-module.exports = { zoekVoorbeeld, lokaalVoorbeeld, keurMp3Af, verwerkGoed, herstelGoedgekeurdeAudio };
+module.exports = { zoekVoorbeeld, lokaalVoorbeeld, keurMp3Af, verwerkGoed, herstelGoedgekeurdeAudio, rateLimitTot: () => audioInfrastructuurTot > Date.now() ? audioInfrastructuurTot : 0 };
