@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS titels (
 
 -- Bekendheid en poster (uit TMDB). Populariteit filtert obscure titels weg,
 -- zodat het spel bij bekende films en series blijft.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS swipe_prioriteit TIMESTAMPTZ;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS populariteit REAL NOT NULL DEFAULT 0;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS stemmen INTEGER NOT NULL DEFAULT 0;
 -- TMDB-rating en YouTube-bekendheid. De waarden worden bewaard naast de
