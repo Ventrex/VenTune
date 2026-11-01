@@ -184,7 +184,7 @@ export function QuizInhoud() {
             await haal('/api/admin/ai-vragen/start', { method: 'POST', ...jsonBody({limiet: 500}) });
             await laadBatch();
             if (!timer.current) timer.current = setInterval(laadBatch, 2500);
-            setMelding('AI-generatie gestart. Titels zonder betrouwbare gegevens blijven op Controle nodig.');
+            setMelding('AI-generatie gestart. Geldige hints en vragen worden direct aan de quiz gekoppeld.');
         } catch (err) { setFout(err.message); }
     }
     async function zoeken(e) {
@@ -223,7 +223,7 @@ export function QuizInhoud() {
     return <section className="kaart ai-kaart" style={{ marginTop:'1rem' }}>
         <h2>AI · Hints en bonusvragen</h2>
         <QuizGezondheid />
-        <p className="dim">Drie verschillende hints en drie bonusvragen met zes keuzes per film/serie. AI-voorstellen zijn niet automatisch goedgekeurd.</p>
+        <p className="dim">Drie verschillende hints en drie bonusvragen met zes keuzes per film/serie. Gegenereerde hints en vragen zijn direct speelbaar. Spelers kunnen fouten tijdens de quiz melden.</p>
         {batch && <p className="dim">Bibliotheek: {batch.database?.titels ?? '—'} titels · {batch.database?.hints_gegenereerd ?? 0} met 3 gegenereerde hints ({batch.database?.hints_goedgekeurd ?? 0} goedgekeurd) · {batch.database?.vragen_gegenereerd ?? 0} met 3 gegenereerde AI-vragen ({batch.database?.vragen_goedgekeurd ?? 0} goedgekeurd)</p>}
         <button className="knop" disabled={batch?.bezig} onClick={starten}>{batch?.bezig ? 'Generatie loopt…' : 'Ontbrekende hints en vragen genereren'}</button>
         {batch && <p className="dim">{batch.bezig ? 'Bezig · ' : 'Laatste batch · '}Voortgang {batch.verwerkt}/{batch.totaal} · {batch.gelukt} sets aangemaakt · {batch.mislukt} niet gelukt</p>}
