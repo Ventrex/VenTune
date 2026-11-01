@@ -537,6 +537,7 @@ export default function Setup() {
                                 :hoofdgroep==='games'?[['alles','🎮 Alle games'],['nintendo','🕹️ Nintendo'],['sega','💫 Sega'],['playstation','🔵 PlayStation'],['xbox','🟢 Xbox'],['pc','💻 PC']]
                                 :[['alles','✨ Alle thema’s'],['kerst','🎄 Kerst']]).map(([id,label])=>
                                     <button type="button" key={id} className={'chip'+((hoofdgroep==='games'? (id==='alles'?!(filters.platformen||[]).length:(filters.platformen||[]).includes(id)) :subkeuze===id)?' gekozen':'')}
+                                        style={categorieBeelden['collectie-'+id] ? {'--custom-image': `url(${categorieBeelden['collectie-'+id]})`} : undefined}
                                         onClick={()=>{
                                             setSubkeuze(id);
                                             setFilters(f=>({...f,
@@ -548,7 +549,7 @@ export default function Setup() {
                                                 collecties:hoofdgroep==='games'?[]:id==='alles'||id==='80s'||id==='90s'||id==='kinder'||id==='animatie'?[]:[id],
                                                 met_genres:id==='animatie'?['Animatie','Animation']:[],
                                                 zonder_genres:[]}));
-                                        }}><span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || "/category/icon-"+(id==="kerst"?"theme":id==="animatie"?"film":id==="kinder"?"game":"music")+".svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span><span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
+                                        }}><span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || ({ "80s": "/category/collection-80s.svg", "90s": "/category/collection-90s.svg", animatie: "/category/collection-animatie.svg", kinder: "/category/collection-kinder.svg", kerst: "/category/icon-theme.svg" })[id] || "/category/icon-music.svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span><span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
                             </div>
                         </div>}
                         
