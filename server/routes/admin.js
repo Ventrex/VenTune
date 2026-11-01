@@ -943,6 +943,10 @@ const CATEGORIE_BEELDSLEUTELS = new Set([
     'collectie-90s', 'collectie-animatie', 'collectie-kinder',
     'collectie-kerst', 'collectie-rock', 'collectie-100nl',
     'platform-nintendo', 'platform-sega', 'platform-playstation', 'platform-xbox', 'platform-pc',
+    'setup-rondes-kort', 'setup-rondes-medium', 'setup-rondes-lang', 'setup-rondes-oneindig',
+    'setup-spel-kindvriendelijk', 'setup-spel-hints', 'setup-spel-bonus', 'setup-spel-info',
+    'setup-spel-tegen_elkaar', 'setup-spel-om_en_om', 'setup-spel-teams', 'setup-spel-bergexpeditie',
+    'setup-modus-snelste', 'setup-modus-kenner', 'setup-antwoord-typen', 'setup-antwoord-meerkeuze',
 ]);
 router.get('/api/categorie-beelden', async (_req, res) => {
     const { rows } = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'categorie_beelden' LIMIT 1");
