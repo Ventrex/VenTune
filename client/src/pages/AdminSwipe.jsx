@@ -153,6 +153,21 @@ export default function AdminSwipe() {
         }
     }
 
+    async function uitsluiten(){
+        if(!huidige || !window.confirm('Dit nummer definitief afkeuren? Het komt niet meer terug in Swipe of in het spel.'))return;
+        try{
+            await haal('/api/admin/aanbevelingen/'+huidige.id+'/uitsluiten',{method:'POST'});
+            await haal('/api/admin/swipe/buffer',{method:'POST',...jsonBody({categorie,fase})});
+            await laad();
+        }catch(e){setAudioFout('Afkeuren mislukt: '+e.message);}
+    }
+    function deelLink(){
+        const url=window.location.origin+'/review?categorie='+encodeURIComponent(categorie)+'&fase=blind';
+        if(navigator.share)navigator.share({title:'VenTune muziekswipe',url}).catch(()=>{});
+        else if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>alert('Reviewlink gekopieerd: '+url));
+        else window.prompt('Deel deze link:',url);
+    }
+
     // Sleep (alleen in blind-fase: rechts=herken, links=niet).
     function omlaag(x) { if (fase !== 'blind') return; start.current = x; setSleep({ dx: 0, actief: true }); }
     function beweeg(x) { if (start.current != null) setSleep({ dx: x - start.current, actief: true }); }
@@ -182,6 +197,7 @@ export default function AdminSwipe() {
                 <p className="dim" style={{margin:'.35rem 0'}}>Klaar voor Swipe: {mp3Queue.klaarVoorSwipe ?? 0} · Status: {mp3Queue.rateLimitActief?'gepauzeerd':mp3Queue.workerBezig?'downloaden':'wachten op volgende taak'} · {(mp3Queue.status||[]).map(s=>s.status+': '+s.aantal).join(' · ')||'wachtrij leeg'}</p>
                 <p className="dim" style={{margin:'.25rem 0'}}>In Muziek swipen verschijnen alleen klaargezette MP3's. De queue probeert automatisch opnieuw zodra YouTube beschikbaar is.</p>
             </div>}
+            {!zonderMp3 && !titelReview && <button className="knop knop-stil" type="button" onClick={deelLink}>Deel muziekswipe met vrienden (blind + met naam)</button>}
             {!zonderMp3 && !titelReview && <div className="swipe-tabs" style={{marginTop:'.25rem'}}>
                 <label style={{width:'100%'}}>Muziekcategorie
                     <select className="invoer" value={categorie} onChange={e=>setCategorie(e.target.value)}>
@@ -330,6 +346,7 @@ export default function AdminSwipe() {
                             <button className="swipe-knop" style={{ background: "#e58a19", color: "#111" }} disabled={false} onClick={() => swipe('verkeerde_mp3')} aria-label="Verkeerde MP3" title="Verkeerde MP3">!</button>
                         </div>
                     )}
+                    <button className="knop knop-stil" type="button" onClick={uitsluiten}>Definitief afkeuren · nooit meer tonen of downloaden</button>
                     <p className="dim swipe-uitleg">
                         {fase === 'blind'
                             ? '✓ = herken ik. ✕ = herken ik niet (met naam). Oranje ! = verkeerde MP3.'
