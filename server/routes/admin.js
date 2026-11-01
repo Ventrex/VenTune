@@ -2589,6 +2589,26 @@ router.get('/api/admin/tmdb/status', vereisAdmin, (_req, res) => {
 
 // Grote catalogusimport: alleen titels/metadata. YouTube zoeken en MP3's
 // downloaden blijven afzonderlijke taken, zodat beide hervatbaar zijn.
+// Conservatieve opschoning: alleen automatisch geïmporteerde, nog NIET
+// goedgekeurde titels met weinig TMDB-stemmen. Geen records/MP3's verwijderen.
+router.post('/api/admin/catalogus/opschonen-bekend', vereisAdmin, async (_req,res)=>{
+    try {
+        const {rows}=await pool.query(`
+            UPDATE titels t
+               SET curatie_status='uitgesloten',nl_tv_bekend=false
+             WHERE t.type IN ('film','serie')
+               AND t.curatie_status='te_beoordelen'
+               AND COALESCE(t.stemmen,0)<100
+               AND t.swipe_prioriteit IS NULL
+               AND COALESCE(t.toevoeg_reden,'') NOT ILIKE '%handmatig%'
+               AND NOT EXISTS (
+                   SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id
+                       AND tr.bron='lokaal' AND tr.werkt=true
+                       AND tr.download_status='available')
+            RETURNING t.id`);
+        res.json({ok:true,uitgesloten:rows.length,verwijderd:0});
+    }catch(err){res.status(500).json({fout:err.message});}
+});
 router.post('/api/admin/tmdb/catalogus', vereisAdmin, (req, res) => {
     const antwoord = startAdminScript(
         'tmdb-catalogus',
