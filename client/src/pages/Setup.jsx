@@ -708,40 +708,69 @@ export default function Setup() {
                         </select>
                     </div>
                     <h1>Spelinstellingen</h1>
-                    <div className="setup-veld">
-                        <label className="kaart-label" htmlFor="rondes">Rondes</label>
-                        <select id="rondes" className="invoer compact-select" value={filters.rondes} onChange={(e) => zet('rondes', Number(e.target.value))}>
-                            {RONDES.map((r) => <option key={r.waarde} value={r.waarde}>{r.label}</option>)}
-                        </select>
+                    <div className="vt-game-settings">
+                        <section className="vt-options-panel">
+                            <h2>Rondes</h2>
+                            <div className="vt-choice-grid vt-four">
+                                {RONDES.map((r,i)=><button type="button" key={r.waarde} className={'vt-option-card'+(filters.rondes===r.waarde?' selected':'')} onClick={()=>zet('rondes',r.waarde)}>
+                                    <span className="vt-option-art">{['⚡','🎵','🎬','∞'][i]}</span>
+                                    <strong>{['Kort','Medium','Lang','Oneindig'][i]}</strong><small>{r.waarde ? r.waarde+' rondes':'Tot je stopt'}</small>
+                                </button>)}
+                            </div>
+                        </section>
+                        <section className="vt-options-panel">
+                            <h2>Spelopties</h2>
+                            <div className="vt-switch-grid">
+                                {[
+                                    ['kindvriendelijk','Kindvriendelijk','Geschikt voor kinderen',false],
+                                    ['hints_aan','Hints tijdens het raden','Hints verschijnen tijdens het luisteren',true],
+                                    ['bonusvragen_aan','Bonusvragen','Extra vragen na het raden',true],
+                                    ['info_aan','Film- en serie-info','Poster en achtergrondinformatie na de ronde',true]
+                                ].map(([key,titel,uitleg,aan])=><label className="vt-setting-switch" key={key}><span><strong>{titel}</strong><small>{uitleg}</small></span>
+                                    <input type="checkbox" checked={aan?filters[key]!==false:filters[key]===true}
+                                        onChange={e=>key==='kindvriendelijk'?setFilters(f=>({...f,kindvriendelijk:e.target.checked,leeftijd_max:e.target.checked?12:0})):zet(key,e.target.checked)}/>
+                                    <span className="vt-switch-track" aria-hidden="true"/>
+                                </label>)}
+                            </div>
+                        </section>
+                        <section className="vt-options-panel">
+                            <h2>Wie speelt?</h2>
+                            <div className="vt-choice-grid">
+                                {[
+                                    ['tegen_elkaar','⚔️','Tegen elkaar','Iedereen speelt individueel'],
+                                    ['om_en_om','🔄','Om en om','Elke speler krijgt een eigen beurt'],
+                                    ['teams','👥','Teams','Speel samen tegen andere teams'],
+                                    ['bergexpeditie','🏔️','Bergexpeditie','Samen zo hoog mogelijk klimmen']
+                                ].map(([id,icoon,titel,uitleg])=><button type="button" key={id} className={'vt-option-card'+(filters.spelvorm===id?' selected':'')} onClick={()=>zet('spelvorm',id)}>
+                                    <span className="vt-option-art">{icoon}</span><strong>{titel}</strong><small>{uitleg}</small>
+                                </button>)}
+                            </div>
+                            {filters.spelvorm==='teams'&&<div className="vt-choice-grid vt-three">
+                                {[['snelste','⚡','Snelste team'],['kenner','🧠','Alle teams raden'],['om_en_om','🔄','Teams om en om']].map(([id,icoon,label])=><button type="button" key={id} className={'vt-option-card'+(filters.team_modus===id?' selected':'')} onClick={()=>zet('team_modus',id)}><span className="vt-option-art">{icoon}</span><strong>{label}</strong></button>)}
+                            </div>}
+                            {filters.spelvorm==='bergexpeditie'&&<label className="vt-select-duration">Aantal toegestane fouten<select className="invoer" value={filters.berg_fouten_max||3} onChange={e=>zet('berg_fouten_max',Number(e.target.value))}><option value="1">1 fout</option><option value="3">3 fouten</option><option value="5">5 fouten</option></select></label>}
+                        </section>
+                        <div className="vt-settings-pair">
+                            <section className="vt-options-panel">
+                                <h2>Spelsoort</h2><div className="vt-choice-grid vt-two">
+                                    {MODI.map((m,i)=><button key={m.waarde} type="button" className={'vt-option-card'+(filters.modus===m.waarde?' selected':'')} onClick={()=>zet('modus',m.waarde)}><span className="vt-option-art">{i===0?'⚡':'🧠'}</span><strong>{m.label}</strong><small>{m.uitleg}</small></button>)}
+                                </div>
+                            </section>
+                            <section className="vt-options-panel">
+                                <h2>Antwoordwijze</h2><div className="vt-choice-grid vt-two">
+                                    {ANTWOORD_MODI.map((m,i)=><button key={m.waarde} type="button" className={'vt-option-card'+(filters.antwoord_modus===m.waarde?' selected':'')} onClick={()=>zet('antwoord_modus',m.waarde)}><span className="vt-option-art">{i===0?'⌨️':'🔠'}</span><strong>{m.label}</strong><small>{m.uitleg}</small></button>)}
+                                </div>
+                            </section>
+                        </div>
+                        <section className="vt-options-panel">
+                            <label className="vt-setting-switch"><span><strong>Speeltijd per ronde</strong><small>Uit = heel nummer afspelen</small></span>
+                                <input type="checkbox" checked={filters.speeltijd>0} onChange={e=>zet('speeltijd',e.target.checked?60:0)}/><span className="vt-switch-track" aria-hidden="true"/>
+                            </label>
+                            {filters.speeltijd>0&&<div className="vt-choice-grid vt-duration-grid">
+                                {[10,15,20,30,60,120,180].map(n=><button key={n} type="button" className={'vt-duration-pill'+(filters.speeltijd===n?' selected':'')} onClick={()=>zet('speeltijd',n)}>{n<60?n+' sec':n===60?'1 minuut':n/60+' minuten'}</button>)}
+                            </div>}
+                        </section>
                     </div>
-
-                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.kindvriendelijk === true} onChange={e => setFilters(f=>({...f,kindvriendelijk:e.target.checked,leeftijd_max:e.target.checked?12:0}))}/><span>Kindvriendelijk</span></label>
-                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.hints_aan !== false} onChange={e=>zet('hints_aan',e.target.checked)}/><span>Hints tijdens het raden</span></label>
-                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.bonusvragen_aan !== false} onChange={e=>zet('bonusvragen_aan',e.target.checked)}/><span>Bonusvragen</span></label>
-                    <label className="vt-toggle-row"><input type="checkbox" checked={filters.info_aan !== false} onChange={e=>zet('info_aan',e.target.checked)}/><span>Film- en serie-informatie na afloop</span></label>
-                                        <div className="vt-setting-pair">
-                        <label className="setup-veld"><span className="kaart-label">Wie speelt?</span>
-                            <select className="invoer" value={filters.spelvorm || 'tegen_elkaar'} onChange={e=>zet('spelvorm',e.target.value)}>
-                                <option value="tegen_elkaar">Tegen elkaar</option>
-                                <option value="om_en_om">Om en om</option>
-                                <option value="teams">Teams tegen elkaar</option>
-                                <option value="bergexpeditie">Bergexpeditie (samen)</option>
-                            </select>
-                        </label>
-                        {filters.spelvorm === 'teams' && <label className="setup-veld"><span className="kaart-label">Teamspel</span>
-                            <select className="invoer" value={filters.team_modus || 'snelste'} onChange={e=>zet('team_modus',e.target.value)}>
-                                <option value="snelste">Snelste team</option>
-                                <option value="kenner">Ieder team mag antwoorden</option>
-                                <option value="om_en_om">Teams om en om</option>
-                            </select>
-                        </label>}
-                    </div>
-                    <div className="vt-setting-pair">
-                      <label className="setup-veld"><span className="kaart-label">Spelsoort</span><select className="invoer" value={filters.modus} onChange={e=>zet('modus',e.target.value)}>{MODI.map(m=><option key={m.waarde} value={m.waarde}>{m.label}</option>)}</select></label>
-                      <label className="setup-veld"><span className="kaart-label">Antwoordwijze</span><select className="invoer" value={filters.antwoord_modus} onChange={e=>zet('antwoord_modus',e.target.value)}>{ANTWOORD_MODI.map(m=><option key={m.waarde} value={m.waarde}>{m.label}</option>)}</select></label>
-                    </div>
-                                        <label className="vt-toggle-row"><input type="checkbox" checked={filters.speeltijd > 0} onChange={e=>zet('speeltijd',e.target.checked?60:0)}/><span>Speeltijd per ronde {filters.speeltijd > 0 ? '(aan)' : '(uit · heel nummer)'}</span></label>
-                    {filters.speeltijd > 0 && <div className="vt-range"><input type="range" min="15" max="180" step="15" value={filters.speeltijd} onChange={e=>zet('speeltijd',Number(e.target.value))}/><strong>{filters.speeltijd} seconden</strong></div>}
                                         {/* Live telling */}
                     <div className="telling">
                         {tellingFout ? (
