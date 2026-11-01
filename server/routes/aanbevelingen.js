@@ -321,10 +321,29 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
         return res.status(400).json({ fout: 'Geef een geldige titel, type en eventueel jaar op.' });
     }
     try {
-        const bestaat = await pool.query(
-            `SELECT naam FROM titels WHERE lower(trim(naam)) = lower($1)
-             UNION ALL SELECT titel FROM aanbevelingen WHERE lower(trim(titel)) = lower($1) LIMIT 1`, [titel]);
-        if (bestaat.rows.length) return res.status(409).json({ fout: 'Deze titel bestaat al in de database of aanbevelingen.' });
+        const bestaandTitel = await pool.query(
+            `SELECT t.id, t.naam, t.type,
+                    EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id AND tr.werkt=true
+                        AND tr.bron='lokaal' AND tr.download_status='available'
+                        AND NULLIF(tr.preview_url,'') IS NOT NULL) AS heeft_mp3
+               FROM titels t WHERE lower(trim(t.naam))=lower($1) AND t.type=$2
+               ORDER BY t.id LIMIT 1`, [titel,type]);
+        const bestaandAdvies = await pool.query(
+            `SELECT id,status FROM aanbevelingen WHERE lower(trim(titel))=lower($1) AND type=$2
+             ORDER BY id DESC LIMIT 1`, [titel,type]);
+        if (bestaandTitel.rows[0]?.heeft_mp3) {
+            return res.json({ok:true, bestaand:true, heeft_mp3:true, titel_id:bestaandTitel.rows[0].id,
+                toelichting:'Titel bestaat al en heeft een speelbare lokale MP3. Geen dubbele aanvraag aangemaakt.'});
+        }
+        if (bestaandAdvies.rows[0]) {
+            const a=bestaandAdvies.rows[0];
+            if (a.status !== 'nieuw' && a.status !== 'blind_nee') {
+                await pool.query("UPDATE aanbevelingen SET status='fout', beoordeeld_op=NULL WHERE id=$1",[a.id]);
+            }
+            return res.json({ok:true,bestaand:true,heeft_mp3:false,id:a.id,
+                titel_id:bestaandTitel.rows[0]?.id ?? null,
+                toelichting:'Titel bestaat al, maar mist een speelbare MP3. Bestaande aanvraag is voor muziekonderzoek in de wachtrij gezet.'});
+        }
         const { rows } = await pool.query(
             `INSERT INTO aanbevelingen (soort, categorie, titel, type, jaar, tracknaam, artiest, youtube_zoekterm, bekendheid, reden, status)
              VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'fout')
