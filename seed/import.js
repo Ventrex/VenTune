@@ -480,7 +480,8 @@ async function importeer({
                 ${wachtrij}
               -- Nooit geprobeerd gaat vóór; daarna wat het langst wacht. Zo
               -- schuift elke run door in plaats van dezelfde kop te herhalen.
-              ORDER BY t.zoek_pogingen ASC,
+              ORDER BY t.swipe_prioriteit DESC NULLS LAST,
+                       t.zoek_pogingen ASC,
                        t.laatste_zoekpoging ASC NULLS FIRST,
                        t.populariteit DESC,
                        t.id${limietSql}`,
