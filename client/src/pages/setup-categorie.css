@@ -538,3 +538,28 @@
  .vt-category-workspace .vt-categorie-films>.vt-subkeuzes:nth-of-type(2) .vt-keuzerij{grid-template-columns:repeat(2,minmax(0,1fr))!important}
  .vt-collectie-pictogram img{height:40px}
 }
+
+
+/* Custom collection artwork takes precedence over default card art. */
+.vt-category-workspace .vt-categorie-paneel .vt-subkeuzes .chip[style*="--custom-image"]{
+  background-image:linear-gradient(0deg,#0b0922bb,#10092719 72%),var(--custom-image)!important;
+  background-position:center!important;
+  background-size:cover!important;
+}
+.vt-category-workspace .vt-categorie-paneel .vt-subkeuzes .chip .vt-collectie-pictogram{
+ visibility:visible!important;
+}
+.vt-category-workspace .vt-categorie-paneel .vt-subkeuzes .chip[style*="--custom-image"] .vt-collectie-pictogram{
+ display:none!important;
+}
+.vt-category-workspace .vt-categorie-paneel .vt-subkeuzes .chip[style*="--custom-image"] .vt-collectie-label{
+ text-shadow:0 2px 8px #050316,0 0 12px #090319;
+}
+/* Consistent neon interaction and readable touch targets for quiz setup. */
+.vt-game-settings .vt-option-card:focus-visible,
+.vt-categorie-paneel .chip:focus-visible,
+.vt-duration-slider input:focus-visible{
+ outline:3px solid #ffaddb;outline-offset:3px;
+}
+.vt-game-settings .vt-option-card .vt-option-art{filter:drop-shadow(0 0 8px #ff42ac75)}
+.vt-game-settings .vt-options-panel{background:linear-gradient(145deg,#2a123ccb,#14102edc);border-color:#8051ad95}
