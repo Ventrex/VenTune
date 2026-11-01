@@ -1145,6 +1145,55 @@ const REVIEW_DREMPEL = 2;   // minstens 2 meer "herkend" dan "niet"
 const REVIEW_MIN_STEMMEN = 3;
 
 /** Volgende te beoordelen nummer voor een stemmer (zonder titelinfo). */
+// Openbare stemronde op reeds voorbereide MP3's, zonder nieuwe downloads.
+async function initDeelSwipe(){
+ await initMp3Queue();
+ await initUitsluitlijst();
+ await pool.query(`CREATE TABLE IF NOT EXISTS swipe_vriend_stemmen(
+    aanbeveling_id BIGINT NOT NULL REFERENCES aanbevelingen(id) ON DELETE CASCADE,
+    stemmer TEXT NOT NULL, fase TEXT NOT NULL, keuze TEXT NOT NULL,
+    aangemaakt_op TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY(aanbeveling_id,stemmer,fase))`);
+}
+router.get('/api/swipe-delen/volgende',async(req,res)=>{
+ try{
+  await initDeelSwipe();
+  const categorie=String(req.query.categorie||'film');
+  const fase=req.query.fase==='naam'?'naam':'blind';
+  const stemmer=String(req.query.stemmer||'').slice(0,80);
+  const allowed=['film','serie','games','disney','kerst','rock','80s','90s','20s','kinder','100nl'];
+  if(!allowed.includes(categorie)||!stemmer)return res.status(400).json({fout:'Ongeldige categorie of stemmer'});
+  const {rows}=await pool.query(`SELECT a.id,a.titel,a.tracknaam,a.artiest,
+     ('/media/previews/aanbeveling-'||a.id||'.mp3') AS audio_url
+   FROM aanbevelingen a JOIN swipe_mp3_queue q ON q.aanbeveling_id=a.id
+   WHERE a.categorie=$1 AND a.status IN ('nieuw','blind_nee','goed','toegevoegd')
+     AND q.status='klaar'
+     AND NOT EXISTS(SELECT 1 FROM swipe_uitsluitlijst x WHERE x.aanbeveling_id=a.id)
+     AND NOT EXISTS(SELECT 1 FROM swipe_vriend_stemmen s
+       WHERE s.aanbeveling_id=a.id AND s.stemmer=$2 AND s.fase=$3)
+   ORDER BY q.bijgewerkt ASC LIMIT 1`,[categorie,stemmer,fase]);
+  const a=rows[0];if(!a)return res.json({klaar:true});
+  res.json({id:a.id,audioUrl:a.audio_url,...(fase==='naam'?{titel:a.titel,tracknaam:a.tracknaam,artiest:a.artiest}:{})});
+ }catch(e){res.status(500).json({fout:e.message});}
+});
+router.post('/api/swipe-delen/:id/stem',async(req,res)=>{
+ try{
+  await initDeelSwipe();
+  const stemmer=String(req.body?.stemmer||'').slice(0,80);
+  const fase=req.body?.fase==='naam'?'naam':'blind';
+  const keuze=String(req.body?.keuze||'');
+  if(!stemmer||!['herkend','niet','goed','fout','onbekend'].includes(keuze))
+    return res.status(400).json({fout:'Ongeldige stem'});
+  const id=Number(req.params.id);
+  const {rows}=await pool.query(`SELECT id FROM aanbevelingen a WHERE id=$1
+   AND NOT EXISTS(SELECT 1 FROM swipe_uitsluitlijst x WHERE x.aanbeveling_id=a.id)`,[id]);
+  if(!rows.length)return res.status(404).json({fout:'Nummer niet beschikbaar'});
+  await pool.query(`INSERT INTO swipe_vriend_stemmen(aanbeveling_id,stemmer,fase,keuze)
+   VALUES($1,$2,$3,$4) ON CONFLICT(aanbeveling_id,stemmer,fase)
+   DO UPDATE SET keuze=EXCLUDED.keuze`,[id,stemmer,fase,keuze]);
+  res.json({ok:true});
+ }catch(e){res.status(500).json({fout:e.message});}
+});
 router.get('/api/review/volgende', async (req, res) => {
     try {
         const stemmer = String(req.query.stemmer || '').slice(0, 64);
