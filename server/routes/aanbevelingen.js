@@ -771,6 +771,8 @@ async function runMp3Queue(){
  try{
   await initMp3Queue();
   while(!ytzoek.rateLimitActief() && media.rateLimitTot() <= Date.now()){
+   const {rows:[bezet]}=await pool.query(`SELECT count(*)::int AS n FROM aanbevelingen a JOIN swipe_mp3_queue q ON q.aanbeveling_id=a.id WHERE a.categorie=$1 AND a.status=$2 AND q.status='klaar'`,[actieveSwipe.categorie,actieveSwipe.fase==='naam'?'blind_nee':'nieuw']);
+   if(bezet.n>=10)break;
    const {rows}=await pool.query(`SELECT q.aanbeveling_id,q.pogingen FROM swipe_mp3_queue q
    JOIN aanbevelingen a ON a.id=q.aanbeveling_id
    WHERE q.status='wachtend' AND q.volgende_poging<=now()
