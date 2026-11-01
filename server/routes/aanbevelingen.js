@@ -185,7 +185,9 @@ router.get('/api/admin/ai-vragen/status', vereisAdmin, async (_req, res) => {
     try {
         const { rows } = await pool.query(`SELECT
             count(*)::int AS titels,
+            count(*) FILTER (WHERE coalesce(array_length(t.ai_hints,1),0) >= 3)::int AS hints_gegenereerd,
             count(*) FILTER (WHERE coalesce(array_length(t.ai_hints,1),0) >= 3 AND t.ai_hints_status = 'goedgekeurd')::int AS hints_goedgekeurd,
+            count(*) FILTER (WHERE (SELECT count(*) FROM vragen v WHERE v.titel_id=t.id AND v.soort='ai') >= 3)::int AS vragen_gegenereerd,
             count(*) FILTER (WHERE (SELECT count(*) FROM vragen v WHERE v.titel_id=t.id AND v.soort='ai' AND v.ai_review_status='goedgekeurd') >= 3)::int AS vragen_goedgekeurd
             FROM titels t WHERE t.type IN ('film','serie')`);
         return res.json({ ...quizBatch, database: rows[0] });
