@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Brand from '../components/Brand.jsx';
+import ThemaKiezer from '../components/ThemaKiezer.jsx';
+import UiterlijkOpties from '../components/UiterlijkOpties.jsx';
+import './setup-categorie.css';
 import { authBewaarProfiel, authProfiel } from '../lib/api.js';
 
 // Compact hostprofiel: accountstatus, spelhistorie en eigen presets op één
@@ -68,6 +71,7 @@ export default function HostProfile() {
                         <p className="kaart-label">Eigen presets ({data.presets.length})</p>
                         {data.presets.length ? <ul className="spelerlijst">{data.presets.map((preset) => <li className="speler-kaart" key={preset.id}><span>{preset.naam}</span><span className="dim">{preset.rondes === 0 ? 'eindeloos' : `${preset.rondes} rondes`}</span></li>)}</ul> : <p className="dim">Nog geen eigen presets.</p>}
                     </section>
+                    <section className="kaart vt-profiel-appearance" style={{ marginTop: '1rem', textAlign: 'left' }}><h2>Thema & uiterlijk</h2><p className="dim">Kies jouw eigen achtergrond en lettertype.</p><ThemaKiezer/><UiterlijkOpties/></section>
                     <section className="kaart" style={{ marginTop: '1rem', textAlign: 'left' }}>
                         <p className="kaart-label">Recente spellen</p>
                         {data.spellen.length ? <ul className="spelerlijst">{data.spellen.map((spel) => <li className="speler-kaart" key={`${spel.code}-${spel.bijgewerkt_op}`}><span>Lobby {spel.code}</span><span className="dim">{spel.spelers} spelers · beste {spel.hoogste_score}</span></li>)}</ul> : <p className="dim">Nog geen afgeronde spellen.</p>}
