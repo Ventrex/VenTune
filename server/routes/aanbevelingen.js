@@ -149,6 +149,22 @@ router.get('/api/admin/herkenbaarheid', vereisAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ fout: err.message }); }
 });
 
+// Catalogus is iets anders dan ChatGPT-aanbevelingen: toon aantallen uit titels.
+router.get('/api/admin/catalogus-tellingen', vereisAdmin, async (_req,res)=>{
+    try {
+        const {rows}=await pool.query(`
+            SELECT t.type::text AS type, COUNT(*)::int AS titels,
+                COUNT(*) FILTER (WHERE t.curatie_status='te_beoordelen')::int AS te_beoordelen,
+                COUNT(*) FILTER (WHERE EXISTS (
+                    SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id
+                    AND tr.bron='lokaal' AND tr.werkt=true AND tr.download_status='available'
+                    AND NULLIF(tr.preview_url,'') IS NOT NULL
+                ))::int AS met_mp3
+            FROM titels t WHERE t.type IN ('film','serie')
+            GROUP BY t.type ORDER BY t.type`);
+        res.json({categorieen:rows});
+    } catch(err) {res.status(500).json({fout:err.message});}
+});
 // Controle van quizmateriaal: alleen lokale speelbare MP3's tellen mee.
 // Suggesties in controle zijn apart van definitief goedgekeurde inhoud.
 router.get('/api/admin/quiz-gezondheid', vereisAdmin, async (_req, res) => {
