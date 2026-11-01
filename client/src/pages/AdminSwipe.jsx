@@ -148,12 +148,15 @@ export default function AdminSwipe() {
         if (!huidige || (keuze !== 'verkeerde_mp3' && (!audioUrl || audioFout || !magAfspelen))) return;
         const id = huidige.id;
         setSleep({ dx: 0, actief: false });
-        setIndex((i) => i + 1);
         try {
             await haal('/api/admin/aanbevelingen/' + id + '/swipe', {
                 method: 'POST', ...jsonBody({ keuze, fase }),
             });
-        } catch { /* kaart is al weg */ }
+            setIndex((i) => i + 1);
+        } catch (err) {
+            // Een niet opgeslagen beoordeling mag de kaart niet laten verdwijnen.
+            setAudioFout('Beoordeling niet opgeslagen: ' + err.message);
+        }
     }
 
     // Sleep (alleen in blind-fase: rechts=herken, links=niet).
