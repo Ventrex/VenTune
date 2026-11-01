@@ -686,7 +686,7 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
         const bestaandAdvies = await pool.query(
             `SELECT id,status FROM aanbevelingen WHERE lower(trim(titel))=lower($1) AND type=$2
              ORDER BY id DESC LIMIT 1`, [titel,type]);
-        if (bestaandTitel.rows[0]) await pool.query('UPDATE titels SET swipe_prioriteit=now(), zoek_status=CASE WHEN $2 THEN zoek_status ELSE \'wachtend\' END, volgende_poging=CASE WHEN $2 THEN volgende_poging ELSE NULL END WHERE id=$1',[bestaandTitel.rows[0].id,bestaandTitel.rows[0].heeft_mp3]);
+        if (bestaandTitel.rows[0]) await pool.query('UPDATE titels SET swipe_prioriteit=now(), zoek_status=CASE WHEN $2 THEN zoek_status ELSE 'nieuw' END, volgende_poging=CASE WHEN $2 THEN volgende_poging ELSE NULL END WHERE id=$1',[bestaandTitel.rows[0].id,bestaandTitel.rows[0].heeft_mp3]);
         if (bestaandTitel.rows[0]?.heeft_mp3) {
             return res.json({ok:true, bestaand:true, heeft_mp3:true, titel_id:bestaandTitel.rows[0].id,
                 toelichting:'Titel bestaat al en heeft een speelbare lokale MP3. Geen dubbele aanvraag aangemaakt.'});
