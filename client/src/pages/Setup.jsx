@@ -13,6 +13,7 @@ import {
 } from '../lib/api.js';
 import { bewaarSessie } from '../lib/sessie.js';
 import Brand from '../components/Brand.jsx';
+import ThemaKiezer from '../components/ThemaKiezer.jsx';
 
 const NU = new Date().getFullYear();
 
@@ -102,6 +103,8 @@ export default function Setup() {
     const [quizSleutel, setQuizSleutel] = useState(null);
     const [quizGroep, setQuizGroep] = useState(null);
     const [presetKeuze, setPresetKeuze] = useState('');
+    const [hoofdgroep,setHoofdgroep]=useState('films');
+    const [subkeuze,setSubkeuze]=useState('alles');
     const [filters, setFilters] = useState({
         categorie: 'beide',
         categorieen: ['film', 'serie'],
@@ -477,36 +480,61 @@ export default function Setup() {
                 </section>
             )}
 
-            {/* Stap 1: Gamekeuze */}
+            {/* Visuele categoriekeuze: vier hoofdcategorieën, daarna subfilters. */}
             {stap === 1 && (
-                <section>
-                    <h1>Welke game?</h1>
-                    <div className="keuzes setup-logo-grid">
-                        {CATEGORIEEN.map((c) => (
-                            <button
-                                key={c.waarde}
-                                className={
-                                    'keuze' +
-                                    (filters.categorie === c.waarde ? ' gekozen' : '')
-                                }
-                                onClick={() => {
-                                    zet('categorie', c.waarde);
-                                    zet('game_only', c.waarde === 'games');
-                                    zet('categorieen', c.waarde === 'films'
-                                        ? ['film']
-                                        : c.waarde === 'series'
-                                          ? ['serie']
-                                          : c.waarde === 'muziek' || c.waarde === 'games'
-                                            ? ['muziek']
-                                            : ['film', 'serie']);
-                                    verder();
-                                }}
-                            >
-                                <img className="keuze-logo-img" src={c.logo} alt="" />
-                                <span>{c.label}</span>
-                                <span className="keuze-uitleg">{c.uitleg}</span>
-                            </button>
-                        ))}
+                <section className="vt-categorie-scherm">
+                    <h1>Kies een categorie</h1>
+                    <p className="dim">Maak je eigen muziekquiz. Kies eerst een wereld en daarna wat je wilt horen.</p>
+                    <div className="vt-hoofdkaarten">
+                        {[
+                            {id:'films',naam:'Films & Series',icon:'🎬',kleur:'#ff328e',beeld:'🍿'},
+                            {id:'muziek',naam:'Muziek',icon:'🎵',kleur:'#17daf3',beeld:'🎸'},
+                            {id:'games',naam:'Videogames',icon:'🎮',kleur:'#7e66ff',beeld:'🕹️'},
+                            {id:'thema',naam:'Thema',icon:'✨',kleur:'#ffae39',beeld:'🎄'}
+                        ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
+                            style={{'--kaartkleur':g.kleur}} onClick={()=>{
+                                setHoofdgroep(g.id);setSubkeuze('alles');
+                                if(g.id==='films')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
+                                if(g.id==='muziek')setFilters(f=>({...f,categorie:'muziek',categorieen:['muziek'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
+                                if(g.id==='games')setFilters(f=>({...f,categorie:'games',categorieen:['muziek'],game_only:true,collecties:[],periode_start:1930,periode_eind:NU}));
+                                if(g.id==='thema')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
+                            }}>
+                            <span className="vt-hoofdkaart-illustratie" aria-hidden="true">{g.beeld}</span>
+                            <span className="vt-hoofdkaart-titel">{g.icon} {g.naam}</span>
+                        </button>)}
+                    </div>
+                    <div className="vt-categorie-paneel">
+                        <h2>{({films:'Films & Series',muziek:'Muziek',games:'Videogames',thema:'Thema'})[hoofdgroep]}</h2>
+                        {hoofdgroep==='films'&&<div className="vt-subkeuzes">
+                            <p>Wat wil je spelen?</p>
+                            <div className="vt-keuzerij">
+                                {[['beide','Film & Serie',['film','serie']],['films','Alleen Films',['film']],['series','Alleen Series',['serie']]].map(([v,label,types])=>
+                                <button type="button" key={v} className={'chip'+(filters.categorie===v?' gekozen':'')}
+                                    onClick={()=>setFilters(f=>({...f,categorie:v,categorieen:types,game_only:false}))}>{label}</button>)}
+                            </div>
+                        </div>}
+                        {(hoofdgroep==='films'||hoofdgroep==='muziek'||hoofdgroep==='games'||hoofdgroep==='thema')&&<div className="vt-subkeuzes">
+                            <p>{hoofdgroep==='films'?'Kies een collectie of tijdperk':hoofdgroep==='muziek'?'Welk muziekgenre?':hoofdgroep==='games'?'Kies een fabrikant (meerdere mogelijk via collecties)': 'Kies een thema'}</p>
+                            <div className="vt-keuzerij">
+                                {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder']]
+                                :hoofdgroep==='muziek'?[['alles','🎧 Alles'],['rock','🎸 Rock'],['100nl','🇳🇱 100% NL']]
+                                :hoofdgroep==='games'?[['alles','🎮 Alle games'],['nintendo','🕹️ Nintendo'],['sega','💫 Sega'],['playstation','🔵 PlayStation'],['xbox','🟢 Xbox'],['pc','💻 PC']]
+                                :[['alles','✨ Alle thema’s'],['kerst','🎄 Kerst']]).map(([id,label])=>
+                                    <button type="button" key={id} className={'chip'+(subkeuze===id?' gekozen':'')}
+                                        onClick={()=>{
+                                            setSubkeuze(id);
+                                            setFilters(f=>({...f,
+                                                periode_start:id==='80s'?1980:id==='90s'?1990:1930,
+                                                periode_eind:id==='80s'?1989:id==='90s'?1999:NU,
+                                                kindvriendelijk:id==='kinder',
+                                                collecties:id==='alles'||id==='80s'||id==='90s'||id==='kinder'?[]:[id],
+                                                met_genres:id==='animatie'?['Animatie']:[],
+                                                zonder_genres:[]}));
+                                        }}>{label}</button>)}
+                            </div>
+                        </div>}
+                        <div className="vt-uiterlijk-paneel"><h3>🎨 Thema & uiterlijk</h3><p className="dim">Kies de kleuren voor jouw quiz.</p><ThemaKiezer /></div>
+                        <button className="knop" type="button" style={{width:'100%',marginTop:'1rem'}} onClick={verder}>Verder met deze selectie</button>
                     </div>
                 </section>
             )}
