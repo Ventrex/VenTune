@@ -385,12 +385,12 @@ export default function Setup() {
             {stap === 1 && <nav className="vt-category-topnav" aria-label="VenTune navigatie">
                 <Link className="vt-top-brand" to="/"><img className="vt-top-equalizer" src="/category/equalizer.svg" alt="" /><strong><span>Ven</span>Tune</strong></Link>
                 <div className="vt-top-links">
-                    <Link className="vt-top-active" to="/setup">♧ Spelen</Link>
-                    <Link to="/">♜ Scores</Link>
-                    <Link to="/host/profile">♙ Profielen</Link>
-                    <Link to="/admin">⚙ Beheer</Link>
+                    <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt="" />Spelen</Link>
+                    <Link to="/"><img src="/category/icon-trophy.svg" alt="" />Scores</Link>
+                    <Link to="/host/profile"><img src="/category/icon-users.svg" alt="" />Profielen</Link>
+                    <Link to="/admin"><img src="/category/icon-settings.svg" alt="" />Beheer</Link>
                 </div>
-                <Link className="vt-top-user" to="/host/profile">{host?.display_naam || 'Profiel'} ▾</Link>
+                <Link className="vt-top-user" to="/host/profile"><span className="vt-avatar-ring">♫</span><span>{host?.display_naam || 'Profiel'}</span><span aria-hidden="true">⌄</span></Link>
             </nav>}
             <Brand compact />
             {host && (
@@ -502,10 +502,10 @@ export default function Setup() {
                     
                     <div className="vt-category-workspace"><div className="vt-category-left"><div className="vt-hoofdkaarten">
                         {[
-                            {id:'films',naam:'Films & Series',icon:'🎬',kleur:'#ff328e',beeld:'/category/films-series.svg'},
-                            {id:'muziek',naam:'Muziek',icon:'🎵',kleur:'#17daf3',beeld:'/category/music.svg'},
-                            {id:'games',naam:'Videogames',icon:'🎮',kleur:'#7e66ff',beeld:'/category/games.svg'},
-                            {id:'thema',naam:'Thema',icon:'✨',kleur:'#ffae39',beeld:'/category/theme.svg'}
+                            {id:'films',naam:'Films & Series',icon:'/category/icon-film.svg',kleur:'#ff328e',beeld:'/category/films-series.svg'},
+                            {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:'/category/music.svg'},
+                            {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:'/category/games.svg'},
+                            {id:'thema',naam:'Thema',icon:'/category/icon-theme.svg',kleur:'#ffae39',beeld:'/category/theme.svg'}
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
                                 setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],kindvriendelijk:false}));
@@ -515,11 +515,11 @@ export default function Setup() {
                                 if(g.id==='thema')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                             }}>
                             <img className="vt-hoofdkaart-illustratie" src={g.beeld} alt="" loading="eager" />
-                            <span className="vt-hoofdkaart-titel">{g.icon} {g.naam}</span>
+                            <span className="vt-hoofdkaart-titel"><img src={g.icon} alt="" />{g.naam}</span>
                         </button>)}
                     </div>
                     <div className={"vt-categorie-paneel vt-categorie-"+hoofdgroep}>
-                        <h2><span className="vt-panel-film-icon" aria-hidden="true">▦</span> {({films:'Films & Series',muziek:'Muziek',games:'Videogames',thema:'Thema'})[hoofdgroep]}</h2>
+                        <h2><img className="vt-panel-film-icon" src={"/category/icon-"+(hoofdgroep==="muziek"?"music":hoofdgroep==="games"?"game":hoofdgroep==="thema"?"theme":"film")+".svg"} alt="" /> {({films:'Films & Series',muziek:'Muziek',games:'Videogames',thema:'Thema'})[hoofdgroep]}</h2>
                         {hoofdgroep==='films'&&<div className="vt-subkeuzes">
                             <p>▱ &nbsp; Type</p>
                             <div className="vt-keuzerij">
@@ -566,9 +566,9 @@ export default function Setup() {
                             </label>}
                         </div>}
                         <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema"})[hoofdgroep]} · {hoofdgroep==="games"?"Games":filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
-                        <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}>▶ Start de quiz</button>
+                        <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}><span className="vt-play-text"><img src="/category/icon-play.svg" alt="" />Start de quiz</span></button>
                     </div>
-                    </div><aside className="vt-categorie-aside"><div className="vt-uiterlijk-paneel"><h3>Thema & uiterlijk</h3><p className="dim">Kies een thema dat bij jou past.</p><ThemaKiezer /></div><div className="vt-berg-paneel"><h3>Wat is Bergexpeditie?</h3><p>Een toekomstige spelvorm waarin jullie samen een berg beklimmen. Goed beantwoorde vragen brengen je steeds hoger.</p><span className="vt-berg-icon" aria-hidden="true">🏔️</span><small>Binnenkort</small></div></aside></div>
+                    </div><aside className="vt-categorie-aside"><div className="vt-uiterlijk-paneel"><h3>Thema & uiterlijk</h3><p className="dim">Kies een thema dat bij jou past.</p><ThemaKiezer /></div><div className="vt-berg-paneel"><h3>Wat is Bergexpeditie?</h3><p>Een spelmodus waarin jullie samen een berg beklimmen. Elk goed antwoord brengt je hoger. Ideaal voor langere quizsessies.</p><span className="vt-berg-icon" aria-hidden="true">🏔️</span></div></aside></div>
                     <UiterlijkOpties />
                 </section>
             )}
