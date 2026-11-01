@@ -25,6 +25,10 @@ const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body
 export default function AdminSwipe() {
     const [titelReview, setTitelReview] = useState(false);
     const [zonderMp3, setZonderMp3] = useState(false);
+    const [gameSwipe,setGameSwipe]=useState(false);
+    const [games,setGames]=useState([]);
+    const [gameAudio,setGameAudio]=useState('');
+    const [gameFout,setGameFout]=useState('');
     const [mp3Kaarten,setMp3Kaarten]=useState([]);
     const [mp3Totaal,setMp3Totaal]=useState(0);
     const [mp3Fout,setMp3Fout]=useState('');
@@ -86,6 +90,26 @@ export default function AdminSwipe() {
             await haal('/api/admin/swipe/zonder-mp3/'+t.id,{method:'POST',...jsonBody({actie})});
             await laadZonderMp3();
         } catch(err){setMp3Fout(err.message);}
+    }
+    async function laadGames() {
+        try {setGames(await haal('/api/admin/games/swipe'));setGameFout('');}
+        catch(err){setGameFout(err.message);}
+    }
+    useEffect(()=>{if(gameSwipe)laadGames();},[gameSwipe]);
+    useEffect(()=>{
+        if(!gameSwipe||!games.length){setGameAudio('');return;}
+        let actief=true;
+        setGameAudio('');
+        haal('/api/admin/games/'+games[0].id+'/audio').then(r=>{if(actief)setGameAudio(r.audioUrl||'');})
+          .catch(err=>{if(actief)setGameFout(err.message)});
+        return ()=>{actief=false;};
+    },[gameSwipe,games[0]?.id]);
+    async function beoordeelGame(status) {
+        if(!games[0])return;
+        try {
+            await haal('/api/admin/games/'+games[0].id,{method:'PATCH',...jsonBody({status})});
+            setGames(g=>g.slice(1));
+        }catch(err){setGameFout(err.message);}
     }
     const huidige = kaarten[index];
     const klaar = !laadt && !huidige;
@@ -151,11 +175,28 @@ export default function AdminSwipe() {
             </div>
 
             <div className="swipe-tabs">
-                <button className={'knop' + (!titelReview && !zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(false);}}>Muziek swipen</button>
-                <button className={'knop' + (zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(true);}}>Zonder MP3 · hele database</button>
-                <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => {setTitelReview(true);setZonderMp3(false);}}>Nieuwe titels beoordelen</button>
+                <button className={'knop' + (gameSwipe ? '' : ' knop-stil')} onClick={()=>{setGameSwipe(true);setTitelReview(false);setZonderMp3(false);}}>Videogames</button>
+                <button className={'knop' + (!titelReview && !zonderMp3 && !gameSwipe ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(false);setGameSwipe(false);}}>Muziek swipen</button>
+                <button className={'knop' + (zonderMp3 ? '' : ' knop-stil')} onClick={() => {setTitelReview(false);setZonderMp3(true);setGameSwipe(false);}}>Zonder MP3 · hele database</button>
+                <button className={'knop' + (titelReview ? '' : ' knop-stil')} onClick={() => {setTitelReview(true);setZonderMp3(false);setGameSwipe(false);}}>Nieuwe titels beoordelen</button>
             </div>
-            {zonderMp3 ? <section className="kaart vt-titel-review">
+            {gameSwipe ? <section className="kaart vt-titel-review">
+                <h2>Videogames · Muziek-Swipe</h2>
+                <p className="dim">Luister naar de originele gamemuziek. Keur alleen correcte muziek en herkenbare games goed.</p>
+                {gameFout && <p className="waarschuwing">{gameFout}</p>}
+                {games[0] ? <div className="vt-review-row">
+                    <div className="swipe-bek">🎮</div>
+                    <div><strong>{games[0].naam}</strong>
+                        <p className="dim">{games[0].jaar||'—'} · {(games[0].platformen||[]).join(', ')}</p>
+                        {gameAudio && <audio controls src={gameAudio} style={{width:'100%',maxWidth:340}} />}
+                        {!gameAudio && <p className="dim">Muziek zoeken…</p>}
+                        <div className="knoprij">
+                            <button className="knop" onClick={()=>beoordeelGame('goedgekeurd')}>Goedkeuren</button>
+                            <button className="knop knop-stil" onClick={()=>beoordeelGame('uitgesloten')}>Afwijzen</button>
+                        </div>
+                    </div>
+                </div> : <p>Geen videogames om te swipen.</p>}
+            </section> :             {zonderMp3 ? <section className="kaart vt-titel-review">
                 <h2>Films en series zonder MP3</h2>
                 <select className="invoer" value={categorie} onChange={e=>setCategorie(e.target.value)}>
                     <option value="film">Films</option><option value="serie">Series</option>
@@ -307,7 +348,7 @@ export default function AdminSwipe() {
                     </p>
                 </>
             )}
-            </>}
+            </>}}
         </main>
     );
 }
