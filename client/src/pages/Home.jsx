@@ -13,6 +13,7 @@ export default function Home() {
     const thema = useContext(ThemaContext);
     const [code, setCode] = useState('');
     const [vorigeSessie, setVorigeSessie] = useState(leesSessie);
+    const [opgeslagenSpellen, setOpgeslagenSpellen] = useState(leesOpgeslagenSpellen);
     const [fout, setFout] = useState('');
     const [ranking, setRanking] = useState({
         beste_gemiddeld: [],
@@ -64,9 +65,20 @@ export default function Home() {
                 </form>
                 <div className="vt-home-action vt-home-continue">
                     <div className="vt-home-action-heading"><span className="vt-option-art">↻</span><strong>Doorgaan vorig spel</strong>
-                        <small>{vorigeSessie?.code ? 'Lobby '+vorigeSessie.code : 'Geen onderbroken spel op dit apparaat'}</small></div>
-                    <button className="knop knop-stil" type="button" disabled={!vorigeSessie?.token} onClick={()=>navigate(vorigeSessie?.is_host?'/host':'/play')}>Doorgaan</button>
-                    {vorigeSessie?.code && <button type="button" className="terug als-link" onClick={()=>{wisSessie();setVorigeSessie(null)}}>Oude sessie wissen</button>}
+                        <small>{opgeslagenSpellen.length ? 'Kies een eerder spel op dit apparaat':'Geen onderbroken spel op dit apparaat'}</small></div>
+                    <div className="vt-saved-games">
+                        {opgeslagenSpellen.map(opgeslagen=><div key={opgeslagen.code} className="vt-saved-game">
+                            <button type="button" className="vt-saved-resume" onClick={()=>{
+                                bewaarSessie(opgeslagen);
+                                navigate(opgeslagen.is_host?'/host':'/play');
+                            }}><strong>Lobby {opgeslagen.code}</strong><small>{opgeslagen.is_host?'Host':'Speler'} · opnieuw verbinden</small></button>
+                            <button type="button" className="vt-saved-remove" aria-label={'Verwijder lobby '+opgeslagen.code} onClick={()=>{
+                                verwijderOpgeslagenSpel(opgeslagen.code);
+                                setOpgeslagenSpellen(leesOpgeslagenSpellen());
+                                if(vorigeSessie?.code===opgeslagen.code){wisSessie();setVorigeSessie(null)}
+                            }}>×</button>
+                        </div>)}
+                    </div>
                 </div>
             </div>
             {(ranking.beste_gemiddeld?.length > 0 || ranking.meeste_spellen?.length > 0 || ranking.punten_gemiddeld?.length > 0) && (
