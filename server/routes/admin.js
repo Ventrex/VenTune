@@ -2990,7 +2990,9 @@ function startAutomatischeMp3Aanvulling() {
     const eersteRun = setTimeout(voerUit, 30 * 60 * 1000);
     eersteRun.unref();
 }
-startAutomatischeMp3Aanvulling();
+// De centrale swipe_mp3_queue verwerkt nieuwe downloads; de oude
+// automatische aanvulling mag niet parallel YouTube overbelasten.
+if (process.env.VENTUNE_LEGACY_MP3_AUTOMATION === 'true') startAutomatischeMp3Aanvulling();
 
 // Het oude automatische systeem (dagelijkse keten database→YouTube→lokaal,
 // TMDB, bulk-downloads) staat standaard UIT. Het veroorzaakte duizenden
