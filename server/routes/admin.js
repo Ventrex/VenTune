@@ -636,6 +636,39 @@ router.post('/api/admin/track-review/automatisch', vereisAdmin, async (req,res) 
     } catch(err) { res.status(500).json({fout:err.message}); }
 });
 
+// Achtergrondcontrole: kwalificerende lokale tracks automatisch verwerken, zonder
+// handmatige review. Niet-kwalificerende tracks blijven zichtbaar als uitzondering.
+let autoReviewBezig = false;
+let autoReviewLaatste = null;
+async function voerAutoReviewUit() {
+    if (autoReviewBezig) return;
+    autoReviewBezig = true;
+    try {
+        const resultaat = await pool.query(
+            `UPDATE tracks SET review_status='goedgekeurd', review_handmatig=false,
+               review_laatste_op=now(),
+               review_reden='Automatische controle: bevestigde TMDB- en bronmatch'
+             WHERE id IN (
+               SELECT tr.id ${AUTO_REVIEW_FILTER}
+               ORDER BY tr.verificatie_score DESC,tr.id LIMIT 500
+             ) RETURNING id`, [.80]);
+        autoReviewLaatste = { tijd: new Date().toISOString(), goedgekeurd: resultaat.rowCount, fout: null };
+    } catch (err) {
+        autoReviewLaatste = { tijd: new Date().toISOString(), goedgekeurd: 0, fout: err.message };
+    } finally { autoReviewBezig = false; }
+}
+setTimeout(() => voerAutoReviewUit(), 30000).unref();
+setInterval(() => voerAutoReviewUit(), 30 * 60 * 1000).unref();
+router.get('/api/admin/track-review/auto-status', vereisAdmin, async (_req,res) => {
+    try {
+        const { rows } = await pool.query(`SELECT
+          COUNT(*) FILTER (WHERE COALESCE(tr.review_status,'open')='open')::int AS nog_open,
+          COUNT(*) FILTER (WHERE tr.review_status='goedgekeurd' AND tr.review_handmatig=false)::int AS automatisch_goedgekeurd
+          FROM tracks tr JOIN titels t ON t.id=tr.titel_id WHERE t.type::text IN ('film','serie')`);
+        res.json({ ...rows[0], bezig:autoReviewBezig, laatste:autoReviewLaatste });
+    } catch(err) { res.status(500).json({fout:err.message}); }
+});
+
 // ---- Trackcontrole ----
 router.get('/api/admin/track-review/volgende', vereisAdmin, async (req, res) => {
     try {
