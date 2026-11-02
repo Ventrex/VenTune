@@ -59,7 +59,13 @@ module.exports = function registreerCatalogusAudit(router, vereisAdmin, pool) {
         LEFT JOIN game_catalogus g ON r.type='game' AND g.id=r.id
         WHERE (t.id IS NOT NULL OR g.id IS NOT NULL)
         ORDER BY CASE r.niveau WHEN 'iconisch' THEN 1 WHEN 'zeer_bekend' THEN 2 WHEN 'bekend' THEN 3 WHEN 'redelijk_bekend' THEN 4 ELSE 5 END,r.type,naam`);
-      res.json({resultaten:rows,taak});
+      const {rows:totalen}=await pool.query(`SELECT
+        COUNT(*)::int AS onderzocht,
+        COUNT(*) FILTER (WHERE niveau='onbekend')::int AS onbekend,
+        COUNT(*) FILTER (WHERE niveau='redelijk_bekend' OR zekerheid='laag')::int AS twijfel,
+        COUNT(*) FILTER (WHERE beslissing='weg')::int AS weg
+        FROM catalogus_ai_review`);
+      res.json({resultaten:rows,taak,samenvatting:totalen[0]});
     }catch(e){res.status(500).json({fout:e.message});}
   });
   router.post('/api/admin/catalogus-ai/start',vereisAdmin,async(req,res)=>{
@@ -70,7 +76,10 @@ module.exports = function registreerCatalogusAudit(router, vereisAdmin, pool) {
       await initAI();
       const filmSeries=type==='game'?[]:(await pool.query(`SELECT id,naam,jaar,tmdb_id,type::text AS type FROM titels WHERE type::text IN ('film','serie') ORDER BY id`)).rows.filter(x=>type==='alle'||x.type===type);
       const games=type==='alle'||type==='game'?(await pool.query("SELECT id,naam,jaar,'game' AS type FROM game_catalogus ORDER BY id")).rows:[];
-      const items=[...filmSeries,...games];
+      // Hervat een bestaande controle zonder afgeronde beoordelingen te overschrijven.
+      const {rows:gedaan}=await pool.query("SELECT type,id FROM catalogus_ai_review WHERE onderzocht_op IS NOT NULL");
+      const alOnderzocht=new Set(gedaan.map(r=>r.type+':'+r.id));
+      const items=[...filmSeries,...games].filter(t=>!alOnderzocht.has(t.type+':'+t.id));
       taak={bezig:true,totaal:items.length,verwerkt:0,geslaagd:0,fouten:0,laatsteFout:null};
       res.json({gestart:true,totaal:items.length});
       setImmediate(async()=>{
