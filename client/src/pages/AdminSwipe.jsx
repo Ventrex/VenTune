@@ -24,6 +24,8 @@ const jsonBody = (o) => ({ headers: { 'Content-Type': 'application/json' }, body
 
 export default function AdminSwipe() {
     const [titelReview, setTitelReview] = useState(false);
+    const [correctieOpen,setCorrectieOpen]=useState(false);
+    const [eigenLink,setEigenLink]=useState('');
     const [zonderMp3, setZonderMp3] = useState(false);
     const [mp3Queue,setMp3Queue]=useState(null);
     const [mp3Kaarten,setMp3Kaarten]=useState([]);
@@ -160,6 +162,20 @@ export default function AdminSwipe() {
         }
     }
 
+    async function bewaarCorrectie(reden){
+      if(!huidige)return;
+      try {
+        await haal('/api/admin/aanbevelingen/'+huidige.id+'/correctie',{method:'POST',...jsonBody({reden})});
+        setCorrectieOpen(false); await laad();
+      } catch(e){setAudioFout(e.message);}
+    }
+    async function bewaarEigenLink(){
+      if(!huidige||!eigenLink.trim())return;
+      try{
+        await haal('/api/admin/aanbevelingen/'+huidige.id+'/eigen-link',{method:'POST',...jsonBody({url:eigenLink})});
+        setCorrectieOpen(false);setEigenLink('');await laad();
+      }catch(e){setAudioFout(e.message);}
+    }
     async function uitsluiten(){
         if(!huidige || !window.confirm('Dit nummer definitief afkeuren? Het komt niet meer terug in Swipe of in het spel.'))return;
         try{
@@ -355,6 +371,8 @@ export default function AdminSwipe() {
                             <button className="swipe-knop" style={{ background: "#e58a19", color: "#111" }} disabled={false} onClick={() => swipe('verkeerde_mp3')} aria-label="Verkeerde MP3" title="Verkeerde MP3">!</button>
                         </div>
                     )}
+                    <button className="knop knop-stil" type="button" onClick={()=>setCorrectieOpen(v=>!v)}>Wat is er mis? / eigen link</button>
+                    {correctieOpen && <div className="kaart stapel" style={{marginTop:12}}><strong>Fout aangeven</strong><div className="rij" style={{flexWrap:"wrap",gap:8}}>{[[ "verkeerd_deel","Deel 2 i.p.v. deel 1"],["verkeerde_titel","Verkeerde film/serie"],["geen_intro","Niet de intro/theme"],["onherkenbaar","Niet herkenbaar"],["verkeerde_mp3","Verkeerde MP3"],["geen_geluid","Geen geluid"],["anders","Anders"]].map(([k,v])=><button type="button" className="knop knop-stil" key={k} onClick={()=>bewaarCorrectie(k)}>{v}</button>)}</div><label>Eigen YouTube-link<input className="invoer" value={eigenLink} onChange={e=>setEigenLink(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." /></label><button type="button" className="knop" onClick={bewaarEigenLink} disabled={!eigenLink.trim()}>Link downloaden en opnieuw beoordelen</button><p className="dim">Nieuwe MP3 gaat eerst naar blind swipen en daarna naar de beoordeling met naam.</p></div>}
                     <button className="knop knop-stil" type="button" onClick={uitsluiten}>Definitief afkeuren · nooit meer tonen of downloaden</button>
                     <p className="dim swipe-uitleg">
                         {fase === 'blind'
