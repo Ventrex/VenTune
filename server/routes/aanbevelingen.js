@@ -855,6 +855,59 @@ router.post('/api/admin/aanbevelingen/:id/uitsluiten',vereisAdmin,async(req,res)
   res.json({ok:true,uitgesloten:true});
  }catch(e){res.status(500).json({fout:e.message});}
 });
+
+router.post('/api/admin/aanbevelingen/:id/correctie',vereisAdmin,async(req,res)=>{
+ try{
+ const id=Number(req.params.id),reden=String(req.body?.reden||'');
+ if(!Number.isSafeInteger(id)||id<1||!['verkeerd_deel','verkeerde_titel','geen_intro','onherkenbaar','verkeerde_mp3','geen_geluid','anders'].includes(reden))
+   return res.status(400).json({fout:'Ongeldig fouttype'});
+ const {rows}=await pool.query('SELECT id,voorbeeld_bron FROM aanbevelingen WHERE id=$1',[id]);
+ if(!rows.length)return res.status(404).json({fout:'Track niet gevonden'});
+ await pool.query(`UPDATE aanbevelingen SET fout_detail=$2, status='nieuw',beoordeeld_op=NULL, eigen_video_id=NULL,
+   afgekeurde_bronnen=CASE WHEN voorbeeld_bron IS NOT NULL AND NOT (voorbeeld_bron=ANY(afgekeurde_bronnen))
+    THEN array_append(afgekeurde_bronnen,voorbeeld_bron) ELSE afgekeurde_bronnen END,
+   voorbeeld_bron=NULL,youtube_video_titel=NULL,ai_muziek_gecontroleerd=false WHERE id=$1`,[id,reden]);
+ await media.verwijderSwipePreview(id);
+ await pool.query("UPDATE swipe_mp3_queue SET status='wachtend',prioriteit=100,volgende_poging=now() WHERE aanbeveling_id=$1",[id]);
+ res.json({ok:true});
+ }catch(e){res.status(500).json({fout:e.message});}
+});
+router.post('/api/admin/aanbevelingen/:id/eigen-link',vereisAdmin,async(req,res)=>{
+ try{
+ const id=Number(req.params.id);
+ if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({fout:'Ongeldig ID'});
+ let url;try{url=new URL(String(req.body?.url||''));}catch{return res.status(400).json({fout:'Ongeldige URL'});}
+ if(url.protocol!=='https:'||!['www.youtube.com','youtube.com','m.youtube.com','youtu.be'].includes(url.hostname))
+   return res.status(400).json({fout:'Gebruik een https YouTube-link'});
+ const videoId=url.hostname==='youtu.be'?url.pathname.slice(1):url.pathname==='/watch'?url.searchParams.get('v'):null;
+ if(!/^[A-Za-z0-9_-]{11}$/.test(videoId||''))return res.status(400).json({fout:'Ongeldig YouTube-video-ID'});
+ const result=await pool.query(`UPDATE aanbevelingen SET eigen_video_id=$2,voorbeeld_bron=NULL,
+   youtube_video_titel=NULL,status='nieuw',beoordeeld_op=NULL,fout_detail=NULL WHERE id=$1 RETURNING id`,[id,videoId]);
+ if(!result.rowCount)return res.status(404).json({fout:'Track niet gevonden'});
+ await media.verwijderSwipePreview(id);
+ await pool.query(`INSERT INTO swipe_mp3_queue(aanbeveling_id,prioriteit,status)
+ VALUES($1,200,'wachtend') ON CONFLICT(aanbeveling_id)
+ DO UPDATE SET status='wachtend',prioriteit=200,volgende_poging=now()`,[id]);
+ res.json({ok:true,videoId});
+ }catch(e){res.status(500).json({fout:e.message});}
+});
+router.get('/api/admin/database/dubbelen',vereisAdmin,async(_req,res)=>{
+ try{
+ const {rows}=await pool.query(`
+ SELECT a.id AS id_a,a.naam AS naam_a,a.jaar AS jaar_a,a.type::text AS type,
+ b.id AS id_b,b.naam AS naam_b,b.jaar AS jaar_b,
+ a.tmdb_id AS tmdb_a,b.tmdb_id AS tmdb_b,
+ CASE WHEN a.tmdb_id IS NOT NULL AND a.tmdb_id=b.tmdb_id THEN 'zelfde_tmdb'
+      WHEN lower(regexp_replace(a.naam,'[^[:alnum:]]','','g'))=lower(regexp_replace(b.naam,'[^[:alnum:]]','','g')) THEN 'gelijke_naam'
+      ELSE 'vergelijk' END AS reden
+ FROM titels a JOIN titels b ON a.id<b.id AND a.type=b.type AND
+ (a.tmdb_id IS NOT NULL AND a.tmdb_id=b.tmdb_id OR
+ lower(regexp_replace(a.naam,'[^[:alnum:]]','','g'))=lower(regexp_replace(b.naam,'[^[:alnum:]]','','g')))
+ ORDER BY reden,naam_a LIMIT 300`);
+ res.json(rows);
+ }catch(e){res.status(500).json({fout:e.message});}
+});
+
 // Download uitsluitend voor de geselecteerde categorie; maximaal 10 klaarstaande items.
 let actieveSwipe = null;
 async function vulSwipeBuffer(categorie,fase='blind'){
