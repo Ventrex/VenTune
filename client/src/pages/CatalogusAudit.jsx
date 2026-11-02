@@ -79,6 +79,7 @@ export default function CatalogusAudit(){
       {aiData.filter(t=>(aiType==='alle'||t.type===aiType)&&(aiNiveau==='alle'||t.niveau===aiNiveau)&&(aiBeslissing==='alle'||t.beslissing===aiBeslissing)).slice(0,toonAllesAI?200:30).map(t=><article key={t.type+'-'+t.id} className="kaart stapel" style={{padding:12}}>
         <strong>{t.naam} ({t.jaar||'?'}) · {t.type} · {({'iconisch':'Iconisch','zeer_bekend':'Zeer bekend','bekend':'Bekend','redelijk_bekend':'Redelijk bekend','onbekend':'Onbekend'})[t.niveau]}</strong>
         <p className="dim">Nederlandse relevantie: {t.nl_relevant?'aannemelijk':'niet bevestigd'} · Zekerheid: {t.zekerheid} · Jouw keuze: {t.beslissing}</p>
+        {t.type==='game'&&<p className="dim">Spel iconisch: {t.spel_iconisch===null?'onzeker':t.spel_iconisch?'ja':'nee'} · Originele muziek iconisch: {t.muziek_iconisch===null?'onzeker':t.muziek_iconisch?'ja':'nee'} · {t.zekerheid==='hoog'?'AI beoordeeld':'Handmatig alleen bij twijfel'}</p>}
         <p>{t.reden}</p>
         <div className="stapel">{(t.bronnen||[]).map((b,i)=><a key={i} href={b.url} target="_blank" rel="noopener noreferrer">{b.omschrijving||b.url}</a>)}</div>
         <div className="rij" style={{gap:8,flexWrap:'wrap'}}>{[['behouden','Behouden'],['twijfel','Twijfel'],['weg','Weg']].map(([k,v])=><button key={k} className={t.beslissing===k?'knop':'knop knop-stil'} onClick={()=>beslissingAI(t,k)}>{v}</button>)}</div>
