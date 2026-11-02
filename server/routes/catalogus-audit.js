@@ -1,5 +1,6 @@
 // Niet-destructieve controle van de bestaande Nederlandse catalogus.
 const ytzoek = require('../lib/ytzoek');
+const codex = require('../lib/codex');
 const { pastBijTitel } = require('../lib/trackcheck');
 
 function rangschik(t) {
@@ -17,6 +18,82 @@ function rangschik(t) {
 }
 const geldigId = value => /^\d+$/.test(String(value)) && Number(value) > 0;
 module.exports = function registreerCatalogusAudit(router, vereisAdmin, pool) {
+  const niveaus=['iconisch','zeer_bekend','bekend','redelijk_bekend','onbekend'];
+  const types=['film','serie','game'];
+  let taak={bezig:false,totaal:0,verwerkt:0,geslaagd:0,fouten:0,laatsteFout:null};
+  const schema={type:'object',additionalProperties:false,required:['niveau','nl_relevant','reden','bronnen','zekerheid'],properties:{
+    niveau:{type:'string',enum:niveaus},nl_relevant:{type:'boolean'},
+    reden:{type:'string'},zekerheid:{type:'string',enum:['hoog','middel','laag']},
+    bronnen:{type:'array',items:{type:'object',additionalProperties:false,required:['url','omschrijving'],properties:{url:{type:'string'},omschrijving:{type:'string'}}}}
+  }};
+  async function initAI(){
+    await pool.query(`CREATE TABLE IF NOT EXISTS catalogus_ai_review (
+       type TEXT NOT NULL,id BIGINT NOT NULL,niveau TEXT, nl_relevant BOOLEAN,
+       reden TEXT, bronnen JSONB NOT NULL DEFAULT '[]',zekerheid TEXT,
+       beslissing TEXT NOT NULL DEFAULT 'open',onderzocht_op TIMESTAMPTZ,
+       PRIMARY KEY(type,id))`);
+  }
+  async function onderzoek(type,t){
+    const prompt=type==='game'
+      ? `Onderzoek via LIVE WEB SEARCH het videospel "${t.naam}" (${t.jaar||'jaar onbekend'}). Hoe iconisch is het SPEL OF de herkenbare ORIGINELE MUZIEK in Nederland? Eén van beide iconisch is voldoende. Geef een van vijf niveaus. Toon betrouwbare bron-URL's die je daadwerkelijk hebt gevonden. Geen bronnen of onvoldoende informatie: zekerheid laag, geen stellige beweringen. Geen gokwerk.`
+      : `Onderzoek via LIVE WEB SEARCH Nederlandse herkenbaarheid van ${type} "${t.naam}" (${t.jaar||'jaar onbekend'}), TMDB ${t.tmdb_id||'onbekend'}. ${type==='film'?'Zoek Nederlandse bioscooprelease, Nederlandse streamingdiensten (ook historisch), Nederlandse populariteit en culturele bekendheid.':'Zoek Nederlandse tv-uitzendingen, ook publieke en commerciële zenders, en Nederlandse streamingdiensten (ook historisch), en hoe bekend de serie was.'} Algemene internationale populariteit is GEEN bewijs van bekendheid in Nederland. Zoek onderbouwing, geef vijfdelig niveau iconisch/zeer_bekend/bekend/redelijk_bekend/onbekend. nl_relevant = of relevante Nederlandse verspreiding/bekendheid aannemelijk en onderbouwd is. Geen bewijs is NIET bewijs van afwezigheid. Geef exacte verifieerbare web-URL's. Onzekerheid expliciet. Geen verzinsels.`;
+    const resp=await codex.vraagJson({schema,prompt});
+    if(!resp.ok || !resp.data || !niveaus.includes(resp.data.niveau))throw Error(resp.error||'AI-analyse gaf geen geldig resultaat');
+    const d=resp.data;
+    const bronlijst=(d.bronnen||[]).filter(x=>{try{let u=new URL(x.url);return ['http:','https:'].includes(u.protocol);}catch{return false;}}).slice(0,8);
+    // Zonder citeerbare bronnen nooit hoog vertrouwen toekennen.
+    const zekerheid=bronlijst.length?d.zekerheid:'laag';
+    await pool.query(`INSERT INTO catalogus_ai_review(type,id,niveau,nl_relevant,reden,bronnen,zekerheid,onderzocht_op)
+      VALUES($1,$2,$3,$4,$5,$6,$7,now()) ON CONFLICT(type,id) DO UPDATE SET
+      niveau=EXCLUDED.niveau,nl_relevant=EXCLUDED.nl_relevant,reden=EXCLUDED.reden,
+      bronnen=EXCLUDED.bronnen,zekerheid=EXCLUDED.zekerheid,onderzocht_op=now()`,
+      [type,t.id,d.niveau,d.nl_relevant,String(d.reden).slice(0,1500),JSON.stringify(bronlijst),zekerheid]);
+  }
+  router.get('/api/admin/catalogus-ai',vereisAdmin,async(req,res)=>{
+    try{
+      await initAI();
+      const {rows}=await pool.query(`SELECT r.*,CASE WHEN r.type='game' THEN g.naam ELSE t.naam END AS naam,
+        CASE WHEN r.type='game' THEN g.jaar ELSE t.jaar END AS jaar
+        FROM catalogus_ai_review r
+        LEFT JOIN titels t ON r.type IN ('film','serie') AND t.id=r.id
+        LEFT JOIN game_catalogus g ON r.type='game' AND g.id=r.id
+        WHERE (t.id IS NOT NULL OR g.id IS NOT NULL)
+        ORDER BY CASE r.niveau WHEN 'iconisch' THEN 1 WHEN 'zeer_bekend' THEN 2 WHEN 'bekend' THEN 3 WHEN 'redelijk_bekend' THEN 4 ELSE 5 END,r.type,naam`);
+      res.json({resultaten:rows,taak});
+    }catch(e){res.status(500).json({fout:e.message});}
+  });
+  router.post('/api/admin/catalogus-ai/start',vereisAdmin,async(req,res)=>{
+    if(taak.bezig)return res.status(409).json({fout:'Er loopt al een AI-controle'});
+    const type=String(req.body?.type||'alle');
+    if(![...types,'alle'].includes(type))return res.status(400).json({fout:'Onbekend type'});
+    try{
+      await initAI();
+      const filmSeries=type==='game'?[]:(await pool.query(`SELECT id,naam,jaar,tmdb_id,type::text AS type FROM titels WHERE type::text IN ('film','serie') ORDER BY id`)).rows.filter(x=>type==='alle'||x.type===type);
+      const games=type==='alle'||type==='game'?(await pool.query("SELECT id,naam,jaar,'game' AS type FROM game_catalogus ORDER BY id")).rows:[];
+      const items=[...filmSeries,...games];
+      taak={bezig:true,totaal:items.length,verwerkt:0,geslaagd:0,fouten:0,laatsteFout:null};
+      res.json({gestart:true,totaal:items.length});
+      setImmediate(async()=>{
+        try{for(const t of items){
+          try{await onderzoek(t.type,t);taak.geslaagd++;}
+          catch(e){taak.fouten++;taak.laatsteFout=t.naam+': '+e.message;}
+          taak.verwerkt++;
+        }}finally{taak.bezig=false;}
+      });
+    }catch(e){res.status(500).json({fout:e.message});}
+  });
+  router.post('/api/admin/catalogus-ai/:type/:id/beslissing',vereisAdmin,async(req,res)=>{
+    const {type,id}=req.params, beslissing=String(req.body?.beslissing||'');
+    if(!types.includes(type)||!geldigId(id)||!['behouden','twijfel','weg'].includes(beslissing))return res.status(400).json({fout:'Ongeldige beoordeling'});
+    try{
+      await initAI();
+      const result=await pool.query('UPDATE catalogus_ai_review SET beslissing=$3 WHERE type=$1 AND id=$2 RETURNING id',[type,id,beslissing]);
+      if(!result.rowCount)return res.status(404).json({fout:'Eerst AI-onderzoek uitvoeren'});
+      // Weg is een handmatige markering, NIET definitief verwijderen.
+      res.json({ok:true,beslissing});
+    }catch(e){res.status(500).json({fout:e.message});}
+  });
+
   router.get('/api/admin/catalogus-audit', vereisAdmin, async (req, res) => {
     try {
       const { rows } = await pool.query(`
