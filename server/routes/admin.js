@@ -593,6 +593,49 @@ router.patch('/api/admin/tracks/:id', vereisAdmin, async (req, res) => {
     res.json(rows[0]);
 });
 
+// Conservatieve batchcontrole: 80% alleen bij onafhankelijke TMDB- en bronbevestiging.
+const AUTO_REVIEW_FILTER = `
+ FROM tracks tr JOIN titels t ON t.id=tr.titel_id
+ WHERE t.type::text IN ('film','serie')
+   AND tr.bron='lokaal' AND tr.download_status='available' AND tr.werkt=true
+   AND COALESCE(tr.review_status,'open')='open'
+   AND COALESCE(tr.review_fouten,0)=0
+   AND tr.verificatie_score >= $1
+   AND tr.gecontroleerd=true AND tr.bevestigd=true
+   AND t.tmdb_id IS NOT NULL AND t.curatie_status='goedgekeurd'
+   AND NULLIF(tr.preview_url,'') IS NOT NULL
+   AND COALESCE(tr.verificatie_reden,'') ILIKE '%TMDB%'
+   AND COALESCE(tr.review_reden,'') NOT ILIKE '%fout%'
+   AND COALESCE(tr.verificatie_reden,'') !~* '(afgekeurd|afgewezen|twijfel|mismatch)'
+   AND COALESCE(tr.tracknaam,'') !~* '(live|cover|karaoke|reaction|remix|fan.made|slowed|sped.up)'
+   AND NOT EXISTS (SELECT 1 FROM tracks ander WHERE ander.titel_id=tr.titel_id
+       AND ander.id<>tr.id AND ander.review_status='goedgekeurd')
+`;
+router.get('/api/admin/track-review/automatisch', vereisAdmin, async (req,res) => {
+    try {
+        const grens = req.query.grens === '80' ? .80 : .95;
+        const { rows } = await pool.query(
+            'SELECT tr.id, t.naam AS titel, tr.tracknaam, tr.verificatie_score' +
+            AUTO_REVIEW_FILTER + ' ORDER BY tr.verificatie_score DESC,tr.id LIMIT 500',
+            [grens]);
+        res.json({ grens, aantal:rows.length, voorbeelden:rows.slice(0,12),
+            toelichting:'Alleen reeds gecontroleerde, bevestigde, lokaal beschikbare tracks met een TMDB-koppeling. Dit is geen garantie van correcte inhoud.' });
+    } catch(err) { res.status(500).json({fout:err.message}); }
+});
+router.post('/api/admin/track-review/automatisch', vereisAdmin, async (req,res) => {
+    const grens = req.body?.grens === 80 ? .80 : .95;
+    try {
+        const result = await pool.query(
+            `UPDATE tracks SET review_status='goedgekeurd',review_handmatig=false,
+                review_laatste_op=now(),review_reden='Automatisch na aanvullende TMDB-, bron- en kwaliteitscontroles'
+              WHERE id IN (SELECT tr.id ${AUTO_REVIEW_FILTER}
+                  ORDER BY tr.verificatie_score DESC,tr.id LIMIT 500)
+              RETURNING id`,
+            [grens]);
+        res.json({goedgekeurd:result.rowCount,grens});
+    } catch(err) { res.status(500).json({fout:err.message}); }
+});
+
 // ---- Trackcontrole ----
 router.get('/api/admin/track-review/volgende', vereisAdmin, async (req, res) => {
     try {
