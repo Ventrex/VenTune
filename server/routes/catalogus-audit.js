@@ -56,6 +56,16 @@ module.exports = function registreerCatalogusAudit(router, vereisAdmin, pool) {
       bronnen=EXCLUDED.bronnen,zekerheid=EXCLUDED.zekerheid,onderzocht_op=now(),
       spel_iconisch=EXCLUDED.spel_iconisch,muziek_iconisch=EXCLUDED.muziek_iconisch`,
       [type,t.id,d.niveau,d.nl_relevant,String(d.reden).slice(0,1500),JSON.stringify(bronlijst),zekerheid,spelIconisch,muziekIconisch]);
+    if (gameBetrouwbaar) {
+      // Vul uitsluitend lege game-oordelen in; menselijke beslissingen hebben voorrang.
+      await pool.query('ALTER TABLE game_catalogus ADD COLUMN IF NOT EXISTS game_iconisch BOOLEAN');
+      await pool.query('ALTER TABLE game_catalogus ADD COLUMN IF NOT EXISTS muziek_iconisch BOOLEAN');
+      await pool.query(`UPDATE game_catalogus SET
+        game_iconisch=COALESCE(game_iconisch,$2),
+        muziek_iconisch=COALESCE(muziek_iconisch,$3)
+        WHERE id=$1`,[t.id,spelIconisch,muziekIconisch]);
+    }
+
   }
   router.get('/api/admin/catalogus-ai',vereisAdmin,async(req,res)=>{
     try{
