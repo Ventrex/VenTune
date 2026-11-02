@@ -456,6 +456,35 @@ function initGames(){
     )`);
     return gameReady;
 }
+
+// Videogamekwaliteit: iconische game óf iconische herkenningsmuziek.
+// Onzeker blijft te beoordelen; bestaande data wordt niet automatisch afgekeurd.
+router.get('/api/admin/games/kwaliteit',vereisAdmin,async(_req,res)=>{
+ try{
+  await initGames();
+  await pool.query('ALTER TABLE game_catalogus ADD COLUMN IF NOT EXISTS game_iconisch BOOLEAN');
+  await pool.query('ALTER TABLE game_catalogus ADD COLUMN IF NOT EXISTS muziek_iconisch BOOLEAN');
+  const {rows}=await pool.query(`SELECT id,naam,jaar,status,platformen,game_iconisch,muziek_iconisch,
+    CASE WHEN game_iconisch IS TRUE OR muziek_iconisch IS TRUE THEN 'voldoet'
+         WHEN game_iconisch IS FALSE AND muziek_iconisch IS FALSE THEN 'niet_iconisch'
+         ELSE 'controle_nodig' END AS kwaliteitsstatus
+    FROM game_catalogus ORDER BY CASE WHEN game_iconisch IS TRUE OR muziek_iconisch IS TRUE THEN 1 ELSE 0 END,naam LIMIT 1000`);
+  res.json(rows);
+ }catch(e){res.status(500).json({fout:e.message});}
+});
+router.patch('/api/admin/games/:id/iconisch',vereisAdmin,async(req,res)=>{
+ try{
+  await initGames();
+  await pool.query('ALTER TABLE game_catalogus ADD COLUMN IF NOT EXISTS game_iconisch BOOLEAN');
+  await pool.query('ALTER TABLE game_catalogus ADD COLUMN IF NOT EXISTS muziek_iconisch BOOLEAN');
+  const {game_iconisch,muziek_iconisch}=req.body||{};
+  if(![true,false,null].includes(game_iconisch)||![true,false,null].includes(muziek_iconisch))return res.status(400).json({fout:'Gebruik true, false of null'});
+  const {rows}=await pool.query('UPDATE game_catalogus SET game_iconisch=$2,muziek_iconisch=$3 WHERE id=$1 RETURNING *',[req.params.id,game_iconisch,muziek_iconisch]);
+  if(!rows.length)return res.status(404).json({fout:'Game niet gevonden'});
+  res.json(rows[0]);
+ }catch(e){res.status(500).json({fout:e.message});}
+});
+
 // Eigen gameswipe met audiovoorbeeld (tijdelijk previewbestand, geen vervuiling van films).
 router.get('/api/admin/games/swipe',vereisAdmin,async(_req,res)=>{
     try {
