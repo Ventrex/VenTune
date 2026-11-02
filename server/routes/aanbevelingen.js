@@ -1196,6 +1196,13 @@ router.post('/api/admin/aanbevelingen/:id/swipe', vereisAdmin, async (req, res) 
         if (fase === 'blind') {
             // herkend → goed + download; niet → door naar ronde 2 (met naam).
             if (keuze === 'herkend') {
+                // Een zelf aangeleverde video moet altijd beide reviewrondes doorlopen.
+                const eigen = await pool.query('SELECT eigen_video_id FROM aanbevelingen WHERE id=$1',[id]);
+                if (eigen.rows[0]?.eigen_video_id) {
+                    const r = await pool.query("UPDATE aanbevelingen SET status='blind_nee', beoordeeld_op=now() WHERE id=$1 AND status='nieuw' RETURNING id",[id]);
+                    if (!r.rowCount) return res.status(404).json({fout:'Niet gevonden of al beoordeeld.'});
+                    return res.json({ok:true,status:'blind_nee',review:'naam'});
+                }
                 const { rows } = await pool.query(
                     `UPDATE aanbevelingen SET status = 'goed', beoordeeld_op = now()
                      WHERE id = $1 AND status = 'nieuw' RETURNING id`, [id]);
