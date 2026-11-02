@@ -1023,3 +1023,9 @@ CREATE TABLE IF NOT EXISTS aanbeveling_stemmen (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS aanbeveling_stemmen_uniek
     ON aanbeveling_stemmen (aanbeveling_id, stemmer);
+
+-- Nederlandse bioscoop-/tv-verificatie en herkomst van YouTube-tracktitel.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_verificatie TEXT NOT NULL DEFAULT 'onbevestigd';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_bewijs TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_gecontroleerd_op TIMESTAMPTZ;
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_titel TEXT;
