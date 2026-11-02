@@ -24,6 +24,7 @@ module.exports = function registreerCatalogusAudit(router, vereisAdmin, pool) {
   const schema={type:'object',additionalProperties:false,required:['niveau','nl_relevant','reden','bronnen','zekerheid'],properties:{
     niveau:{type:'string',enum:niveaus},nl_relevant:{type:'boolean'},
     reden:{type:'string'},zekerheid:{type:'string',enum:['hoog','middel','laag']},
+    spel_iconisch:{type:['boolean','null']}, muziek_iconisch:{type:['boolean','null']},
     bronnen:{type:'array',items:{type:'object',additionalProperties:false,required:['url','omschrijving'],properties:{url:{type:'string'},omschrijving:{type:'string'}}}}
   }};
   async function initAI(){
@@ -31,7 +32,10 @@ module.exports = function registreerCatalogusAudit(router, vereisAdmin, pool) {
        type TEXT NOT NULL,id BIGINT NOT NULL,niveau TEXT, nl_relevant BOOLEAN,
        reden TEXT, bronnen JSONB NOT NULL DEFAULT '[]',zekerheid TEXT,
        beslissing TEXT NOT NULL DEFAULT 'open',onderzocht_op TIMESTAMPTZ,
+       spel_iconisch BOOLEAN,muziek_iconisch BOOLEAN,
        PRIMARY KEY(type,id))`);
+    await pool.query('ALTER TABLE catalogus_ai_review ADD COLUMN IF NOT EXISTS spel_iconisch BOOLEAN');
+    await pool.query('ALTER TABLE catalogus_ai_review ADD COLUMN IF NOT EXISTS muziek_iconisch BOOLEAN');
   }
   async function onderzoek(type,t){
     const prompt=type==='game'
@@ -43,11 +47,15 @@ module.exports = function registreerCatalogusAudit(router, vereisAdmin, pool) {
     const bronlijst=(d.bronnen||[]).filter(x=>{try{let u=new URL(x.url);return ['http:','https:'].includes(u.protocol);}catch{return false;}}).slice(0,8);
     // Zonder citeerbare bronnen nooit hoog vertrouwen toekennen.
     const zekerheid=bronlijst.length?d.zekerheid:'laag';
-    await pool.query(`INSERT INTO catalogus_ai_review(type,id,niveau,nl_relevant,reden,bronnen,zekerheid,onderzocht_op)
-      VALUES($1,$2,$3,$4,$5,$6,$7,now()) ON CONFLICT(type,id) DO UPDATE SET
+    const gameBetrouwbaar = type==='game' && zekerheid==='hoog' && bronlijst.length>=2;
+    const spelIconisch = gameBetrouwbaar && typeof d.spel_iconisch==='boolean' ? d.spel_iconisch : null;
+    const muziekIconisch = gameBetrouwbaar && typeof d.muziek_iconisch==='boolean' ? d.muziek_iconisch : null;
+    await pool.query(`INSERT INTO catalogus_ai_review(type,id,niveau,nl_relevant,reden,bronnen,zekerheid,onderzocht_op,spel_iconisch,muziek_iconisch)
+      VALUES($1,$2,$3,$4,$5,$6,$7,now(),$8,$9) ON CONFLICT(type,id) DO UPDATE SET
       niveau=EXCLUDED.niveau,nl_relevant=EXCLUDED.nl_relevant,reden=EXCLUDED.reden,
-      bronnen=EXCLUDED.bronnen,zekerheid=EXCLUDED.zekerheid,onderzocht_op=now()`,
-      [type,t.id,d.niveau,d.nl_relevant,String(d.reden).slice(0,1500),JSON.stringify(bronlijst),zekerheid]);
+      bronnen=EXCLUDED.bronnen,zekerheid=EXCLUDED.zekerheid,onderzocht_op=now(),
+      spel_iconisch=EXCLUDED.spel_iconisch,muziek_iconisch=EXCLUDED.muziek_iconisch`,
+      [type,t.id,d.niveau,d.nl_relevant,String(d.reden).slice(0,1500),JSON.stringify(bronlijst),zekerheid,spelIconisch,muziekIconisch]);
   }
   router.get('/api/admin/catalogus-ai',vereisAdmin,async(req,res)=>{
     try{
