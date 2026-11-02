@@ -1,3 +1,4 @@
+import CatalogusAudit from './CatalogusAudit.jsx';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
@@ -29,6 +30,7 @@ const SUBTABS = {
         ['meldingen', 'Meldingen'],
         ['review', 'Trackcontrole'],
         ['controle', 'Controle'],
+        ['catalogus-audit', 'Collectie opschonen'],
     ],
     ai: [['ai-generator', 'AI · Muziek & wachtrij'], ['vragen', 'Vragen controleren']],
     systeem: [
@@ -682,6 +684,7 @@ function Beheer({ onUit }) {
             )}
 
             {tab === 'review' && <TrackReview />}
+            {tab === 'catalogus-audit' && <CatalogusAudit />}
 
             {tab === 'controle' && (
                 <Kwaliteitsdashboard
