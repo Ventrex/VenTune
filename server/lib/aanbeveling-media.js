@@ -70,6 +70,7 @@ function gelijktOpTitel(video, a){
        && /theme|opening|intro|title|song|soundtrack|score|music|tune|ost/i.test(video.titel);
 }
 async function zoekVoorbeeld(aanbeveling) {
+    if (aanbeveling.eigen_video_id) return {videoId:aanbeveling.eigen_video_id,titel:'Eigen YouTube-link',duurSeconden:0};
     const a=await bepaalHerkenningsmuziek(aanbeveling);
     const titel=String(a.titel||'').trim(),track=String(a.tracknaam||'').trim();
     const isSerie=a.type==='serie'||a.categorie==='serie';
@@ -94,6 +95,11 @@ async function zoekVoorbeeld(aanbeveling) {
 // Download alleen bij het opvragen van een luistervoorbeeld. Hergebruik het
 // bestand bij opnieuw openen; zo hoeft de browser geen YouTube-iframe te laden.
 const previewDownloads = new Map();
+async function verwijderSwipePreview(id) {
+ const f=path.join(MEDIA_DIR,'previews',`aanbeveling-${Number(id)}.mp3`);
+ await fs.rm(f,{force:true}); await fs.rm(f+'.volledig',{force:true});
+}
+
 let audioInfrastructuurFout = null;
 let audioInfrastructuurTot = 0;
 function infrastructuurStoring() { return Date.now() < audioInfrastructuurTot ? audioInfrastructuurFout : null; }
@@ -393,4 +399,4 @@ async function herstelGoedgekeurdeAudio({ voortgang } = {}) {
     return resultaat;
 }
 
-module.exports = { zoekVoorbeeld, lokaalVoorbeeld, keurMp3Af, verwerkGoed, herstelGoedgekeurdeAudio, rateLimitTot: () => audioInfrastructuurTot > Date.now() ? audioInfrastructuurTot : 0 };
+module.exports = { verwijderSwipePreview, zoekVoorbeeld, lokaalVoorbeeld, keurMp3Af, verwerkGoed, herstelGoedgekeurdeAudio, rateLimitTot: () => audioInfrastructuurTot > Date.now() ? audioInfrastructuurTot : 0 };
