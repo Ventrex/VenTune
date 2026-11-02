@@ -1420,6 +1420,29 @@ function MediaOpschonen({ collecties, onPreview, onOpschonen, onVerwijder }) {
 
 function TrackReview() {
     const [data, setData] = useState(null);
+    const [autoGrens,setAutoGrens]=useState(95);
+    const [autoPreview,setAutoPreview]=useState(null);
+    const [autoBezig,setAutoBezig]=useState(false);
+    async function bekijkAutomatisch() {
+        setAutoBezig(true);
+        try {
+            const r=await fetch('/api/admin/track-review/automatisch?grens='+autoGrens,{credentials:'include'});
+            const d=await r.json();if(!r.ok)throw Error(d.fout||'Controle mislukt');
+            setAutoPreview(d);
+        }catch(e){setFout(e.message);}finally{setAutoBezig(false);}
+    }
+    async function keurAutomatischGoed() {
+        if(!autoPreview?.aantal || autoBezig) return;
+        if(!window.confirm(autoPreview.aantal+' zorgvuldig gefilterde tracks automatisch goedkeuren? Dit is niet hetzelfde als handmatige luistercontrole.'))return;
+        setAutoBezig(true);
+        try {
+            const r=await fetch('/api/admin/track-review/automatisch',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({grens:autoGrens})});
+            const d=await r.json();if(!r.ok)throw Error(d.fout||'Automatische controle mislukt');
+            setMelding(d.goedgekeurd+' tracks automatisch goedgekeurd.');
+            setAutoPreview(null);await laad();
+        }catch(e){setFout(e.message);}finally{setAutoBezig(false);}
+    }
+
     const [bezig, setBezig] = useState(false);
     const [melding, setMelding] = useState('');
     const [fout, setFout] = useState('');
@@ -1461,6 +1484,24 @@ function TrackReview() {
     return (
         <section className="admin-panel" style={{ marginTop: '1rem' }}>
             <div className="kaart">
+                <div className="vt-auto-review" style={{padding:'12px',border:'1px solid #754b9c',borderRadius:14,marginBottom:14,background:'#211334'}}>
+                    <strong>Automatisch betrouwbare tracks goedkeuren</strong>
+                    <p className="dim">Alleen lokale, bevestigde tracks met TMDB-verificatie en zonder eerdere afkeuring. Overige tracks blijven voor handmatige controle.</p>
+                    <div className="knoprij" style={{alignItems:'center',flexWrap:'wrap'}}>
+                        <label>Minimale zekerheid <select className="invoer" value={autoGrens} onChange={e=>{setAutoGrens(Number(e.target.value));setAutoPreview(null);}}>
+                            <option value={95}>95% — extra voorzichtig</option>
+                            <option value={80}>80% — met aanvullende controles</option>
+                        </select></label>
+                        <button className="knop knop-stil" disabled={autoBezig} onClick={bekijkAutomatisch}>Bekijk geschikte tracks</button>
+                    </div>
+                    {autoPreview && <div style={{marginTop:10}}>
+                        <p><strong>{autoPreview.aantal}</strong> tracks komen in aanmerking (maximaal 500 per keer).</p>
+                        {autoPreview.voorbeelden?.length>0 && <details><summary>Voorbeelden bekijken</summary>
+                            <ul>{autoPreview.voorbeelden.map(t=><li key={t.id}>{t.titel} — {t.tracknaam} ({Math.round(t.verificatie_score*100)}%)</li>)}</ul>
+                        </details>}
+                        <button className="knop" disabled={autoBezig||!autoPreview.aantal} onClick={keurAutomatischGoed}>Deze tracks automatisch goedkeuren</button>
+                    </div>}
+                </div>
                 <p className="kaart-label">Trackcontrole · Films & Series</p>
                 <p className="dim">Luister lokaal. Begin bij de betrouwbaarste automatische koppelingen; binnen dezelfde zekerheid staat de volgorde willekeurig.</p>
                 {fout && <p className="waarschuwing">{fout}</p>}
