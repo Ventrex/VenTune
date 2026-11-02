@@ -62,6 +62,14 @@ function gelijktOpTitel(video, a){
     const naam=norm(a.titel), naamVideo=norm(video.titel);
     if(!naam || !naamVideo)return false;
     // Geen generieke zoekresultaten accepteren waar de titel niet in staat.
+    // Een vervolgfilm mag niet als hoofdthema van deel 1 worden geselecteerd.
+    // Bij een expliciet vervolgnummer in de videotitel nooit automatisch koppelen
+    // aan een basistitel zonder dat nummer. Een eigen link blijft handmatig reviewbaar.
+    const deelNummer = naamVideo.match(/\\b(?:part|deel|vol|volume|episode|film)\\s*([2-9])\\b/) ||
+        naamVideo.match(/\\b([2-9])\\s*[:\\-]\\s*(?:opening|main|theme|soundtrack|music)/);
+    const isVervolg = /\\b(?:part|deel|vol|volume|episode|film)\\s*[2-9]\\b/.test(naam) ||
+        /\\b[2-9]\\b/.test(naam);
+    if (deelNummer && !isVervolg) return false;
     const exact=naamVideo.includes(naam);
     const matchTrack=a.tracknaam && a.tracknaam.trim().length>=5 && naamVideo.includes(norm(a.tracknaam))
        && /theme|opening|intro|ost|soundtrack|main title|score/i.test(video.titel);
