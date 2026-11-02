@@ -602,9 +602,9 @@ const AUTO_REVIEW_FILTER = `
    AND COALESCE(tr.review_fouten,0)=0
    AND tr.verificatie_score >= $1
    AND tr.gecontroleerd=true AND tr.bevestigd=true
-   AND t.tmdb_id IS NOT NULL AND t.curatie_status='goedgekeurd'
+   AND t.curatie_status <> 'uitgesloten'
    AND NULLIF(tr.preview_url,'') IS NOT NULL
-   AND COALESCE(tr.verificatie_reden,'') ILIKE '%TMDB%'
+   AND NULLIF(tr.verificatie_reden,'') IS NOT NULL
    AND COALESCE(tr.review_reden,'') NOT ILIKE '%fout%'
    AND COALESCE(tr.verificatie_reden,'') !~* '(afgekeurd|afgewezen|twijfel|mismatch)'
    AND COALESCE(tr.tracknaam,'') !~* '(live|cover|karaoke|reaction|remix|fan.made|slowed|sped.up)'
@@ -669,6 +669,26 @@ router.get('/api/admin/track-review/auto-status', vereisAdmin, async (_req,res) 
     } catch(err) { res.status(500).json({fout:err.message}); }
 });
 
+// Alleen onzekerheden tonen: niet alle open tracks als verplichte luisterlijst.
+router.get('/api/admin/track-review/uitzonderingen', vereisAdmin, async (_req,res) => {
+    try {
+        const {rows}=await pool.query(`
+          SELECT tr.id,tr.titel_id,tr.tracknaam,tr.artiest,tr.preview_url,
+            tr.verificatie_score,tr.verificatie_reden,tr.review_fouten,
+            t.naam AS titel_naam,t.type AS titel_type,t.jaar AS titel_jaar
+          FROM tracks tr JOIN titels t ON t.id=tr.titel_id
+          WHERE t.type::text IN ('film','serie')
+            AND tr.bron='lokaal' AND tr.werkt=true AND tr.download_status='available'
+            AND COALESCE(tr.review_status,'open') IN ('open','handmatig')
+            AND (tr.review_status='handmatig' OR COALESCE(tr.verificatie_score,0)<0.80
+              OR tr.gecontroleerd IS DISTINCT FROM true OR tr.bevestigd IS DISTINCT FROM true
+              OR COALESCE(tr.review_fouten,0)>0
+              OR COALESCE(tr.tracknaam,'') ~* '(live|cover|karaoke|reaction|remix|fan.made|slowed|sped.up)'
+              OR COALESCE(tr.verificatie_reden,'') ~* '(afgekeurd|afgewezen|twijfel|mismatch)')
+          ORDER BY tr.verificatie_score ASC NULLS FIRST,tr.id LIMIT 200`);
+        res.json({resultaten:rows});
+    } catch(err) {res.status(500).json({fout:err.message});}
+});
 // ---- Trackcontrole ----
 router.get('/api/admin/track-review/volgende', vereisAdmin, async (req, res) => {
     try {
