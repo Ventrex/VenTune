@@ -536,36 +536,60 @@ export function GamesCatalogus() {
     </section>;
 }
 
-function HandmatigToevoegen() {
+export function HandmatigToevoegen() {
     const [titel, setTitel] = useState('');
     const [type, setType] = useState('film');
-    const [jaar, setJaar] = useState('');
+    const [resultaten, setResultaten] = useState([]);
+    const [gekozen, setGekozen] = useState(null);
     const [melding, setMelding] = useState('');
     const [bezig, setBezig] = useState(false);
-    async function opslaan(e) {
+
+    async function zoeken(e) {
         e.preventDefault();
+        setBezig(true); setMelding(''); setGekozen(null); setResultaten([]);
+        try {
+            const r = await haal('/api/admin/tmdb/zoeken?q=' + encodeURIComponent(titel.trim()) + '&type=' + type);
+            setResultaten(r.resultaten || []);
+            if (!r.resultaten?.length) setMelding('Geen TMDB-resultaten. Controleer de naam of wissel tussen film en serie.');
+        } catch (err) { setMelding(err.message); }
+        finally { setBezig(false); }
+    }
+    async function opslaan() {
+        if (!gekozen) return;
         setBezig(true); setMelding('');
         try {
             const r = await haal('/api/admin/aanbevelingen/handmatig', {
-                method: 'POST', ...jsonBody({ titel, type, jaar: jaar || null }),
+                method: 'POST', ...jsonBody({
+                    titel: gekozen.naam, type, jaar: gekozen.jaar, tmdb_id: gekozen.tmdb_id,
+                }),
             });
-            setMelding(r.toelichting);
-            setTitel(''); setJaar('');
+            setMelding(r.toelichting || 'Toegevoegd.');
+            setGekozen(null); setResultaten([]); setTitel('');
         } catch (err) { setMelding(err.message); }
         finally { setBezig(false); }
     }
     return <section className="kaart ai-kaart" style={{ marginTop: '1rem' }}>
-        <p className="kaart-label">Zelf een film of serie toevoegen</p>
-        <p className="dim">Controleert dubbelen en zet de titel klaar om een correcte intro of soundtrack te zoeken.</p>
-        <form className="stapel" onSubmit={opslaan}>
-            <input className="invoer" value={titel} onChange={e => setTitel(e.target.value)} placeholder="Film of serienaam" required maxLength={160} />
-            <select className="invoer" value={type} onChange={e => setType(e.target.value)}>
-                <option value="film">Film</option><option value="serie">Serie</option>
-            </select>
-            <input className="invoer" inputMode="numeric" type="number" min="1900" max="2100" value={jaar} onChange={e => setJaar(e.target.value)} placeholder="Jaartal (optioneel)" />
-            <button className="knop" disabled={bezig}>Toevoegen aan muziekwachtrij</button>
+        <h3>Films & Series · zoeken via TMDB</h3>
+        <p className="dim">Zoek een film of serie, controleer het jaartal en de poster, en kies de juiste TMDB-titel. Pas daarna wordt deze bovenaan de muziekwachtrij gezet. Geen automatische goedkeuring.</p>
+        <form className="stapel" onSubmit={zoeken}>
+            <div className="knoprij">
+                <label><input type="radio" checked={type==='film'} onChange={()=>{setType('film');setGekozen(null);setResultaten([])}}/> Film</label>
+                <label><input type="radio" checked={type==='serie'} onChange={()=>{setType('serie');setGekozen(null);setResultaten([])}}/> Serie</label>
+            </div>
+            <input className="invoer" value={titel} onChange={e=>{setTitel(e.target.value);setGekozen(null)}} placeholder="Zoek film of serie (bijv. The Office)" minLength={2} required maxLength={120}/>
+            <button className="knop" type="submit" disabled={bezig || titel.trim().length<2}>Zoeken in TMDB</button>
         </form>
-        {melding && <p className="feedback neutraal">{melding}</p>}
+        {resultaten.length > 0 && <div className="vt-tmdb-results" style={{display:'grid',gap:8,marginTop:12}}>
+            {resultaten.map(item => <button type="button" key={item.tmdb_id}
+                onClick={()=>setGekozen(item)}
+                style={{display:'flex',gap:12,alignItems:'center',textAlign:'left',padding:9,borderRadius:12,color:'white',background:gekozen?.tmdb_id===item.tmdb_id?'#9c166f':'#1c1232',border:'1px solid #a958c0'}}>
+                {item.poster ? <img src={item.poster} alt="" style={{width:49,height:72,objectFit:'cover',borderRadius:6}}/>:<span style={{width:49}}>Geen poster</span>}
+                <span><strong>{item.naam}</strong> ({item.jaar || 'jaar onbekend'})<small style={{display:'block',opacity:.75}}>{item.originele_naam!==item.naam?item.originele_naam:''} · TMDB #{item.tmdb_id}</small></span>
+            </button>)}
+        </div>}
+        {gekozen && <button type="button" className="knop" style={{marginTop:12,width:'100%'}} disabled={bezig}
+            onClick={opslaan}>Voeg {gekozen.naam} ({gekozen.jaar || '—'}) toe aan de wachtrij</button>}
+        {melding && <p role="status" className="feedback neutraal">{melding}</p>}
     </section>;
 }
 
