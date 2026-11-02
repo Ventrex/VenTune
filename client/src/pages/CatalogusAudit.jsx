@@ -14,9 +14,11 @@ export default function CatalogusAudit(){
   const [data,setData]=useState([]);
   const [aiData,setAiData]=useState([]);
   const [aiTaak,setAiTaak]=useState(null);
+  const [aiSamenvatting,setAiSamenvatting]=useState(null);
+  const [toonAllesAI,setToonAllesAI]=useState(false);
   const [aiType,setAiType]=useState('alle');
-  const [aiNiveau,setAiNiveau]=useState('alle');
-  const [aiBeslissing,setAiBeslissing]=useState('alle');
+  const [aiNiveau,setAiNiveau]=useState('onbekend');
+  const [aiBeslissing,setAiBeslissing]=useState('open');
   const [dubbelen,setDubbelen]=useState([]);
   const [games,setGames]=useState([]);
   const [toonGames,setToonGames]=useState(false);
@@ -33,7 +35,7 @@ export default function CatalogusAudit(){
   const [gevonden,setGevonden]=useState({});
   const [bron,setBron]=useState({});
   const laad=async()=>{setLoading(true);try{setData(await verzoek('/api/admin/catalogus-audit'));setError('');}catch(e){setError(e.message);}finally{setLoading(false);}};
-  const laadAI=async()=>{try{const d=await verzoek('/api/admin/catalogus-ai');setAiData(d.resultaten||[]);setAiTaak(d.taak);}catch(e){setError(e.message);}};
+  const laadAI=async()=>{try{const d=await verzoek('/api/admin/catalogus-ai');setAiData(d.resultaten||[]);setAiTaak(d.taak);setAiSamenvatting(d.samenvatting||null);}catch(e){setError(e.message);}};
   useEffect(()=>{laad();laadAI();},[]);
   useEffect(()=>{if(!aiTaak?.bezig)return;const id=setInterval(laadAI,5000);return()=>clearInterval(id);},[aiTaak?.bezig]);
   const startAI=async()=>{try{await post('/api/admin/catalogus-ai/start',{type:aiType});await laadAI();}catch(e){setError(e.message);}};
@@ -57,18 +59,24 @@ export default function CatalogusAudit(){
     <h2>Collectiecontrole · Nederlandse bekendheid</h2>
     <div className="kaart stapel">
       <h3>AI-onderzoek · Nederlandse bekendheid en iconische games</h3>
-      <p className="dim">Laat AI per titel live op het web zoeken naar Nederlandse bioscoopvertoningen, tv-uitzendingen, Nederlandse streamingdiensten en iconische videogames of muziek. De gevonden bronnen en onzekerheden blijven zichtbaar. Weg is alleen een markering; er worden geen titels of MP3's automatisch verwijderd.</p>
+      <p className="dim">AI beoordeelt de catalogus zelfstandig. Je hoeft niet duizenden titels één voor één na te lopen. Start of hervat het onderzoek; bestaande resultaten worden overgeslagen. Bekijk daarna alleen Onbekend en Twijfel. Ontbrekend bewijs betekent niet automatisch dat een titel onbekend is. Er worden geen titels of MP3's automatisch verwijderd.</p>
       <div className="rij" style={{gap:8,flexWrap:'wrap'}}>
         <select className="invoer" value={aiType} onChange={e=>setAiType(e.target.value)}><option value="alle">Alle films, series en games</option><option value="film">Films</option><option value="serie">Series</option><option value="game">Videogames</option></select>
-        <button className="knop" disabled={aiTaak?.bezig} onClick={startAI}>{aiTaak?.bezig?'AI onderzoekt…':'Start AI-onderzoek'}</button>
+        <button className="knop" disabled={aiTaak?.bezig} onClick={startAI}>{aiTaak?.bezig?'AI onderzoekt…':'Start / hervat AI-onderzoek'}</button>
         <button className="knop knop-stil" onClick={laadAI}>Resultaten vernieuwen</button>
       </div>
+      {aiSamenvatting&&<p className="dim">Totaal onderzocht: {aiSamenvatting.onderzocht} · Onbekend: {aiSamenvatting.onbekend} · Mogelijke twijfel: {aiSamenvatting.twijfel} · Gemarkeerd als weg: {aiSamenvatting.weg}</p>}
       {aiTaak&&<p className="dim">Voortgang: {aiTaak.verwerkt}/{aiTaak.totaal} · Onderzocht: {aiTaak.geslaagd} · Fouten: {aiTaak.fouten}{aiTaak.laatsteFout?' · '+aiTaak.laatsteFout:''}</p>}
       <div className="rij" style={{gap:8,flexWrap:'wrap'}}>
         <select className="invoer" value={aiNiveau} onChange={e=>setAiNiveau(e.target.value)}><option value="alle">Alle niveaus</option><option value="iconisch">Iconisch</option><option value="zeer_bekend">Zeer bekend</option><option value="bekend">Bekend</option><option value="redelijk_bekend">Redelijk bekend</option><option value="onbekend">Onbekend</option></select>
         <select className="invoer" value={aiBeslissing} onChange={e=>setAiBeslissing(e.target.value)}><option value="alle">Alle beslissingen</option><option value="open">Nog beoordelen</option><option value="behouden">Behouden</option><option value="twijfel">Twijfel</option><option value="weg">Weg</option></select>
       </div>
-      {aiData.filter(t=>(aiType==='alle'||t.type===aiType)&&(aiNiveau==='alle'||t.niveau===aiNiveau)&&(aiBeslissing==='alle'||t.beslissing===aiBeslissing)).map(t=><article key={t.type+'-'+t.id} className="kaart stapel" style={{padding:12}}>
+      <div className="rij" style={{gap:8,flexWrap:'wrap'}}>
+        <button className="knop knop-stil" onClick={()=>{setAiNiveau('onbekend');setAiBeslissing('open');setToonAllesAI(false)}}>Alleen onbekend</button>
+        <button className="knop knop-stil" onClick={()=>{setAiNiveau('alle');setAiBeslissing('open');setToonAllesAI(false)}}>Alle nog te beoordelen</button>
+        <button className="knop knop-stil" onClick={()=>setToonAllesAI(v=>!v)}>{toonAllesAI?'Toon eerste 30':'Toon meer resultaten'}</button>
+      </div>
+      {aiData.filter(t=>(aiType==='alle'||t.type===aiType)&&(aiNiveau==='alle'||t.niveau===aiNiveau)&&(aiBeslissing==='alle'||t.beslissing===aiBeslissing)).slice(0,toonAllesAI?200:30).map(t=><article key={t.type+'-'+t.id} className="kaart stapel" style={{padding:12}}>
         <strong>{t.naam} ({t.jaar||'?'}) · {t.type} · {({'iconisch':'Iconisch','zeer_bekend':'Zeer bekend','bekend':'Bekend','redelijk_bekend':'Redelijk bekend','onbekend':'Onbekend'})[t.niveau]}</strong>
         <p className="dim">Nederlandse relevantie: {t.nl_relevant?'aannemelijk':'niet bevestigd'} · Zekerheid: {t.zekerheid} · Jouw keuze: {t.beslissing}</p>
         <p>{t.reden}</p>
