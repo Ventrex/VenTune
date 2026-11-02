@@ -233,8 +233,26 @@ async function zoekPresentatie(naam, type, jaar) {
     };
 }
 
+async function zoekTitels(zoekterm, type) {
+    if (!beschikbaar()) throw new Error('TMDB_API_KEY is niet ingesteld.');
+    if (!['film', 'serie'].includes(type)) throw new Error('Ongeldig titeltype.');
+    const term = String(zoekterm || '').trim();
+    if (term.length < 2 || term.length > 120) throw new Error('Zoek op minimaal twee letters.');
+    const data = await haal(type === 'film' ? '/search/movie' : '/search/tv', { query: term, page: '1', include_adult: 'false' });
+    return (data.results || []).slice(0, 15).map(item => ({
+        tmdb_id: item.id,
+        naam: item.title || item.name || '',
+        originele_naam: item.original_title || item.original_name || '',
+        jaar: Number((item.release_date || item.first_air_date || '').slice(0, 4)) || null,
+        poster: item.poster_path ? 'https://image.tmdb.org/t/p/w185' + item.poster_path : null,
+        omschrijving: item.overview || '',
+        taal: item.original_language === 'nl' ? 'nl' : 'en',
+    }));
+}
+
 module.exports = {
     zoekPresentatie,
+    zoekTitels,
     beschikbaar,
     haalDetails,
     haalAfleiderPool,
