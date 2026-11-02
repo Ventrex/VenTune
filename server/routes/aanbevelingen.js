@@ -666,6 +666,16 @@ router.post('/api/admin/swipe/zonder-mp3/:id', vereisAdmin, async(req,res)=>{
     }catch(err){res.status(500).json({fout:err.message});}
 });
 
+router.get('/api/admin/tmdb/zoeken', vereisAdmin, async (req, res) => {
+    try {
+        const tmdb = require('../lib/tmdb');
+        const resultaten = await tmdb.zoekTitels(req.query.q, req.query.type);
+        res.json({ resultaten });
+    } catch (err) {
+        res.status(/niet ingesteld/.test(err.message) ? 503 : 400).json({ fout: err.message });
+    }
+});
+
 // Handmatig een ontbrekende film of serie aanmelden voor muziekonderzoek.
 router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) => {
     const titel = String(req.body?.titel || '').trim().slice(0, 160);
@@ -675,17 +685,32 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
         return res.status(400).json({ fout: 'Geef een geldige titel, type en eventueel jaar op.' });
     }
     try {
+        // De beheerder moet expliciet een bestaand TMDB-resultaat kiezen.
+        const tmdbId = Number(req.body?.tmdb_id);
+        if (!Number.isSafeInteger(tmdbId) || tmdbId <= 0) {
+            return res.status(400).json({ fout: 'Selecteer eerst een film of serie uit de TMDB-resultaten.' });
+        }
+        const tmdb = require('../lib/tmdb');
+        if (!tmdb.beschikbaar()) return res.status(503).json({ fout: 'TMDB_API_KEY is niet ingesteld.' });
+        const officieel = await tmdb.haalDetails(tmdbId, type);
+        if (!officieel?.naam) return res.status(422).json({ fout: 'TMDB heeft geen geldige titel teruggegeven.' });
+        // Voorkom het per ongeluk koppelen van een andere titel of een verkeerd jaartal.
+        if (jaar && officieel.jaar && jaar !== officieel.jaar) {
+            return res.status(422).json({ fout: 'Het gekozen TMDB-jaartal wijkt af. Zoek opnieuw.' });
+        }
+        const gekozenTitel = officieel.naam.slice(0,160);
+        const gekozenJaar = officieel.jaar || jaar;
         await initPrioriteit();
         const bestaandTitel = await pool.query(
             `SELECT t.id, t.naam, t.type,
                     EXISTS (SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id AND tr.werkt=true
                         AND tr.bron='lokaal' AND tr.download_status='available'
                         AND NULLIF(tr.preview_url,'') IS NOT NULL) AS heeft_mp3
-               FROM titels t WHERE lower(trim(t.naam))=lower($1) AND t.type=$2
-               ORDER BY t.id LIMIT 1`, [titel,type]);
+               FROM titels t WHERE (t.tmdb_id=$3 OR (lower(trim(t.naam))=lower($1) AND t.type=$2)) AND t.type=$2
+               ORDER BY (t.tmdb_id=$3) DESC, t.id LIMIT 1`, [gekozenTitel,type,tmdbId]);
         const bestaandAdvies = await pool.query(
             `SELECT id,status FROM aanbevelingen WHERE lower(trim(titel))=lower($1) AND type=$2
-             ORDER BY id DESC LIMIT 1`, [titel,type]);
+             ORDER BY id DESC LIMIT 1`, [gekozenTitel,type]);
         if (bestaandTitel.rows[0]) await pool.query(`UPDATE titels SET swipe_prioriteit=now(), zoek_status=CASE WHEN $2 THEN zoek_status ELSE 'nieuw' END, volgende_poging=CASE WHEN $2 THEN volgende_poging ELSE NULL END WHERE id=$1`,[bestaandTitel.rows[0].id,bestaandTitel.rows[0].heeft_mp3]);
         if (bestaandTitel.rows[0]?.heeft_mp3) {
             return res.json({ok:true, bestaand:true, heeft_mp3:true, titel_id:bestaandTitel.rows[0].id,
@@ -703,13 +728,13 @@ router.post('/api/admin/aanbevelingen/handmatig', vereisAdmin, async (req, res) 
         }
         // Nieuwe handmatige titel onmiddellijk in de catalogus en hoogste Swipe-prioriteit.
         const nieuw=await pool.query(
-            "INSERT INTO titels (naam,type,taal,jaar,curatie_status,nl_tv_bekend,toevoeg_reden,swipe_prioriteit) VALUES ($1,$2,$3,$4,'goedgekeurd',true,'Handmatig toegevoegd',now()) RETURNING id",
-            [titel,type,'en',jaar]);
+            "INSERT INTO titels (naam,type,taal,jaar,curatie_status,nl_tv_bekend,toevoeg_reden,swipe_prioriteit,tmdb_id,genres,studio) VALUES ($1,$2,$3,$4,'te_beoordelen',false,'Handmatig via TMDB toegevoegd',now(),$5,$6,$7) RETURNING id",
+            [gekozenTitel,type,'en',gekozenJaar,tmdbId,officieel.genres || [],officieel.studio]);
         const { rows } = await pool.query(
             `INSERT INTO aanbevelingen (soort, categorie, titel, type, jaar, tracknaam, artiest, youtube_zoekterm, bekendheid, reden, status, titel_id)
              VALUES ('film_serie', $1, $2, $3, $4, '', '', $5, 3, 'Handmatig toegevoegd; juiste intro/soundtrack nog controleren', 'nieuw', $6)
              RETURNING id`,
-            [type, titel, type, jaar, `${titel} original theme soundtrack intro`, nieuw.rows[0].id]);
+            [type, gekozenTitel, type, gekozenJaar, `${gekozenTitel} original theme soundtrack intro`, nieuw.rows[0].id]);
         await enqueueMp3(rows[0].id,1000);
         res.json({ ok: true, id: rows[0].id, titel_id:nieuw.rows[0].id, toelichting: 'Toegevoegd aan de database én bovenaan de Swipe-wachtrij zonder MP3.' });
     } catch (err) { res.status(500).json({ fout: err.message }); }
