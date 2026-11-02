@@ -56,6 +56,7 @@ const { veiligeTiteltekst, veiligeMetadata } = require('../lib/content-filter');
 const trackReview = require('../lib/track-review');
 
 const router = express.Router();
+require('./catalogus-audit')(router, vereisAdmin, pool);
 
 const COOKIE = 'ventune_admin';
 const HTTPS = (process.env.APP_URL || '').startsWith('https');
