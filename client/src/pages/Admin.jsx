@@ -28,7 +28,6 @@ const SUBTABS = {
     ],
     kwaliteit: [
         ['meldingen', 'Meldingen'],
-        ['review', 'Trackcontrole'],
         ['controle', 'Controle'],
         ['catalogus-audit', 'Collectie opschonen'],
     ],
@@ -683,7 +682,6 @@ function Beheer({ onUit }) {
                 </p>
             )}
 
-            {tab === 'review' && <TrackReview />}
             {tab === 'catalogus-audit' && <CatalogusAudit />}
 
             {tab === 'controle' && (
