@@ -12,6 +12,11 @@ async function verzoek(url,opties) {
 }
 export default function CatalogusAudit(){
   const [data,setData]=useState([]);
+  const [aiData,setAiData]=useState([]);
+  const [aiTaak,setAiTaak]=useState(null);
+  const [aiType,setAiType]=useState('alle');
+  const [aiNiveau,setAiNiveau]=useState('alle');
+  const [aiBeslissing,setAiBeslissing]=useState('alle');
   const [dubbelen,setDubbelen]=useState([]);
   const [games,setGames]=useState([]);
   const [toonGames,setToonGames]=useState(false);
@@ -28,7 +33,12 @@ export default function CatalogusAudit(){
   const [gevonden,setGevonden]=useState({});
   const [bron,setBron]=useState({});
   const laad=async()=>{setLoading(true);try{setData(await verzoek('/api/admin/catalogus-audit'));setError('');}catch(e){setError(e.message);}finally{setLoading(false);}};
-  useEffect(()=>{laad();},[]);
+  const laadAI=async()=>{try{const d=await verzoek('/api/admin/catalogus-ai');setAiData(d.resultaten||[]);setAiTaak(d.taak);}catch(e){setError(e.message);}};
+  useEffect(()=>{laad();laadAI();},[]);
+  useEffect(()=>{if(!aiTaak?.bezig)return;const id=setInterval(laadAI,5000);return()=>clearInterval(id);},[aiTaak?.bezig]);
+  const startAI=async()=>{try{await post('/api/admin/catalogus-ai/start',{type:aiType});await laadAI();}catch(e){setError(e.message);}};
+  const beslissingAI=async(t,b)=>{try{await post('/api/admin/catalogus-ai/'+t.type+'/'+t.id+'/beslissing',{beslissing:b});await laadAI();}catch(e){setError(e.message);}};
+
   const haalGames=async()=>{try{setGames(await verzoek('/api/admin/games/kwaliteit'));setToonGames(true);}catch(e){setError(e.message);}};
   const beoordeelGame=async(g,gameIconisch,muziekIconisch)=>{try{await verzoek('/api/admin/games/'+g.id+'/iconisch',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({game_iconisch:gameIconisch,muziek_iconisch:muziekIconisch})});await haalGames();}catch(e){setError(e.message);}};
   const haalDubbelen=async()=>{try{setDubbelen(await verzoek('/api/admin/database/dubbelen'));setVergelijk(true);}catch(e){setError(e.message);}};
@@ -45,6 +55,27 @@ export default function CatalogusAudit(){
     actie(t.id,()=>verzoek('/api/admin/titels/'+t.id,{method:'DELETE'}));};
   return <section className="kaart stapel">
     <h2>Collectiecontrole · Nederlandse bekendheid</h2>
+    <div className="kaart stapel">
+      <h3>AI-onderzoek · Nederlandse bekendheid en iconische games</h3>
+      <p className="dim">Laat AI per titel live op het web zoeken naar Nederlandse bioscoopvertoningen, tv-uitzendingen, Nederlandse streamingdiensten en iconische videogames of muziek. De gevonden bronnen en onzekerheden blijven zichtbaar. Weg is alleen een markering; er worden geen titels of MP3's automatisch verwijderd.</p>
+      <div className="rij" style={{gap:8,flexWrap:'wrap'}}>
+        <select className="invoer" value={aiType} onChange={e=>setAiType(e.target.value)}><option value="alle">Alle films, series en games</option><option value="film">Films</option><option value="serie">Series</option><option value="game">Videogames</option></select>
+        <button className="knop" disabled={aiTaak?.bezig} onClick={startAI}>{aiTaak?.bezig?'AI onderzoekt…':'Start AI-onderzoek'}</button>
+        <button className="knop knop-stil" onClick={laadAI}>Resultaten vernieuwen</button>
+      </div>
+      {aiTaak&&<p className="dim">Voortgang: {aiTaak.verwerkt}/{aiTaak.totaal} · Onderzocht: {aiTaak.geslaagd} · Fouten: {aiTaak.fouten}{aiTaak.laatsteFout?' · '+aiTaak.laatsteFout:''}</p>}
+      <div className="rij" style={{gap:8,flexWrap:'wrap'}}>
+        <select className="invoer" value={aiNiveau} onChange={e=>setAiNiveau(e.target.value)}><option value="alle">Alle niveaus</option><option value="iconisch">Iconisch</option><option value="zeer_bekend">Zeer bekend</option><option value="bekend">Bekend</option><option value="redelijk_bekend">Redelijk bekend</option><option value="onbekend">Onbekend</option></select>
+        <select className="invoer" value={aiBeslissing} onChange={e=>setAiBeslissing(e.target.value)}><option value="alle">Alle beslissingen</option><option value="open">Nog beoordelen</option><option value="behouden">Behouden</option><option value="twijfel">Twijfel</option><option value="weg">Weg</option></select>
+      </div>
+      {aiData.filter(t=>(aiType==='alle'||t.type===aiType)&&(aiNiveau==='alle'||t.niveau===aiNiveau)&&(aiBeslissing==='alle'||t.beslissing===aiBeslissing)).map(t=><article key={t.type+'-'+t.id} className="kaart stapel" style={{padding:12}}>
+        <strong>{t.naam} ({t.jaar||'?'}) · {t.type} · {({'iconisch':'Iconisch','zeer_bekend':'Zeer bekend','bekend':'Bekend','redelijk_bekend':'Redelijk bekend','onbekend':'Onbekend'})[t.niveau]}</strong>
+        <p className="dim">Nederlandse relevantie: {t.nl_relevant?'aannemelijk':'niet bevestigd'} · Zekerheid: {t.zekerheid} · Jouw keuze: {t.beslissing}</p>
+        <p>{t.reden}</p>
+        <div className="stapel">{(t.bronnen||[]).map((b,i)=><a key={i} href={b.url} target="_blank" rel="noopener noreferrer">{b.omschrijving||b.url}</a>)}</div>
+        <div className="rij" style={{gap:8,flexWrap:'wrap'}}>{[['behouden','Behouden'],['twijfel','Twijfel'],['weg','Weg']].map(([k,v])=><button key={k} className={t.beslissing===k?'knop':'knop knop-stil'} onClick={()=>beslissingAI(t,k)}>{v}</button>)}</div>
+      </article>)}
+    </div>
     <p className="dim">Rangschikking is voorlopig gebaseerd op bestaande populariteitsgegevens. Nederlandse tv-uitzendingen en bioscoopreleases vereisen apart bewijs. Geen titel of MP3 wordt automatisch veranderd of verwijderd.</p>
     <div className="rij wrap" style={{gap:8,flexWrap:'wrap'}}>
       <input className="invoer" placeholder="Zoek titel…" value={query} onChange={e=>setQuery(e.target.value)}/>
