@@ -12,6 +12,8 @@ async function verzoek(url,opties) {
 }
 export default function CatalogusAudit(){
   const [data,setData]=useState([]);
+  const [dubbelen,setDubbelen]=useState([]);
+  const [vergelijk,setVergelijk]=useState(false);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(null);
   const [error,setError]=useState('');
@@ -25,6 +27,7 @@ export default function CatalogusAudit(){
   const [bron,setBron]=useState({});
   const laad=async()=>{setLoading(true);try{setData(await verzoek('/api/admin/catalogus-audit'));setError('');}catch(e){setError(e.message);}finally{setLoading(false);}};
   useEffect(()=>{laad();},[]);
+  const haalDubbelen=async()=>{try{setDubbelen(await verzoek('/api/admin/database/dubbelen'));setVergelijk(true);}catch(e){setError(e.message);}};
   const lijst=useMemo(()=>data.filter(t=>
     (type==='alle'||t.type===type)&&
     (niveau==='alle'||t.niveau===niveau)&&
@@ -46,7 +49,9 @@ export default function CatalogusAudit(){
       <select className="invoer" value={nl} onChange={e=>setNl(e.target.value)}><option value="alle">Alle NL-controles</option><option value="bevestigd">NL bevestigd</option><option value="onbevestigd">NL onbevestigd</option><option value="afgewezen">NL afgewezen</option></select>
       <label><input type="checkbox" checked={problemen} onChange={e=>setProblemen(e.target.checked)}/> Alleen problemen</label>
       <button className="knop knop-stil" onClick={laad} disabled={loading}>Vernieuwen</button>
+      <button className="knop knop-stil" onClick={haalDubbelen}>Vergelijk dubbele titels</button>
     </div>
+    {vergelijk&&<div className="kaart stapel"><div className="rij" style={{justifyContent:'space-between'}}><strong>Mogelijke dubbele films en series ({dubbelen.length})</strong><button className="knop knop-stil" onClick={()=>setVergelijk(false)}>Sluiten</button></div><p className="dim">Vergelijk beide records en TMDB-ID's. Dezelfde naam kan een remake of ander jaar zijn. Er wordt niets automatisch samengevoegd of verwijderd.</p>{dubbelen.map(d=><div key={d.id_a+'-'+d.id_b} className="kaart"><div className="rij" style={{gap:12,flexWrap:'wrap',justifyContent:'space-between'}}><div><strong>{d.naam_a}</strong> ({d.jaar_a||'—'})<p className="dim">{d.type} · TMDB: {d.tmdb_a||'onbekend'} · ID {d.id_a}</p><button className="knop knop-stil" onClick={()=>{setQuery(d.naam_a);setOpen(d.id_a);setVergelijk(false);}}>Bekijk A</button></div><span>vs.</span><div><strong>{d.naam_b}</strong> ({d.jaar_b||'—'})<p className="dim">TMDB: {d.tmdb_b||'onbekend'} · ID {d.id_b}</p><button className="knop knop-stil" onClick={()=>{setQuery(d.naam_b);setOpen(d.id_b);setVergelijk(false);}}>Bekijk B</button></div></div><p className="dim">Signaal: {d.reden==='zelfde_tmdb'?'Dezelfde TMDB-identificatie':'Gelijke titel; handmatig vergelijken'}</p></div>)}</div>}
     <p className="dim">{loading?'Collectie laden…':`${lijst.length} van ${data.length} titels zichtbaar`}</p>
     {error&&<p className="waarschuwing" role="alert">{error}</p>}
     <div className="stapel" style={{gap:10}}>
