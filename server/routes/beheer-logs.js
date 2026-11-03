@@ -2,13 +2,13 @@
 // Bewaart uitsluitend methode, route, HTTP-status en duur; nooit inhoud of tokens.
 let ready;
 function init(pool){
-  if(!ready)ready=pool.query(\`CREATE TABLE IF NOT EXISTS beheer_activiteit_log(
+  if(!ready)ready=pool.query(`CREATE TABLE IF NOT EXISTS beheer_activiteit_log(
     id BIGSERIAL PRIMARY KEY, datum TIMESTAMPTZ NOT NULL DEFAULT now(),
     niveau TEXT NOT NULL, bron TEXT NOT NULL DEFAULT 'api',
     actor TEXT NOT NULL DEFAULT 'beheersessie',
     actie TEXT NOT NULL, status INTEGER, duur_ms INTEGER,
     details JSONB NOT NULL DEFAULT '{}'::jsonb
-  )\`).then(()=>pool.query('CREATE INDEX IF NOT EXISTS idx_beheer_activiteit_log_datum ON beheer_activiteit_log(datum DESC)'))
+  )`).then(()=>pool.query('CREATE INDEX IF NOT EXISTS idx_beheer_activiteit_log_datum ON beheer_activiteit_log(datum DESC)'))
     .catch(e=>{ready=null;throw e});
   return ready;
 }
@@ -23,9 +23,9 @@ module.exports=function registreerBeheerLogs(router,vereisAdmin,pool){
       if(/\/(login|wachtwoord|logout|sessie)\b/i.test(req.path))return;
       const niveau=code>=500?'ERROR':code>=400?'WARNING':'INFO';
       const cleanPath=req.path.replace(/\/\d{1,15}(?=\/|$)/g,'/:id');
-      init(pool).then(()=>pool.query(\`INSERT INTO beheer_activiteit_log
+      init(pool).then(()=>pool.query(`INSERT INTO beheer_activiteit_log
         (niveau,actor,actie,status,duur_ms,details)
-        VALUES($1,$2,$3,$4,$5,$6::jsonb)\`,
+        VALUES($1,$2,$3,$4,$5,$6::jsonb)`,
         [niveau,code>=400?'onbekend':'beheersessie',req.method+' '+cleanPath,
          code,Math.min(600000,Date.now()-start),JSON.stringify({methode:req.method})]))
         .catch(()=>{ /* Auditfout mag API-verzoek niet verstoren */ });
