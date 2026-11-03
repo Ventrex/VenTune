@@ -17,7 +17,9 @@ async function api(url,options){
 }
 export default function Review(){
  const [query]=useSearchParams();
- const categorie=query.get('categorie')||'film';
+ const categorieen=[['film','Films'],['serie','Series'],['games','Videogames'],['rock','Rock'],['100nl','100% NL'],['kerst','Kerst'],['80s','80s'],['90s','90s'],['kinder','Kinder']];
+ const init=query.get('categorie')||'film';
+ const [categorie,setCategorie]=useState(categorieen.some(c=>c[0]===init)?init:'film');
  const [fase,setFase]=useState(query.get('fase')==='naam'?'naam':'blind');
  const stemmer=useRef(stemmerId());
  const [kaart,setKaart]=useState(null);
@@ -44,7 +46,14 @@ export default function Review(){
  return <main className="scherm admin-swipe">
   <div className="ai-kop"><Brand link={false}/></div>
   <h1>Help VenTune met muzieknummers beoordelen</h1>
-  <p className="dim">Categorie: {categorie} · {aantal} beoordeeld. Jouw stemmen blijven afzonderlijk bewaard.</p>
+  <div className="kaart" style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',padding:12}}>
+    <label htmlFor="review-categorie">Wat wil je controleren?</label>
+    <select id="review-categorie" className="invoer" style={{maxWidth:280,minHeight:38}}
+      value={categorie} onChange={e=>{setCategorie(e.target.value);setAantal(0);}}>
+      {categorieen.map(([id,naam])=><option key={id} value={id}>{naam}</option>)}
+    </select>
+    <span className="dim">{aantal} beoordeeld · stemmen worden apart bewaard</span>
+  </div>
   <div className="swipe-tabs">
    <button className={'knop'+(fase==='blind'?'':' knop-stil')} onClick={()=>setFase('blind')}>1. Blind</button>
    <button className={'knop'+(fase==='naam'?'':' knop-stil')} onClick={()=>setFase('naam')}>2. Met naam</button>
