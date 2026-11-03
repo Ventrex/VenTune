@@ -17,7 +17,7 @@ async function api(url,options){
 }
 export default function Review(){
  const [query]=useSearchParams();
- const categorieen=[['film','Films'],['serie','Series'],['games','Videogames'],['rock','Rock'],['100nl','100% NL'],['kerst','Kerst'],['80s','80s'],['90s','90s'],['kinder','Kinder']];
+ const categorieen=[['film','Films'],['serie','Series'],['muziek','Muziek'],['games','Videogames'],['rock','Rock'],['100nl','100% NL'],['kerst','Kerst'],['80s','80s'],['90s','90s'],['kinder','Kinder']];
  const init=query.get('categorie')||'film';
  const [categorie,setCategorie]=useState(categorieen.some(c=>c[0]===init)?init:'film');
  const [fase,setFase]=useState(query.get('fase')==='naam'?'naam':'blind');
