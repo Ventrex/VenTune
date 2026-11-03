@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { haalRanking } from '../lib/api.js';
+import { haalRanking, authSessie } from '../lib/api.js';
 import Brand from '../components/Brand.jsx';
 import Icon from '../components/Icon.jsx';
 import { leesSessie, wisSessie, bewaarSessie, leesOpgeslagenSpellen, verwijderOpgeslagenSpel } from '../lib/sessie.js';
@@ -15,6 +15,14 @@ export default function Home() {
     const [vorigeSessie, setVorigeSessie] = useState(leesSessie);
     const [opgeslagenSpellen, setOpgeslagenSpellen] = useState(leesOpgeslagenSpellen);
     const [fout, setFout] = useState('');
+    const [hostAccount,setHostAccount]=useState(null);
+    const [isAdmin,setIsAdmin]=useState(false);
+    useEffect(()=>{
+        authSessie().then(d=>setHostAccount(d.ingelogd?d.gebruiker:null)).catch(()=>setHostAccount(null));
+        fetch('/api/admin/sessie',{credentials:'include'}).then(r=>r.ok?r.json():{ingelogd:false})
+            .then(d=>setIsAdmin(d.ingelogd===true)).catch(()=>setIsAdmin(false));
+    },[]);
+
     const [ranking, setRanking] = useState({
         beste_gemiddeld: [],
         meeste_spellen: [],
@@ -49,10 +57,14 @@ export default function Home() {
                 <div className="vt-top-links">
                     <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt=""/>Spelen</Link>
                     <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>Scores</Link>
-                    <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>Profielen</Link>
-                    <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>Beheer</Link>
+                    {isAdmin && <Link to="/admin/swipe"><img src="/category/icon-play.svg" alt=""/>Controleren</Link>}
+                    {isAdmin && <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>Beheer</Link>}
+                    {hostAccount && <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>Profielen</Link>}
                 </div>
-                <Link className="vt-top-user" to="/host/profile"><span className="vt-avatar-ring">♫</span>Profiel</Link>
+                <Link className="vt-top-user" to={hostAccount?'/host/profile':'/host/login?return=/host/profile'}>
+                    <span className="vt-avatar-ring">{hostAccount?.display_naam?.slice(0,1).toUpperCase() || '♫'}</span>
+                    {hostAccount?.display_naam || 'Inloggen'}
+                </Link>
             </nav>
             <header className="vt-home-hero">
                 <h1>Kies je volgende quiz</h1>
