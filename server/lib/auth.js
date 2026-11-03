@@ -198,7 +198,8 @@ router.get('/api/auth/profile', vereisHost, async (req, res) => {
                 COALESCE(MAX(p.score),0)::int AS beste_score,
                 COALESCE(ROUND(AVG(p.score)::numeric,1),0) AS gemiddelde_score
               FROM spelers p JOIN lobbies l ON l.id=p.lobby_id
-              WHERE p.gebruiker_id=$1 AND l.status='afgelopen'`,
+              WHERE p.gebruiker_id=$1 AND l.status='afgelopen'
+                AND p.score_uitgesloten IS DISTINCT FROM true`,
             [req.gebruiker.id],
         );
         const presets = await pool.query(
