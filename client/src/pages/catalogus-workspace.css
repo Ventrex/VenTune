@@ -48,3 +48,31 @@
  .cw-create{grid-template-columns:repeat(2,minmax(0,1fr))}
  .cw-catalogs{grid-template-columns:1fr}
 }
+
+/* Beheer - compacte formulieren en afbeeldingengalerij */
+.admin-portaal .vt-beeld-filters{display:flex;gap:7px;margin:12px 0}
+.admin-portaal .vt-beeld-filters .knop{min-height:34px;padding:7px 11px;font-size:.8rem;border-radius:12px}
+.admin-portaal .vt-admin-category-images{
+ display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;
+}
+.admin-portaal .vt-admin-category-image{
+ padding:12px;border:1px solid #724795;background:linear-gradient(145deg,#2b153f,#16102c);
+ display:grid;gap:8px;align-content:start;border-radius:15px;min-width:0;
+}
+.admin-portaal .vt-admin-category-image>strong{font-size:.88rem}
+.admin-portaal .vt-admin-category-image>small{font-size:.69rem;color:#c8addb}
+.admin-portaal .vt-admin-category-image>img{
+ display:block;width:100%;height:130px;max-width:100%;object-fit:contain;
+ background:#100c27;border:1px solid #634184;border-radius:10px;
+}
+.admin-portaal .vt-admin-category-image input[type=file]{width:100%;min-width:0;max-width:100%;padding:8px;font-size:.7rem}
+.admin-portaal .vt-admin-category-image .knop{padding:7px 10px;min-height:32px;font-size:.77rem}
+.admin-portaal .vt-beelden-placeholder{display:grid;place-items:center;min-height:130px;text-align:center;border:1px dashed #78539a;border-radius:10px;color:#bbaaD0;padding:10px;font-size:.77rem}
+.admin-portaal .velden>.invoer{max-width:400px;min-height:37px;padding:8px 10px;font-size:.88rem}
+.cw-logline{border-bottom:1px solid #4c315e;padding:9px 12px}
+.cw-logline summary{display:flex;flex-wrap:wrap;gap:12px;align-items:center;cursor:pointer;font-size:.81rem}
+.cw-logline summary strong{color:#ff98ca}
+.cw-logline .dim{margin-top:9px}
+.cw-stats{display:flex;gap:8px;flex-wrap:wrap}
+.cw-stats span{padding:6px 9px;font-size:.8rem;border-radius:8px;background:#201434;border:1px solid #67478a}
+@media(max-width:480px){.admin-portaal .vt-admin-category-images{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-portaal .vt-admin-category-image>img{height:90px}}
