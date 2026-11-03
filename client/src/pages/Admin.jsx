@@ -135,6 +135,7 @@ function Beheer({ onUit }) {
     const [ontbrekend, setOntbrekend] = useState([]);
     const [collecties, setCollecties] = useState([]);
     const [tab, setTab] = useState('cijfers');
+    const [catalogusStart,setCatalogusStart]=useState({});
     const [importGenre, setImportGenre] = useState('');
     const [voortgang, setVoortgang] = useState(null);
     const [kwaliteit, setKwaliteit] = useState(null);
@@ -570,7 +571,19 @@ function Beheer({ onUit }) {
         }
     }
 
+    function optsToMp3(filter){return ['speelbaar','bevestigd'].includes(filter)?'ja':filter==='zonder-lokaal'?'nee':null;}
     function openTab(waarde, opties = {}) {
+        if(waarde==='overzicht'){setTab('cijfers');return;}
+        if(waarde==='muziek'){setTab('ai-generator');return;}
+        if(waarde==='titels' && !['afgekeurd','te-beoordelen'].includes(opties.filter)){
+            const filters={};
+            if(['film','serie','muziek'].includes(opties.filter))filters.type=opties.filter;
+            if(optsToMp3(opties.filter))filters.mp3=optsToMp3(opties.filter);
+            if(opties.zoek)filters.zoek=opties.zoek;
+            setCatalogusStart(filters);
+            setTab('catalogus-titels');
+            return;
+        }
         if (opties.filter !== undefined) setTitelFilter(opties.filter);
         if (opties.zoek !== undefined) setZoek(opties.zoek);
         if (opties.taal !== undefined) setTitelTaal(opties.taal);
@@ -699,7 +712,7 @@ function Beheer({ onUit }) {
                 </p>
             )}
 
-            {tab === 'catalogus-titels' && <CatalogusWorkspace view="titels" onLegacyEdit={() => setTab('titels')} />}
+            {tab === 'catalogus-titels' && <CatalogusWorkspace key={JSON.stringify(catalogusStart)} view="titels" startFilters={catalogusStart} onLegacyEdit={() => setTab('titels')} />}
             {tab === 'catalogus-catalogi' && <CatalogusWorkspace view="catalogi" />}
             {tab === 'logs' && <BeheerLogs />}
             {tab === 'catalogus-audit' && <CatalogusAudit />}
