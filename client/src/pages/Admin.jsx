@@ -3,6 +3,7 @@ import CatalogusWorkspace from './CatalogusWorkspace.jsx';
 import BeheerLogs from './BeheerLogs.jsx';
 import HintsBatch from './HintsBatch.jsx';
 import SiteTeksten from './SiteTeksten.jsx';
+import CatalogusAanbevelingen from './CatalogusAanbevelingen.jsx';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
@@ -718,6 +719,7 @@ function Beheer({ onUit }) {
             )}
 
             {tab === 'ai-generator' && <>
+                <CatalogusAanbevelingen />
                 <Genereren />
                 <CatalogusPerJaar />
                 <div className="knoprij" style={{flexWrap:'wrap'}}>
