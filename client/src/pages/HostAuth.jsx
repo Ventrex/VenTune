@@ -15,7 +15,7 @@ export default function HostAuth() {
     const [bezig, setBezig] = useState(false);
 
     const gewensteVervolg = params.get('return') || '/setup';
-    const vervolg = gewensteVervolg.startsWith('/') ? gewensteVervolg : '/setup';
+    const vervolg = gewensteVervolg.startsWith('/') && !gewensteVervolg.startsWith('//') ? gewensteVervolg : '/setup';
 
     useEffect(() => {
         authSessie().then((s) => {
