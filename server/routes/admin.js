@@ -1094,6 +1094,11 @@ router.get('/api/admin/database', vereisAdmin, async (_req, res) => {
 
 router.post('/api/admin/database/opschonen', vereisAdmin, async (req, res) => {
     const actie = String(req.body?.actie || '');
+    // Grote impact mag niet met één verdwaalde klik worden uitgevoerd.
+    if (['spelgeschiedenis','afgekeurde_tracks','wees_media','alle_titels'].includes(actie)
+        && req.body?.bevestiging !== 'VERWIJDER') {
+        return res.status(400).json({ fout:'Typ VERWIJDER om deze actie te bevestigen.' });
+    }
 
     // Schoon beginnen: alles wissen wat met de catalogus te maken heeft
     // (titels, tracks, aanbevelingen, downloadfouten, cache, meldingen).
