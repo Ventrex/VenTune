@@ -6,32 +6,32 @@ const multer = require('multer');
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.env.MEDIA_DIR || '/media','uploads');
 const upload = multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024}});
 const DOELEN = ['film','serie','beide','muziek','games','alles'];
-const TIJDELIJKE_GAME_TABEL = \`CREATE TABLE IF NOT EXISTS game_catalogus
+const TIJDELIJKE_GAME_TABEL = `CREATE TABLE IF NOT EXISTS game_catalogus
 (id BIGSERIAL PRIMARY KEY, naam TEXT NOT NULL, jaar INTEGER,
 platformen TEXT[] NOT NULL DEFAULT '{}', opmerking TEXT,
 status TEXT NOT NULL DEFAULT 'nieuw',aangemaakt_op TIMESTAMPTZ NOT NULL DEFAULT now(),
-UNIQUE(naam,jaar))\`;
+UNIQUE(naam,jaar))`;
 let ready;
 async function init(pool) {
   if(!ready) ready = (async()=>{
     await pool.query(TIJDELIJKE_GAME_TABEL);
     await pool.query('ALTER TABLE game_catalogus ADD COLUMN IF NOT EXISTS game_iconisch BOOLEAN');
     await pool.query('ALTER TABLE game_catalogus ADD COLUMN IF NOT EXISTS muziek_iconisch BOOLEAN');
-    await pool.query(\`CREATE TABLE IF NOT EXISTS beheer_catalogus_info (
+    await pool.query(`CREATE TABLE IF NOT EXISTS beheer_catalogus_info (
       collectie_id INTEGER PRIMARY KEY REFERENCES collecties(id) ON DELETE CASCADE,
       doelgroep TEXT NOT NULL DEFAULT 'beide',
       afbeelding_url TEXT,
       bijgewerkt_op TIMESTAMPTZ NOT NULL DEFAULT now()
-    )\`);
-    await pool.query(\`CREATE TABLE IF NOT EXISTS beheer_catalogus_games (
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS beheer_catalogus_games (
       collectie_id INTEGER NOT NULL REFERENCES collecties(id) ON DELETE CASCADE,
       game_id BIGINT NOT NULL REFERENCES game_catalogus(id) ON DELETE CASCADE,
       PRIMARY KEY(collectie_id,game_id)
-    )\`);
+    )`);
   })().catch(e=>{ready=null;throw e});
   return ready;
 }
-const BASIS = \`
+const BASIS = `
  WITH alle AS (
    SELECT ('titel-'||t.id)::text AS sleutel,t.id::bigint AS item_id,
      t.type::text AS type,t.naam,t.jaar,
@@ -53,7 +53,7 @@ const BASIS = \`
        WHERE lower(t.naam)=lower(g.naam) AND t.type::text='muziek'
        AND x.bron='lokaal' AND x.werkt AND x.download_status='available')
    FROM game_catalogus g
- )\`;
+ )`;
 function leesFilters(query={}) {
   const type = String(query.type||'alles');
   const bekendheid = String(query.bekendheid||'');
@@ -129,15 +129,15 @@ async function voegItems(client,collectieId,keys) {
   }
   let totaal=0;
   if(titelIds.length) {
-    const r=await client.query(\`INSERT INTO titel_collecties(titel_id,collectie_id)
+    const r=await client.query(`INSERT INTO titel_collecties(titel_id,collectie_id)
       SELECT t.id,$1 FROM titels t WHERE t.id=ANY($2::int[])
-      ON CONFLICT DO NOTHING\`,[collectieId,titelIds]);
+      ON CONFLICT DO NOTHING`,[collectieId,titelIds]);
     totaal+=r.rowCount;
   }
   if(gameIds.length) {
-    const r=await client.query(\`INSERT INTO beheer_catalogus_games(collectie_id,game_id)
+    const r=await client.query(`INSERT INTO beheer_catalogus_games(collectie_id,game_id)
       SELECT $1,g.id FROM game_catalogus g WHERE g.id=ANY($2::bigint[])
-      ON CONFLICT DO NOTHING\`,[collectieId,gameIds]);
+      ON CONFLICT DO NOTHING`,[collectieId,gameIds]);
     totaal+=r.rowCount;
   }
   return totaal;
@@ -150,11 +150,11 @@ module.exports = function catalogusWorkspace(router,vereisAdmin,pool) {
   router.get('/api/admin/catalogus-workspace/catalogi',vereisAdmin,async(_req,res)=>{
     try {
       await init(pool);
-      const {rows}=await pool.query(\`SELECT c.id,c.sleutel,c.naam,c.beschrijving,c.standaard_type,c.actief,
+      const {rows}=await pool.query(`SELECT c.id,c.sleutel,c.naam,c.beschrijving,c.standaard_type,c.actief,
        COALESCE(b.doelgroep,c.standaard_type) AS doelgroep,b.afbeelding_url,
        (SELECT count(*)::int FROM titel_collecties tc WHERE tc.collectie_id=c.id) AS titels,
        (SELECT count(*)::int FROM beheer_catalogus_games bg WHERE bg.collectie_id=c.id) AS games
-       FROM collecties c LEFT JOIN beheer_catalogus_info b ON b.collectie_id=c.id ORDER BY lower(c.naam)\`);
+       FROM collecties c LEFT JOIN beheer_catalogus_info b ON b.collectie_id=c.id ORDER BY lower(c.naam)`);
       res.json(rows);
     } catch(e){res.status(500).json({fout:e.message})}
   });
@@ -173,8 +173,8 @@ module.exports = function catalogusWorkspace(router,vereisAdmin,pool) {
       try{
         await client.query('BEGIN');
         const validType=['film','serie','muziek','beide'].includes(doelgroep)?doelgroep:'alles';
-        const {rows}=await client.query(\`INSERT INTO collecties(sleutel,naam,beschrijving,standaard_type,toevoeg_reden)
-          VALUES($1,$2,$3,$4,$5) RETURNING id,naam,sleutel\`,
+        const {rows}=await client.query(`INSERT INTO collecties(sleutel,naam,beschrijving,standaard_type,toevoeg_reden)
+          VALUES($1,$2,$3,$4,$5) RETURNING id,naam,sleutel`,
           [slug,naam,String(req.body?.beschrijving||'').slice(0,300),validType,'Aangemaakt via de catalogusfilters']);
         const id=rows[0].id;
         await client.query('INSERT INTO beheer_catalogus_info(collectie_id,doelgroep) VALUES($1,$2)',[id,doelgroep]);
@@ -210,8 +210,8 @@ module.exports = function catalogusWorkspace(router,vereisAdmin,pool) {
       if(!Number.isSafeInteger(id)||id<1||!naam||!DOELEN.includes(doelgroep))return res.status(400).json({fout:'Ongeldige invoer.'});
       const r=await pool.query('UPDATE collecties SET naam=$2 WHERE id=$1 RETURNING id,naam',[id,naam]);
       if(!r.rowCount)return res.status(404).json({fout:'Catalogus niet gevonden.'});
-      await pool.query(\`INSERT INTO beheer_catalogus_info(collectie_id,doelgroep)
-        VALUES($1,$2) ON CONFLICT(collectie_id) DO UPDATE SET doelgroep=$2,bijgewerkt_op=now()\`,[id,doelgroep]);
+      await pool.query(`INSERT INTO beheer_catalogus_info(collectie_id,doelgroep)
+        VALUES($1,$2) ON CONFLICT(collectie_id) DO UPDATE SET doelgroep=$2,bijgewerkt_op=now()`,[id,doelgroep]);
       res.json({ok:true});
     }catch(e){res.status(400).json({fout:e.message})}
   });
@@ -230,8 +230,8 @@ module.exports = function catalogusWorkspace(router,vereisAdmin,pool) {
       const bestand='catalogus-'+id+'-'+crypto.randomUUID()+ext;
       await fs.writeFile(path.join(UPLOAD_DIR,bestand),req.file.buffer,{flag:'wx'});
       const afbeelding_url='/media/uploads/'+bestand;
-      await pool.query(\`INSERT INTO beheer_catalogus_info(collectie_id,afbeelding_url)
-        VALUES($1,$2) ON CONFLICT(collectie_id) DO UPDATE SET afbeelding_url=$2,bijgewerkt_op=now()\`,[id,afbeelding_url]);
+      await pool.query(`INSERT INTO beheer_catalogus_info(collectie_id,afbeelding_url)
+        VALUES($1,$2) ON CONFLICT(collectie_id) DO UPDATE SET afbeelding_url=$2,bijgewerkt_op=now()`,[id,afbeelding_url]);
       res.json({afbeelding_url});
     }catch(e){res.status(500).json({fout:e.message})}
   });
@@ -240,11 +240,11 @@ module.exports = function catalogusWorkspace(router,vereisAdmin,pool) {
       await init(pool);
       const id=Number(req.params.id);
       if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({fout:'Ongeldige catalogus.'});
-      const {rows}=await pool.query(\`SELECT t.id::text AS id,t.naam,t.type::text AS type,t.jaar
+      const {rows}=await pool.query(`SELECT t.id::text AS id,t.naam,t.type::text AS type,t.jaar
         FROM titel_collecties tc JOIN titels t ON t.id=tc.titel_id WHERE tc.collectie_id=$1
         UNION ALL SELECT g.id::text,g.naam,'game'::text,g.jaar
         FROM beheer_catalogus_games cg JOIN game_catalogus g ON g.id=cg.game_id WHERE cg.collectie_id=$1
-        ORDER BY naam LIMIT 500\`,[id]);
+        ORDER BY naam LIMIT 500`,[id]);
       res.json({resultaten:rows});
     }catch(e){res.status(500).json({fout:e.message})}
   });
