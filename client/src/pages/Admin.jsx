@@ -1698,6 +1698,7 @@ function Uiterlijk({ onMelding }) {
     const [thema, setThema] = useState(standaard);
     const [logo, setLogo] = useState(null);
     const [categorieBeelden, setCategorieBeelden] = useState({});
+    const [beeldGroep, setBeeldGroep] = useState('hoofd');
     const [bezigBeeld, setBezigBeeld] = useState('');
     useEffect(() => { api.adminCategorieBeelden().then(setCategorieBeelden).catch(() => {}); }, []);
     async function kiesCategorieBeeld(sleutel, bestand) {
@@ -1749,6 +1750,22 @@ function Uiterlijk({ onMelding }) {
         finally { setBezig(false); }
     }
 
+    const standaardBeeld = (sleutel) => {
+        const vast = {
+            films:'/category/approved-films.svg',muziek:'/category/approved-music.svg',games:'/category/approved-games.svg',
+            'collectie-alles':'/category/collection-all.svg','collectie-80s':'/category/collection-80s.svg',
+            'collectie-90s':'/category/collection-90s.svg','collectie-animatie':'/category/collection-animatie.svg',
+            'collectie-kinder':'/category/collection-kinder.svg','collectie-kerst':'/category/collection-christmas.svg',
+        };
+        if (vast[sleutel]) return vast[sleutel];
+        if (sleutel.startsWith('setup-')) return '/setup-icons/'+sleutel.slice(6)+'.svg';
+        return null;
+    };
+    const afbeeldingGroep = (sleutel) => sleutel.startsWith('setup-')?'setup':
+        sleutel.startsWith('platform-')?'platform':sleutel.startsWith('collectie-')?'collectie':'hoofd';
+    const beeldAfmetingen = (sleutel) => afbeeldingGroep(sleutel)==='hoofd'?'1200 × 675 · liggend (16:9)':
+        afbeeldingGroep(sleutel)==='setup'?'256 × 256 · vierkant':
+        afbeeldingGroep(sleutel)==='platform'?'512 × 512 · vierkant':'800 × 800 · vierkant';
     const kleuren = [
         ['achtergrond', 'Achtergrond'], ['oppervlak', 'Kaarten'], ['rand', 'Randen'],
         ['accent', 'Accent'], ['accentDonker', 'Donker accent'], ['tekst', 'Tekst'], ['tekstDim', 'Gedempte tekst'],
@@ -1789,7 +1806,11 @@ function Uiterlijk({ onMelding }) {
             </div>
             <div className="kaart" style={{ marginTop: '1rem' }}>
                 <p className="kaart-label">Afbeeldingen voor spelcategorieën en collecties</p>
-                <p className="dim">Upload later je eigen PNG, JPG of WebP. Tot die tijd blijven de standaardbeelden of tekst zichtbaar. Uploaden verandert geen spelgegevens.</p>
+                <p className="dim">Kies een onderdeel. Je ziet het huidige beeld, de ideale resolutie en een uploadveld.</p>
+                <div className="knoprij vt-beeld-filters" style={{flexWrap:'wrap'}}>
+                    {[['hoofd','Hoofdcategorieën'],['collectie','Collecties'],['platform','Videogames'],['setup','Spelinstellingen']].map(([id,label])=>
+                        <button type="button" key={id} className={'knop '+(beeldGroep===id?'':'knop-stil')} onClick={()=>setBeeldGroep(id)}>{label}</button>)}
+                </div>
                 <div className="vt-admin-category-images">
                     {[
                         ['films','Films & Series'], ['muziek','Muziek'], ['games','Videogames'],
@@ -1808,9 +1829,12 @@ function Uiterlijk({ onMelding }) {
                         ['setup-spel-teams','Wie speelt · Teams'], ['setup-spel-bergexpeditie','Wie speelt · Bergexpeditie'],
                         ['setup-modus-snelste','Spelsoort · Snelste'], ['setup-modus-kenner','Spelsoort · Kenner'],
                         ['setup-antwoord-typen','Antwoordwijze · Typen'], ['setup-antwoord-meerkeuze','Antwoordwijze · 6 opties']
-                    ].map(([sleutel, titel]) => <div className="vt-admin-category-image" key={sleutel}>
+                    ].filter(([sleutel])=>afbeeldingGroep(sleutel)===beeldGroep).map(([sleutel, titel]) => <div className="vt-admin-category-image" key={sleutel}>
                         <strong>{titel}</strong>
-                        {categorieBeelden[sleutel] ? <img src={categorieBeelden[sleutel]} alt={titel} /> : <small>Standaardbeeld / tekst</small>}
+                        <small>{beeldAfmetingen(sleutel)}</small>
+                        {categorieBeelden[sleutel] || standaardBeeld(sleutel)
+                            ? <img src={categorieBeelden[sleutel] || standaardBeeld(sleutel)} alt={'Huidige afbeelding '+titel} />
+                            : <span className="vt-beelden-placeholder">Geen standaardafbeelding; upload je eigen beeld.</span>}
                         <input type="file" accept="image/png,image/jpeg,image/webp" aria-label={'Afbeelding ' + titel}
                             disabled={Boolean(bezigBeeld)}
                             onChange={e => { const bestand=e.target.files?.[0]; e.target.value=''; kiesCategorieBeeld(sleutel,bestand); }} />
