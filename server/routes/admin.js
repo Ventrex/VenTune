@@ -1309,7 +1309,7 @@ router.post('/api/admin/gebruikers', vereisAdmin, async (req, res) => {
 
 router.get('/api/admin/gebruikers', vereisAdmin, async (_req, res) => {
     const { rows } = await pool.query(
-        `SELECT id, gebruikersnaam, display_naam, actief, aangemaakt_op, laatst_ingelogd
+        `SELECT id, gebruikersnaam, display_naam, rol, email, geboortedatum, avatar_url, actief, aangemaakt_op, laatst_ingelogd
            FROM gebruikers
           ORDER BY gebruikersnaam_norm ASC`,
     );
@@ -1349,12 +1349,18 @@ router.patch('/api/admin/gebruikers/:id', vereisAdmin, async (req, res) => {
             params.push(displayNaam);
             velden.push(`display_naam = $${params.length}`);
         }
+        if (req.body?.rol !== undefined) {
+            if (!['speler','beoordelaar'].includes(req.body.rol))
+                return res.status(400).json({fout:'Alleen speler of beoordelaar is een geldige rol.'});
+            params.push(req.body.rol);
+            velden.push(`rol = ${params.length}`);
+        }
         if (velden.length === 0) {
-            return res.status(400).json({ fout: 'Geef actief, gebruikersnaam of display_naam.' });
+            return res.status(400).json({ fout: 'Geef een geldige gebruikerswijziging op.' });
         }
         const { rows } = await pool.query(
             `UPDATE gebruikers SET ${velden.join(', ')} WHERE id = $1
-             RETURNING id, gebruikersnaam, display_naam, actief`,
+             RETURNING id, gebruikersnaam, display_naam, rol, actief`,
             params,
         );
         if (!rows[0]) return res.status(404).json({ fout: 'Gebruiker niet gevonden.' });
