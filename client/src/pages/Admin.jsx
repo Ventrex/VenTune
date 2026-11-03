@@ -1628,10 +1628,14 @@ function Databasebeheer({ onMelding }) {
     useEffect(() => { laad(); /* eslint-disable-next-line */ }, []);
 
     async function opschonen(actie, bevestiging) {
-        if (!window.confirm(bevestiging)) return;
+        const zwaar=['spelgeschiedenis','afgekeurde_tracks','wees_media','alle_titels'].includes(actie);
+        if (zwaar) {
+            const tekst=window.prompt(bevestiging+'\\nDeze actie kan blijvende gevolgen hebben. Typ VERWIJDER om te bevestigen:', '');
+            if (tekst!=='VERWIJDER') return;
+        } else if (!window.confirm(bevestiging)) return;
         setBezig(true);
         try {
-            const res = await api.adminDatabaseOpschonen(actie);
+            const res = await api.adminDatabaseOpschonen(actie, zwaar ? 'VERWIJDER' : '');
             onMelding(`${res.verwijderd} records verwijderd.`);
             await laad();
         } catch (err) { onMelding(err.message); }
