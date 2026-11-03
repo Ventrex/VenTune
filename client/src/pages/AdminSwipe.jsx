@@ -35,7 +35,10 @@ export default function AdminSwipe() {
     const [titelFout, setTitelFout] = useState('');
     const [titelBezig, setTitelBezig] = useState(null);
     const [fase, setFase] = useState('blind');       // blind | naam
-    const [categorie, setCategorie] = useState('film');
+    const [categorie, setCategorie] = useState(() => {
+        const gevraagd = new URLSearchParams(window.location.search).get('categorie');
+        return ['film','serie','games','disney','kerst','rock','80s','90s','20s','kinder','100nl'].includes(gevraagd) ? gevraagd : 'film';
+    });
     const categorieen = [['film', 'Films'], ['serie', 'Series'], ['games', 'Videogames'], ['disney', 'Disney'], ['kerst', 'Kerst'], ['rock', 'Rock'], ['80s', '80s'], ['90s', '90s'], ['20s', '20s'], ['kinder', 'Kinder'], ['100nl', '100% NL']];
     const [kaarten, setKaarten] = useState([]);
     const [index, setIndex] = useState(0);
