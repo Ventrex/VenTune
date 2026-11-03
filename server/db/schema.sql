@@ -342,6 +342,11 @@ CREATE TABLE IF NOT EXISTS gebruikers (
 -- zonder voorkeuren; daardoor kon /host/profile stuklopen op g.voorkeuren.
 ALTER TABLE gebruikers ADD COLUMN IF NOT EXISTS voorkeuren JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE gebruikers ADD COLUMN IF NOT EXISTS geboortedatum DATE;
+-- Profielvelden en beperkte, afzonderlijke beoordelaarsrol (geen adminrecht).
+ALTER TABLE gebruikers ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE gebruikers ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE gebruikers ADD COLUMN IF NOT EXISTS rol TEXT NOT NULL DEFAULT 'speler';
+
 
 CREATE INDEX IF NOT EXISTS idx_gebruikers_naam ON gebruikers (gebruikersnaam_norm);
 
