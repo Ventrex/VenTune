@@ -192,6 +192,15 @@ router.get('/api/auth/profile', vereisHost, async (req, res) => {
             [req.gebruiker.id],
         );
         if (!rows[0]) return res.status(404).json({ fout: 'Profiel niet gevonden.' });
+        const statRij = await pool.query(
+            `SELECT COUNT(*)::int AS spellen,
+                COALESCE(SUM(p.score),0)::bigint AS punten,
+                COALESCE(MAX(p.score),0)::int AS beste_score,
+                COALESCE(ROUND(AVG(p.score)::numeric,1),0) AS gemiddelde_score
+              FROM spelers p JOIN lobbies l ON l.id=p.lobby_id
+              WHERE p.gebruiker_id=$1 AND l.status='afgelopen'`,
+            [req.gebruiker.id],
+        );
         const presets = await pool.query(
             `SELECT id, naam, categorie, categorieen, taal, periode_start, periode_eind,
                     rondes, speeltijd, antwoord_modus, collecties, alleen_gecontroleerd,
@@ -207,13 +216,16 @@ router.get('/api/auth/profile', vereisHost, async (req, res) => {
                     COALESCE(MAX(s.score), 0)::int AS hoogste_score
                FROM lobbies l
                LEFT JOIN spelers s ON s.lobby_id = l.id
-              WHERE l.host_gebruiker_id = $1 AND l.status = 'afgelopen'
+              WHERE l.id IN (SELECT lobby_id FROM spelers WHERE gebruiker_id = $1) AND l.status = 'afgelopen'
               GROUP BY l.id
               ORDER BY l.bijgewerkt_op DESC
               LIMIT 20`,
             [req.gebruiker.id],
         );
-        res.json({ profiel: rows[0], presets: presets.rows, spellen: spellen.rows });
+        res.json({
+            profiel: { ...rows[0], ...statRij.rows[0] },
+            presets: presets.rows, spellen: spellen.rows
+        });
     } catch (err) {
         res.status(500).json({ fout: `Profiel kon niet worden geladen: ${err.message}` });
     }
