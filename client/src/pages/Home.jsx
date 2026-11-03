@@ -65,13 +65,13 @@ export default function Home() {
                     <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>{kop("nav.scores","Scores")}</Link>
                     {(isAdmin || hostAccount?.rol==='beoordelaar') && <Link to={isAdmin?'/admin/swipe':'/review'}><img src="/category/icon-play.svg" alt=""/>{kop("nav.controleren","Controleren")}</Link>}
                     {isAdmin && <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>{kop("nav.beheer","Beheer")}</Link>}
-                    {hostAccount && hostAccount.rol!=='beoordelaar' && <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>{kop("nav.profielen","Profielen")}</Link>}
+                    {(isAdmin || (hostAccount && hostAccount.rol!=='beoordelaar')) && <Link to={hostAccount?'/host/profile':'/host/login?return=/host/profile'}><img src="/category/icon-users.svg" alt=""/>{kop("nav.profielen","Profielen")}</Link>}
                 </div>
-                <Link className="vt-top-user" to={hostAccount?'/host/profile':'/host/login?return=/host/profile'}>
+                <Link className="vt-top-user" to={hostAccount?'/host/profile':isAdmin?'/admin':'/host/login?return=/host/profile'}>
                     <span className="vt-avatar-ring">{hostAccount?.avatar_url
                         ? <img src={hostAccount.avatar_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
                         : hostAccount?.display_naam?.slice(0,1).toUpperCase() || '♫'}</span>
-                    {hostAccount?.display_naam || kop('nav.inloggen','Inloggen')}
+                    {hostAccount?.display_naam || (isAdmin ? 'Beheerder' : kop('nav.inloggen','Inloggen'))}
                 </Link>
             </nav>
             <header className="vt-home-hero">
