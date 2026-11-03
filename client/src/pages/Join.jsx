@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { checkLobby, joinLobby } from '../lib/api.js';
+import { checkLobby, joinLobby, authSessie } from '../lib/api.js';
 import { bewaarSessie } from '../lib/sessie.js';
 
 // Joinpagina (/join/:code). Bereikt via QR-scan of code intypen.
@@ -15,6 +15,14 @@ export default function Join() {
     const [specialiteit, setSpecialiteit] = useState('');
     const [bezig, setBezig] = useState(false);
     const [fout, setFout] = useState('');
+    const [account,setAccount]=useState(null);
+    useEffect(()=>{
+        authSessie().then(d=>{
+            setAccount(d.ingelogd?d.gebruiker:null);
+            if(d.ingelogd && d.gebruiker?.display_naam)setNaam(d.gebruiker.display_naam);
+        }).catch(()=>setAccount(null));
+    },[]);
+
 
     useEffect(() => {
         checkLobby(bovenCode)
@@ -69,6 +77,14 @@ export default function Join() {
             {status === 'controleren' && <p className="dim">Lobby controleren…</p>}
 
             {status === 'ok' && (
+                <>
+                <div className="kaart" style={{marginBottom:10,padding:12}}>
+                    {account ? <p>Je doet mee als <strong>{account.display_naam}</strong>.</p>
+                        : <div className="stapel" style={{gap:7}}>
+                            <p>Meedoen zonder account, of inloggen om scores aan je profiel te koppelen.</p>
+                            <Link className="knop knop-stil" to={'/host/login?return='+encodeURIComponent('/join/'+bovenCode)}>Inloggen / account maken</Link>
+                        </div>}
+                </div>
                 <form onSubmit={meedoen} className="stapel">
                     <input
                         className="invoer"
@@ -78,6 +94,7 @@ export default function Join() {
                         maxLength={24}
                         aria-label="Je naam"
                         autoFocus
+                        readOnly={Boolean(account)}
                     />
                     <label className="dim">Jouw specialiteit (optioneel)
                         <select className="invoer" value={specialiteit} onChange={(e) => setSpecialiteit(e.target.value)}>
@@ -89,6 +106,7 @@ export default function Join() {
                         {bezig ? 'Meedoen…' : 'Meedoen'}
                     </button>
                 </form>
+                </>
             )}
 
             {status === 'weg' && (
