@@ -1315,11 +1315,32 @@ router.post('/api/admin/gebruikers', vereisAdmin, async (req, res) => {
 
 router.get('/api/admin/gebruikers', vereisAdmin, async (_req, res) => {
     const { rows } = await pool.query(
-        `SELECT id, gebruikersnaam, display_naam, rol, email, geboortedatum, avatar_url, actief, aangemaakt_op, laatst_ingelogd
-           FROM gebruikers
+        `SELECT g.id, g.gebruikersnaam, g.display_naam, g.rol, g.email, g.geboortedatum,
+                  g.avatar_url, g.actief, g.aangemaakt_op, g.laatst_ingelogd,
+                  (SELECT COUNT(*)::int FROM spelers p JOIN lobbies l ON l.id=p.lobby_id
+                   WHERE p.gebruiker_id=g.id AND l.status='afgelopen'
+                   AND p.score_uitgesloten=true) AS scores_uitgesloten
+           FROM gebruikers g
           ORDER BY gebruikersnaam_norm ASC`,
     );
     res.json(rows);
+});
+
+// Testresultaten uitsluiten van ranglijsten; behoud alle historische scores.
+router.post('/api/admin/gebruikers/:id/scores', vereisAdmin, async (req,res)=>{
+    const uitsluiten=req.body?.uitsluiten;
+    if(typeof uitsluiten!=='boolean')return res.status(400).json({fout:'Kies scores uitsluiten of herstellen.'});
+    const bevestiging=uitsluiten?'RESET':'HERSTEL';
+    if(req.body?.bevestiging!==bevestiging)return res.status(400).json({fout:'Bevestig met '+bevestiging});
+    try{
+        const account=await pool.query('SELECT id FROM gebruikers WHERE id=$1',[req.params.id]);
+        if(!account.rowCount)return res.status(404).json({fout:'Account niet gevonden.'});
+        const resultaat=await pool.query(`UPDATE spelers p SET score_uitgesloten=$2
+          FROM lobbies l WHERE p.lobby_id=l.id AND l.status='afgelopen'
+          AND p.gebruiker_id=$1 AND p.score_uitgesloten IS DISTINCT FROM $2
+          RETURNING p.id`,[req.params.id,uitsluiten]);
+        res.json({ok:true,aangepast:resultaat.rowCount,uitsluiten});
+    }catch(err){res.status(500).json({fout:err.message})}
 });
 
 router.get('/api/admin/spelers', vereisAdmin, async (_req, res) => {
