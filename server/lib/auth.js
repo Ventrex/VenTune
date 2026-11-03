@@ -8,6 +8,9 @@
 const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
+const multer = require('multer');
+const fs = require('fs/promises');
+const path = require('path');
 const { pool } = require('../db/pool');
 const cookies = require('./cookies');
 
@@ -230,21 +233,67 @@ router.patch('/api/auth/profile', vereisHost, async (req, res) => {
         if (geboortedatum && leeftijd === null) {
             return res.status(400).json({ fout: 'Geboortedatum geeft geen geldige leeftijd tussen 4 en 120 jaar.' });
         }
+        const andereNaam = await pool.query(
+            'SELECT 1 FROM gebruikers WHERE id<>$1 AND lower(trim(display_naam))=lower($2) LIMIT 1',
+            [req.gebruiker.id,displayNaam]);
+        if (andereNaam.rowCount) return res.status(409).json({fout:'Deze zichtbare naam is al in gebruik. Kies een unieke naam.'});
+        const opgegevenEmail = req.body?.email;
+        const email = opgegevenEmail === undefined ? undefined : String(opgegevenEmail||'').trim().toLowerCase();
+        if (email !== undefined && email !== '' && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+            return res.status(400).json({fout:'Ongeldig e-mailadres.'});
+        }
         const veiligeVoorkeuren = {
             fontSchaal: Math.min(1.4, Math.max(0.85, Number(voorkeuren.fontSchaal) || 1)),
         };
         const { rows } = await pool.query(
-            `UPDATE gebruikers SET display_naam = $2, voorkeuren = $3::jsonb, geboortedatum = $4
+            `UPDATE gebruikers SET display_naam = $2, voorkeuren = $3::jsonb, geboortedatum = $4, email = CASE WHEN $5::boolean THEN $6 ELSE email END
               WHERE id = $1
-              RETURNING id, gebruikersnaam, display_naam, actief, voorkeuren, geboortedatum,
+              RETURNING id, gebruikersnaam, display_naam, actief, voorkeuren, geboortedatum, email, avatar_url,
                         CASE WHEN geboortedatum IS NULL THEN NULL
                              ELSE date_part('year', age(geboortedatum))::int END AS leeftijd`,
-            [req.gebruiker.id, displayNaam, JSON.stringify(veiligeVoorkeuren), geboortedatum],
+            [req.gebruiker.id, displayNaam, JSON.stringify(veiligeVoorkeuren), geboortedatum, email !== undefined, email ?? null],
         );
         res.json(rows[0]);
     } catch (err) {
         res.status(400).json({ fout: err.message || 'Profiel opslaan mislukt.' });
     }
+});
+
+// Zelf je wachtwoord wijzigen: huidige wachtwoord is verplicht.
+router.post('/api/auth/wachtwoord-wijzigen', vereisHost, async(req,res)=>{
+    try{
+        const huidige=String(req.body?.huidig||'');
+        const nieuw=valideerWachtwoord(req.body?.nieuw);
+        const {rows}=await pool.query('SELECT wachtwoord_hash FROM gebruikers WHERE id=$1',[req.gebruiker.id]);
+        if(!rows[0] || !(await controleerWachtwoord(huidige,rows[0].wachtwoord_hash))){
+            return res.status(403).json({fout:'Huidig wachtwoord is onjuist.'});
+        }
+        const hash=await hashWachtwoord(nieuw);
+        await pool.query('UPDATE gebruikers SET wachtwoord_hash=$2 WHERE id=$1',[req.gebruiker.id,hash]);
+        await pool.query('DELETE FROM auth_sessies WHERE gebruiker_id=$1',[req.gebruiker.id]);
+        wisCookie(res);
+        res.json({ok:true,opnieuwInloggen:true});
+    }catch(err){res.status(400).json({fout:err.message})}
+});
+
+const avatarUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:2*1024*1024}});
+router.post('/api/auth/avatar',vereisHost,avatarUpload.single('afbeelding'),async(req,res)=>{
+    try{
+        const bytes=req.file?.buffer;
+        if(!bytes)return res.status(400).json({fout:'Kies een afbeelding.'});
+        let ext=null;
+        if(bytes.length>8 && bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))ext='.png';
+        else if(bytes.length>3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255)ext='.jpg';
+        else if(bytes.length>12&&bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP')ext='.webp';
+        if(!ext)return res.status(415).json({fout:'Gebruik PNG, JPG of WebP.'});
+        const dir=process.env.UPLOAD_DIR||path.join(process.env.MEDIA_DIR||'/media','uploads');
+        await fs.mkdir(dir,{recursive:true});
+        const name='avatar-'+req.gebruiker.id+'-'+crypto.randomUUID()+ext;
+        await fs.writeFile(path.join(dir,name),bytes,{flag:'wx'});
+        const url='/media/uploads/'+name;
+        await pool.query('UPDATE gebruikers SET avatar_url=$2 WHERE id=$1',[req.gebruiker.id,url]);
+        res.json({avatar_url:url});
+    }catch(err){res.status(500).json({fout:'Avatar opslaan mislukt.'})}
 });
 
 router.post('/api/auth/register', async (req, res) => {
