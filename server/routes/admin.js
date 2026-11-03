@@ -56,6 +56,7 @@ const { veiligeTiteltekst, veiligeMetadata } = require('../lib/content-filter');
 const trackReview = require('../lib/track-review');
 
 const router = express.Router();
+require('./beheer-logs')(router, vereisAdmin, pool);
 require('./catalogus-audit')(router, vereisAdmin, pool);
 require('./catalogus-workspace')(router, vereisAdmin, pool);
 
