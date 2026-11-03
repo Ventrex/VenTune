@@ -57,7 +57,7 @@ export default function Home() {
                 <div className="vt-top-links">
                     <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt=""/>Spelen</Link>
                     <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>Scores</Link>
-                    {isAdmin && <Link to="/admin/swipe"><img src="/category/icon-play.svg" alt=""/>Controleren</Link>}
+                    {(isAdmin || hostAccount?.rol==='beoordelaar') && <Link to={isAdmin?'/admin/swipe':'/review'}><img src="/category/icon-play.svg" alt=""/>Controleren</Link>}
                     {isAdmin && <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>Beheer</Link>}
                     {hostAccount && <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>Profielen</Link>}
                 </div>
