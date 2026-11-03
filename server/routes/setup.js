@@ -356,6 +356,7 @@ router.get('/api/ranking', async (_req, res) => {
                  WHERE l.status = 'afgelopen'
                    AND p.gebruiker_id IS NOT NULL
                    AND p.is_gast IS DISTINCT FROM true
+                   AND p.score_uitgesloten IS DISTINCT FROM true
                  GROUP BY p.id, p.naam, p.gebruiker_id, p.score, l.id
             ), aggregatie AS (
                 SELECT COALESCE(gebruiker_id::text, 'gast:' || lower(trim(naam))) AS sleutel,
