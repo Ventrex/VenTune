@@ -1004,7 +1004,7 @@ let actieveSwipe = null;
 async function vulSwipeBuffer(categorie,fase='blind'){
  await initMp3Queue();
  await initUitsluitlijst();
- if(!categorie || !['film','serie','games','disney','kerst','rock','80s','90s','20s','kinder','100nl'].includes(categorie))return;
+ if(!categorie || !['film','serie','muziek','games','disney','kerst','rock','80s','90s','20s','kinder','100nl'].includes(categorie))return;
  actieveSwipe={categorie,fase};
  if(categorie==='games')await vulGameMuziekSwipe();
  const status=fase==='naam'?'blind_nee':'nieuw';
