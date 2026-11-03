@@ -226,7 +226,7 @@ router.get('/api/admin/ai-vragen/status', vereisAdmin, async (_req, res) => {
 });
 router.post('/api/admin/ai-vragen/start', vereisAdmin, async (req, res) => {
     if (quizBatch.bezig) return res.status(409).json({ fout: 'Generatie loopt al.' });
-    const maximaal = Math.min(500, Math.max(1, Number(req.body?.limiet) || 100));
+    const maximaal = Math.min(500, Math.max(1, Number(req.body?.limiet) || 250));
     const { rows } = await pool.query(`
        SELECT t.id FROM titels t WHERE t.type IN ('film','serie')
          AND (coalesce(array_length(t.ai_hints,1),0) < 3
