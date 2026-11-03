@@ -1290,6 +1290,27 @@ router.get('/api/admin/kwaliteit', vereisAdmin, async (_req, res) => {
     }
 });
 
+// Alleen signalen, nooit automatische sancties: snel correcte antwoorden
+// kunnen ook wijzen op kenners of op technische timingproblemen.
+router.get('/api/admin/verdachte-spellen', vereisAdmin, async(req,res)=>{
+    try{
+        const {rows}=await pool.query(`SELECT p.id AS speler_id,p.naam AS speler,
+           l.code AS lobbycode,l.bijgewerkt_op,
+           count(a.id)::int AS antwoorden,
+           count(a.id) FILTER (WHERE a.titel_goed=true)::int AS goed,
+           round(AVG(a.verstreken_ms) FILTER (WHERE a.titel_goed=true))::int AS gemiddeld_ms,
+           min(a.verstreken_ms) FILTER (WHERE a.titel_goed=true) AS snelste_ms
+         FROM antwoorden a JOIN spelers p ON p.id=a.speler_id
+         JOIN lobbies l ON l.id=p.lobby_id
+         WHERE a.verstreken_ms IS NOT NULL AND a.verstreken_ms>=0
+         GROUP BY p.id,p.naam,l.code,l.bijgewerkt_op
+         HAVING count(a.id)>=8 AND
+            (count(a.id) FILTER(WHERE a.titel_goed=true))::numeric / NULLIF(count(a.id),0)>=0.85
+            AND AVG(a.verstreken_ms) FILTER (WHERE a.titel_goed=true) < 1800
+         ORDER BY gemiddeld_ms ASC, antwoorden DESC LIMIT 100`);
+        res.json({resultaten:rows,toelichting:'Snelle, vaak correcte antwoorden zijn slechts een statistisch signaal, geen bewijs van valsspelen. Er wordt niemand automatisch geblokkeerd.'});
+    }catch(err){res.status(500).json({fout:err.message})}
+});
 // Hostaccounts beheren zonder het admin-wachtwoord in de database te zetten.
 // Wachtwoorden worden nooit teruggestuurd; een reset maakt bestaande
 // hostsessies direct ongeldig.
