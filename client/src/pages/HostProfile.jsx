@@ -13,6 +13,12 @@ export default function HostProfile() {
     const [data, setData] = useState(null);
     const [naam, setNaam] = useState('');
     const [geboortedatum, setGeboortedatum] = useState('');
+    const [email,setEmail]=useState('');
+    const [avatarFile,setAvatarFile]=useState(null);
+    const [huidigWachtwoord,setHuidigWachtwoord]=useState('');
+    const [nieuwWachtwoord,setNieuwWachtwoord]=useState('');
+    const [bezigAccount,setBezigAccount]=useState(false);
+
     const [fout, setFout] = useState('');
     const [melding, setMelding] = useState('');
 
@@ -20,6 +26,7 @@ export default function HostProfile() {
         authProfiel().then((resultaat) => {
             setData(resultaat);
             setNaam(resultaat.profiel.display_naam);
+            setEmail(resultaat.profiel.email||'');
             setGeboortedatum(resultaat.profiel.geboortedatum ? String(resultaat.profiel.geboortedatum).slice(0, 10) : '');
         }).catch((err) => {
             if (/inlog/i.test(err.message)) navigate('/host/login?return=/host/profile', { replace: true });
@@ -32,10 +39,37 @@ export default function HostProfile() {
         setFout('');
         setMelding('');
         try {
-            const resultaat = await authBewaarProfiel({ display_naam: naam, geboortedatum: geboortedatum || null });
+            const resultaat = await authBewaarProfiel({ display_naam: naam, geboortedatum: geboortedatum || null, email });
             setData((oud) => ({ ...oud, profiel: { ...oud.profiel, ...resultaat } }));
             setMelding('Profiel opgeslagen.');
         } catch (err) { setFout(err.message); }
+    }
+
+    async function uploadAvatar(e){
+        e.preventDefault();if(!avatarFile)return;
+        setBezigAccount(true);setFout('');setMelding('');
+        try{
+            const form=new FormData();form.append('afbeelding',avatarFile);
+            const r=await fetch('/api/auth/avatar',{method:'POST',credentials:'include',body:form});
+            const data=await r.json().catch(()=>({}));
+            if(!r.ok)throw Error(data.fout||'Avatar upload mislukt');
+            setData(v=>({...v,profiel:{...v.profiel,avatar_url:data.avatar_url}}));
+            setAvatarFile(null);setMelding('Avatar opgeslagen.');
+        }catch(err){setFout(err.message)}finally{setBezigAccount(false)}
+    }
+    async function wijzigWachtwoord(e){
+        e.preventDefault();setFout('');
+        setBezigAccount(true);
+        try{
+            const r=await fetch('/api/auth/wachtwoord-wijzigen',{
+                method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({huidig:huidigWachtwoord,nieuw:nieuwWachtwoord})
+            });
+            const data=await r.json().catch(()=>({}));
+            if(!r.ok)throw Error(data.fout||'Wachtwoord veranderen mislukt');
+            setHuidigWachtwoord('');setNieuwWachtwoord('');
+            navigate('/host/login?return=/host/profile',{replace:true});
+        }catch(err){setFout(err.message)}finally{setBezigAccount(false)}
     }
 
     return (
@@ -44,16 +78,23 @@ export default function HostProfile() {
             <p style={{ textAlign: 'left', margin: '0 0 0.5rem' }}>
                 <Link className="terug" to="/setup">← Terug naar setup</Link>
             </p>
-            <h1>Hostprofiel</h1>
+            <h1>Mijn profiel</h1>
             {fout && <p className="waarschuwing">{fout}</p>}
             {!data && !fout && <p className="dim">Profiel laden…</p>}
             {data && (
                 <>
                     <form className="kaart stapel" onSubmit={bewaar}>
                         <p className="kaart-label">Account</p>
-                        <p className="dim">@{data.profiel.gebruikersnaam} · {data.profiel.actief ? 'actief' : 'uitgeschakeld'}</p>
+                        <div className="cw-profile-head">
+                            {data.profiel.avatar_url?<img className="cw-profile-avatar" src={data.profiel.avatar_url} alt="Profielfoto"/>:
+                              <span className="cw-profile-avatar cw-profile-placeholder">{data.profiel.display_naam?.[0]?.toUpperCase()||'♫'}</span>}
+                            <span><strong>{data.profiel.display_naam}</strong><small>@{data.profiel.gebruikersnaam} · {data.profiel.actief?'actief':'uitgeschakeld'}</small></span>
+                        </div>
+                        <small className="dim">Je accountnaam blijft vast. Je zichtbare naam kun je wijzigen als die nog vrij is.</small>
                         <label className="kaart-label" htmlFor="profiel-naam">Naam op het hostscherm</label>
                         <input id="profiel-naam" className="invoer" value={naam} onChange={(e) => setNaam(e.target.value)} maxLength={40} required />
+                        <label className="kaart-label" htmlFor="profiel-email">E-mailadres (optioneel)</label>
+                        <input id="profiel-email" className="invoer" type="email" maxLength={254} value={email} onChange={e=>setEmail(e.target.value)} placeholder="Je e-mailadres"/>
                         <label className="kaart-label" htmlFor="profiel-geboorte">Geboortedatum</label>
                         <input id="profiel-geboorte" className="invoer" type="date" value={geboortedatum} onChange={(e) => setGeboortedatum(e.target.value)} />
                         <p className="dim" style={{ marginTop: '-0.75rem' }}>
@@ -62,10 +103,25 @@ export default function HostProfile() {
                         <button className="knop" type="submit">Opslaan</button>
                         {melding && <p className="dim">{melding}</p>}
                     </form>
+                    <section className="kaart cw-profile-security" style={{marginTop:'1rem'}}>
+                        <h2>Avatar en beveiliging</h2>
+                        <form className="cw-profile-row" onSubmit={uploadAvatar}>
+                            <label>Profielfoto <small>PNG, JPG of WebP · max. 2 MB</small>
+                                <input className="invoer" type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setAvatarFile(e.target.files?.[0]||null)}/>
+                            </label>
+                            <button className="knop knop-stil" type="submit" disabled={!avatarFile||bezigAccount}>Avatar opslaan</button>
+                        </form>
+                        <form className="cw-profile-row" onSubmit={wijzigWachtwoord}>
+                            <label>Huidig wachtwoord<input className="invoer" type="password" value={huidigWachtwoord} onChange={e=>setHuidigWachtwoord(e.target.value)} autoComplete="current-password" required/></label>
+                            <label>Nieuw wachtwoord<input className="invoer" type="password" value={nieuwWachtwoord} onChange={e=>setNieuwWachtwoord(e.target.value)} autoComplete="new-password" minLength={10} required/></label>
+                            <button type="submit" className="knop knop-stil" disabled={bezigAccount||nieuwWachtwoord.length<10}>Wachtwoord wijzigen</button>
+                        </form>
+                    </section>
                     <div className="overzicht" style={{ marginTop: '1rem' }}>
                         <div className="tegel"><span className="tegel-waarde">{data.profiel.spellen}</span><span className="tegel-label">Spellen</span></div>
                         <div className="tegel"><span className="tegel-waarde">{data.profiel.punten}</span><span className="tegel-label">Punten</span></div>
                         <div className="tegel"><span className="tegel-waarde">{data.profiel.beste_score}</span><span className="tegel-label">Beste score</span></div>
+                        <div className="tegel"><span className="tegel-waarde">{data.profiel.gemiddelde_score||0}</span><span className="tegel-label">Gemiddelde</span></div>
                     </div>
                     <section className="kaart" style={{ marginTop: '1rem', textAlign: 'left' }}>
                         <p className="kaart-label">Eigen presets ({data.presets.length})</p>
