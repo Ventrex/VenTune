@@ -814,3 +814,16 @@
  .vt-compact-setup .vt-setting-switch strong{font-size:.64rem!important}
  .vt-compact-setup .vt-option-card small{display:none!important}
 }
+
+
+/* Navigatie en spelersavatar: altijd rond, leesbare naam ernaast */
+.vt-home-topnav .vt-top-user{display:inline-flex;align-items:center;gap:8px;max-width:100%;white-space:nowrap}
+.vt-home-topnav .vt-avatar-ring,.ventune-home .vt-avatar-ring{
+ width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important;
+ flex:0 0 34px!important;display:inline-grid!important;place-items:center!important;
+ border-radius:50%!important;overflow:hidden!important;
+ background:linear-gradient(145deg,#ea2b97,#5625a0)!important;
+ border:2px solid #ff9ad6!important;color:#fff;font-size:.95rem;font-weight:800;
+}
+.vt-home-topnav .vt-top-links{gap:8px;flex-wrap:wrap}
+@media(max-width:560px){.vt-home-topnav .vt-top-user{font-size:.78rem}.vt-home-topnav .vt-avatar-ring{width:29px!important;height:29px!important;min-width:29px!important;flex-basis:29px!important}}
