@@ -76,3 +76,17 @@
 .cw-stats{display:flex;gap:8px;flex-wrap:wrap}
 .cw-stats span{padding:6px 9px;font-size:.8rem;border-radius:8px;background:#201434;border:1px solid #67478a}
 @media(max-width:480px){.admin-portaal .vt-admin-category-images{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-portaal .vt-admin-category-image>img{height:90px}}
+
+
+/* Persoonlijk profiel — compacte velden en ronde avatar. */
+.cw-profile-head{display:flex;align-items:center;gap:12px}
+.cw-profile-avatar{display:grid;place-items:center;width:56px;height:56px;flex:0 0 56px;border-radius:50%;object-fit:cover;overflow:hidden;border:2px solid #fe96d1;background:#31134a;color:#fff;font-size:1.5rem;font-weight:800}
+.cw-profile-head>span>strong,.cw-profile-head>span>small{display:block}
+.cw-profile-head>span>small{font-size:.75rem;color:#af95ca}
+.cw-profile-security{display:grid;gap:11px;padding:14px}
+.cw-profile-security h2{margin:0;font-size:1.05rem}
+.cw-profile-row{display:flex;gap:9px;align-items:end;flex-wrap:wrap}
+.cw-profile-row label{display:grid;gap:4px;font-size:.8rem;min-width:150px;flex:1}
+.cw-profile-row label small{font-size:.7rem;color:#aa98ca}
+.cw-profile-row .invoer{min-height:38px;width:100%;padding:7px 9px!important;font-size:.85rem}
+.cw-profile-row .knop{width:auto!important;min-height:38px;padding:8px 12px;font-size:.83rem}
