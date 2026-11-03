@@ -13,7 +13,7 @@ const express = require('express');
 const lobby = require('../game/lobby');
 const logger = require('../lib/logger');
 const discord = require('../lib/discord');
-const { vereisHost } = require('../lib/auth');
+const { vereisHost, gebruikerUitRequest, leeftijdUitGeboortedatum } = require('../lib/auth');
 
 const router = express.Router();
 
@@ -62,9 +62,16 @@ router.get('/api/lobby/:code', async (req, res) => {
 // Speler doet mee.
 router.post('/api/lobby/:code/join', async (req, res) => {
     try {
-        const naam = req.body && req.body.naam;
-        const leeftijd = req.body && req.body.leeftijd;
-        const resultaat = await lobby.doeMee({ code: req.params.code, naam, leeftijd, specialiteit: req.body?.specialiteit });
+        const account = await gebruikerUitRequest(req);
+        const naam = account?.display_naam || req.body?.naam;
+        const leeftijd = account?.geboortedatum
+            ? leeftijdUitGeboortedatum(account.geboortedatum)
+            : req.body?.leeftijd;
+        const resultaat = await lobby.doeMee({
+            code: req.params.code, naam, leeftijd,
+            gebruikerId: account?.id || null,
+            specialiteit: req.body?.specialiteit,
+        });
         logger.info('Speler deed mee.', { code: req.params.code });
         res.json({
             token: resultaat.token,
