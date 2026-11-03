@@ -2075,6 +2075,12 @@ function Hostaccounts({ gebruikers, spelers, onWijzig }) {
             alert(err.message);
         }
     }
+    async function wijzigRol(gebruiker, rol) {
+        try {
+            await api.adminBewerkGebruiker(gebruiker.id, {rol});
+            onWijzig();
+        } catch (err) { alert(err.message); }
+    }
     async function reset(gebruiker) {
         const nieuw = window.prompt(
             `Nieuw tijdelijk wachtwoord voor ${gebruiker.gebruikersnaam} (minimaal 10 tekens):`,
@@ -2130,6 +2136,12 @@ function Hostaccounts({ gebruikers, spelers, onWijzig }) {
                                 {!gebruiker.actief && <span className="dim"> · uitgeschakeld</span>}
                             </span>
                             <span className="admin-account-acties">
+                                <label className="vt-role-field">Rol
+                                  <select className="invoer" value={gebruiker.rol||'speler'} onChange={e=>wijzigRol(gebruiker,e.target.value)} aria-label={'Rol voor '+gebruiker.gebruikersnaam}>
+                                    <option value="speler">Speler</option>
+                                    <option value="beoordelaar">Beoordelaar</option>
+                                  </select>
+                                </label>
                                 <button className="afspeelknop klein" onClick={() => bewerk(gebruiker)}>
                                     Bewerk
                                 </button>
