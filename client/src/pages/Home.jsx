@@ -17,6 +17,12 @@ export default function Home() {
     const [fout, setFout] = useState('');
     const [hostAccount,setHostAccount]=useState(null);
     const [isAdmin,setIsAdmin]=useState(false);
+    const [siteTeksten,setSiteTeksten]=useState({});
+    const kop=(sleutel,standaard)=>siteTeksten[sleutel]||standaard;
+    useEffect(()=>{
+        fetch('/api/site-teksten').then(r=>r.ok?r.json():{}).then(setSiteTeksten).catch(()=>{});
+    },[]);
+
     useEffect(()=>{
         authSessie().then(d=>setHostAccount(d.ingelogd?d.gebruiker:null)).catch(()=>setHostAccount(null));
         fetch('/api/admin/sessie',{credentials:'include'}).then(r=>r.ok?r.json():{ingelogd:false})
@@ -55,29 +61,31 @@ export default function Home() {
             <nav className="vt-category-topnav vt-home-topnav" aria-label="VenTune navigatie">
                 <Link className="vt-top-brand" to="/setup"><img className="vt-top-equalizer" src="/category/equalizer.svg" alt=""/><strong><span>Ven</span>Tune</strong></Link>
                 <div className="vt-top-links">
-                    <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt=""/>Spelen</Link>
-                    <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>Scores</Link>
-                    {(isAdmin || hostAccount?.rol==='beoordelaar') && <Link to={isAdmin?'/admin/swipe':'/review'}><img src="/category/icon-play.svg" alt=""/>Controleren</Link>}
-                    {isAdmin && <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>Beheer</Link>}
-                    {hostAccount && hostAccount.rol!=='beoordelaar' && <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>Profielen</Link>}
+                    <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt=""/>{kop("nav.spelen","Spelen")}</Link>
+                    <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>{kop("nav.scores","Scores")}</Link>
+                    {(isAdmin || hostAccount?.rol==='beoordelaar') && <Link to={isAdmin?'/admin/swipe':'/review'}><img src="/category/icon-play.svg" alt=""/>{kop("nav.controleren","Controleren")}</Link>}
+                    {isAdmin && <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>{kop("nav.beheer","Beheer")}</Link>}
+                    {hostAccount && hostAccount.rol!=='beoordelaar' && <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>{kop("nav.profielen","Profielen")}</Link>}
                 </div>
                 <Link className="vt-top-user" to={hostAccount?'/host/profile':'/host/login?return=/host/profile'}>
-                    <span className="vt-avatar-ring">{hostAccount?.display_naam?.slice(0,1).toUpperCase() || '♫'}</span>
-                    {hostAccount?.display_naam || 'Inloggen'}
+                    <span className="vt-avatar-ring">{hostAccount?.avatar_url
+                        ? <img src={hostAccount.avatar_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
+                        : hostAccount?.display_naam?.slice(0,1).toUpperCase() || '♫'}</span>
+                    {hostAccount?.display_naam || kop('nav.inloggen','Inloggen')}
                 </Link>
             </nav>
             <header className="vt-home-hero">
-                <h1>Kies je volgende quiz</h1>
-                <p>Start een nieuw spel, doe mee met vrienden of ga verder waar je was gebleven.</p>
+                <h1>{kop("home.titel","Kies je volgende quiz")}</h1>
+                <p>{kop("home.ondertitel","Start een nieuw spel, doe mee met vrienden of ga verder waar je was gebleven.")}</p>
             </header>
             {fout && <p className="waarschuwing">{fout}</p>}
             <div className="vt-home-actions">
                 <button type="button" className="vt-home-action vt-home-new" onClick={nieuwSpel}>
                     <img src="/category/approved-films.svg?v=hd840-20261101" alt="" />
-                    <span><strong>Nieuw spel</strong><small>Stel je quiz samen</small></span>
+                    <span><strong>{kop("home.nieuw_spel","Nieuw spel")}</strong><small>Stel je quiz samen</small></span>
                 </button>
                 <form onSubmit={meedoen} className="vt-home-action vt-home-join">
-                    <div className="vt-home-action-heading"><span className="vt-option-art">📱</span><strong>Spel joinen</strong><small>Voer de lobbycode in</small></div>
+                    <div className="vt-home-action-heading"><span className="vt-option-art">📱</span><strong>{kop("home.meedoen","Spel joinen")}</strong><small>Voer de lobbycode in</small></div>
                     <div className="zoekbalk">
                         <input className="invoer code-invoer" value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
                             placeholder="ABCD" maxLength={4} autoCapitalize="characters" aria-label="Lobbycode"/>
@@ -85,7 +93,7 @@ export default function Home() {
                     </div>
                 </form>
                 <div className="vt-home-action vt-home-continue">
-                    <div className="vt-home-action-heading"><span className="vt-option-art">↻</span><strong>Doorgaan vorig spel</strong>
+                    <div className="vt-home-action-heading"><span className="vt-option-art">↻</span><strong>{kop("home.doorgaan","Doorgaan vorig spel")}</strong>
                         <small>{opgeslagenSpellen.length ? 'Kies een eerder spel op dit apparaat':'Geen onderbroken spel op dit apparaat'}</small></div>
                     <div className="vt-saved-games">
                         {opgeslagenSpellen.map(opgeslagen=><div key={opgeslagen.code} className="vt-saved-game">
@@ -119,12 +127,7 @@ export default function Home() {
                 <Link className="terug" to="/changelog">
                     Wat is nieuw? →
                 </Link>
-                <Link className="terug" to="/admin">
-                    Beheer →
-                </Link>
-                <Link className="terug" to="/admin/ai">
-                    AI &amp; aanbevelingen →
-                </Link>
+                {isAdmin && <Link className="terug" to="/admin">Beheer</Link>}
             </p>
 
         </main>
