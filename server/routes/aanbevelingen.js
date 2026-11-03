@@ -827,12 +827,16 @@ router.post('/api/admin/aanbevelingen/catalogus/:id/start',vereisAdmin,async(req
 router.get('/api/admin/aanbevelingen/catalogus/:id/wachtrij',vereisAdmin,async(req,res)=>{
  try{
   const id=Number(req.params.id);
+  await initMp3Queue();
   if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({fout:'Ongeldige catalogus'});
   const {rows}=await pool.query(`SELECT a.id,a.titel,a.categorie,a.status,
       COALESCE(q.status,'niet_gepland') AS download_status,q.pogingen,q.fout
-   FROM aanbevelingen a JOIN titel_collecties tc ON a.titel_id=tc.titel_id
+   FROM aanbevelingen a LEFT JOIN titel_collecties tc ON a.titel_id=tc.titel_id
    LEFT JOIN swipe_mp3_queue q ON q.aanbeveling_id=a.id
-   WHERE tc.collectie_id=$1 ORDER BY a.id DESC LIMIT 300`,[id]);
+   WHERE tc.collectie_id=$1 OR (a.categorie='games' AND EXISTS(
+    SELECT 1 FROM beheer_catalogus_games cg JOIN game_catalogus g ON g.id=cg.game_id
+     WHERE cg.collectie_id=$1 AND lower(trim(g.naam))=lower(trim(a.titel))
+   )) ORDER BY a.id DESC LIMIT 300`,[id]);
   res.json({resultaten:rows});
  }catch(e){res.status(500).json({fout:e.message})}
 });
