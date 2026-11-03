@@ -18,6 +18,13 @@ function bouwFilter(f = {}) {
     const params = [];
     // Definitief afgekeurde titels mogen nooit terugkomen in een spel.
     condities.push("COALESCE(t.curatie_status::text,'') <> 'uitgesloten'");
+    // Open meldingen pauzeren een titel tijdelijk voor nieuwe spellen.
+    // Een admin kan de melding herstellen of afwijzen; de MP3 en historiek blijven intact.
+    condities.push(`NOT EXISTS (
+        SELECT 1 FROM meldingen m
+        WHERE m.titel_id=t.id AND m.afgehandeld=false
+    )`);
+
 
     // Inhoudstype: films | series | muziek | beide. Collecties zijn aparte
     // labels; Frozen kan dus film + Disney zijn zonder dat het filmtype
