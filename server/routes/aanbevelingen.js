@@ -775,6 +775,68 @@ router.post('/api/admin/titels/:id/ai-quiz', vereisAdmin, async (req, res) => {
     } catch (err) { return res.status(500).json({ fout: err.message }); }
 });
 
+
+router.post('/api/admin/aanbevelingen/catalogus/:id/start',vereisAdmin,async(req,res)=>{
+ try{
+  const id=Number(req.params.id),limiet=Math.min(100,Math.max(1,Number(req.body?.limiet)||25));
+  if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({fout:'Ongeldige catalogus'});
+  const lijst=await pool.query('SELECT id,naam FROM collecties WHERE id=$1 AND actief=true',[id]);
+  if(!lijst.rowCount)return res.status(404).json({fout:'Catalogus niet gevonden of niet actief'});
+  await initMp3Queue();
+  const {rows}=await pool.query(`SELECT t.id,t.naam,t.type::text AS type,t.jaar,t.genres
+   FROM titel_collecties tc JOIN titels t ON t.id=tc.titel_id
+   WHERE tc.collectie_id=$1 AND t.curatie_status<>'uitgesloten'
+     AND NOT EXISTS(SELECT 1 FROM tracks tr WHERE tr.titel_id=t.id AND tr.bron='lokaal'
+        AND tr.werkt=true AND tr.download_status='available')
+     AND NOT EXISTS(SELECT 1 FROM aanbevelingen a WHERE a.titel_id=t.id
+        AND a.status IN ('nieuw','blind_nee','goed'))
+   ORDER BY t.swipe_prioriteit DESC NULLS LAST,t.id LIMIT $2`,[id,limiet]);
+  let toegevoegd=0;
+  for(const t of rows){
+   const categorie=t.type==='muziek'?'muziek':t.type;
+   const zoekterm=t.naam+(categorie==='muziek'?' official original audio':' original theme soundtrack intro');
+   const {rows:toegevoegdAdvies}=await pool.query(`INSERT INTO aanbevelingen
+     (soort,categorie,titel,type,jaar,genres,tracknaam,artiest,youtube_zoekterm,bekendheid,reden,status,titel_id)
+     VALUES($1,$2,$3,$4,$5,$6,'','',$7,4,$8,'nieuw',$9)
+     ON CONFLICT DO NOTHING RETURNING id`,
+     [categorie==='muziek'?'muziek':'film_serie',categorie,t.naam,t.type,t.jaar,t.genres||[],zoekterm,
+       'Ontbrekende lokale muziek uit catalogus '+lijst.rows[0].naam,t.id]);
+   if(toegevoegdAdvies[0]){await enqueueMp3(toegevoegdAdvies[0].id,100);toegevoegd++;}
+  }
+  // Catalogusgames blijven losse games: maak nooit een dubbele filmtitel.
+  let gamesToegevoegd=0;
+  try{
+   const games=await pool.query(`SELECT g.id,g.naam,g.jaar FROM beheer_catalogus_games bc
+      JOIN game_catalogus g ON g.id=bc.game_id WHERE bc.collectie_id=$1
+      AND NOT EXISTS(SELECT 1 FROM aanbevelingen a WHERE a.categorie='games'
+       AND lower(trim(a.titel))=lower(trim(g.naam))) ORDER BY g.id LIMIT $2`,[id,limiet]);
+   for(const g of games.rows){
+    const {rows:advies}=await pool.query(`INSERT INTO aanbevelingen
+      (soort,categorie,titel,jaar,tracknaam,artiest,youtube_zoekterm,bekendheid,reden,status,muziek_genres)
+      VALUES('muziek','games',$1,$2,$1,'',$3,4,$4,'nieuw',ARRAY['Videogames'])
+      ON CONFLICT DO NOTHING RETURNING id`,
+      [g.naam,g.jaar,g.naam+' video game original main theme soundtrack',
+        'Ontbrekende soundtrack uit catalogus '+lijst.rows[0].naam]);
+    if(advies[0]){await enqueueMp3(advies[0].id,100);gamesToegevoegd++;}
+   }
+  }catch(e){if(e.code!=='42P01')throw e}
+  res.json({catalogus:lijst.rows[0].naam,toegevoegd:toegevoegd+gamesToegevoegd,films_series_muziek:toegevoegd,videogames:gamesToegevoegd,
+    toelichting:'Aanbevelingen in de bestaande achtergrondqueue. Een lokaal beschikbare MP3 wordt niet opnieuw aangevraagd.'});
+ }catch(e){res.status(500).json({fout:e.message})}
+});
+router.get('/api/admin/aanbevelingen/catalogus/:id/wachtrij',vereisAdmin,async(req,res)=>{
+ try{
+  const id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({fout:'Ongeldige catalogus'});
+  const {rows}=await pool.query(`SELECT a.id,a.titel,a.categorie,a.status,
+      COALESCE(q.status,'niet_gepland') AS download_status,q.pogingen,q.fout
+   FROM aanbevelingen a JOIN titel_collecties tc ON a.titel_id=tc.titel_id
+   LEFT JOIN swipe_mp3_queue q ON q.aanbeveling_id=a.id
+   WHERE tc.collectie_id=$1 ORDER BY a.id DESC LIMIT 300`,[id]);
+  res.json({resultaten:rows});
+ }catch(e){res.status(500).json({fout:e.message})}
+});
+
 // Gamecatalogus naar de normale blinde muziek-Swipe, zonder naam op de kaart.
 // Deze synchronisatie maakt geen speelbare tracks aan vóór de muziek is beluisterd.
 async function vulGameMuziekSwipe(){
