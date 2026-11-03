@@ -59,7 +59,7 @@ export default function Home() {
                     <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>Scores</Link>
                     {(isAdmin || hostAccount?.rol==='beoordelaar') && <Link to={isAdmin?'/admin/swipe':'/review'}><img src="/category/icon-play.svg" alt=""/>Controleren</Link>}
                     {isAdmin && <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>Beheer</Link>}
-                    {hostAccount && <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>Profielen</Link>}
+                    {hostAccount && hostAccount.rol!=='beoordelaar' && <Link to="/host/profile"><img src="/category/icon-users.svg" alt=""/>Profielen</Link>}
                 </div>
                 <Link className="vt-top-user" to={hostAccount?'/host/profile':'/host/login?return=/host/profile'}>
                     <span className="vt-avatar-ring">{hostAccount?.display_naam?.slice(0,1).toUpperCase() || '♫'}</span>
