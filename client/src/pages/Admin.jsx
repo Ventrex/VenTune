@@ -1,4 +1,5 @@
 import CatalogusAudit from './CatalogusAudit.jsx';
+import CatalogusWorkspace from './CatalogusWorkspace.jsx';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
@@ -16,28 +17,24 @@ import { QuizInhoud, HerkenbaarheidBeheer, ChatGptKoppeling, Genereren, Catalogu
 // het systeembeheer apart.
 // ---------------------------------------------------------------------
 const SUBTABS = {
-    overzicht: [['overzicht', 'Pijplijn'], ['cijfers', 'Alle cijfers']],
-    catalogus: [
-        ['titels', 'Titels'],
-        ['import', 'Titels ophalen'],
-        ['collecties', 'Collecties'],
+    overzicht: [['cijfers','Dashboard'],['controleren','Controleren']],
+    catalogus: [['catalogus-titels','Titels'],['catalogus-catalogi','Catalogen']],
+    ai: [
+        ['ai-generator','Aanbevelingen ophalen'],
+        ['handmatig','Handmatig toevoegen'],
+        ['controle','Controles & fixes'],
+        ['catalogus-audit','AI-catalogus'],
+        ['hints','Hints & bonusvragen'],
+        ['meldingen','Meldingen'],
     ],
-    muziek: [
-        ['muziek', 'Zoeken & downloaden'],
-        ['vastgelopen', 'Vastgelopen'],
-    ],
-    kwaliteit: [
-        ['meldingen', 'Meldingen'],
-        ['controle', 'Controle'],
-        ['catalogus-audit', 'Collectie opschonen'],
-    ],
-    ai: [['ai-generator', 'AI · Muziek & wachtrij'], ['vragen', 'Vragen controleren']],
     systeem: [
-        ['users', 'Hosts'],
-        ['database', 'Database'],
-        ['planning', 'Automatisch'],
-        ['uiterlijk', 'Uiterlijk'],
+        ['koppeling','ChatGPT'],
+        ['planning','Automatisch'],
+        ['database','Database'],
+        ['uiterlijk','Uiterlijk'],
     ],
+    logs: [['logs','Gebeurtenissen']],
+    gebruikers: [['users','Accounts']],
 };
 
 // Bij welke groep hoort een sectie?
@@ -51,6 +48,9 @@ const EERSTE_SUBTAB = Object.fromEntries(
 );
 
 function hoofdtabVan(sectie) {
+    if (['titels','collecties'].includes(sectie)) return 'catalogus';
+    if (['muziek','import','vastgelopen','vragen'].includes(sectie)) return 'ai';
+    if (sectie === 'overzicht') return 'overzicht';
     return HOOFDTAB_VAN[sectie] || 'overzicht';
 }
 
@@ -128,7 +128,7 @@ function Beheer({ onUit }) {
     const [spelers, setSpelers] = useState([]);
     const [ontbrekend, setOntbrekend] = useState([]);
     const [collecties, setCollecties] = useState([]);
-    const [tab, setTab] = useState('overzicht');
+    const [tab, setTab] = useState('cijfers');
     const [importGenre, setImportGenre] = useState('');
     const [voortgang, setVoortgang] = useState(null);
     const [kwaliteit, setKwaliteit] = useState(null);
@@ -603,10 +603,10 @@ function Beheer({ onUit }) {
                 {[
                     ['overzicht', 'Overzicht'],
                     ['catalogus', 'Catalogus'],
-                    ['muziek', 'Muziek'],
-                    ['kwaliteit', `Kwaliteit${meldingen.length ? ` (${meldingen.length})` : ''}`],
                     ['ai', 'AI'],
                     ['systeem', 'Systeem'],
+                    ['logs', 'Logs'],
+                    ['gebruikers', 'Gebruikers'],
                 ].map(([waarde, label]) => (
                     <button
                         key={waarde}
@@ -657,6 +657,17 @@ function Beheer({ onUit }) {
                 />
             )}
 
+            {tab === 'controleren' && <section className="kaart" style={{display:'grid',gap:12}}>
+                <h2>Controleren</h2>
+                <p className="dim">Kies een categorie. Iedereen met een algemene reviewlink kan zelf een categorie kiezen.</p>
+                <div className="knoprij" style={{flexWrap:'wrap'}}>
+                    {[['film','Films',overzicht?.films],['serie','Series',overzicht?.series],
+                      ['games','Videospellen','—'],['rock','Muziek','—']].map(([key,label,n])=>
+                      <Link key={key} className="knop knop-stil" to={'/admin/swipe?categorie='+key}>{label} · {n??'—'}</Link>)}
+                    <Link className="knop knop-stil" to="/review">Algemene reviewlink</Link>
+                </div>
+                <p className="dim">Automatisch goedgekeurde nummers hoef je niet afzonderlijk te beluisteren.</p>
+            </section>}
             {tab === 'cijfers' && overzicht && (
                 <div className="overzicht">
                     <Tegel label="Titels" waarde={overzicht.titels} onClick={() => openTab('titels', { filter: '' })} />
@@ -682,6 +693,8 @@ function Beheer({ onUit }) {
                 </p>
             )}
 
+            {tab === 'catalogus-titels' && <CatalogusWorkspace view="titels" onLegacyEdit={() => setTab('titels')} />}
+            {tab === 'catalogus-catalogi' && <CatalogusWorkspace view="catalogi" />}
             {tab === 'catalogus-audit' && <CatalogusAudit />}
 
             {tab === 'controle' && (
@@ -699,7 +712,21 @@ function Beheer({ onUit }) {
                 />
             )}
 
-            {tab === 'ai-generator' && <><div className="ai-grid"><ChatGptKoppeling /><Genereren /></div><CatalogusPerJaar /><HandmatigToevoegen /><GamesCatalogus /><p><Link className="knop knop-stil" to="/admin/swipe">Ga naar Swipe →</Link></p><QuizInhoud /><HerkenbaarheidBeheer /></>}
+            {tab === 'ai-generator' && <>
+                <Genereren />
+                <CatalogusPerJaar />
+                <div className="knoprij" style={{flexWrap:'wrap'}}>
+                    <button className="knop knop-stil" onClick={()=>setTab('import')}>Grote film- en seriecatalogus per jaar</button>
+                    <button className="knop knop-stil" onClick={()=>setTab('muziek')}>Wachtrij en downloads</button>
+                </div>
+            </>}
+            {tab === 'handmatig' && <><HandmatigToevoegen /><GamesCatalogus /></>}
+            {tab === 'hints' && <><QuizInhoud /><HerkenbaarheidBeheer />
+                <button className="knop" type="button" disabled={bezigVragen}
+                    onClick={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Hints en bonusvragen aanvullen…', 'Hints en vragen bijgewerkt.')}>
+                    {bezigVragen?'Bezig…':'Hints en bonusvragen aanvullen'}
+                </button></>}
+            {tab === 'koppeling' && <ChatGptKoppeling />}
             {tab === 'ai-generator' && <section className="kaart"><h2>AI · Vragen en hints</h2><p className="dim">Genereer bonusvragen uit beschikbare titelmetadata. Geldige hints en vragen zijn direct speelbaar; spelers kunnen fouten melden.</p><button className="knop" type="button" disabled={bezigVragen} onClick={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Bonusvragen aanvullen…', 'Vragen klaar.')}>{bezigVragen?'Genereren…':'Bonusvragen aanvullen'}</button><p className="dim">Drie onafhankelijk gecontroleerde hints en vragen per titel zijn nog niet gegarandeerd.</p></section>}
             {tab === 'vragen' && (
                 <VraagSuggesties
