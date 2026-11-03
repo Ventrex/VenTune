@@ -239,7 +239,7 @@ router.patch('/api/auth/profile', vereisHost, async (req, res) => {
         if (andereNaam.rowCount) return res.status(409).json({fout:'Deze zichtbare naam is al in gebruik. Kies een unieke naam.'});
         const opgegevenEmail = req.body?.email;
         const email = opgegevenEmail === undefined ? undefined : String(opgegevenEmail||'').trim().toLowerCase();
-        if (email !== undefined && email !== '' && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+        if (email !== undefined && email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             return res.status(400).json({fout:'Ongeldig e-mailadres.'});
         }
         const veiligeVoorkeuren = {
