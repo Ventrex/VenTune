@@ -502,10 +502,10 @@ export function adminAfgekeurdeTracksExport() {
 export async function adminDatabase() {
     return adminFetch('/api/admin/database');
 }
-export async function adminDatabaseOpschonen(actie) {
+export async function adminDatabaseOpschonen(actie, bevestiging = '') {
     return adminFetch('/api/admin/database/opschonen', {
         method: 'POST',
-        ...jsonBody({ actie }),
+        ...jsonBody({ actie, bevestiging }),
     });
 }
 export async function adminInstellingen() {
