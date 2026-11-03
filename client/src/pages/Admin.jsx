@@ -1,6 +1,7 @@
 import CatalogusAudit from './CatalogusAudit.jsx';
 import CatalogusWorkspace from './CatalogusWorkspace.jsx';
 import BeheerLogs from './BeheerLogs.jsx';
+import HintsBatch from './HintsBatch.jsx';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
@@ -723,13 +724,9 @@ function Beheer({ onUit }) {
                 </div>
             </>}
             {tab === 'handmatig' && <><HandmatigToevoegen /><GamesCatalogus /></>}
-            {tab === 'hints' && <><QuizInhoud /><HerkenbaarheidBeheer />
-                <button className="knop" type="button" disabled={bezigVragen}
-                    onClick={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Hints en bonusvragen aanvullen…', 'Hints en vragen bijgewerkt.')}>
-                    {bezigVragen?'Bezig…':'Hints en bonusvragen aanvullen'}
-                </button></>}
+            {tab === 'hints' && <><HintsBatch /><QuizInhoud /><HerkenbaarheidBeheer /></>}
             {tab === 'koppeling' && <ChatGptKoppeling />}
-            {tab === 'ai-generator' && <section className="kaart"><h2>AI · Vragen en hints</h2><p className="dim">Genereer bonusvragen uit beschikbare titelmetadata. Geldige hints en vragen zijn direct speelbaar; spelers kunnen fouten melden.</p><button className="knop" type="button" disabled={bezigVragen} onClick={() => achtergrondTaak(() => api.adminVragenImport(true), api.adminVragenStatus, setBezigVragen, 'Bonusvragen aanvullen…', 'Vragen klaar.')}>{bezigVragen?'Genereren…':'Bonusvragen aanvullen'}</button><p className="dim">Drie onafhankelijk gecontroleerde hints en vragen per titel zijn nog niet gegarandeerd.</p></section>}
+
             {tab === 'vragen' && (
                 <VraagSuggesties
                     suggesties={vraagSuggesties}
