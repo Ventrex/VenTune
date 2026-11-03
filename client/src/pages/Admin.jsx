@@ -2,6 +2,7 @@ import CatalogusAudit from './CatalogusAudit.jsx';
 import CatalogusWorkspace from './CatalogusWorkspace.jsx';
 import BeheerLogs from './BeheerLogs.jsx';
 import HintsBatch from './HintsBatch.jsx';
+import SiteTeksten from './SiteTeksten.jsx';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
@@ -34,6 +35,7 @@ const SUBTABS = {
         ['planning','Automatisch'],
         ['database','Database'],
         ['uiterlijk','Uiterlijk'],
+        ['teksten','Teksten'],
     ],
     logs: [['logs','Gebeurtenissen']],
     gebruikers: [['users','Accounts']],
@@ -1209,6 +1211,7 @@ function Beheer({ onUit }) {
 
             {tab === 'database' && <Databasebeheer onMelding={setMelding} />}
             {tab === 'uiterlijk' && <Uiterlijk onMelding={setMelding} />}
+            {tab === 'teksten' && <SiteTeksten />}
 
             <p style={{ marginTop: '2rem' }}>
                 <Link className="terug" to="/">← Terug naar start</Link>
