@@ -2076,6 +2076,25 @@ function Vastgelopen({ onMelding }) {
 }
 
 function Hostaccounts({ gebruikers, spelers, onWijzig }) {
+    async function uitsluitenScores(gebruiker,uitsluiten) {
+        const woord=uitsluiten?'RESET':'HERSTEL';
+        const tekst=window.prompt(
+            (uitsluiten?'Alle afgeronde accountspellen van ':'Eerder uitgesloten accountspellen van ')+
+            gebruiker.gebruikersnaam+
+            (uitsluiten?' uit topscores halen? De spelgeschiedenis blijft bestaan. ':' weer meetellen in topscores. ')+
+            'Typ '+woord+' om te bevestigen:','');
+        if(tekst!==woord)return;
+        try{
+            const r=await fetch('/api/admin/gebruikers/'+gebruiker.id+'/scores',{
+                method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({uitsluiten,bevestiging:woord})
+            });
+            const d=await r.json().catch(()=>({}));
+            if(!r.ok)throw Error(d.fout||'Scores bijwerken mislukt');
+            alert(d.aangepast+' resultaten bijgewerkt. De spelhistorie blijft behouden.');
+            onWijzig();
+        }catch(err){alert(err.message)}
+    }
     async function wissel(gebruiker) {
         try {
             await api.adminGebruikerStatus(gebruiker.id, !gebruiker.actief);
@@ -2157,6 +2176,8 @@ function Hostaccounts({ gebruikers, spelers, onWijzig }) {
                                 <button className="afspeelknop klein" onClick={() => reset(gebruiker)}>
                                     Wachtwoord
                                 </button>
+                                <button className="afspeelknop klein" onClick={()=>uitsluitenScores(gebruiker,true)}>Testscores verbergen</button>
+                                {Number(gebruiker.scores_uitgesloten)>0 && <button className="afspeelknop klein" onClick={()=>uitsluitenScores(gebruiker,false)}>Scores herstellen ({gebruiker.scores_uitgesloten})</button>}
                                 <button className="afspeelknop klein" onClick={() => wissel(gebruiker)}>
                                     {gebruiker.actief ? 'Uit' : 'Aan'}
                                 </button>
