@@ -28,9 +28,9 @@ async function main(){
   }
   // Laat de additieve catalogustabel eerst aanmaken.
   await get('/api/admin/catalogus-workspace/titels?type=game&zoek=NietBestaandCW');
-  const f=await pool.query(\`INSERT INTO titels(naam,type,taal,jaar,studio,populariteit,bekendheidsniveau)
-    VALUES($1,'film','en',2006,'StudioCW',90,'iconisch') RETURNING id\`,[filmName]);filmId=f.rows[0].id;
-  const g=await pool.query(\`INSERT INTO game_catalogus(naam,jaar,platformen) VALUES($1,2006,ARRAY['PC']) RETURNING id\`,[gameName]);gameId=g.rows[0].id;
+  const f=await pool.query(`INSERT INTO titels(naam,type,taal,jaar,studio,populariteit,bekendheidsniveau)
+    VALUES($1,'film','en',2006,'StudioCW',90,'iconisch') RETURNING id`,[filmName]);filmId=f.rows[0].id;
+  const g=await pool.query(`INSERT INTO game_catalogus(naam,jaar,platformen) VALUES($1,2006,ARRAY['PC']) RETURNING id`,[gameName]);gameId=g.rows[0].id;
   const q=await get('/api/admin/catalogus-workspace/titels?studio=StudioCW&type=film&bekendheid=iconisch&vanaf=2000&tot=2010&mp3=nee');
   assert(q.resultaten.some(x=>x.naam===filmName));
   assert(!q.resultaten.some(x=>x.type==='game'));
