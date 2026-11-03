@@ -96,6 +96,8 @@ function publiekeGebruiker(rij) {
         id: rij.id,
         gebruikersnaam: rij.gebruikersnaam,
         display_naam: rij.display_naam,
+        rol: rij.rol === 'beoordelaar' ? 'beoordelaar' : 'speler',
+        avatar_url: rij.avatar_url || null,
         geboortedatum: rij.geboortedatum || null,
     };
 }
@@ -125,7 +127,7 @@ async function gebruikerUitRequest(req) {
     const token = jar[COOKIE];
     if (!token) return null;
     const { rows } = await pool.query(
-        `SELECT g.id, g.gebruikersnaam, g.display_naam, g.geboortedatum
+        `SELECT g.id, g.gebruikersnaam, g.display_naam, g.geboortedatum, g.rol, g.avatar_url
            FROM auth_sessies s
            JOIN gebruikers g ON g.id = s.gebruiker_id
           WHERE s.token_hash = $1
@@ -170,6 +172,7 @@ router.get('/api/auth/profile', vereisHost, async (req, res) => {
     try {
         const { rows } = await pool.query(
             `SELECT g.id, g.gebruikersnaam, g.display_naam, g.actief,
+                    g.rol, g.email, g.avatar_url,
                     g.aangemaakt_op, g.laatst_ingelogd,
                     COALESCE(g.voorkeuren, '{}'::jsonb) AS voorkeuren,
                     g.geboortedatum,
@@ -254,7 +257,7 @@ router.post('/api/auth/register', async (req, res) => {
             `INSERT INTO gebruikers
                 (gebruikersnaam, gebruikersnaam_norm, display_naam, wachtwoord_hash)
              VALUES ($1, $1, $2, $3)
-             RETURNING id, gebruikersnaam, display_naam`,
+             RETURNING id, gebruikersnaam, display_naam, rol, avatar_url`,
             [gebruikersnaam, displayNaam, hash],
         );
         const token = await maakSessie(rows[0].id);
@@ -271,7 +274,7 @@ router.post('/api/auth/login', async (req, res) => {
         const gebruikersnaam = valideerGebruikersnaam(req.body?.gebruikersnaam);
         const wachtwoord = String(req.body?.wachtwoord || '');
         const { rows } = await pool.query(
-            `SELECT id, gebruikersnaam, display_naam, wachtwoord_hash
+            `SELECT id, gebruikersnaam, display_naam, wachtwoord_hash, rol, avatar_url
                FROM gebruikers
               WHERE gebruikersnaam_norm = $1 AND actief = true
               LIMIT 1`,
