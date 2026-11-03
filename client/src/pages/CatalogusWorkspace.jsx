@@ -13,9 +13,9 @@ async function verzoek(pad,opts={}) {
 const json=(value)=>({headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
 function Info({tekst}){return <span className="cw-info" title={tekst} aria-label={tekst} role="img" tabIndex={0}>i</span>}
 
-export default function CatalogusWorkspace({view='titels',onLegacyEdit}){
-  const [filters,setFilters]=useState(LEEG);
-  const [actief,setActief]=useState(LEEG);
+export default function CatalogusWorkspace({view='titels',onLegacyEdit,startFilters={}}){
+  const [filters,setFilters]=useState(()=>({...LEEG,...startFilters}));
+  const [actief,setActief]=useState(()=>({...LEEG,...startFilters}));
   const [pagina,setPagina]=useState(1);
   const [data,setData]=useState({resultaten:[],totaal:0,pagina:1,perPagina:40});
   const [catalogi,setCatalogi]=useState([]);
