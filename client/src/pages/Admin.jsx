@@ -4,6 +4,7 @@ import BeheerLogs from './BeheerLogs.jsx';
 import HintsBatch from './HintsBatch.jsx';
 import SiteTeksten from './SiteTeksten.jsx';
 import CatalogusAanbevelingen from './CatalogusAanbevelingen.jsx';
+import VerdachteSpellen from './VerdachteSpellen.jsx';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
@@ -29,7 +30,7 @@ const SUBTABS = {
         ['controle','Controles & fixes'],
         ['catalogus-audit','AI-catalogus'],
         ['hints','Hints & bonusvragen'],
-        ['meldingen','Meldingen'],
+        ['meldingen','Controles'],
     ],
     systeem: [
         ['koppeling','ChatGPT'],
@@ -703,6 +704,7 @@ function Beheer({ onUit }) {
             {tab === 'logs' && <BeheerLogs />}
             {tab === 'catalogus-audit' && <CatalogusAudit />}
 
+            {tab === 'controle' && <VerdachteSpellen />}
             {tab === 'controle' && (
                 <Kwaliteitsdashboard
                     data={kwaliteit}
