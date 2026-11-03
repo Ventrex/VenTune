@@ -1,5 +1,6 @@
 import CatalogusAudit from './CatalogusAudit.jsx';
 import CatalogusWorkspace from './CatalogusWorkspace.jsx';
+import BeheerLogs from './BeheerLogs.jsx';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../lib/api.js';
@@ -695,6 +696,7 @@ function Beheer({ onUit }) {
 
             {tab === 'catalogus-titels' && <CatalogusWorkspace view="titels" onLegacyEdit={() => setTab('titels')} />}
             {tab === 'catalogus-catalogi' && <CatalogusWorkspace view="catalogi" />}
+            {tab === 'logs' && <BeheerLogs />}
             {tab === 'catalogus-audit' && <CatalogusAudit />}
 
             {tab === 'controle' && (
