@@ -390,7 +390,7 @@ export default function Setup() {
                     <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt="" />Spelen</Link>
                     <Link to="/"><img src="/category/icon-trophy.svg" alt="" />Scores</Link>
                     <Link to="/host/profile"><img src="/category/icon-users.svg" alt="" />Profielen</Link>
-                    <Link to="/admin"><img src="/category/icon-settings.svg" alt="" />Beheer</Link>
+                    <Link to="/admin/bank"><img src="/category/icon-settings.svg" alt="" />Beheer</Link>
                 </div>
                 <Link className="vt-top-user" to="/host/profile"><span className="vt-avatar-ring">♫</span><span>{host?.display_naam || 'Profiel'}</span><span aria-hidden="true">⌄</span></Link>
             </nav>}
@@ -507,12 +507,14 @@ export default function Setup() {
                             {id:'films',naam:'Films & Series',icon:'/category/icon-film.svg',kleur:'#ff328e',beeld:categorieBeelden.films || '/category/approved-films.svg?v=hd840-20261101'},
                             {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:categorieBeelden.muziek || '/category/approved-music.svg?v=hd840-20261101'},
                             {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:categorieBeelden.games || '/category/approved-games.svg?v=hd840-20261101'},
+                            {id:'anime',naam:'Anime',icon:'/category/icon-film.svg',kleur:'#ff8a3d',beeld:categorieBeelden.anime || '/category/approved-films.svg?v=hd840-20261101'},
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
                                 setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],kindvriendelijk:false}));
                                 if(g.id==='films')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='muziek')setFilters(f=>({...f,categorie:'muziek',categorieen:['muziek'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
-                                if(g.id==='games')setFilters(f=>({...f,categorie:'games',categorieen:['muziek'],game_only:true,collecties:[],periode_start:1930,periode_eind:NU}));
+                                if(g.id==='games')setFilters(f=>({...f,categorie:'games',categorieen:['game'],game_only:true,collecties:[],periode_start:1930,periode_eind:NU}));
+                                if(g.id==='anime')setFilters(f=>({...f,categorie:'anime',categorieen:['anime'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='thema')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                             }}>
                             <img className="vt-hoofdkaart-illustratie" src={g.beeld} alt="" loading="eager" />
@@ -557,6 +559,19 @@ export default function Setup() {
                             </div>
                         </div>}
                         
+                        <div className="vt-subkeuzes">
+                            <p>⭐ &nbsp; Hoe bekend?</p>
+                            <div className="vt-keuzerij">
+                                {[['iconisch','Iconisch'],['algemeen_bekend','Algemeen bekend'],['bekend','Bekend'],['onbekend','Onbekend'],['cult','Cult']].map(([id,label])=>{
+                                    const tiers=filters.tiers||[];
+                                    const aan=!tiers.length||tiers.includes(id);
+                                    return <button type="button" key={id} className={'chip'+(aan?' gekozen':'')}
+                                        onClick={()=>setFilters(f=>{const huidig=(f.tiers&&f.tiers.length)?f.tiers:['iconisch','algemeen_bekend','bekend','onbekend','cult'];
+                                            const volgende=huidig.includes(id)?huidig.filter(x=>x!==id):[...huidig,id];
+                                            return {...f,tiers:volgende.length===5||!volgende.length?[]:volgende};})}>
+                                        <span className="vt-option-label">{label}</span></button>;})}
+                            </div>
+                        </div>
                         <button className="vt-preset-link vt-preset-inline" type="button" onClick={()=>setStap(0)}>Of kies een kant-en-klare quiz</button>
                         {hoofdgroep==='thema' && <div className="vt-berg-choice">
                             <h3>🏔 Bergexpeditie — samen naar de top</h3>
@@ -571,7 +586,7 @@ export default function Setup() {
                                 </select>
                             </label>}
                         </div>}
-                        <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema"})[hoofdgroep]} · {hoofdgroep==="games"?"Games":filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
+                        <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema",anime:"Anime"})[hoofdgroep]} · {hoofdgroep==="games"?"Games":hoofdgroep==="anime"?"Anime":filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
                         <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}><span className="vt-play-text"><img src="/category/icon-play.svg" alt="" />Start de quiz</span></button>
                     </div>
                     </div><aside className="vt-categorie-aside"><div className="vt-berg-paneel"><h3>Wat is Bergexpeditie?</h3><p>Een spelmodus waarin jullie samen een berg beklimmen. Elk goed antwoord brengt je hoger. Ideaal voor langere quizsessies.</p><span className="vt-berg-icon" aria-hidden="true">🏔️</span></div></aside></div>

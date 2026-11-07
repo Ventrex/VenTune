@@ -8,7 +8,7 @@
 
 const { pool } = require('../db/pool');
 const { bouwFilter } = require('./filters');
-const { vergelijk } = require('../lib/match');
+const { vergelijk, franchiseSleutel } = require('../lib/match');
 const { titelPunten, bonusPunten, leeftijdsFactor } = require('./scoring');
 const { genereerBonus } = require('./bonus');
 const vragenbank = require('./vragen');
@@ -113,6 +113,9 @@ function bouwMeerkeuzeOpties(titel, pool_) {
 
     const opties = [titel.naam];
     const gezien = new Set([String(titel.naam).toLowerCase()]);
+    // Antwoorden zijn versie-onafhankelijk ("Terminator" = "Terminator 2"),
+    // dus twee titels uit dezelfde franchise mogen nooit samen als optie.
+    const franchises = new Set([franchiseSleutel(titel)].filter(Boolean));
     // Voeg tot `aantal` titels uit `lijst` toe (gehusseld, zonder dubbele),
     // maar nooit meer dan zes opties in totaal.
     const voegToe = (lijst, aantal) => {
@@ -121,7 +124,10 @@ function bouwMeerkeuzeOpties(titel, pool_) {
             if (over <= 0 || opties.length >= AANTAL_MEERKEUZE_OPTIES) break;
             const sleutel = String(t.naam).toLowerCase();
             if (gezien.has(sleutel)) continue;
+            const fk = franchiseSleutel(t);
+            if (fk && franchises.has(fk)) continue;
             gezien.add(sleutel);
+            if (fk) franchises.add(fk);
             opties.push(t.naam);
             over -= 1;
         }
@@ -422,7 +428,7 @@ class SpelBeheer {
 
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
-            `SELECT t.id, t.naam, t.aliassen, t.type, t.taal, t.jaar,
+            `SELECT t.id, t.naam, t.aliassen, t.franchise, t.categorie, t.type, t.taal, t.jaar,
                     t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
                     t.hoofdrollen, t.ai_hints, t.ai_hints_status, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
@@ -438,7 +444,7 @@ class SpelBeheer {
                 FROM titels t LEFT JOIN tracks tr ON tr.titel_id = t.id
                    AND tr.bron = 'lokaal' AND tr.werkt = true
                    AND tr.download_status = 'available' AND tr.preview_url IS NOT NULL
-                WHERE t.type::text = ANY($1::text[])`,
+                WHERE COALESCE(t.categorie, t.type::text) = ANY($1::text[])`,
                 [spelInstellingen.categorieen?.length ? spelInstellingen.categorieen : ['film', 'serie']]);
             const d = diagnostiek.rows[0] || {};
             this.io.to(kamer(code)).emit('spel:fout', {
@@ -722,7 +728,7 @@ class SpelBeheer {
         try {
             const filter = bouwFilter({ ...state.instellingen, alleen_lokaal: false });
             const idIdx = filter.params.length + 1;
-            const basis = `SELECT t.id, t.naam, t.type, t.taal, t.jaar, t.genres
+            const basis = `SELECT t.id, t.naam, t.franchise, t.categorie, t.type, t.taal, t.jaar, t.genres
                              FROM titels t
                             ${filter.where} AND t.id <> $${idIdx}`;
 

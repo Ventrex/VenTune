@@ -26,40 +26,49 @@ function bouwFilter(f = {}) {
     )`);
 
 
-    // Inhoudstype: films | series | muziek | beide. Collecties zijn aparte
-    // labels; Frozen kan dus film + Disney zijn zonder dat het filmtype
-    // verloren gaat.
-    const categorieen = Array.isArray(f.categorieen)
-        ? f.categorieen.filter((type) => ['film', 'serie', 'muziek'].includes(type))
+    // Inhoudscategorie. Sinds Beheer 2.0 bepaalt de AI per titel de
+    // categorie (film, serie, anime, game, muziek, kerst, kinder). Anime
+    // staat los van films/series; alleen anime die in Nederland breed bekend
+    // is (anime_breed_bekend, bv. Pokémon) mag ook in een film-/seriequiz.
+    // Muziek omvat ook kerst- en kindermuziek, maar nooit gamemuziek.
+    const CAT = "COALESCE(t.categorie, t.type::text)";
+    const toegestaan = ['film', 'serie', 'muziek', 'anime', 'game', 'kerst', 'kinder'];
+    let gekozen = Array.isArray(f.categorieen)
+        ? f.categorieen.filter((c) => toegestaan.includes(c))
         : [];
-    if (categorieen.length) {
-        params.push([...new Set(categorieen)]);
-        // `type` is a PostgreSQL enum. Cast it to text before comparing with
-        // the text array from the URL; otherwise PostgreSQL rejects the
-        // telling query with "operator does not exist: titel_type = text".
-        condities.push(`t.type::text = ANY($${params.length}::text[])`);
-    } else if (f.categorie === 'films') {
-        params.push('film');
-        condities.push(`t.type = $${params.length}`);
-    } else if (f.categorie === 'series') {
-        params.push('serie');
-        condities.push(`t.type = $${params.length}`);
-    } else if (f.categorie === 'muziek') {
-        params.push('muziek');
-        condities.push(`t.type = $${params.length}`);
-    } else if (f.categorie === 'beide' || !f.categorie) {
-        condities.push(`t.type IN ('film', 'serie')`);
+    if (f.game_only === true || f.categorie === 'games') gekozen = ['game'];
+    else if (!gekozen.length) {
+        if (f.categorie === 'films') gekozen = ['film'];
+        else if (f.categorie === 'series') gekozen = ['serie'];
+        else if (f.categorie === 'muziek') gekozen = ['muziek'];
+        else if (f.categorie === 'anime') gekozen = ['anime'];
+        else gekozen = ['film', 'serie'];
+    }
+    const sqlCats = new Set(gekozen);
+    if (sqlCats.has('muziek')) { sqlCats.add('kerst'); sqlCats.add('kinder'); }
+    params.push([...sqlCats]);
+    const catParam = params.length;
+    const filmSerie = gekozen.filter((c) => c === 'film' || c === 'serie');
+    if (filmSerie.length && !sqlCats.has('anime')) {
+        params.push(filmSerie);
+        condities.push(`(${CAT} = ANY($${catParam}::text[])
+            OR (${CAT} = 'anime' AND t.anime_breed_bekend = true AND t.type::text = ANY($${params.length}::text[])))`);
+    } else {
+        condities.push(`${CAT} = ANY($${catParam}::text[])`);
     }
 
-    if (f.game_only === true || f.categorie === 'games') {
-        condities.push("t.type = 'muziek' AND ('Videogames' = ANY(t.muziek_genres) OR 'Videogames' = ANY(t.genres))");
-    } else if (categorieen.includes('muziek') && !categorieen.includes('film') && !categorieen.includes('serie')) {
-        condities.push("NOT ('Videogames' = ANY(t.muziek_genres) OR 'Videogames' = ANY(t.genres))");
+    // Bekendheid volgens de AI: iconisch, algemeen bekend, bekend, onbekend
+    // of cult. Leeg = alles. Nog niet beoordeelde titels tellen als 'bekend'.
+    const TIERS = ['iconisch', 'algemeen_bekend', 'bekend', 'onbekend', 'cult'];
+    const tiers = Array.isArray(f.tiers) ? f.tiers.filter((x) => TIERS.includes(x)) : [];
+    if (tiers.length && tiers.length < TIERS.length) {
+        params.push(tiers);
+        condities.push(`COALESCE(t.bekendheid_tier, 'bekend') = ANY($${params.length}::text[])`);
     }
 
     // Consoles/fabrikanten zijn afzonderlijke catalogustags; de selectie
     // toont nooit nummers uit een andere fabrikant als er één is gekozen.
-    if ((f.game_only === true || f.categorie === 'games') && Array.isArray(f.platformen) && f.platformen.length) {
+    if (gekozen.includes('game') && Array.isArray(f.platformen) && f.platformen.length) {
         const geldig = f.platformen.filter(v => ['nintendo','sega','playstation','xbox','pc'].includes(v));
         if (geldig.length) {
             params.push([...new Set(geldig)]);
@@ -69,7 +78,7 @@ function bouwFilter(f = {}) {
                     COALESCE(t.muziek_genres, '{}'::text[]) ||
                     COALESCE(t.genres, '{}'::text[])
                 ) AS platform(naam)
-                WHERE lower(platform.naam) = ANY(${params.length}::text[])
+                WHERE lower(platform.naam) = ANY($${params.length}::text[])
             )`);
         }
     }
@@ -133,9 +142,9 @@ function bouwFilter(f = {}) {
         params.push(bekendheidsniveau);
         const niveauParam = params.length;
         condities.push(
-            `(t.bekendheid_score >= ${niveauParam}
-              OR t.stemmen >= ${stemmenParam}
-              OR t.youtube_max_views >= ${viewsParam}
+            `(t.bekendheid_score >= $${niveauParam}
+              OR t.stemmen >= $${stemmenParam}
+              OR t.youtube_max_views >= $${viewsParam}
               OR t.tmdb_id IS NULL)`,
         );
     }

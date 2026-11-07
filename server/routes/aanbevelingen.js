@@ -1032,6 +1032,8 @@ setInterval(()=>{if(actieveSwipe)vulSwipeBuffer(actieveSwipe.categorie,actieveSw
 let catalogusVullenBezig=false;
 async function vulAchtergrondCatalogus(){
  if(catalogusVullenBezig)return;
+ // Beheer 2.0: de AI-curator doet dit nu; geen tweede vuller ernaast.
+ if(!(await require('../lib/bank').oudeAutomatiseringToegestaan()))return;
  catalogusVullenBezig=true;
  try{
   await initMp3Queue();

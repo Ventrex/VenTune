@@ -162,6 +162,9 @@ router.get('/api/tracks/telling', async (req, res) => {
         periode_start: Number(req.query.start),
         periode_eind: Number(req.query.eind),
         min_bekendheid: Number(req.query.bekendheid),
+        tiers: req.query.tiers ? String(req.query.tiers).split(',').filter(Boolean) : [],
+        game_only: req.query.game_only === 'true',
+        platformen: req.query.platformen ? String(req.query.platformen).split(',').filter(Boolean) : [],
         zonder_genres: req.query.zonder
             ? String(req.query.zonder).split(',').filter(Boolean)
             : [],

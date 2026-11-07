@@ -614,6 +614,9 @@ function Beheer({ onUit }) {
                 <h1 style={{ margin: 0 }}>Beheer</h1>
                 <button className="terug als-link" onClick={uitloggen}>Uitloggen</button>
             </div>
+            <Link className="knop" to="/admin/bank" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', margin: '0.75rem 0' }}>
+                Vragenbank &amp; AI-curator →
+            </Link>
 
             {/* De tabs volgen de weg van een titel: eerst wat er te doen is,
                 dan de catalogus, dan de muziek, dan de kwaliteit, en pas

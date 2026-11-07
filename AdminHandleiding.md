@@ -4,6 +4,33 @@ Het adminportaal is de centrale plek om de vragenbank, audio en hostaccounts
 te beheren. Het admin-wachtwoord blijft uitsluitend in `.env`; het portaal zet
 dit wachtwoord nooit in de gebruikersdatabase.
 
+## Vragenbank en AI-curator (Beheer 2.0)
+
+Het dagelijkse beheer staat op **/admin/bank**. De AI-curator (ChatGPT via de
+Codex-login, geen API-key) draait 24/7 op de server en bepaalt én keurt alles:
+
+| Stap | Wat de AI doet |
+|---|---|
+| Beoordelen | categorie (film, serie, anime, game, muziek, kerst, kinder), bekendheid (iconisch, algemeen bekend, bekend, onbekend, cult), bekend in Nederland ja/nee/twijfel, jaartal, franchise en andere namen, het herkenningsnummer en de YouTube-zoekterm |
+| MP3 | zoekt ontbrekende MP3's op YouTube, kiest zelf de originele versie en slaat hem lokaal op; waarom iets mist staat erbij |
+| Quiz | 3 hints en 3 bonusvragen per titel, ook voor games en muziek |
+| Aanvullen | vult elke categorie aan tot het doelaantal (Overzicht → Doel of +100/+500), verdeeld over de bekendheidsniveaus |
+| Verbeteren | handelt spelermeldingen af, sluit dubbelen uit, controleert bestaande MP3's, loopt steekproeven na en beoordeelt alles elke 60 dagen opnieuw |
+
+Niet in Nederland bekend → automatisch uit het spel (terug te zetten via
+NL-check). Elke controle heeft een eigen tab: Nummers, MP3, Hints, Vragen,
+Jaartal, NL-check en Antwoorden; alles is direct in de lijst te bewerken.
+Wat je zelf aanpast krijgt een 🔒: de AI blijft daarvan af. Tik op het slotje
+om het weer aan de AI over te laten. Het AI-log toont alles wat de curator
+deed.
+
+Zolang de AI-curator aan staat, draaien de oude automatische vullers (TMDB-
+catalogus per uur en de swipe-achtergrondwachtrij) niet meer. Zet
+`VENTUNE_OUDE_AUTOMATISERING=true` om ze toch te laten draaien, of
+`AI_CURATOR=false` om de curator helemaal uit te schakelen. Het tempo
+(pauze tussen AI-vragen) stel je in onder Overzicht; bij de limiet van het
+ChatGPT-abonnement pauzeert de curator zelf 30 minuten.
+
 ## Database als bron van waarheid
 
 De tabel `titels` bepaalt welke films, series en andere spelitems bestaan. De

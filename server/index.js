@@ -18,6 +18,8 @@ const lobbyRoutes = require('./routes/lobby');
 const setupRoutes = require('./routes/setup');
 const adminRoutes = require('./routes/admin');
 const aanbevelingenRoutes = require('./routes/aanbevelingen');
+const bankRoutes = require('./routes/bank');
+const bankWorker = require('./lib/bank-worker');
 const changelogRoutes = require('./routes/changelog');
 const { router: authRoutes } = require('./lib/auth');
 const { setupSockets } = require('./socket');
@@ -47,6 +49,8 @@ async function start() {
     app.use(adminRoutes);
     // Aanbevelingen via ChatGPT (Codex) + Tinder-swipe.
     app.use(aanbevelingenRoutes);
+    // Beheer 2.0: vragenbank met de AI-curator die 24/7 doorwerkt.
+    app.use(bankRoutes);
     // Publiek: spelers mogen zien wat er veranderd is.
     app.use(changelogRoutes);
 
@@ -73,6 +77,7 @@ async function start() {
 
     server.listen(PORT, '0.0.0.0', () => {
         logger.info('VenTune-server gestart.', { poort: PORT });
+        bankWorker.start();
     });
 
     // Nette afsluiting.

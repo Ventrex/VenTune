@@ -1038,3 +1038,79 @@ ALTER TABLE tracks ADD COLUMN IF NOT EXISTS youtube_titel TEXT;
 
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS fout_detail TEXT;
 ALTER TABLE aanbevelingen ADD COLUMN IF NOT EXISTS eigen_video_id TEXT;
+
+-- =====================================================================
+-- Beheer 2.0 — AI-curator
+--
+-- Eén laag bovenop titels/tracks waarin de AI per nummer alles bepaalt:
+-- categorie (film, serie, anime, game, muziek, kerst, kinder), bekendheid
+-- (iconisch … cult), of het in Nederland bekend is, de franchise voor
+-- versie-onafhankelijk raden, het herkenningsnummer en de YouTube-zoekterm.
+-- Velden die de beheerder zelf aanpast komen in `handmatig` en worden
+-- daarna nooit meer door de AI overschreven.
+-- =====================================================================
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS categorie TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS bekendheid_tier TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_bekend TEXT NOT NULL DEFAULT 'onbekend';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_reden TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS franchise TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS anime_breed_bekend BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nummer_naam TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nummer_artiest TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS yt_zoekterm TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_status TEXT NOT NULL DEFAULT 'nieuw';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_versie INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_beoordeeld_op TIMESTAMPTZ;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_notitie TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_quiz_op TIMESTAMPTZ;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_uitgesloten BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS uitsluit_reden TEXT;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS handmatig TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS mp3_afgekeurd TEXT[] NOT NULL DEFAULT '{}';
+
+DO $$
+BEGIN
+    ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_categorie_check;
+    ALTER TABLE titels ADD CONSTRAINT titels_categorie_check
+        CHECK (categorie IS NULL OR categorie IN ('film','serie','anime','game','muziek','kerst','kinder'));
+    ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_bekendheid_tier_check;
+    ALTER TABLE titels ADD CONSTRAINT titels_bekendheid_tier_check
+        CHECK (bekendheid_tier IS NULL OR bekendheid_tier IN ('iconisch','algemeen_bekend','bekend','onbekend','cult'));
+    ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_nl_bekend_check;
+    ALTER TABLE titels ADD CONSTRAINT titels_nl_bekend_check
+        CHECK (nl_bekend IN ('ja','nee','twijfel','onbekend'));
+END$$;
+
+-- Eerste indeling uit wat er al bekend is; de AI verfijnt daarna alles.
+UPDATE titels SET categorie = CASE
+        WHEN 'Videogames' = ANY(genres) OR 'Videogames' = ANY(muziek_genres) OR 'games' = ANY(themas) THEN 'game'
+        WHEN type = 'muziek' AND ('kerst' = ANY(themas) OR 'Kerst' = ANY(genres)) THEN 'kerst'
+        WHEN type = 'muziek' AND 'kinder' = ANY(themas) THEN 'kinder'
+        WHEN type IN ('film','serie') AND upper(COALESCE(land,'')) IN ('JP','JPN','JAPAN')
+             AND (genres && ARRAY['Animatie','Animation']) THEN 'anime'
+        ELSE type::text END
+ WHERE categorie IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_titels_ai_werk ON titels (ai_status, ai_versie, id);
+CREATE INDEX IF NOT EXISTS idx_titels_categorie_tier ON titels (categorie, bekendheid_tier);
+CREATE INDEX IF NOT EXISTS idx_titels_franchise ON titels (lower(franchise));
+
+-- Logboek van alles wat de AI-curator doet, plus gevonden verbeterpunten.
+CREATE TABLE IF NOT EXISTS bank_log (
+    id             BIGSERIAL PRIMARY KEY,
+    titel_id       INTEGER REFERENCES titels (id) ON DELETE CASCADE,
+    soort          TEXT NOT NULL,
+    bericht        TEXT NOT NULL,
+    details        JSONB,
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_bank_log_tijd ON bank_log (aangemaakt_op DESC);
+CREATE INDEX IF NOT EXISTS idx_bank_log_titel ON bank_log (titel_id, aangemaakt_op DESC);
+
+INSERT INTO app_instellingen (sleutel, waarde)
+VALUES ('ai_curator', '{
+  "aan": true,
+  "pauzeSeconden": 30,
+  "doelen": {"film": 500, "serie": 400, "anime": 100, "game": 500, "muziek": 500, "kerst": 150, "kinder": 100}
+}'::jsonb)
+ON CONFLICT (sleutel) DO NOTHING;

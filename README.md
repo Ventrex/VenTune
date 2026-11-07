@@ -352,6 +352,13 @@ Setup **Alleen gecontroleerde nummers** inschakelen.
 
 ## Beheerportaal (/admin)
 
+> **Dagelijks beheer gaat via `/admin/bank`** (Vragenbank). Daar werkt een
+> AI-curator 24/7: hij deelt alles in (film, serie, anime, game, muziek, kerst,
+> kinder × iconisch … cult), controleert of het in Nederland bekend is, zoekt
+> MP3's, maakt hints en bonusvragen en vult categorieën aan tot hun doel. Zie
+> [AdminHandleiding.md](AdminHandleiding.md#vragenbank-en-ai-curator-beheer-20).
+> Het onderstaande portaal blijft voor systeem, gebruikers en logs.
+
 Bereikbaar op `https://ventune.ventrex.cc/admin` (of lokaal `:8091/admin`).
 Inloggen met `ADMIN_PASSWORD` uit je `.env`. Je kunt er:
 
