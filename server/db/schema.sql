@@ -1154,3 +1154,16 @@ BEGIN
         INSERT INTO app_instellingen (sleutel, waarde) VALUES ('swipe_ai_tracks_2026_11', 'true'::jsonb);
     END IF;
 END$$;
+
+-- Series: lopend of afgelopen (jaar = begin, eind_jaar = einde).
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS serie_lopend BOOLEAN NOT NULL DEFAULT false;
+
+-- Kant-en-klare edities voor de nieuwe categorieën.
+INSERT INTO quizzen (sleutel, naam, emoji, beschrijving, volgorde, ingebouwd, filter)
+VALUES
+    ('anime', 'Anime Quiz', '🌸', 'Openings en thema''s van bekende anime', 14, true, '{"categorieen":["anime"]}'),
+    ('videogames', 'Videogame Quiz', '🎮', 'Herken de muziek van bekende games', 15, true, '{"categorieen":["game"]}')
+ON CONFLICT (sleutel) DO UPDATE SET
+    naam = EXCLUDED.naam, emoji = EXCLUDED.emoji, beschrijving = EXCLUDED.beschrijving,
+    volgorde = EXCLUDED.volgorde, filter = EXCLUDED.filter
+    WHERE quizzen.ingebouwd = true;

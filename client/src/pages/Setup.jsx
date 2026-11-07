@@ -19,6 +19,17 @@ import './setup-categorie.css';
 
 const NU = new Date().getFullYear();
 
+/** Leesbare naam van wat er gespeeld wordt, ook voor videogames en anime. */
+function spelNaam(f) {
+    const cats = f.categorieen || [];
+    if (f.game_only === true || f.categorie === 'games' || (cats.length === 1 && cats[0] === 'game')) return 'Videogames';
+    if (f.categorie === 'anime' || (cats.length === 1 && cats[0] === 'anime')) return 'Anime';
+    if (f.categorie === 'films') return 'Films';
+    if (f.categorie === 'series') return 'Series';
+    if (f.categorie === 'muziek' || (cats.length === 1 && cats[0] === 'muziek')) return 'Muziek';
+    return 'Films & Series';
+}
+
 // Bekendheid in de spelkeuze. "De rest" bundelt onbekend en cult.
 const ALLE_TIERS = ['iconisch', 'algemeen_bekend', 'bekend', 'onbekend', 'cult'];
 const STANDAARD_TIERS = ['iconisch', 'algemeen_bekend', 'bekend'];
@@ -190,6 +201,7 @@ export default function Setup() {
                 ? ({ film: 'films', serie: 'series', muziek: 'muziek' })[categorieen[0]]
                 : 'beide',
             collecties: f.collecties || [],
+            game_only: categorieen.includes('game'),
             met_genres: f.met_genres || [],
             studios: f.studios || [],
             taal: f.taal || 'beide',
@@ -226,8 +238,8 @@ export default function Setup() {
     const gekozenQuiz = quizzen.find((q) => q.sleutel === quizSleutel) || null;
     const zichtbareQuizzen = quizzen.filter((q) => {
         const categorieen = q.filter?.categorieen || [];
-        if (quizGroep === 'muziek') return categorieen.includes('muziek');
-        if (quizGroep === 'filmserie') return categorieen.includes('film') || categorieen.includes('serie');
+        if (quizGroep === 'muziek') return categorieen.includes('muziek') || categorieen.includes('game');
+        if (quizGroep === 'filmserie') return categorieen.includes('film') || categorieen.includes('serie') || categorieen.includes('anime');
         return false;
     });
 
@@ -844,9 +856,10 @@ export default function Setup() {
                             <strong>
                                 {gekozenQuiz
                                     ? `${gekozenQuiz.emoji || ''} ${gekozenQuiz.naam}`.trim()
-                                    : (filters.categorie === 'beide' ? 'Films & Series' : filters.categorie === 'films' ? 'Films' : filters.categorie === 'series' ? 'Series' : 'Muziek')}
+                                    : spelNaam(filters)}
                             </strong>
-                            {' · '}{filters.periode_start}–{filters.periode_eind}
+                            {/* Het jaartal alleen tonen als er echt een periode gekozen is (80s, 90s …). */}
+                            {(filters.periode_start > 1930 || filters.periode_eind < NU) ? ` · ${filters.periode_start}–${filters.periode_eind}` : ''}
                             {' · '}{filters.rondes === 0 ? 'eindeloos' : `${filters.rondes} rondes`}
                         </p>
                         <p className="dim" style={{ marginBottom: 0 }}>
@@ -920,5 +933,6 @@ function labelVoor(p) {
     const controle = p.alleen_gecontroleerd === true ? ' · alleen gecontroleerd' : '';
     const collecties = (p.collecties || []).length ? ` · ${p.collecties.join(', ')}` : '';
     const kind = p.kindvriendelijk === true ? ' · kindvriendelijk' : '';
-    return `${cat}${collecties} · ${taal} · ${p.periode_start}–${p.periode_eind} · ${rondes} · ${tijd} · ${antwoord} · ${leeftijd} · ${tv}${controle}${kind}`;
+    const periode = (p.periode_start > 1930 || p.periode_eind < NU) ? ` · ${p.periode_start}–${p.periode_eind}` : '';
+    return `${(p.categorieen || []).some((c) => c === 'game' || c === 'anime') ? spelNaam(p) : cat}${collecties} · ${taal}${periode} · ${rondes} · ${tijd} · ${antwoord} · ${leeftijd} · ${tv}${controle}${kind}`;
 }

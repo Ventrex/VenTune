@@ -49,6 +49,14 @@ const FILTER_LABEL = {
     mist: 'Mist', opgegeven: 'Opgegeven', aanwezig: 'Aanwezig', leeg: 'Onvolledig',
     nee: 'Niet bekend', twijfel: 'Twijfel', ja: 'Bekend', zonder_franchise: 'Zonder franchise', anime: 'Anime',
 };
+/** Jaar zoals spelers het zien: 1994, of bij series 2005–2013 / 2025–. */
+function jaarTekst(item) {
+    if (!item?.jaar) return '';
+    if (item.serie_lopend) return `${item.jaar}–`;
+    if (item.eind_jaar && item.eind_jaar !== item.jaar) return `${item.jaar}–${item.eind_jaar}`;
+    return String(item.jaar);
+}
+
 const STAP_LABEL = {
     opstarten: 'Opstarten', beoordelen: 'Beoordelen', mp3: 'MP3 zoeken', quiz: 'Hints & vragen',
     aanvullen: 'Aanvullen', verbeteren: 'Verbeterpunten', pauze: 'Even pauze', klaar: 'Alles bijgewerkt',
@@ -313,7 +321,7 @@ function SwipeKaart({ item, onBeslis }) {
                 <div className="ab-badges">
                     <span className={`ab-badge cat-${item.categorie}`}>{CAT_LABEL[item.categorie] || item.categorie}</span>
                     {item.bekendheid_tier && <span className={`ab-badge tier-${item.bekendheid_tier}`}>{TIER_LABEL[item.bekendheid_tier]}</span>}
-                    {item.jaar && <span className="ab-badge">{item.jaar}</span>}
+                    {item.jaar && <span className="ab-badge">{jaarTekst(item)}</span>}
                 </div>
                 <h2 className="ab-swipe-titel">{item.naam}</h2>
                 <p className="ab-swipe-nummer">♪ {[item.nummer_naam, item.nummer_artiest].filter(Boolean).join(' – ') || 'Herkenningsnummer'}</p>
@@ -451,6 +459,12 @@ function Overzicht({ status, onWijzig, ga }) {
         await api(`/api/admin/bank/doel/${cat}`, { method: 'POST', body: { erbij } }).catch((e) => alert(e.message));
         onWijzig();
     }
+    async function wisselVoorrang(cat) {
+        const nu = instellingen.voorrang || [];
+        const voorrang = nu.includes(cat) ? nu.filter((c) => c !== cat) : [...nu, cat];
+        await api('/api/admin/bank/instellingen', { method: 'PATCH', body: { voorrang } }).catch((e) => alert(e.message));
+        onWijzig();
+    }
     async function zetDoel(cat, waarde) {
         await api('/api/admin/bank/instellingen', { method: 'PATCH', body: { doelen: { [cat]: Number(waarde) } } }).catch((e) => alert(e.message));
         onWijzig();
@@ -486,7 +500,7 @@ function Overzicht({ status, onWijzig, ga }) {
                     <table className="ab-matrix">
                         <thead><tr>
                             <th>Categorie</th>{TIERS.map(([id, n]) => <th key={id}>{n}</th>)}<th>Nog niet</th>
-                            <th>Totaal</th><th>Speelbaar</th><th>Doel</th><th>Erbij</th>
+                            <th>Totaal</th><th>Speelbaar</th><th>Doel</th><th>Erbij</th><th>Voorrang</th>
                         </tr></thead>
                         <tbody>{CATS.map(([cat, naam]) => {
                             const t = tellingen[cat] || { totaal: 0, speelbaar: 0, tiers: {} };
@@ -509,12 +523,17 @@ function Overzicht({ status, onWijzig, ga }) {
                                         <button type="button" className="ab-knop klein" onClick={() => verhoog(cat, 100)}>+100</button>
                                         <button type="button" className="ab-knop klein" onClick={() => verhoog(cat, 500)}>+500</button>
                                     </td>
+                                    <td>
+                                        <button type="button" className={'ab-knop klein' + ((instellingen.voorrang || []).includes(cat) ? ' ab-aan' : '')}
+                                            title="Deze categorie gaat bij alles voor (lijsten, MP3's, hints, swipen)"
+                                            onClick={() => wisselVoorrang(cat)}>{(instellingen.voorrang || []).includes(cat) ? '★ Eerst' : '☆'}</button>
+                                    </td>
                                 </tr>
                             );
                         })}</tbody>
                     </table>
                 </div>
-                <p className="dim ab-mini">Staat een categorie onder het doel, dan vult de AI hem aan met titels die in Nederland bekend zijn: eerst iconisch voor alle categorieën, daarna algemeen bekend, bekend, onbekend en cult. Speelbaar = MP3 die jij bij Swipen hebt goedgekeurd.</p>
+                <p className="dim ab-mini">Staat een categorie onder het doel, dan vult de AI hem aan met titels die in Nederland bekend zijn: eerst iconisch voor alle categorieën, daarna algemeen bekend, bekend, onbekend en cult. Speelbaar = MP3 die jij bij Swipen hebt goedgekeurd. ★ Voorrang: die categorie gaat bij alles voor, bv. eerst alle iconische videogames.</p>
             </section>
             <section className="ab-tegels">
                 {tegels.map(([naam, n, t, extra]) => (
@@ -738,7 +757,7 @@ function TitelKop({ item, toonNummer = true }) {
             <span className="ab-badges">
                 <span className={`ab-badge cat-${item.categorie}`}>{CAT_LABEL[item.categorie] || item.categorie}</span>
                 {item.bekendheid_tier && <span className={`ab-badge tier-${item.bekendheid_tier}`}>{TIER_LABEL[item.bekendheid_tier]}</span>}
-                {item.jaar && <span className="ab-badge">{item.jaar}</span>}
+                {item.jaar && <span className="ab-badge">{jaarTekst(item)}</span>}
                 {item.curatie_status === 'uitgesloten' && <span className="ab-badge uit">uit</span>}
             </span>
             {toonNummer && (item.nummer_naam || item.nummer_artiest) && (
@@ -806,7 +825,12 @@ function Rij({ tab, item, acties }) {
         return (
             <div className="ab-item">
                 <div className="ab-cel breed"><TitelKop item={item} /></div>
-                <div className="ab-cel"><Tekst label="Jaartal" type="number" waarde={item.jaar ?? ''} onSave={(w) => p({ jaar: w })} />{slot('jaar')}</div>
+                <div className="ab-cel"><Tekst label={['serie', 'anime'].includes(item.categorie) ? 'Beginjaar' : 'Jaartal'} type="number" waarde={item.jaar ?? ''} onSave={(w) => p({ jaar: w })} />{slot('jaar')}</div>
+                {(['serie'].includes(item.categorie) || (item.categorie === 'anime' && item.type === 'serie')) && <>
+                    <div className="ab-cel"><Tekst label="Eindjaar" type="number" waarde={item.serie_lopend ? '' : (item.eind_jaar ?? '')} onSave={(w) => p({ eind_jaar: w, serie_lopend: false })} /></div>
+                    <div className="ab-cel"><label className="ab-check"><input type="checkbox" checked={!!item.serie_lopend}
+                        onChange={(e) => p({ serie_lopend: e.target.checked, ...(e.target.checked ? { eind_jaar: null } : {}) })} /> Loopt nog</label></div>
+                </>}
             </div>
         );
     }
@@ -819,6 +843,9 @@ function Rij({ tab, item, acties }) {
                 <div className="ab-cel"><Keuze label="Bekend in NL?" waarde={item.nl_bekend === 'onbekend' ? '' : item.nl_bekend} leeg="Nog niet bekeken"
                     opties={[['ja', 'Ja'], ['twijfel', 'Twijfel'], ['nee', 'Nee (uit het spel)']]}
                     onSave={(w) => p({ nl_bekend: w, curatie_status: w === 'nee' ? 'uitgesloten' : 'goedgekeurd', uitsluit_reden: w === 'nee' ? 'Niet bekend in Nederland (beheerder)' : null })} />{slot('nl')}</div>
+                <div className="ab-cel"><Keuze label="Taal" waarde={item.taal} opties={[['nl', 'Nederlands'], ['en', 'Niet-Nederlands']]}
+                    onSave={(w) => p({ taal: w })} />{slot('taal')}</div>
+                <div className="ab-cel"><Tekst label="Land" waarde={item.land || ''} placeholder="NL, US, GB…" onSave={(w) => p({ land: w })} /></div>
                 <div className="ab-cel breed"><span className="ab-veld-label">Waarom (AI)</span><span className="dim">{item.nl_reden || '—'}</span></div>
             </div>
         );

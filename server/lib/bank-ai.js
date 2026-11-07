@@ -33,6 +33,8 @@ CATEGORIE:
 
 HET NUMMER: het herkenningsnummer dat spelers moeten herkennen. Film/serie/anime: de titelsong, intro of het bekendste thema. Game: het bekendste originele gamethema. Muziek/kerst/kinder: het nummer zelf (nummer_naam = naam, nummer_artiest = de originele uitvoerende artiest). yt_zoekterm vindt de ORIGINELE versie op YouTube (geen cover, live of remix).
 
+GEGEVENS KLOPPEN: jaar = jaar van de (eerste) release, bij een serie het beginjaar. eind_jaar = laatste jaar van een serie die is afgelopen (null bij films, games, muziek of een serie die nog loopt); serie_lopend = true als een serie nog loopt. taal = "nl" alleen voor Nederlandstalige producties/nummers (Flodder, Baantjer, Marco Borsato), anders "en" — The Office, Friends en Pokémon zijn dus "en". land = productieland als code (NL, BE, US, GB, JP, FR, DE, …).
+
 ANTWOORD: spelers raden de naam (film, serie, game of nummertitel). franchise is de korte naam van de reeks die spelers ook goed mogen rekenen, versie-onafhankelijk (bv. "Terminator" voor Terminator 2, "Super Mario" voor Super Mario Bros. 3, "Harry Potter"). Leeg als er geen reeks is. aliassen: andere geldige namen (Nederlandse titel, originele titel, gangbare afkorting zoals "GTA"), maximaal 5, zonder de franchise te herhalen.
 
 geschikt=false als er geen herkenbaar nummer bestaat of de titel ongeschikt is voor een muziekquiz (nieuws, talkshow, documentaire zonder herkenbaar thema, dubbel record).`;
@@ -51,6 +53,10 @@ const BEOORDELING_PROPS = {
     nl_bekend: S('string', { enum: ['ja', 'nee', 'twijfel'] }),
     nl_reden: STR,
     jaar: S(['integer', 'null']),
+    eind_jaar: S(['integer', 'null']),
+    serie_lopend: S('boolean'),
+    taal: S('string', { enum: ['nl', 'en'] }),
+    land: STR,
     franchise: STR,
     aliassen: STR_ARR,
     nummer_naam: STR,
@@ -86,6 +92,10 @@ function schoonBeoordeling(b) {
         nl_bekend: ['ja', 'nee', 'twijfel'].includes(b.nl_bekend) ? b.nl_bekend : 'twijfel',
         nl_reden: schoonTekst(b.nl_reden, 300),
         jaar,
+        eind_jaar: Number.isInteger(b.eind_jaar) && jaar && b.eind_jaar >= jaar && b.eind_jaar <= NU + 1 ? b.eind_jaar : null,
+        serie_lopend: b.serie_lopend === true,
+        taal: b.taal === 'nl' ? 'nl' : 'en',
+        land: /^[A-Z]{2,3}$/.test(String(b.land || '').trim().toUpperCase()) ? String(b.land).trim().toUpperCase() : null,
         franchise: norm(franchise) && norm(franchise) !== norm(naam) ? franchise : '',
         aliassen: [...new Set((Array.isArray(b.aliassen) ? b.aliassen : [])
             .map((a) => schoonTekst(a, 120)).filter((a) => a && norm(a) !== norm(naam)))].slice(0, 5),
@@ -110,11 +120,12 @@ async function beoordeel(titels, signal) {
         jaar: t.jaar || null,
         land: t.land || null,
         huidige_categorie: t.categorie || null,
+        huidige_taal: t.taal || null,
         bekend_nummer: [t.nummer_naam || t.tracknaam, t.nummer_artiest || t.artiest].filter(Boolean).join(' – ') || null,
     }));
     const prompt = `Je bent de curator van VenTune, een Nederlandse muziekquiz (zoals Hitster) waarin spelers een film, serie, anime, game of nummer herkennen aan de muziek.
 
-Beoordeel elk item hieronder en vul alle velden in. Houd het id gelijk. Corrigeer de naam alleen naar de gangbare officiële schrijfwijze (zoals Nederlanders hem kennen); verander niet naar een andere titel.
+Hieronder staat een lijst. Beoordeel elk item in de lijst ten opzichte van de andere (hoe bekend is dit vergeleken met de rest?), controleer of de gegevens kloppen en vul alle velden in. Houd het id gelijk. Corrigeer de naam alleen naar de gangbare officiële schrijfwijze (zoals Nederlanders hem kennen); verander niet naar een andere titel.
 ${CRITERIA}
 
 ${GUARD}
@@ -148,13 +159,15 @@ async function vulAan({ categorie, aantal, periode, tier, bestaand }, signal) {
         kerst: 'kerstnummers', kinder: 'kinderliedjes die Nederlandse kinderen kennen',
     }[categorie];
     const periodeRegel = periode ? `Uit de periode ${periode}.` : '';
+    // Stap 1 van 3: alleen een lijst met namen. Bekendheid, NL-check,
+    // gegevens en het nummer volgen daarna in één beoordelingsronde per
+    // lijst; hints en vragen weer in een volgende lijst.
     const prompt = `Je vult de vragenbank van VenTune, een Nederlandse muziekquiz waarin spelers iets herkennen aan de muziek.
 
-Geef ${aantal} NIEUWE ${wat}. ${periodeRegel} Ze moeten bekendheid "${tier}" hebben${tier === 'iconisch' ? ' (alleen het allerbekendste: wat vrijwel iedereen in Nederland meteen herkent)' : ''}; vul het veld eerlijk in.
-Eisen: in Nederland bekend (nl_bekend = ja), met een herkenbaar origineel nummer, geen dubbele titels, niets uit de lijst hieronder (ook geen andere schrijfwijze of los deel van dezelfde reeks met hetzelfde nummer). Geef liever minder items dan obscure of verzonnen items.
-${CRITERIA}
-
-Velden extra: type is "film" of "serie" (voor game/muziek/kerst/kinder: "muziek"); taal "nl" of "en" (de taal van titel/nummer, "en" voor alles wat niet Nederlands is); omschrijving is één feitelijke zin zonder spoilers.
+Geef een LIJST van ${aantal} nieuwe ${wat} die in Nederland bekend zijn en een herkenbaar origineel nummer hebben. ${periodeRegel}
+Ze moeten bekendheid "${tier}" hebben${tier === 'iconisch' ? ' (alleen het allerbekendste: wat vrijwel iedereen in Nederland meteen herkent)' : ''}.
+Niets uit de lijst hieronder (ook geen andere schrijfwijze of een los deel van dezelfde reeks met hetzelfde nummer). Liever minder dan obscure of verzonnen titels.
+Per item alleen: naam (zoals Nederlanders hem kennen), jaar (release; bij series het beginjaar), artiest (alleen bij muziek/kerst/kinder, anders leeg) en bekendheid (je eerlijke inschatting: iconisch, algemeen_bekend, bekend, onbekend of cult).
 
 ${GUARD}
 
@@ -163,23 +176,23 @@ ${bestaand.length ? bestaand.join(' | ') : '(nog niets)'}`;
     const res = await codex.vraagJson({
         prompt,
         schema: lijstSchema({
-            ...BEOORDELING_PROPS,
-            type: S('string', { enum: ['film', 'serie', 'muziek'] }),
-            taal: S('string', { enum: ['nl', 'en'] }),
-            omschrijving: STR,
+            naam: STR,
+            jaar: S(['integer', 'null']),
+            artiest: STR,
+            bekendheid: S('string', { enum: TIERS }),
         }),
         signal,
     });
     if (!res.ok) return res;
     const items = [];
     for (const raw of res.data?.items || []) {
-        const b = schoonBeoordeling(raw);
-        if (!b || !b.naam) continue;
+        const naam = schoonTekst(raw?.naam, 200);
+        if (!naam) continue;
         items.push({
-            ...b,
-            type: ['film', 'serie', 'muziek'].includes(raw.type) ? raw.type : null,
-            taal: raw.taal === 'nl' ? 'nl' : 'en',
-            omschrijving: schoonTekst(raw.omschrijving, 500),
+            naam,
+            jaar: Number.isInteger(raw.jaar) && raw.jaar >= 1900 && raw.jaar <= NU + 1 ? raw.jaar : null,
+            artiest: schoonTekst(raw.artiest, 200),
+            bekendheid: TIERS.includes(raw.bekendheid) ? raw.bekendheid : null,
         });
     }
     return { ok: true, items };
@@ -232,7 +245,7 @@ async function maakQuiz(titels, signal) {
         nummer: [t.nummer_naam, t.nummer_artiest].filter(Boolean).join(' – ') || null,
         omschrijving: t.omschrijving || null,
     }));
-    const prompt = `Maak voor elke titel in VenTune (Nederlandse muziekquiz) precies 3 hints en 3 bonusvragen, in het Nederlands.
+    const prompt = `Maak voor elke titel in deze lijst voor VenTune (Nederlandse muziekquiz) precies 3 hints en 3 bonusvragen, in het Nederlands. De 6 items per titel gaan elk over een ANDER onderwerp en hebben geen raakvlakken met elkaar (geen hint die een vraag beantwoordt of naar hetzelfde feit verwijst).
 
 HINTS (tijdens het raden, van vaag naar concreet): helpen de titel te raden zonder de naam, franchise of een deel daarvan te noemen. Film/serie/anime: hoofdpersonage, acteur, setting, plot zonder spoilers. Game: platform, maker, hoofdpersonage, genre. Muziek/kerst/kinder: artiest, jaar/decennium, waar je het hoort — zonder de nummertitel.
 BONUSVRAGEN (na het raden, meerkeuze): feitelijk en controleerbaar, elk een ander onderwerp, hooguit één jaartalvraag. "juist" is het goede antwoord, "fout" precies 5 geloofwaardige foute antwoorden van hetzelfde soort. Een hint mag het antwoord op een bonusvraag niet verklappen.

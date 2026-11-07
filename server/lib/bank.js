@@ -11,7 +11,7 @@ const logger = require('./logger');
 
 // Ophogen wanneer de beoordelingsprompt inhoudelijk verandert: alle titels
 // worden dan opnieuw door de AI bekeken (handmatige velden blijven staan).
-const AI_VERSIE = 1;
+const AI_VERSIE = 2; // 2: ook taal, land en begin/eind van series controleren
 
 const CATEGORIEEN = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'kinder'];
 const CATEGORIE_LABEL = {
@@ -30,12 +30,13 @@ const TIER_VERDELING = { iconisch: 0.2, algemeen_bekend: 0.25, bekend: 0.25, onb
 
 // Velden die de beheerder kan aanpassen. Na een aanpassing staat het veld
 // in titels.handmatig en blijft de AI eraf.
-const VASTZETBAAR = ['naam', 'categorie', 'tier', 'jaar', 'nl', 'actief', 'franchise',
+const VASTZETBAAR = ['naam', 'categorie', 'tier', 'jaar', 'nl', 'taal', 'actief', 'franchise',
     'aliassen', 'nummer', 'hints', 'vragen', 'mp3'];
 
 const STANDAARD_INSTELLINGEN = {
     aan: true,
     pauzeSeconden: 30,
+    voorrang: [], // categorieën die bij alles voorgaan, bv. ['game']
     doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, kinder: 100 },
 };
 
@@ -55,6 +56,11 @@ const HEEFT_SPEELBAAR = `EXISTS (SELECT 1 FROM tracks sp
 // Nog niet beoordeelde titels komen na iconisch/algemeen bekend.
 const TIER_RANG = `CASE t.bekendheid_tier WHEN 'iconisch' THEN 0 WHEN 'algemeen_bekend' THEN 1
     WHEN 'bekend' THEN 2 WHEN 'onbekend' THEN 3 WHEN 'cult' THEN 4 ELSE 5 END`;
+
+/** SQL-volgorde: categorieën met voorrang eerst (param = text[]). */
+function voorrangSql(param) {
+    return `(COALESCE(t.categorie, t.type::text) = ANY(${param}::text[])) DESC`;
+}
 
 /** Welk inhoudstype (enum titel_type) past bij een categorie. */
 function typeVoorCategorie(categorie, huidig) {
@@ -97,6 +103,7 @@ async function bewaarInstellingen(patch) {
     const huidig = await instellingen();
     const nieuw = { ...huidig, ...patch, doelen: { ...huidig.doelen, ...(patch.doelen || {}) } };
     nieuw.pauzeSeconden = Math.min(600, Math.max(5, Number(nieuw.pauzeSeconden) || 30));
+    nieuw.voorrang = [...new Set((Array.isArray(nieuw.voorrang) ? nieuw.voorrang : []).filter((c) => CATEGORIEEN.includes(c)))];
     for (const c of Object.keys(nieuw.doelen)) {
         if (!CATEGORIEEN.includes(c)) delete nieuw.doelen[c];
         else nieuw.doelen[c] = Math.min(20000, Math.max(0, Math.round(Number(nieuw.doelen[c]) || 0)));
@@ -170,5 +177,5 @@ module.exports = {
     oudeAutomatiseringToegestaan,
     AI_VERSIE, CATEGORIEEN, CATEGORIE_LABEL, MUZIEK_CATEGORIEEN, TIERS, TIER_LABEL,
     TIER_VERDELING, VASTZETBAAR, HEEFT_MP3, HEEFT_SPEELBAAR, TIER_RANG,
-    typeVoorCategorie, isVast, norm, log, instellingen, bewaarInstellingen, tellingen, werkvoorraad,
+    voorrangSql, typeVoorCategorie, isVast, norm, log, instellingen, bewaarInstellingen, tellingen, werkvoorraad,
 };

@@ -428,7 +428,7 @@ export default function Play() {
                     {antwoord && (
                         <p className="ondertitel">
                             {antwoord.naam}
-                            {antwoord.jaar ? ` · ${antwoord.jaar}` : ''}
+                            {antwoord.jaar ? ` · ${antwoord.lopend ? `${antwoord.jaar}–` : antwoord.eindJaar && antwoord.eindJaar !== antwoord.jaar ? `${antwoord.jaar}–${antwoord.eindJaar}` : antwoord.jaar}` : ''}
                         </p>
                     )}
                     <p className="kaart-label">Bonusvraag (+50)</p>

@@ -429,6 +429,7 @@ class SpelBeheer {
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.franchise, t.categorie, t.bekendheid_tier, t.type, t.taal, t.jaar,
+                    t.eind_jaar, t.serie_lopend,
                     t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
                     t.hoofdrollen, t.ai_hints, t.ai_hints_status, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
@@ -1637,6 +1638,9 @@ class SpelBeheer {
         return {
             naam: h.titel.naam,
             jaar: h.titel.jaar,
+            // Series: begin en eind (2005–2013) of nog lopend (2025–).
+            eindJaar: h.titel.eind_jaar || null,
+            lopend: h.titel.serie_lopend === true,
             type: h.titel.type, // film of serie
             taal: h.titel.taal, // nl of internationaal
             land: h.titel.land,

@@ -21,6 +21,13 @@ Niet in Nederland bekend → automatisch uit het spel (terug te zetten via
 NL-check). Iconisch gaat overal voor: de AI vult eerst alle categorieën met
 iconische titels, daarna algemeen bekend, bekend, onbekend en cult.
 
+De AI werkt in lijsten, één AI-vraag per lijst van één categorie: eerst een
+lijst nieuwe namen (alleen naam, jaar en bekendheid), daarna beoordeelt hij
+die lijst in één keer (bekendheid t.o.v. elkaar, NL-bekendheid, taal/land,
+begin- en eindjaar van series, nummer), en daarna maakt hij voor een lijst
+titels 3 hints + 3 vragen zonder raakvlakken. Met ★ Voorrang (Overzicht) gaat
+een categorie bij alles voor, bv. eerst alle iconische videogames.
+
 **Alleen de nummers keur je zelf goed**, in de tab **Swipen** (subtabs per
 categorie, iconisch eerst). Een MP3 die de AI vindt, komt pas in het spel als
 jij hem goedkeurt. Sleep naar rechts of tik ✓ = goed, links of ✕ = fout (de

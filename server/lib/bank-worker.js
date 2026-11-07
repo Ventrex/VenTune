@@ -24,7 +24,8 @@ const bankMp3 = require('./bank-mp3');
 const logger = require('./logger');
 
 const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'beoordelen', 'mp3', 'aanvullen', 'quiz', 'verbeteren'];
-const BATCH = { beoordelen: 15, quiz: 4, mp3: 5, aanvullen: 20 };
+// Alles gaat in lijsten: één AI-vraag per lijst van dezelfde categorie.
+const BATCH = { beoordelen: 25, quiz: 8, mp3: 6, aanvullen: 25 };
 const PERIODES = {
     film: ['1970-1984', '1985-1994', '1995-2004', '2005-2014', '2015-nu'],
     serie: ['1970-1989', '1990-1999', '2000-2009', '2010-2017', '2018-nu'],
@@ -82,22 +83,35 @@ function controleerAi(res) {
 // Stap: beoordelen
 // ------------------------------------------------------------------
 
-async function stapBeoordelen() {
+async function stapBeoordelen(inst) {
+    const voorrang = inst?.voorrang || [];
+    const WERK = `(t.ai_status = 'nieuw'
+            OR (t.ai_status = 'klaar' AND t.ai_versie < $1)
+            OR (t.ai_status = 'fout' AND t.ai_beoordeeld_op < now() - interval '6 hours'))`;
+    // Volgorde: categorie met voorrang, net door de AI aangevulde titels
+    // (die worden meteen gecontroleerd), titels met MP3, iconisch eerst.
+    const VOLGORDE = `${bank.voorrangSql('$2')},
+            (t.ai_versie = 0 AND t.toevoeg_reden LIKE 'AI-curator%') DESC,
+            (t.curatie_status = 'uitgesloten' AND NOT t.ai_uitgesloten),
+            ${bank.HEEFT_MP3} DESC, ${bank.TIER_RANG}, t.id`;
+    // Eén lijst per categorie: de AI vergelijkt videogames met videogames.
+    const { rows: [eerste] } = await pool.query(
+        `SELECT COALESCE(t.categorie, t.type::text) AS categorie FROM titels t WHERE ${WERK} ORDER BY ${VOLGORDE} LIMIT 1`,
+        [bank.AI_VERSIE, voorrang]);
+    if (!eerste) return false;
     const { rows } = await pool.query(`
-        SELECT t.id, t.naam, t.type::text AS type, t.jaar, t.land, t.categorie, t.handmatig,
+        SELECT t.id, t.naam, t.type::text AS type, t.jaar, t.land, t.taal::text AS taal, t.categorie, t.handmatig,
                t.nummer_naam, t.nummer_artiest, t.aliassen, t.curatie_status, t.ai_uitgesloten,
                t.bekendheid_tier, t.franchise, t.yt_zoekterm, t.nl_bekend, t.ai_status, t.tmdb_id,
                (SELECT tr.tracknaam FROM tracks tr WHERE tr.titel_id = t.id AND tr.werkt ORDER BY tr.id DESC LIMIT 1) AS tracknaam,
                (SELECT tr.artiest FROM tracks tr WHERE tr.titel_id = t.id AND tr.werkt ORDER BY tr.id DESC LIMIT 1) AS artiest,
                ${bank.HEEFT_MP3} AS heeft_mp3
           FROM titels t
-         WHERE t.ai_status = 'nieuw'
-            OR (t.ai_status = 'klaar' AND t.ai_versie < $1)
-            OR (t.ai_status = 'fout' AND t.ai_beoordeeld_op < now() - interval '6 hours')
-         ORDER BY (t.curatie_status = 'uitgesloten' AND NOT t.ai_uitgesloten), ${bank.HEEFT_MP3} DESC, t.id
-         LIMIT $2`, [bank.AI_VERSIE, BATCH.beoordelen]);
+         WHERE ${WERK} AND COALESCE(t.categorie, t.type::text) = $3
+         ORDER BY ${VOLGORDE}
+         LIMIT $4`, [bank.AI_VERSIE, voorrang, eerste.categorie, BATCH.beoordelen]);
     if (!rows.length) return false;
-    zet('beoordelen', `${rows.length} titels: ${rows.slice(0, 3).map((r) => r.naam).join(', ')}…`);
+    zet('beoordelen', `Lijst ${bank.CATEGORIE_LABEL[eerste.categorie] || eerste.categorie} (${rows.length}): ${rows.slice(0, 3).map((r) => r.naam).join(', ')}…`);
     const res = await bankAi.beoordeel(rows);
     if (!res.ok) {
         await pool.query(
@@ -119,7 +133,7 @@ async function stapBeoordelen() {
         if (r.uitgesloten) uitgesloten.push(t.naam);
     }
     status.tellers.beoordeeld += res.items.size;
-    status.laatsteActie = `${res.items.size} titels beoordeeld${uitgesloten.length ? `, ${uitgesloten.length} uitgesloten` : ''}`;
+    status.laatsteActie = `Lijst ${bank.CATEGORIE_LABEL[eerste.categorie] || eerste.categorie}: ${res.items.size} titels beoordeeld${uitgesloten.length ? `, ${uitgesloten.length} uitgesloten` : ''}`;
     await bank.log(null, 'beoordeling', status.laatsteActie
         + (uitgesloten.length ? ` (${uitgesloten.slice(0, 8).join(', ')})` : ''));
     return true;
@@ -137,7 +151,7 @@ async function pasBeoordelingToe(oud, b) {
         await client.query('BEGIN');
         const { rows: [vers] } = await client.query(
             `SELECT handmatig, curatie_status, ai_uitgesloten, naam, nummer_naam, jaar, aliassen,
-                    type::text AS type, categorie
+                    type::text AS type, categorie, taal::text AS taal
                FROM titels WHERE id = $1 FOR UPDATE`, [oud.id]);
         if (!vers) { await client.query('ROLLBACK'); return { uitgesloten: false }; }
         const r = await pasBeoordelingToeIn(client, { ...oud, ...vers }, b);
@@ -179,6 +193,20 @@ async function pasBeoordelingToeIn(client, t, b) {
     if (!vast('tier') && b.bekendheid) set('bekendheid_tier', b.bekendheid);
     // Een TMDB-jaartal (releasedatum) is betrouwbaarder dan het AI-jaartal.
     if (!vast('jaar') && b.jaar && !(t.tmdb_id && t.jaar)) set('jaar', b.jaar);
+    if (!vast('jaar')) {
+        const serie = ['serie', 'anime'].includes(b.categorie || t.categorie) && (b.categorie !== 'anime' || t.type === 'serie');
+        set('eind_jaar', serie && !b.serie_lopend ? b.eind_jaar : null);
+        set('serie_lopend', serie && b.serie_lopend);
+    }
+    // Geen "Nederlands" bij The Office: taal en land laten controleren.
+    if (!vast('taal')) {
+        if (b.taal !== t.taal) {
+            waarden.push(b.taal);
+            zetten.push(`taal = $${waarden.length}::titel_taal`);
+            wijzigingen.push(`taal ${t.taal || '—'} → ${b.taal}`);
+        }
+        if (b.land) set('land', b.land);
+    }
     if (!vast('nl')) { set('nl_bekend', b.nl_bekend); set('nl_reden', b.nl_reden || null); }
     if (!vast('franchise')) set('franchise', b.franchise || null);
     if (!vast('aliassen') && b.aliassen.length) {
@@ -238,14 +266,21 @@ async function logBeoordeling(t, b, { uitgesloten, wijzigingen = [] }) {
 // Stap: hints en bonusvragen
 // ------------------------------------------------------------------
 
-async function stapQuiz() {
+async function stapQuiz(inst) {
+    const voorrang = inst?.voorrang || [];
+    const WERK = "t.ai_status = 'klaar' AND t.curatie_status <> 'uitgesloten' AND t.ai_quiz_op IS NULL";
+    const VOLGORDE = `${bank.voorrangSql('$1')}, ${bank.HEEFT_MP3} DESC, ${bank.TIER_RANG}, t.id`;
+    const { rows: [eerste] } = await pool.query(
+        `SELECT COALESCE(t.categorie, t.type::text) AS categorie FROM titels t WHERE ${WERK} ORDER BY ${VOLGORDE} LIMIT 1`,
+        [voorrang]);
+    if (!eerste) return false;
     const { rows } = await pool.query(`
         SELECT t.id, t.naam, COALESCE(t.categorie, t.type::text) AS categorie, t.jaar, t.franchise,
                t.aliassen, t.nummer_naam, t.nummer_artiest, t.omschrijving, t.handmatig, t.ai_hints
           FROM titels t
-         WHERE t.ai_status = 'klaar' AND t.curatie_status <> 'uitgesloten' AND t.ai_quiz_op IS NULL
-         ORDER BY ${bank.HEEFT_MP3} DESC, ${bank.TIER_RANG}, t.id
-         LIMIT $1`, [BATCH.quiz]);
+         WHERE ${WERK} AND COALESCE(t.categorie, t.type::text) = $2
+         ORDER BY ${VOLGORDE}
+         LIMIT $3`, [voorrang, eerste.categorie, BATCH.quiz]);
     if (!rows.length) return false;
     const teDoen = rows.filter((t) => !(bank.isVast(t, 'hints') && bank.isVast(t, 'vragen')));
     if (!teDoen.length) {
@@ -308,7 +343,7 @@ async function bewaarQuiz(oud, q) {
 // Stap: MP3 zoeken
 // ------------------------------------------------------------------
 
-async function stapMp3() {
+async function stapMp3(inst) {
     if (ytzoek.rateLimitActief() || bankMp3.gepauzeerd()) return false;
     const bezig = bankMp3.bezigeIds();
     const { rows } = await pool.query(`
@@ -321,8 +356,8 @@ async function stapMp3() {
            AND t.zoek_status IN ('nieuw', 'geen_kandidaat', 'gevonden')
            AND (t.volgende_poging IS NULL OR t.volgende_poging < now())
            AND NOT (t.id = ANY($2::int[]))
-         ORDER BY ${bank.TIER_RANG}, t.zoek_pogingen, t.id
-         LIMIT $1`, [BATCH.mp3, bezig]);
+         ORDER BY ${bank.voorrangSql('$3')}, ${bank.TIER_RANG}, t.zoek_pogingen, t.id
+         LIMIT $1`, [BATCH.mp3, bezig, inst?.voorrang || []]);
     if (!rows.length) return false;
     zet('mp3', `MP3 zoeken: ${rows.map((r) => r.naam).join(', ')}`);
     const r = await bankMp3.verwerkBatch(rows);
@@ -351,7 +386,9 @@ function kiesAanvulling(inst, telling) {
         const tekort = doel - telling[c].totaal;
         if (tekort > 0) kandidaten.push({ categorie: c, doel, tekort, ratio: tekort / doel });
     }
-    kandidaten.sort((a, b) => b.ratio - a.ratio);
+    // Categorieën met voorrang eerst, daarna die met het grootste tekort.
+    const voorrang = inst.voorrang || [];
+    kandidaten.sort((a, b) => (voorrang.includes(b.categorie) - voorrang.includes(a.categorie)) || (b.ratio - a.ratio));
     for (const tier of bank.TIERS) {
         for (const k of kandidaten) {
             const periodes = PERIODES[k.categorie];
@@ -384,12 +421,11 @@ async function stapAanvullen(inst) {
         `SELECT DISTINCT t.naam FROM titels t WHERE COALESCE(t.categorie, t.type::text) = $1 ${jaarFilter}
          ORDER BY 1 LIMIT 2500`, params);
     const { rows: alleRows } = await pool.query(
-        `SELECT t.naam, t.franchise, t.nummer_naam FROM titels t WHERE COALESCE(t.categorie, t.type::text) = $1`, [categorie]);
+        `SELECT t.naam FROM titels t WHERE COALESCE(t.categorie, t.type::text) = $1`, [categorie]);
     const namen = new Set(alleRows.map((r) => bank.norm(r.naam)));
-    const nummers = new Set(alleRows.filter((r) => r.nummer_naam).map((r) => `${bank.norm(r.franchise || r.naam)}|${bank.norm(r.nummer_naam)}`));
 
     const aantal = Math.min(BATCH.aanvullen, keuze.tekort);
-    zet('aanvullen', `${bank.CATEGORIE_LABEL[categorie]}: ${aantal} nieuwe (${periode || 'alle jaren'}, ${bank.TIER_LABEL[tier]})`);
+    zet('aanvullen', `Lijst maken: ${aantal} ${bank.CATEGORIE_LABEL[categorie]} (${periode || 'alle jaren'}, ${bank.TIER_LABEL[tier]})`);
     const res = await bankAi.vulAan({ categorie, aantal, periode, tier, bestaand: bestaandRows.map((r) => r.naam) });
     controleerAi(res);
 
@@ -397,35 +433,26 @@ async function stapAanvullen(inst) {
     let passend = 0; // nieuwe titels van precies de gevraagde bekendheid
     const nieuweNamen = [];
     for (const it of res.items) {
-        if (it.nl_bekend !== 'ja' || !it.geschikt) continue;
-        // De AI mag een item eerlijk anders indelen (bv. anime i.p.v. serie).
-        const cat = it.categorie === categorie
-            || (categorie === 'muziek' && bank.MUZIEK_CATEGORIEEN.has(it.categorie))
-            || (it.categorie === 'anime' && (categorie === 'film' || categorie === 'serie'))
-            ? it.categorie : categorie;
         const sleutel = bank.norm(it.naam);
-        const nummerSleutel = `${bank.norm(it.franchise || it.naam)}|${bank.norm(it.nummer_naam)}`;
-        if (!sleutel || namen.has(sleutel) || (it.nummer_naam && nummers.has(nummerSleutel))) continue;
+        if (!sleutel || namen.has(sleutel)) continue;
         namen.add(sleutel);
-        if (it.nummer_naam) nummers.add(nummerSleutel);
-        const type = bank.typeVoorCategorie(cat, it.type);
+        // Alleen naam/jaar/inschatting opslaan; de beoordelingsronde
+        // controleert direct daarna (als lijst) NL-bekendheid, gegevens,
+        // categorie en het herkenningsnummer.
+        const muziek = bank.MUZIEK_CATEGORIEEN.has(categorie);
         try {
             await pool.query(
-                `INSERT INTO titels (naam, type, taal, jaar, categorie, anime_breed_bekend, bekendheid_tier,
-                        nl_bekend, nl_reden, franchise, aliassen, nummer_naam, nummer_artiest, yt_zoekterm,
-                        omschrijving, ai_notitie, ai_status, ai_versie, ai_beoordeeld_op, curatie_status,
-                        nl_tv_bekend, toevoeg_reden, genres, muziek_genres)
-                 VALUES ($1, $2::titel_type, $3::titel_taal, $4, $5, $6, $7, 'ja', $8, $9, $10, $11, $12, $13,
-                         $14, $15, 'klaar', $16, now(), 'goedgekeurd', true, $17, $18, $18)`,
-                [it.naam, type, it.taal, it.jaar, cat, cat === 'anime' && it.anime_breed_bekend, it.bekendheid,
-                    it.nl_reden || null, it.franchise || null, it.aliassen, it.nummer_naam || null,
-                    it.nummer_artiest || null, it.yt_zoekterm || null, it.omschrijving || null, it.notitie || null,
-                    bank.AI_VERSIE, `AI-curator: aangevuld (${bank.CATEGORIE_LABEL[categorie]}, ${periode || 'alle jaren'})`,
-                    cat === 'game' ? ['Videogames'] : cat === 'kerst' ? ['Kerst'] : []],
+                `INSERT INTO titels (naam, type, taal, jaar, categorie, bekendheid_tier, nummer_naam, nummer_artiest,
+                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres)
+                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, $9, $9)`,
+                [it.naam, bank.typeVoorCategorie(categorie, categorie === 'anime' ? 'serie' : 'film'), it.jaar,
+                    categorie, it.bekendheid || tier, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
+                    `AI-curator: aangevuld (${bank.CATEGORIE_LABEL[categorie]}, ${periode || 'alle jaren'})`,
+                    categorie === 'game' ? ['Videogames'] : categorie === 'kerst' ? ['Kerst'] : []],
             );
             toegevoegd++;
-            if (it.bekendheid === tier) passend++;
-            nieuweNamen.push(`${it.naam} (${bank.TIER_LABEL[it.bekendheid] || '—'})`);
+            if (!it.bekendheid || it.bekendheid === tier) passend++;
+            nieuweNamen.push(`${it.naam}${it.bekendheid ? ` (${bank.TIER_LABEL[it.bekendheid]})` : ''}`);
         } catch (err) {
             logger.waarschuwing('Aanvulling opslaan mislukt', { naam: it.naam, melding: err.message });
         }
@@ -434,7 +461,7 @@ async function stapAanvullen(inst) {
     // en door naar de volgende periode/categorie/bekendheid.
     if (passend < 3) uitgeput[`${categorie}|${periode}|${tier}`] = Date.now() + 3 * 24 * 3600 * 1000;
     status.tellers.toegevoegd += toegevoegd;
-    status.laatsteActie = `${bank.CATEGORIE_LABEL[categorie]}: ${toegevoegd} nieuwe titels toegevoegd`;
+    status.laatsteActie = `${bank.CATEGORIE_LABEL[categorie]}: ${toegevoegd} nieuwe titels op de lijst (worden direct gecontroleerd)`;
     await bank.log(null, 'aanvulling', `${status.laatsteActie}${nieuweNamen.length ? `: ${nieuweNamen.join(', ')}` : ''}`);
     return true;
 }

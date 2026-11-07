@@ -634,7 +634,7 @@ export function AntwoordInfo({ antwoord }) {
             <details className="vt-info-toggle"><summary aria-label="Meer informatie over deze film of serie">ⓘ Info over {antwoord.type === 'serie' ? 'de serie' : 'de film'}</summary>
             <div className="info-rij">
                 <span className="info-chip">{type}</span>
-                {antwoord.jaar && <span className="info-chip">{antwoord.jaar}</span>}
+                {antwoord.jaar && <span className="info-chip">{antwoord.lopend ? `${antwoord.jaar}–` : antwoord.eindJaar && antwoord.eindJaar !== antwoord.jaar ? `${antwoord.jaar}–${antwoord.eindJaar}` : antwoord.jaar}</span>}
                 {taal && <span className="info-chip">{taal}</span>}
                 {antwoord.land && <span className="info-chip">{antwoord.land}</span>}
                 {antwoord.studio && <span className="info-chip">{antwoord.studio}</span>}

@@ -69,6 +69,7 @@ router.patch('/api/admin/bank/instellingen', vereisAdmin, async (req, res) => {
         const patch = {};
         if (req.body?.doelen && typeof req.body.doelen === 'object') patch.doelen = req.body.doelen;
         if (req.body?.pauzeSeconden !== undefined) patch.pauzeSeconden = req.body.pauzeSeconden;
+        if (Array.isArray(req.body?.voorrang)) patch.voorrang = req.body.voorrang;
         res.json(await bank.bewaarInstellingen(patch));
         worker.porren();
     } catch (err) { fout(res, err); }
@@ -164,7 +165,8 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         params.push(PER_PAGINA, (pagina - 1) * PER_PAGINA);
         const { rows } = await pool.query(`
             SELECT t.id, t.naam, t.type::text AS type, COALESCE(t.categorie, t.type::text) AS categorie,
-                   t.bekendheid_tier, t.jaar, t.nl_bekend, t.nl_reden, t.franchise, t.aliassen,
+                   t.bekendheid_tier, t.jaar, t.eind_jaar, t.serie_lopend, t.taal::text AS taal, t.land,
+                   t.nl_bekend, t.nl_reden, t.franchise, t.aliassen,
                    t.anime_breed_bekend, t.nummer_naam, t.nummer_artiest, t.yt_zoekterm,
                    t.ai_status, t.ai_notitie, t.handmatig, t.curatie_status, t.ai_uitgesloten,
                    t.uitsluit_reden, t.zoek_status, t.zoek_melding, t.zoek_pogingen, t.volgende_poging,
@@ -266,6 +268,25 @@ router.patch('/api/admin/bank/items/:id', vereisAdmin, async (req, res) => {
                 return fout(res, new Error('Ongeldig jaartal.'), 400);
             }
             set('jaar', jaar); vast.push('jaar');
+        }
+        if (b.eind_jaar !== undefined) {
+            const eind = b.eind_jaar === '' || b.eind_jaar === null ? null : parseInt(b.eind_jaar, 10);
+            if (eind !== null && !(eind >= 1900 && eind <= new Date().getFullYear() + 1)) {
+                return fout(res, new Error('Ongeldig eindjaar.'), 400);
+            }
+            set('eind_jaar', eind); vast.push('jaar');
+        }
+        if (b.serie_lopend !== undefined) {
+            set('serie_lopend', !!b.serie_lopend);
+            if (b.serie_lopend && b.eind_jaar === undefined) set('eind_jaar', null);
+            vast.push('jaar');
+        }
+        if (b.taal !== undefined) {
+            if (!['nl', 'en'].includes(b.taal)) return fout(res, new Error('Kies nl of en.'), 400);
+            set('taal', b.taal, '::titel_taal'); vast.push('taal');
+        }
+        if (b.land !== undefined) {
+            set('land', String(b.land).trim().toUpperCase().slice(0, 3) || null); vast.push('taal');
         }
         if (b.nl_bekend !== undefined) {
             if (!['ja', 'nee', 'twijfel'].includes(b.nl_bekend)) return fout(res, new Error('Kies ja, nee of twijfel.'), 400);
@@ -462,11 +483,11 @@ router.get('/api/admin/bank/swipe', vereisAdmin, async (req, res) => {
         const { rows } = await pool.query(`
             SELECT tr.id AS track_id, tr.preview_url AS mp3_url, tr.youtube_titel, tr.bron_url,
                    tr.verificatie_reden, t.id, t.naam, COALESCE(t.categorie, t.type::text) AS categorie,
-                   t.bekendheid_tier, t.jaar, t.nummer_naam, t.nummer_artiest, t.franchise
+                   t.bekendheid_tier, t.jaar, t.eind_jaar, t.serie_lopend, t.nummer_naam, t.nummer_artiest, t.franchise
               FROM tracks tr JOIN titels t ON t.id = tr.titel_id
              WHERE ${condities.join(' AND ')}
-             ORDER BY ${bank.TIER_RANG}, tr.id
-             LIMIT 15`, params);
+             ORDER BY (COALESCE(t.categorie, t.type::text) = ANY($${params.length + 1}::text[])) DESC, ${bank.TIER_RANG}, tr.id
+             LIMIT 15`, [...params, (await bank.instellingen()).voorrang || []]);
         const { rows: tel } = await pool.query(`
             SELECT COALESCE(t.categorie, t.type::text) AS categorie, count(*)::int AS n
               FROM tracks tr JOIN titels t ON t.id = tr.titel_id
