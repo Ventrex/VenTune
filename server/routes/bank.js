@@ -292,8 +292,11 @@ router.patch('/api/admin/bank/items/:id', vereisAdmin, async (req, res) => {
             vast.push('hints');
         }
         if (!zetten.length) return fout(res, new Error('Niets om op te slaan.'), 400);
+        // Waarde en slot in één UPDATE, zodat een lopende AI-vraag het slot
+        // altijd ziet zodra de nieuwe waarde er staat.
+        waarden.push(vast);
+        zetten.push(`handmatig = (SELECT ARRAY(SELECT DISTINCT unnest(handmatig || $${waarden.length}::text[])))`);
         await pool.query(`UPDATE titels SET ${zetten.join(', ')} WHERE id = $1`, waarden);
-        await zetVast(id, vast);
         res.json({ ok: true, vast });
     } catch (err) {
         if (/unique|duplicate/i.test(err.message)) return fout(res, new Error('Die naam bestaat al.'), 409);
@@ -370,11 +373,11 @@ router.post('/api/admin/bank/items/:id/vragen', vereisAdmin, async (req, res) =>
     try {
         const id = parseInt(req.params.id, 10);
         const v = vraagUit(req.body);
+        await zetVast(id, ['vragen']);
         const { rows } = await pool.query(
             `INSERT INTO vragen (titel_id, soort, vraag, opties, correct_index, ai_review_status)
              VALUES ($1, 'handmatig', $2, $3, $4, 'goedgekeurd') RETURNING id`,
             [id, v.vraag, JSON.stringify(v.opties), v.correct_index]);
-        await zetVast(id, ['vragen']);
         res.json({ id: rows[0].id });
     } catch (err) { fout(res, err, /verplicht|foute/.test(err.message) ? 400 : 500); }
 });
@@ -382,21 +385,25 @@ router.post('/api/admin/bank/items/:id/vragen', vereisAdmin, async (req, res) =>
 router.patch('/api/admin/bank/vragen/:id', vereisAdmin, async (req, res) => {
     try {
         const v = vraagUit(req.body);
-        const { rows } = await pool.query(
-            `UPDATE vragen SET vraag = $2, opties = $3, correct_index = $4, ai_review_status = 'goedgekeurd'
-              WHERE id = $1 RETURNING titel_id`,
+        // Eerst het slot op de titel (zelfde rij die de AI vergrendelt), dan
+        // de vraag: zo kan een lopende AI-run deze vraag niet meer weggooien.
+        const { rows: [vraag] } = await pool.query('SELECT titel_id FROM vragen WHERE id = $1', [req.params.id]);
+        if (!vraag) return fout(res, new Error('Vraag niet gevonden.'), 404);
+        await zetVast(vraag.titel_id, ['vragen']);
+        // AI-vragen worden 'handmatig', zodat een latere AI-run ze nooit vervangt.
+        await pool.query(
+            `UPDATE vragen SET vraag = $2, opties = $3, correct_index = $4, ai_review_status = 'goedgekeurd',
+                    soort = 'handmatig' WHERE id = $1`,
             [req.params.id, v.vraag, JSON.stringify(v.opties), v.correct_index]);
-        if (!rows.length) return fout(res, new Error('Vraag niet gevonden.'), 404);
-        await zetVast(rows[0].titel_id, ['vragen']);
         res.json({ ok: true });
     } catch (err) { fout(res, err, /verplicht|foute/.test(err.message) ? 400 : 500); }
 });
 
 router.delete('/api/admin/bank/vragen/:id', vereisAdmin, async (req, res) => {
     try {
-        const { rows } = await pool.query(
-            "UPDATE vragen SET ai_review_status = 'afgekeurd' WHERE id = $1 RETURNING titel_id", [req.params.id]);
-        if (rows.length) await zetVast(rows[0].titel_id, ['vragen']);
+        const { rows: [vraag] } = await pool.query('SELECT titel_id FROM vragen WHERE id = $1', [req.params.id]);
+        if (vraag) await zetVast(vraag.titel_id, ['vragen']);
+        await pool.query("UPDATE vragen SET ai_review_status = 'afgekeurd' WHERE id = $1", [req.params.id]);
         res.json({ ok: true });
     } catch (err) { fout(res, err); }
 });
