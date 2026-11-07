@@ -64,7 +64,7 @@ export default function Home() {
                     <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt=""/>{kop("nav.spelen","Spelen")}</Link>
                     <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>{kop("nav.scores","Scores")}</Link>
                     {(isAdmin || hostAccount?.rol==='beoordelaar') && <Link to={isAdmin?'/admin/swipe':'/review'}><img src="/category/icon-play.svg" alt=""/>{kop("nav.controleren","Controleren")}</Link>}
-                    {isAdmin && <Link to="/admin"><img src="/category/icon-settings.svg" alt=""/>{kop("nav.beheer","Beheer")}</Link>}
+                    {isAdmin && <Link to="/admin/bank"><img src="/category/icon-settings.svg" alt=""/>{kop("nav.beheer","Beheer")}</Link>}
                     {(isAdmin || (hostAccount && hostAccount.rol!=='beoordelaar')) && <Link to={hostAccount?'/host/profile':'/host/login?return=/host/profile'}><img src="/category/icon-users.svg" alt=""/>{kop("nav.profielen","Profielen")}</Link>}
                 </div>
                 <Link className="vt-top-user" to={hostAccount?'/host/profile':isAdmin?'/admin':'/host/login?return=/host/profile'}>
@@ -127,7 +127,7 @@ export default function Home() {
                 <Link className="terug" to="/changelog">
                     Wat is nieuw? →
                 </Link>
-                {isAdmin && <Link className="terug" to="/admin">Beheer</Link>}
+                {isAdmin && <Link className="terug" to="/admin/bank">Beheer</Link>}
             </p>
 
         </main>

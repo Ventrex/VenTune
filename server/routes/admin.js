@@ -3113,6 +3113,9 @@ let automatischeCatalogusTimer = null;
 let catalogusAutoBezig = false;
 async function automatischeCatalogusCheck() {
     if (catalogusAutoBezig || actieveAdminTaak || !(process.env.TMDB_API_KEY || process.env.TMDB_ACCESS_TOKEN)) return;
+    // Beheer 2.0: de AI-curator vult de catalogus zelf aan (alleen titels die
+    // in Nederland bekend zijn). De TMDB-import pompte veel onbekende titels in.
+    if (!(await require('../lib/bank').oudeAutomatiseringToegestaan())) return;
     catalogusAutoBezig = true;
     try {
         await pool.query(`CREATE TABLE IF NOT EXISTS tmdb_catalogus_planning (

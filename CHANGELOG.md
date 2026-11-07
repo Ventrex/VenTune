@@ -1,5 +1,15 @@
 # VenTune changelog
 
+## [0.6.0] - 2026-11-07
+
+### Opgeruimde vragenbank
+
+- Nieuwe categorie **Anime**. Anime staat niet meer tussen films en series; alleen anime die bijna iedereen kent (zoals Pokémon) mag daar ook voorbij komen.
+- Kies bij een quiz hoe bekend de nummers moeten zijn: Iconisch, Algemeen bekend, Bekend, Onbekend of Cult.
+- Je hoeft niet meer het precieze deel te raden: "Terminator" is goed bij Terminator 2 en "Super Mario" bij Super Mario Bros. 3. Bij meerkeuze staan nooit twee delen uit dezelfde reeks naast elkaar.
+- Titels die in Nederland weinig mensen kennen verdwijnen uit het spel.
+- Meer videogames, en alles krijgt hints en bonusvragen, ook games en muziek.
+
 ## [0.5.9] - 2026-08-04
 
 ### Trackkwaliteit en YouTube-bekendheid
