@@ -24,6 +24,9 @@ const bankMp3 = require('./bank-mp3');
 const logger = require('./logger');
 
 const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'beoordelen', 'mp3', 'aanvullen', 'quiz', 'verbeteren'];
+// Inhaalslag: zolang er titels zonder (actuele) beoordeling zijn, eerst de
+// hele database indelen (iconisch … cult); pas daarna nieuwe titels zoeken.
+const INHAAL = ['beoordelen', 'beoordelen', 'beoordelen', 'mp3', 'beoordelen', 'beoordelen', 'beoordelen', 'quiz', 'verbeteren'];
 // Alles gaat in lijsten: één AI-vraag per lijst van dezelfde categorie.
 const BATCH = { beoordelen: 25, quiz: 8, mp3: 6, aanvullen: 25 };
 const PERIODES = {
@@ -69,6 +72,13 @@ function slaap(ms) {
 /** Lus wakker maken (na een actie van de beheerder). */
 function porren() { if (wekker) wekker(); }
 
+/** Alles opnieuw: limietpauze en "uitgeput"-geheugen wissen en meteen verder. */
+function hervat({ vergeet = false } = {}) {
+    status.pauzeTot = 0;
+    if (vergeet) for (const k of Object.keys(uitgeput)) delete uitgeput[k];
+    porren();
+}
+
 class AiFout extends Error {}
 
 function controleerAi(res) {
@@ -90,7 +100,7 @@ async function stapBeoordelen(inst) {
             OR (t.ai_status = 'fout' AND t.ai_beoordeeld_op < now() - interval '6 hours'))`;
     // Volgorde: categorie met voorrang, net door de AI aangevulde titels
     // (die worden meteen gecontroleerd), titels met MP3, iconisch eerst.
-    const VOLGORDE = `${bank.voorrangSql('$2')},
+    const VOLGORDE = `(t.toevoeg_reden LIKE 'Aanvraag%') DESC, ${bank.voorrangSql('$2')},
             (t.ai_versie = 0 AND t.toevoeg_reden LIKE 'AI-curator%') DESC,
             (t.curatie_status = 'uitgesloten' AND NOT t.ai_uitgesloten),
             ${bank.HEEFT_MP3} DESC, ${bank.TIER_RANG}, t.id`;
@@ -269,7 +279,7 @@ async function logBeoordeling(t, b, { uitgesloten, wijzigingen = [] }) {
 async function stapQuiz(inst) {
     const voorrang = inst?.voorrang || [];
     const WERK = "t.ai_status = 'klaar' AND t.curatie_status <> 'uitgesloten' AND t.ai_quiz_op IS NULL";
-    const VOLGORDE = `${bank.voorrangSql('$1')}, ${bank.HEEFT_MP3} DESC, ${bank.TIER_RANG}, t.id`;
+    const VOLGORDE = `(t.toevoeg_reden LIKE 'Aanvraag%') DESC, ${bank.voorrangSql('$1')}, ${bank.HEEFT_MP3} DESC, ${bank.TIER_RANG}, t.id`;
     const { rows: [eerste] } = await pool.query(
         `SELECT COALESCE(t.categorie, t.type::text) AS categorie FROM titels t WHERE ${WERK} ORDER BY ${VOLGORDE} LIMIT 1`,
         [voorrang]);
@@ -356,7 +366,7 @@ async function stapMp3(inst) {
            AND t.zoek_status IN ('nieuw', 'geen_kandidaat', 'gevonden')
            AND (t.volgende_poging IS NULL OR t.volgende_poging < now())
            AND NOT (t.id = ANY($2::int[]))
-         ORDER BY ${bank.voorrangSql('$3')}, ${bank.TIER_RANG}, t.zoek_pogingen, t.id
+         ORDER BY (t.toevoeg_reden LIKE 'Aanvraag%') DESC, ${bank.voorrangSql('$3')}, ${bank.TIER_RANG}, t.zoek_pogingen, t.id
          LIMIT $1`, [BATCH.mp3, bezig, inst?.voorrang || []]);
     if (!rows.length) return false;
     zet('mp3', `MP3 zoeken: ${rows.map((r) => r.naam).join(', ')}`);
@@ -679,7 +689,16 @@ async function lus() {
             continue;
         }
 
-        const stap = CYCLUS[cyclusIndex++ % CYCLUS.length];
+        let achterstand = false;
+        try {
+            const { rows: [r] } = await pool.query(
+                `SELECT EXISTS (SELECT 1 FROM titels WHERE ai_status = 'nieuw' OR (ai_status = 'klaar' AND ai_versie < $1)) AS a`,
+                [bank.AI_VERSIE]);
+            achterstand = r.a;
+        } catch { /* gewone cyclus */ }
+        status.inhaalslag = achterstand;
+        const cyclus = achterstand ? INHAAL : CYCLUS;
+        const stap = cyclus[cyclusIndex++ % cyclus.length];
         let deedAi = false;
         try {
             deedAi = await STAPPEN[stap](inst);
@@ -701,7 +720,7 @@ async function lus() {
             leeg = 0;
             zet('pauze', `Volgende stap over ${inst.pauzeSeconden} s`);
             await slaap(inst.pauzeSeconden * 1000);
-        } else if (++leeg >= CYCLUS.length) {
+        } else if (++leeg >= cyclus.length) {
             leeg = 0;
             zet('klaar', 'Alles is bijgewerkt. Over 5 minuten opnieuw kijken.');
             await slaap(5 * 60 * 1000);
@@ -725,4 +744,4 @@ function huidigeStatus() {
     return { ...status, tellers: { ...status.tellers }, mp3Bezig: bankMp3.bezigeIds().length };
 }
 
-module.exports = { start, porren, huidigeStatus, pasBeoordelingToe, bewaarQuiz };
+module.exports = { start, porren, hervat, huidigeStatus, pasBeoordelingToe, bewaarQuiz };

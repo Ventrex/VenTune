@@ -45,8 +45,9 @@ function hoofdtabVan(sectie) {
     return HOOFDTAB_VAN[sectie] || 'systeem';
 }
 
-// Beheerportaal (/admin). Wachtwoord uit ADMIN_PASSWORD op de server.
-export default function Admin() {
+// Systeembeheer. Wordt als tab "Systeem" in de vragenbank (/admin/bank)
+// getoond; ingebed = zonder eigen kop en inlogscherm.
+export default function Admin({ ingebed = false }) {
     const [ingelogd, setIngelogd] = useState(null); // null=laden
 
     useEffect(() => {
@@ -55,7 +56,7 @@ export default function Admin() {
 
     if (ingelogd === null) return <main className="scherm"><p className="dim">Laden…</p></main>;
     if (!ingelogd) return <Login onIn={() => setIngelogd(true)} />;
-    return <Beheer onUit={() => setIngelogd(false)} />;
+    return <Beheer ingebed={ingebed} onUit={() => setIngelogd(false)} />;
 }
 
 function Login({ onIn }) {
@@ -94,7 +95,7 @@ function Login({ onIn }) {
     );
 }
 
-function Beheer({ onUit }) {
+function Beheer({ onUit, ingebed = false }) {
     const [titels, setTitels] = useState([]);
     const [zoek, setZoek] = useState('');
     const [titelFilter, setTitelFilter] = useState('');
@@ -593,15 +594,12 @@ function Beheer({ onUit }) {
     }
 
     return (
-        <main className="scherm host-scherm admin-portaal">
-            <Brand compact />
+        <div className={'admin-portaal' + (ingebed ? ' admin-ingebed' : ' scherm host-scherm')}>
+            {!ingebed && <Brand compact />}
             <div className="raden-kop">
-                <h1 style={{ margin: 0 }}>Systeem</h1>
+                {!ingebed && <h1 style={{ margin: 0 }}>Systeem</h1>}
                 <button className="terug als-link" onClick={uitloggen}>Uitloggen</button>
             </div>
-            <Link className="knop" to="/admin/bank" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', margin: '0.75rem 0' }}>
-                ← Vragenbank &amp; AI-curator
-            </Link>
 
             {/* De tabs volgen de weg van een titel: eerst wat er te doen is,
                 dan de catalogus, dan de muziek, dan de kwaliteit, en pas
@@ -745,7 +743,7 @@ function Beheer({ onUit }) {
             <p style={{ marginTop: '2rem' }}>
                 <Link className="terug" to="/">← Terug naar start</Link>
             </p>
-        </main>
+        </div>
     );
 }
 

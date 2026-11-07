@@ -28,6 +28,14 @@ begin- en eindjaar van series, nummer), en daarna maakt hij voor een lijst
 titels 3 hints + 3 vragen zonder raakvlakken. Met ★ Voorrang (Overzicht) gaat
 een categorie bij alles voor, bv. eerst alle iconische videogames.
 
+Overzicht → **▶ Alles starten & opnieuw zoeken**: alle titels opnieuw laten
+beoordelen, alle ontbrekende MP3's (ook opgegeven) opnieuw zoeken en
+ontbrekende hints/vragen maken. Bij de ChatGPT-limiet pauzeert de curator 30
+minuten (zichtbaar in de statusbalk, met "Nu proberen"). Zolang er titels
+zonder beoordeling zijn draait een inhaalslag: eerst de hele database
+indelen, pas daarna nieuwe titels zoeken. Aanvragen van spelers (beginscherm
+→ Aanvragen) gaan overal voor.
+
 **Alleen de nummers keur je zelf goed**, in de tab **Swipen** (subtabs per
 categorie, iconisch eerst). Een MP3 die de AI vindt, komt pas in het spel als
 jij hem goedkeurt. Sleep naar rechts of tik ✓ = goed, links of ✕ = fout (de
@@ -36,8 +44,8 @@ goedgekeurd.
 
 Tabs: Overzicht · Swipen · Controles (Nummers, MP3, Hints, Vragen, Jaartal,
 NL-check, Antwoorden — alles bekijken en direct bewerken) · Fixes (alleen wat
-aandacht nodig heeft) · AI-log. Systeem, gebruikers en meldingen staan onder
-"Systeem".
+aandacht nodig heeft) · AI-log · Systeem (database, uiterlijk, teksten,
+meldingen, logs, gebruikers). Alles op één pagina: /admin/bank.
 Wat je zelf aanpast krijgt een 🔒: de AI blijft daarvan af. Tik op het slotje
 om het weer aan de AI over te laten. Het AI-log toont alles wat de curator
 deed.

@@ -1167,3 +1167,25 @@ ON CONFLICT (sleutel) DO UPDATE SET
     naam = EXCLUDED.naam, emoji = EXCLUDED.emoji, beschrijving = EXCLUDED.beschrijving,
     volgorde = EXCLUDED.volgorde, filter = EXCLUDED.filter
     WHERE quizzen.ingebouwd = true;
+
+-- Videogames krijgen standaard voorrang (eerst alle iconische games),
+-- tenzij de beheerder al zelf een voorrang heeft gekozen.
+UPDATE app_instellingen SET waarde = waarde || '{"voorrang":["game"]}'::jsonb
+ WHERE sleutel = 'ai_curator' AND NOT (waarde ? 'voorrang');
+
+-- Aanvragen: iedereen kan vanaf het beginscherm een film, serie, anime,
+-- game of nummer aanvragen. De titel gaat meteen naar de AI-curator.
+CREATE TABLE IF NOT EXISTS aanvragen (
+    id             SERIAL PRIMARY KEY,
+    titel_id       INTEGER REFERENCES titels (id) ON DELETE SET NULL,
+    categorie      TEXT NOT NULL,
+    naam           TEXT NOT NULL,
+    jaar           INTEGER,
+    artiest        TEXT,
+    bron           TEXT,
+    extern_id      TEXT,
+    aangevraagd_door TEXT,
+    status         TEXT NOT NULL DEFAULT 'toegevoegd',
+    aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_aanvragen_tijd ON aanvragen (aangemaakt_op DESC);

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Brand from '../components/Brand.jsx';
+import Admin from './Admin.jsx';
 import './admin-bank.css';
 
 // =====================================================================
@@ -25,7 +26,7 @@ async function api(pad, opties = {}) {
 
 // Hoofdtabs met daaronder subtabs. Controles = alles bekijken en bewerken,
 // Fixes = alleen wat aandacht nodig heeft.
-const GROEPEN = [['overzicht', 'Overzicht'], ['swipen', 'Swipen'], ['controles', 'Controles'], ['fixes', 'Fixes'], ['log', 'AI-log']];
+const GROEPEN = [['overzicht', 'Overzicht'], ['swipen', 'Swipen'], ['controles', 'Controles'], ['fixes', 'Fixes'], ['log', 'AI-log'], ['systeem', 'Systeem']];
 const CONTROLES = [
     ['nummers', 'Nummers'], ['mp3', 'MP3'], ['hints', 'Hints'], ['vragen', 'Vragen'],
     ['jaartal', 'Jaartal'], ['nl', 'NL-check'], ['antwoorden', 'Antwoorden'],
@@ -45,7 +46,7 @@ const CAT_LABEL = Object.fromEntries(CATS);
 const TIERS = [['iconisch', 'Iconisch'], ['algemeen_bekend', 'Algemeen bekend'], ['bekend', 'Bekend'], ['onbekend', 'Onbekend'], ['cult', 'Cult']];
 const TIER_LABEL = Object.fromEntries(TIERS);
 const FILTER_LABEL = {
-    alle: 'Alles', te_beoordelen: 'Nog bij AI', handmatig: 'Zelf aangepast', uitgesloten: 'Uitgesloten',
+    alle: 'Alles', aanvragen: 'Aanvragen', te_beoordelen: 'Nog bij AI', handmatig: 'Zelf aangepast', uitgesloten: 'Uitgesloten',
     mist: 'Mist', opgegeven: 'Opgegeven', aanwezig: 'Aanwezig', leeg: 'Onvolledig',
     nee: 'Niet bekend', twijfel: 'Twijfel', ja: 'Bekend', zonder_franchise: 'Zonder franchise', anime: 'Anime',
 };
@@ -127,7 +128,6 @@ function Bank() {
             <header className="ab-kop">
                 <Brand link compact />
                 <h1>Vragenbank</h1>
-                <Link className="ab-link" to="/admin">Systeem →</Link>
             </header>
             {fout && <p className="waarschuwing">{fout}</p>}
             <WorkerBalk status={status} onWijzig={laadStatus} />
@@ -155,6 +155,7 @@ function Bank() {
             {tab === 'controles' && <Lijst key={`c-${controle}`} tab={controle} standaardFilter="alle" />}
             {tab === 'fixes' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
             {tab === 'log' && <Log />}
+            {tab === 'systeem' && <Admin ingebed />}
         </main>
     );
 }
@@ -434,10 +435,16 @@ function WorkerBalk({ status, onWijzig }) {
         <section className={'ab-balk' + (aan ? '' : ' uit')}>
             <span className={'ab-stip ' + (!aan ? 'uit' : w.stap === 'fout' || w.stap === 'wacht' ? 'let-op' : bezig ? 'bezig' : 'ok')} />
             <div className="ab-balk-tekst">
-                <strong>AI-curator: {aan ? (STAP_LABEL[w.stap] || w.stap) : 'uit'}</strong>
+                <strong>AI-curator: {aan ? (STAP_LABEL[w.stap] || w.stap) : 'uit'}
+                    {aan && w.inhaalslag && <span className="ab-badge tier-iconisch" style={{ marginLeft: 6 }}>Inhaalslag: hele database indelen</span>}</strong>
                 <span className="dim">{w.bericht}</span>
                 {w.laatsteActie && <span className="dim">Laatst: {w.laatsteActie}</span>}
                 {w.laatsteFout && <span className="ab-rood">Fout: {w.laatsteFout}</span>}
+                {w.pauzeTot > Date.now() && (
+                    <span className="ab-rood">ChatGPT-limiet bereikt · gaat vanzelf verder om {new Date(w.pauzeTot).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}{' '}
+                        <button type="button" className="ab-linkknop" onClick={async () => { await api('/api/admin/bank/hervat', { method: 'POST' }).catch(() => {}); onWijzig(); }}>Nu proberen</button>
+                    </span>
+                )}
             </div>
             <div className="ab-balk-cijfers dim">
                 {w.tellers.beoordeeld} beoordeeld · {w.tellers.mp3} MP3 · {w.tellers.quiz} quiz · {w.tellers.toegevoegd} nieuw · {w.tellers.verbeterd} verbeterd
@@ -485,8 +492,28 @@ function Overzicht({ status, onWijzig, ga }) {
         ['NL: twijfel', voorraad.nl_twijfel, 'fixes', { sub: 'nl-twijfel' }],
         ['Uitgesloten', voorraad.uitgesloten, 'fixes', { sub: 'uitgesloten' }],
     ];
+    async function allesOpnieuw() {
+        if (!window.confirm('Alles opnieuw? De AI beoordeelt alle titels opnieuw, zoekt alle ontbrekende MP3\'s (ook opgegeven) opnieuw en maakt ontbrekende hints en vragen. Wat je zelf hebt aangepast blijft staan.')) return;
+        try { const r = await api('/api/admin/bank/alles-opnieuw', { method: 'POST' }); alert(r.tekst); }
+        catch (e) { alert(e.message); }
+        onWijzig();
+    }
+    const voorrang = instellingen.voorrang || [];
     return (
         <div className="ab-stapel">
+            <section className="ab-kaart ab-acties-blok">
+                <div className="ab-rij">
+                    <button type="button" className="ab-knop ab-groot-knop" onClick={allesOpnieuw}>▶ Alles starten &amp; opnieuw zoeken</button>
+                </div>
+                <p className="ab-label" style={{ marginTop: '0.8rem' }}>Voorrang — deze categorie gaat bij alles voor</p>
+                <div className="ab-chips">
+                    {CATS.map(([id, naam]) => (
+                        <button key={id} type="button" className={'ab-chip' + (voorrang.includes(id) ? ' actief' : '')}
+                            onClick={() => wisselVoorrang(id)}>{voorrang.includes(id) ? '★ ' : ''}{naam}</button>
+                    ))}
+                </div>
+                <p className="dim ab-mini">Bijvoorbeeld ★ Videogames: eerst alle videogames indelen (iconisch t/m cult), MP3's zoeken, hints maken en aanvullen — daarna de rest.</p>
+            </section>
             {!chatgpt.gekoppeld && (
                 <section className="ab-kaart">
                     <p className="ab-label">ChatGPT koppelen</p>

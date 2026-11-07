@@ -1,5 +1,13 @@
 # VenTune changelog
 
+## [0.6.2] - 2026-11-07
+
+- Nieuw: **King of the Hill** (vervangt Bergexpeditie). Goed = een stap omhoog, fout = een stap omlaag; wie het eerst bovenaan staat wint. Speel tegen elkaar of samen, met 5 tot 20 stappen.
+- Nieuw: **Aanvragen** vanaf het beginscherm. Zoek een film, serie, anime, game of nummer op en vraag hem aan.
+- Terug vanaf de spelinstellingen gaat weer naar de categoriekeuze.
+- Grotere fabrikantlogo's bij Videogames.
+- Series tonen begin- en eindjaar (bv. 2005–2013 of 2025–).
+
 ## [0.6.1] - 2026-11-07
 
 - Kies bij een quiz Iconisch, Algemeen bekend, Bekend en/of Onbekend & cult. Standaard staan iconisch t/m bekend aan.

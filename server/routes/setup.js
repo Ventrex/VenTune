@@ -324,8 +324,10 @@ router.post('/api/presets', async (req, res) => {
                     hints_aan: b.hints_aan !== false,
                     bonusvragen_aan: b.bonusvragen_aan !== false,
                     info_aan: b.info_aan !== false,
-                    spelvorm: ['tegen_elkaar','om_en_om','teams','bergexpeditie'].includes(b.spelvorm) ? b.spelvorm : 'tegen_elkaar',
-                    berg_fouten_max: [1,3,5].includes(Number(b.berg_fouten_max)) ? Number(b.berg_fouten_max) : 3,
+                    spelvorm: ['tegen_elkaar','om_en_om','teams','king_of_the_hill'].includes(b.spelvorm) ? b.spelvorm
+                        : b.spelvorm === 'bergexpeditie' ? 'king_of_the_hill' : 'tegen_elkaar',
+                    koth_modus: b.koth_modus === 'samen' || b.spelvorm === 'bergexpeditie' ? 'samen' : 'tegen',
+                    koth_stappen: [5, 10, 15, 20].includes(Number(b.koth_stappen)) ? Number(b.koth_stappen) : 10,
                     team_modus: ['snelste','kenner','om_en_om'].includes(b.team_modus) ? b.team_modus : 'snelste',
                 }),
             ],

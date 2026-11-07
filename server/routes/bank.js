@@ -64,6 +64,36 @@ router.post('/api/admin/bank/worker', vereisAdmin, async (req, res) => {
     } catch (err) { fout(res, err); }
 });
 
+// Na een ChatGPT-limiet meteen weer proberen.
+router.post('/api/admin/bank/hervat', vereisAdmin, (_req, res) => {
+    worker.hervat();
+    res.json({ ok: true });
+});
+
+// Eén knop: alles opnieuw beoordelen, alle ontbrekende MP3's (ook opgegeven)
+// opnieuw zoeken, onvolledige hints/vragen opnieuw maken en weer aanvullen.
+// Handmatige velden blijven staan (die slaat de AI altijd over).
+router.post('/api/admin/bank/alles-opnieuw', vereisAdmin, async (_req, res) => {
+    try {
+        const b = await pool.query(
+            "UPDATE titels SET ai_status = 'nieuw' WHERE curatie_status <> 'uitgesloten' OR ai_uitgesloten");
+        const m = await pool.query(`
+            UPDATE titels t SET zoek_status = 'nieuw', zoek_pogingen = 0, volgende_poging = NULL,
+                   zoek_melding = 'Staat in de wachtrij om opnieuw te zoeken.'
+             WHERE t.curatie_status <> 'uitgesloten' AND NOT 'mp3' = ANY(t.handmatig) AND NOT ${bank.HEEFT_MP3}`);
+        const q = await pool.query(`
+            UPDATE titels t SET ai_quiz_op = NULL
+             WHERE t.curatie_status <> 'uitgesloten'
+               AND (COALESCE(array_length(t.ai_hints, 1), 0) < 3
+                    OR (SELECT count(*) FROM vragen v WHERE v.titel_id = t.id AND v.ai_review_status <> 'afgekeurd') < 3)`);
+        await bank.bewaarInstellingen({ aan: true });
+        worker.hervat({ vergeet: true });
+        const tekst = `Alles opnieuw: ${b.rowCount} titels opnieuw beoordelen, ${m.rowCount} MP3's opnieuw zoeken, ${q.rowCount} titels nieuwe hints/vragen.`;
+        await bank.log(null, 'systeem', tekst);
+        res.json({ ok: true, beoordelen: b.rowCount, mp3: m.rowCount, quiz: q.rowCount, tekst });
+    } catch (err) { fout(res, err); }
+});
+
 router.patch('/api/admin/bank/instellingen', vereisAdmin, async (req, res) => {
     try {
         const patch = {};
@@ -98,6 +128,7 @@ const FILTERS = {
         alle: "t.curatie_status <> 'uitgesloten'",
         te_beoordelen: "t.curatie_status <> 'uitgesloten' AND (t.ai_status <> 'klaar' OR t.ai_versie < " + bank.AI_VERSIE + ')',
         handmatig: "cardinality(t.handmatig) > 0",
+        aanvragen: "t.toevoeg_reden LIKE 'Aanvraag%'",
         uitgesloten: "t.curatie_status = 'uitgesloten'",
     },
     mp3: {

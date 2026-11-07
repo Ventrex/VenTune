@@ -12,21 +12,24 @@ const { CATEGORIEEN, TIERS, norm } = require('./bank');
 const NU = new Date().getFullYear();
 
 const CRITERIA = `
-BEKENDHEID (kies precies één, kijk naar Nederland):
-- iconisch: vrijwel iedereen in Nederland herkent het nummer meteen, ook wie geen fan is (bv. Star Wars, Friends, Super Mario, Last Christmas).
-- algemeen_bekend: de meeste Nederlanders kennen de titel en hebben het nummer vaak gehoord.
+BEKENDHEID (kies precies één, kijk naar Nederland). Kijk naar de titel ÉN het nummer:
+- iconisch: zowel de titel als het nummer zijn vrijwel bij iedereen in Nederland bekend; je herkent het meteen, ook als je geen fan bent (Rocky + Eye of the Tiger, Star Wars, Friends, Titanic, Super Mario, Last Christmas).
+- algemeen_bekend: óf de titel óf het nummer is breed bekend, de ander iets minder; de meeste Nederlanders kennen het (bv. Sliders, Baywatch, Knight Rider).
 - bekend: bekend bij een flink deel van het publiek en bij iedereen die het genre volgt.
-- onbekend: vooral fans en kenners herkennen het nummer.
-- cult: niche, maar met een trouwe, enthousiaste fanbase die het als klassieker ziet.
+- onbekend: vooral fans en kenners herkennen het.
+- cult: echt niche, met een kleine maar trouwe fanbase die het als klassieker ziet. Een serie die in Nederland jarenlang op tv was (zoals Sliders) is géén cult maar minstens algemeen bekend.
+Bij videogames tellen het spel én de muziek: is het spel of de gamemuziek iconisch (Super Mario, Tetris, Zelda, Pac-Man), dan is het iconisch.
+Bij anime vergelijk je binnen anime: Pokémon, Dragon Ball en Naruto zijn iconisch; Death Note, One Piece, Attack on Titan, Ghost in the Shell en Sailor Moon zijn algemeen bekend of bekend.
 
 BEKEND IN NEDERLAND (nl_bekend):
 - ja: breed bekend in Nederland: uitgezonden op Nederlandse tv (NPO, RTL, SBS6, Net5, Veronica, Nickelodeon, Fox Kids, Jetix, Disney Channel …), grote bioscooprelease in NL, populair op streaming in NL, een game die hier veel gespeeld is, of een nummer dat in Nederland een hit was (Top 40, Top 2000, radio).
+- Anime: "ja" als de anime in Nederland te zien was (tv, Netflix, Crunchyroll, bioscoop) en Nederlandse animefans hem kennen; anime hoeft niet bij het grote publiek bekend te zijn.
 - nee: weinig Nederlanders kennen het. Denk aan de meeste Franse, Duitse, Spaanse, Italiaanse, Scandinavische, Latijns-Amerikaanse, Turkse, Indiase en Aziatische series en films die hier nooit breed te zien waren, lokale tv uit andere landen, talkshows, nieuws, obscure titels.
 - twijfel: alleen als het echt onduidelijk is.
 
 CATEGORIE:
 - film / serie: speelfilms en tv-series (ook westerse animatie zoals Disney, Pixar, The Simpsons).
-- anime: Japanse animatie, film of serie (Pokémon, Dragon Ball, Sailor Moon, One Piece, Studio Ghibli). Zet anime_breed_bekend=true als ook mensen die niets met anime hebben het in Nederland kennen (bv. Pokémon, Dragon Ball Z, Sailor Moon, Spirited Away); anders false.
+- anime: Japanse tekenfilmseries en -films (Naruto, Death Note, Ghost in the Shell, Dragon Ball, One Piece, Attack on Titan, Pokémon, Sailor Moon, Studio Ghibli). Westerse animatie (Disney, Pixar, DreamWorks, The Simpsons) is géén anime maar film of serie. Zet anime_breed_bekend=true als ook mensen die niets met anime hebben het in Nederland kennen (bv. Pokémon, Dragon Ball Z, Sailor Moon, Spirited Away); anders false.
 - game: videogames; het nummer is gamemuziek.
 - muziek: een los nummer (single/hit) dat niet bij een film, serie of game hoort.
 - kerst: kerstmuziek. kinder: kinderliedjes.

@@ -833,3 +833,12 @@
 .vt-tier-rij{display:flex;flex-wrap:wrap;gap:8px}
 .vt-tier-chip{min-height:42px;padding:0 14px;font-size:.95rem;white-space:nowrap}
 .vt-tier-chip small{opacity:.75;margin-left:4px}
+
+/* Videogames: fabrikantlogo's groot genoeg op tablet en telefoon. */
+.vt-categorie-paneel.vt-categorie-games .vt-subkeuzes .vt-keuzerij{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))!important}
+.vt-categorie-paneel.vt-categorie-games .vt-subkeuzes .vt-keuzerij>.chip{min-height:120px!important;height:auto!important;padding:10px 8px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:8px!important}
+.vt-categorie-paneel.vt-categorie-games .vt-collectie-pictogram img{height:64px!important;width:100%!important;max-width:120px!important}
+@media(max-width:620px){.vt-categorie-paneel.vt-categorie-games .vt-subkeuzes .vt-keuzerij{grid-template-columns:repeat(2,minmax(0,1fr))!important}.vt-categorie-paneel.vt-categorie-games .vt-collectie-pictogram img{height:56px!important}}
+/* Zonder uitlegpaneel aan de zijkant: de keuze gebruikt de volle breedte. */
+.vt-category-workspace{grid-template-columns:1fr!important}
+.vt-subkeuzes.vt-tiers .chip.vt-tier-chip{height:auto!important;min-height:42px!important;width:auto!important;flex:0 0 auto!important;padding:0 14px!important;display:inline-flex!important;align-items:center!important;gap:4px!important}

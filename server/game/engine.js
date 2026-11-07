@@ -92,6 +92,25 @@ function kindmodusUit(instellingen) {
     return instellingen?.kindvriendelijk === true;
 }
 
+/** King of the Hill-instellingen uit de lobby (oude Bergexpeditie = samen). */
+function kothUit(instellingen = {}) {
+    const vorm = instellingen.spelvorm;
+    if (vorm !== 'king_of_the_hill' && vorm !== 'bergexpeditie') return null;
+    const stappen = [5, 10, 15, 20].includes(Number(instellingen.koth_stappen)) ? Number(instellingen.koth_stappen) : 10;
+    return {
+        modus: vorm === 'bergexpeditie' || instellingen.koth_modus === 'samen' ? 'samen' : 'tegen',
+        stappen, team: 0, posities: {}, namen: {}, winnaars: [], laatste: null,
+    };
+}
+
+function kothStatus(k) {
+    return {
+        modus: k.modus, stappen: k.stappen, team: k.team, winnaars: k.winnaars, laatste: k.laatste,
+        spelers: Object.keys(k.posities).map((id) => ({ id, naam: k.namen[id], positie: k.posities[id] }))
+            .sort((a, b) => b.positie - a.positie || String(a.naam).localeCompare(String(b.naam))),
+    };
+}
+
 /** Alleen een solo-speler krijgt een tweede titelgok. */
 function maxTitelPogingen(state) {
     return state.solo ? 2 : 1;
@@ -324,7 +343,7 @@ class SpelBeheer {
             return true;
         }
 
-        if (state.berg) socket.emit('berg:status', {...state.berg, ronde:state.rondenummer});
+        if (state.koth) socket.emit('koth:status', kothStatus(state.koth));
         if (['onthul', 'bonus', 'scorebord'].includes(state.fase)) {
             socket.emit('ronde:onthul', { antwoord: this.antwoordInfo(h) });
         }
@@ -524,7 +543,10 @@ class SpelBeheer {
             code,
             instellingen: spelInstellingen,
             rondeDuurMs: rondeDuurUit(spelInstellingen),
-            modus: spelInstellingen.spelvorm === 'bergexpeditie' ? 'snelste' : spelInstellingen.spelvorm === 'teams' && spelInstellingen.team_modus === 'kenner'
+            // King of the Hill: tegen elkaar raadt iedereen (elk goed/fout
+            // telt), samen is één goed antwoord genoeg om te klimmen.
+            modus: kothUit(spelInstellingen) ? (kothUit(spelInstellingen).modus === 'tegen' ? 'kenner' : 'snelste')
+                : spelInstellingen.spelvorm === 'teams' && spelInstellingen.team_modus === 'kenner'
                 ? 'kenner' : modusUit(spelInstellingen),
             antwoordModus: antwoordModusUit(spelInstellingen),
             pool: pool_,
@@ -536,9 +558,10 @@ class SpelBeheer {
             gebruikteTrackIds: new Set(),
             leeftijden: new Map(spelers.map((s) => [s.id, Number(s.leeftijd)])),
             solo: spelers.filter((speler) => speler.verbonden !== false).length === 1,
-            spelvorm: ['tegen_elkaar','om_en_om','teams','bergexpeditie'].includes(spelInstellingen.spelvorm) ? spelInstellingen.spelvorm : 'tegen_elkaar',
+            spelvorm: kothUit(spelInstellingen) ? 'king_of_the_hill'
+                : ['tegen_elkaar','om_en_om','teams'].includes(spelInstellingen.spelvorm) ? spelInstellingen.spelvorm : 'tegen_elkaar',
             teamModus: ['snelste','kenner','om_en_om'].includes(spelInstellingen.team_modus) ? spelInstellingen.team_modus : 'snelste',
-            berg: spelInstellingen.spelvorm === 'bergexpeditie' ? { hoogte:0, fouten:0, maxFouten: [1,3,5].includes(Number(spelInstellingen.berg_fouten_max)) ? Number(spelInstellingen.berg_fouten_max) : 3 } : null,
+            koth: kothUit(spelInstellingen),
             beurtSpelers: spelers.filter(p => p.verbonden !== false).map(p => ({id:p.id, naam:p.naam,team:p.team_naam})),
             // Vraag-id's die in dit spel al gebruikt zijn, zodat dezelfde
             // titel niet twee keer dezelfde bonusvraag geeft.
@@ -790,7 +813,7 @@ class SpelBeheer {
             // dezelfde overgang zoeken, zodat meerdere onbruikbare titels
             // geen concurrerende recursieve overgang kunnen starten.
             while (true) {
-                if (state.berg && state.berg.fouten >= state.berg.maxFouten) {
+                if (state.koth && state.koth.winnaars.length) {
                     return await this.eindigSpel(state);
                 }
                 state.rondenummer += 1;
@@ -1414,11 +1437,7 @@ class SpelBeheer {
         if (!h || state.fase === 'scorebord' || state.fase === 'einde') return;
         if (state.fase !== 'onthul' && state.fase !== 'bonus') return;
         state.fase = 'scorebord';
-        if (state.berg) {
-            if (h.antwoorden.size > 0) state.berg.hoogte++;
-            else state.berg.fouten++;
-            this.io.to(kamer(state.code)).emit('berg:status', {...state.berg, ronde:state.rondenummer, mislukt:h.antwoorden.size===0});
-        }
+        if (state.koth) await this.klimOfZak(state, h);
         await pool.query(`UPDATE rondes SET status = 'afgelopen' WHERE id = $1`, [
             h.rondeId,
         ]);
@@ -1439,7 +1458,7 @@ class SpelBeheer {
             state.lobbyId,
         ]);
         const scorebord = await this.haalScorebord(state);
-        this.io.to(kamer(state.code)).emit('spel:einde', { scorebord, berg: state.berg, bergGeslaagd:!!state.berg && state.berg.fouten < state.berg.maxFouten });
+        this.io.to(kamer(state.code)).emit('spel:einde', { scorebord, koth: state.koth ? kothStatus(state.koth) : null });
         this.spellen.delete(state.lobbyId);
         logger.info('Spel afgelopen.', { code: state.code });
     }
@@ -1737,6 +1756,31 @@ class SpelBeheer {
         return iedereenActiefKlaar(rows, state.huidige.klaar);
     }
 
+    /**
+     * King of the Hill: goed = één stap omhoog, fout = één stap omlaag
+     * (nooit onder de voet). Wie (of het team dat) de top haalt, wint.
+     */
+    async klimOfZak(state, h) {
+        const k = state.koth;
+        if (k.modus === 'samen') {
+            k.team = Math.max(0, Math.min(k.stappen, k.team + (h.antwoorden.size > 0 ? 1 : -1)));
+            k.laatste = { team: h.antwoorden.size > 0 ? 1 : -1 };
+            if (k.team >= k.stappen) k.winnaars = ['team'];
+        } else {
+            const { rows } = await pool.query('SELECT id, naam FROM spelers WHERE lobby_id = $1', [state.lobbyId]);
+            k.laatste = {};
+            for (const sp of rows) {
+                const stap = h.antwoorden.has(sp.id) ? 1 : -1;
+                const nu = Math.max(0, Math.min(k.stappen, (k.posities[sp.id] || 0) + stap));
+                k.posities[sp.id] = nu;
+                k.namen[sp.id] = sp.naam;
+                k.laatste[sp.id] = stap;
+            }
+            k.winnaars = Object.keys(k.posities).filter((id) => k.posities[id] >= k.stappen);
+        }
+        this.io.to(kamer(state.code)).emit('koth:status', kothStatus(k));
+    }
+
     async haalScorebord(state) {
         const { rows } = await pool.query(
             `SELECT id, naam, score, is_host, team_naam FROM spelers
@@ -1768,6 +1812,8 @@ class SpelBeheer {
 }
 
 module.exports = {
+    kothUit,
+    kothStatus,
     SpelBeheer,
     RONDE_DUUR_MS,
     iedereenActiefKlaar,

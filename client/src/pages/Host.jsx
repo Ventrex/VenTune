@@ -1,3 +1,4 @@
+import KingOfTheHill from '../components/KingOfTheHill.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
@@ -25,7 +26,7 @@ export default function Host() {
         bonus,
         bonusResultaat,
         scorebord,
-        berg,
+        koth,
         spelers,
         teams,
         lobbyInstellingen,
@@ -348,12 +349,9 @@ export default function Host() {
                 </>
             )}
 
-            {lobbyInstellingen?.spelvorm === 'bergexpeditie' && fase !== 'wachten' && <section className="vt-berg-voortgang" aria-live="polite">
-                <strong>🏔 Bergexpeditie · {berg?.hoogte ?? 0} etappes geklommen</strong>
-                <span>{'♥'.repeat(Math.max(0,(berg?.maxFouten ?? lobbyInstellingen?.berg_fouten_max ?? 3)-(berg?.fouten ?? 0)))}{'♡'.repeat(berg?.fouten ?? 0)} · {berg?.fouten ?? 0} fout(en)</span>
-                <div className="vt-berg-klimlijn"><span style={{width: ((berg?.hoogte ?? 0)/Math.max(1,ronde?.totaal || 30)*100)+'%'}} /></div>
-                {berg?.fouten >= berg?.maxFouten && <p>De expeditie is voorbij. Bekijk de eindstand of start opnieuw.</p>}
-            </section>}
+            {['king_of_the_hill', 'bergexpeditie'].includes(lobbyInstellingen?.spelvorm) && fase !== 'wachten' && (
+                <KingOfTheHill koth={koth} instellingen={lobbyInstellingen} scorebord={scorebord} eind={fase === 'einde'} mijnId={sessie?.spelerId} />
+            )}
 
             {fase === 'raden' && ronde && <IssueReport key={ronde.rondeId} spel={spel} tijdensRonde />}
 

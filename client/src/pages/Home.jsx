@@ -63,6 +63,7 @@ export default function Home() {
                 <div className="vt-top-links">
                     <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt=""/>{kop("nav.spelen","Spelen")}</Link>
                     <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>{kop("nav.scores","Scores")}</Link>
+                    <Link to="/aanvragen"><img src="/category/icon-music.svg" alt=""/>{kop("nav.aanvragen","Aanvragen")}</Link>
                     {(isAdmin || hostAccount?.rol==='beoordelaar') && <Link to={isAdmin?'/admin/bank?tab=swipen':'/review'}><img src="/category/icon-play.svg" alt=""/>{kop("nav.controleren","Controleren")}</Link>}
                     {isAdmin && <Link to="/admin/bank"><img src="/category/icon-settings.svg" alt=""/>{kop("nav.beheer","Beheer")}</Link>}
                     {(isAdmin || (hostAccount && hostAccount.rol!=='beoordelaar')) && <Link to={hostAccount?'/host/profile':'/host/login?return=/host/profile'}><img src="/category/icon-users.svg" alt=""/>{kop("nav.profielen","Profielen")}</Link>}
@@ -77,6 +78,7 @@ export default function Home() {
             <header className="vt-home-hero">
                 <h1>{kop("home.titel","Kies je volgende quiz")}</h1>
                 <p>{kop("home.ondertitel","Start een nieuw spel, doe mee met vrienden of ga verder waar je was gebleven.")}</p>
+                <p><Link className="vt-aanvraag-link" to="/aanvragen">➕ Mis je iets? Vraag een film, serie, game of nummer aan</Link></p>
             </header>
             {fout && <p className="waarschuwing">{fout}</p>}
             <div className="vt-home-actions">

@@ -2299,3 +2299,21 @@ body {
 /* Bekendheid en puntenfactor bij de onthulling. */
 .vt-bekendheid-punten { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--text-dim); }
 .vt-bekendheid-punten strong { color: var(--accent); }
+
+/* ---- King of the Hill ---- */
+.koth { margin: 0.75rem 0; padding: 0.8rem 0.9rem; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); text-align: left; display: flex; flex-direction: column; gap: 0.55rem; }
+.koth > strong { font-size: 1rem; }
+.koth-lijst { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.koth-lijst li { display: grid; grid-template-columns: minmax(5rem, 9rem) 1fr 2.6rem; gap: 0.5rem; align-items: center; padding: 0.3rem 0.4rem; border-radius: 10px; }
+.koth-lijst li.koning { background: color-mix(in srgb, #f0c969 14%, transparent); }
+.koth-lijst li.ik .koth-naam { color: var(--accent); }
+.koth-naam { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.koth-pos { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.koth-treden { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 34px; padding-right: 1.4rem; }
+.koth-trede { flex: 1; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--text-dim) 25%, transparent); transition: background 0.3s; }
+.koth-trede.vol { background: linear-gradient(180deg, #6fe0a0, #2ecc71); }
+.koth-trede.net { box-shadow: 0 0 10px #2ecc71; }
+.koth-vlag { position: absolute; right: 0; bottom: 0; font-size: 1.1rem; line-height: 1; }
+.koth-winst { margin: 0; font-weight: 800; color: #f0c969; }
+
+.vt-aanvraag-link { display: inline-block; margin-top: 0.4rem; padding: 0.55rem 1rem; border-radius: 999px; border: 1px solid var(--accent); color: var(--text); text-decoration: none; background: color-mix(in srgb, var(--accent) 16%, transparent); }

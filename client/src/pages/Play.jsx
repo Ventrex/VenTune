@@ -1,3 +1,4 @@
+import KingOfTheHill from '../components/KingOfTheHill.jsx';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpel } from '../lib/useSpel.js';
@@ -28,7 +29,7 @@ export default function Play() {
         bonus,
         bonusResultaat,
         scorebord,
-        berg,
+        koth,
         spelers,
         teams,
         verbonden,
@@ -407,11 +408,9 @@ export default function Play() {
             {fase === 'bonus' && antwoord && <IssueReport key={'bonus-' + ronde?.rondeId} spel={spel} />}
             {fase === 'scorebord' && antwoord && <IssueReport key={'score-' + ronde?.rondeId} spel={spel} />}
 
-            {lobbyInstellingen?.spelvorm === 'bergexpeditie' && fase !== 'wachten' && <section className="vt-berg-voortgang" aria-live="polite">
-                <strong>🏔 Samen naar de top · {berg?.hoogte ?? 0} goed</strong>
-                <span>{'♥'.repeat(Math.max(0,(berg?.maxFouten ?? lobbyInstellingen.berg_fouten_max ?? 3)-(berg?.fouten ?? 0)))}{'♡'.repeat(berg?.fouten ?? 0)}</span>
-                {berg?.mislukt && fase === 'scorebord' && <p>Niemand had het goed: een hartje verloren.</p>}
-            </section>}
+            {['king_of_the_hill', 'bergexpeditie'].includes(lobbyInstellingen?.spelvorm) && fase !== 'wachten' && (
+                <KingOfTheHill koth={koth} instellingen={lobbyInstellingen} scorebord={scorebord} eind={fase === 'einde'} mijnId={sessie?.spelerId} />
+            )}
             {/* Titel onthuld (korte tussenfase voor de bonus) */}
             {fase === 'onthul' && antwoord && (
                 <>

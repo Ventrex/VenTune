@@ -382,3 +382,8 @@ select.ab-in { padding-right: 0.3rem; }
     .ab-balk-cijfers { display: none; }
     .ab-kop h1 { font-size: 1.15rem; }
 }
+
+.ab-groot-knop { min-height: 52px; font-size: 1.05rem; font-weight: 700; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--bg)); flex: 1 1 100%; }
+.admin-ingebed { text-align: left; }
+.admin-ingebed .raden-kop { display: flex; justify-content: flex-end; margin: 0; }
+.admin-ingebed .raden-kop .terug { font-size: 0.9rem; }

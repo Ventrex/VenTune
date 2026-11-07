@@ -19,6 +19,7 @@ const setupRoutes = require('./routes/setup');
 const adminRoutes = require('./routes/admin');
 const aanbevelingenRoutes = require('./routes/aanbevelingen');
 const bankRoutes = require('./routes/bank');
+const aanvraagRoutes = require('./routes/aanvragen');
 const bankWorker = require('./lib/bank-worker');
 const changelogRoutes = require('./routes/changelog');
 const { router: authRoutes } = require('./lib/auth');
@@ -51,6 +52,8 @@ async function start() {
     app.use(aanbevelingenRoutes);
     // Beheer 2.0: vragenbank met de AI-curator die 24/7 doorwerkt.
     app.use(bankRoutes);
+    // Aanvragen vanaf het beginscherm (films, series, anime, games, muziek).
+    app.use(aanvraagRoutes);
     // Publiek: spelers mogen zien wat er veranderd is.
     app.use(changelogRoutes);
 

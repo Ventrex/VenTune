@@ -5,10 +5,10 @@ import Setup from './pages/Setup.jsx';
 import Join from './pages/Join.jsx';
 import Host from './pages/Host.jsx';
 import Play from './pages/Play.jsx';
-import Admin from './pages/Admin.jsx';
 import AdminBank from './pages/AdminBank.jsx';
 import Review from './pages/Review.jsx';
 import Changelog from './pages/Changelog.jsx';
+import Aanvragen from './pages/Aanvragen.jsx';
 import HostAuth from './pages/HostAuth.jsx';
 import HostProfile from './pages/HostProfile.jsx';
 import { haalAppInstellingen } from './lib/api.js';
@@ -43,12 +43,13 @@ export default function App() {
                     <Route path="/join/:code" element={<Join />} />
                     <Route path="/host" element={<Host />} />
                     <Route path="/play" element={<Play />} />
-                    <Route path="/admin" element={<Admin />} />
+                    <Route path="/admin" element={<Navigate to="/admin/bank?tab=systeem" replace />} />
                     <Route path="/admin/bank" element={<AdminBank />} />
                     <Route path="/admin/ai" element={<Navigate to="/admin/bank" replace />} />
                     <Route path="/admin/swipe" element={<Navigate to="/admin/bank?tab=swipen" replace />} />
                     <Route path="/review" element={<Review />} />
                     <Route path="/changelog" element={<Changelog />} />
+                    <Route path="/aanvragen" element={<Aanvragen />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </BrowserRouter>

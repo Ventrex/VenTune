@@ -137,7 +137,8 @@ export default function Setup() {
         periode_eind: NU,
         rondes: 10,
         spelvorm: 'tegen_elkaar',
-        berg_fouten_max: 3,
+        koth_modus: 'tegen',
+        koth_stappen: 10,
         team_modus: 'snelste',
         hints_aan: true,
         speeltijd: 0,
@@ -360,7 +361,8 @@ export default function Setup() {
             rondes: p.rondes,
             tiers: Array.isArray(p.extra_instellingen?.tiers) && p.extra_instellingen.tiers.length ? p.extra_instellingen.tiers : STANDAARD_TIERS,
             spelvorm: p.extra_instellingen?.spelvorm || 'tegen_elkaar',
-            berg_fouten_max: p.extra_instellingen?.berg_fouten_max || 3,
+            koth_modus: p.extra_instellingen?.koth_modus || 'tegen',
+            koth_stappen: p.extra_instellingen?.koth_stappen || 10,
             team_modus: p.extra_instellingen?.team_modus || 'snelste',
             speeltijd: p.speeltijd ?? 0,
             modus: p.modus || 'snelste',
@@ -404,7 +406,14 @@ export default function Setup() {
         }
     }
 
-    const terug = () => (stap > 0 ? setStap(stap - 1) : navigate('/'));
+    // Terug vanaf de spelinstellingen gaat naar de categoriekeuze (of de
+    // edities als je een kant-en-klare quiz koos), niet langs de oude
+    // tussenstappen taal en periode.
+    const terug = () => {
+        if (stap === 4) return setStap(quizSleutel ? 0 : 1);
+        if (stap === 2 || stap === 3) return setStap(1);
+        return stap > 0 ? setStap(stap - 1) : navigate('/');
+    };
     const verder = () => setStap(Math.min(stap + 1, 4));
 
     return (
@@ -602,23 +611,10 @@ export default function Setup() {
                             </div>
                         </div>
                         <button className="vt-preset-link vt-preset-inline" type="button" onClick={()=>setStap(0)}>Of kies een kant-en-klare quiz</button>
-                        {hoofdgroep==='thema' && <div className="vt-berg-choice">
-                            <h3>🏔 Bergexpeditie — samen naar de top</h3>
-                            <p>Iedereen raadt samen. Elk goed nummer brengt jullie omhoog. Een mislukte ronde kost een hartje.</p>
-                            <button type="button" className={'chip'+(filters.spelvorm==='bergexpeditie'?' gekozen':'')}
-                                onClick={()=>setFilters(f=>({...f,spelvorm:f.spelvorm==='bergexpeditie'?'tegen_elkaar':'bergexpeditie',modus:'snelste',rondes:f.spelvorm==='bergexpeditie'?10:0,bonusvragen_aan:f.spelvorm==='bergexpeditie'?f.bonusvragen_aan:false}))}>
-                                {filters.spelvorm==='bergexpeditie'?'✓ Bergexpeditie geselecteerd':'Speel Bergexpeditie'}
-                            </button>
-                            {filters.spelvorm==='bergexpeditie' && <label>Maximaal fouten
-                                <select className="invoer" value={filters.berg_fouten_max || 3} onChange={e=>zet('berg_fouten_max',Number(e.target.value))}>
-                                    <option value={1}>1 fout — extra spannend</option><option value={3}>3 fouten — standaard</option><option value={5}>5 fouten — ontspannen</option>
-                                </select>
-                            </label>}
-                        </div>}
                         <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema",anime:"Anime"})[hoofdgroep]} · {hoofdgroep==="games"?"Games":hoofdgroep==="anime"?"Anime":filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
                         <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}><span className="vt-play-text"><img src="/category/icon-play.svg" alt="" />Start de quiz</span></button>
                     </div>
-                    </div><aside className="vt-categorie-aside"><div className="vt-berg-paneel"><h3>Wat is Bergexpeditie?</h3><p>Een spelmodus waarin jullie samen een berg beklimmen. Elk goed antwoord brengt je hoger. Ideaal voor langere quizsessies.</p><span className="vt-berg-icon" aria-hidden="true">🏔️</span></div></aside></div>
+                    </div></div>
 
                 </section>
             )}
@@ -790,15 +786,24 @@ export default function Setup() {
                                     ['tegen_elkaar','⚔️','Tegen elkaar','Iedereen speelt individueel'],
                                     ['om_en_om','🔄','Om en om','Elke speler krijgt een eigen beurt'],
                                     ['teams','👥','Teams','Speel samen tegen andere teams'],
-                                    ['bergexpeditie','🏔️','Bergexpeditie','Samen zo hoog mogelijk klimmen']
-                                ].map(([id,icoon,titel,uitleg])=><button type="button" key={id} className={'vt-option-card'+(filters.spelvorm===id?' selected':'')} onClick={()=>zet('spelvorm',id)}>
-                                    <img className="vt-setup-art" src={categorieBeelden["setup-spel-"+id] || "/setup-icons/spel-"+id+".svg"} alt="" /><strong>{titel}</strong><small>{uitleg}</small>
+                                    ['king_of_the_hill','⛰️','King of the Hill','Goed = omhoog, fout = omlaag. Wie staat bovenaan?']
+                                ].map(([id,icoon,titel,uitleg])=><button type="button" key={id} className={'vt-option-card'+(filters.spelvorm===id?' selected':'')}
+                                    onClick={()=>setFilters(f=>({...f,spelvorm:id,...(id==='king_of_the_hill'?{rondes:0}:{})}))}>
+                                    <img className="vt-setup-art" src={categorieBeelden["setup-spel-"+id] || (id==='king_of_the_hill' && categorieBeelden['setup-spel-bergexpeditie']) || "/setup-icons/spel-"+(id==='king_of_the_hill'?'bergexpeditie':id)+".svg"} alt="" /><strong>{titel}</strong><small>{uitleg}</small>
                                 </button>)}
                             </div>
                             {filters.spelvorm==='teams'&&<div className="vt-choice-grid vt-three">
                                 {[['snelste','⚡','Snelste team'],['kenner','🧠','Alle teams raden'],['om_en_om','🔄','Teams om en om']].map(([id,icoon,label])=><button type="button" key={id} className={'vt-option-card'+(filters.team_modus===id?' selected':'')} onClick={()=>zet('team_modus',id)}><span className="vt-option-art">{icoon}</span><strong>{label}</strong></button>)}
                             </div>}
-                            {filters.spelvorm==='bergexpeditie'&&<label className="vt-select-duration">Aantal toegestane fouten<select className="invoer" value={filters.berg_fouten_max||3} onChange={e=>zet('berg_fouten_max',Number(e.target.value))}><option value="1">1 fout</option><option value="3">3 fouten</option><option value="5">5 fouten</option></select></label>}
+                            {filters.spelvorm==='king_of_the_hill'&&<>
+                                <div className="vt-choice-grid vt-two">
+                                    {[['tegen','⚔️','Tegen elkaar','Wie het eerst bovenaan staat wint'],['samen','🤝','Samen','Samen de berg op: één goed antwoord is genoeg']].map(([id,icoon,label,uitleg])=>
+                                        <button type="button" key={id} className={'vt-option-card'+((filters.koth_modus||'tegen')===id?' selected':'')} onClick={()=>zet('koth_modus',id)}>
+                                            <span className="vt-option-art">{icoon}</span><strong>{label}</strong><small>{uitleg}</small></button>)}
+                                </div>
+                                <label className="vt-select-duration">Hoe hoog is de berg?<select className="invoer" value={filters.koth_stappen||10} onChange={e=>zet('koth_stappen',Number(e.target.value))}>
+                                    {[5,10,15,20].map(n=><option key={n} value={n}>{n} stappen</option>)}</select></label>
+                            </>}
                         </section>
                         <div className="vt-settings-pair">
                             <section className="vt-options-panel">
