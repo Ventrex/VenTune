@@ -125,8 +125,37 @@ async function stapBeoordelen() {
     return true;
 }
 
-/** Zet een AI-oordeel in de database, met respect voor handmatige velden. */
-async function pasBeoordelingToe(t, b) {
+/**
+ * Zet een AI-oordeel in de database, met respect voor handmatige velden.
+ * De AI-vraag duurt minuten; in de tussentijd kan de beheerder iets
+ * aanpassen. Daarom wordt de rij vergrendeld en worden de sloten en status
+ * vers gelezen vlak voordat het oordeel wordt weggeschreven.
+ */
+async function pasBeoordelingToe(oud, b) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const { rows: [vers] } = await client.query(
+            `SELECT handmatig, curatie_status, ai_uitgesloten, naam, nummer_naam, jaar, aliassen,
+                    type::text AS type, categorie
+               FROM titels WHERE id = $1 FOR UPDATE`, [oud.id]);
+        if (!vers) { await client.query('ROLLBACK'); return { uitgesloten: false }; }
+        const r = await pasBeoordelingToeIn(client, { ...oud, ...vers }, b);
+        await client.query('COMMIT');
+        await logBeoordeling({ ...oud, ...vers }, b, r);
+        return r;
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        logger.waarschuwing('Beoordeling opslaan mislukt', { id: oud.id, melding: err.message });
+        await pool.query("UPDATE titels SET ai_status = 'fout', ai_beoordeeld_op = now(), ai_notitie = $2 WHERE id = $1",
+            [oud.id, `Opslaan mislukt: ${err.message.slice(0, 150)}`]);
+        return { uitgesloten: false };
+    } finally {
+        client.release();
+    }
+}
+
+async function pasBeoordelingToeIn(client, t, b) {
     const vast = (v) => bank.isVast(t, v);
     const zetten = [];
     const waarden = [t.id];
@@ -191,15 +220,11 @@ async function pasBeoordelingToe(t, b) {
     if (nummerAnders && !t.heeft_mp3) {
         zetten.push("zoek_status = 'nieuw'", 'zoek_pogingen = 0', 'volgende_poging = NULL');
     }
-    try {
-        await pool.query(`UPDATE titels SET ${zetten.join(', ')} WHERE id = $1`, waarden);
-    } catch (err) {
-        // Bv. een naam die botst; dan zonder naamwijziging opnieuw.
-        logger.waarschuwing('Beoordeling opslaan mislukt', { id: t.id, melding: err.message });
-        await pool.query("UPDATE titels SET ai_status = 'fout', ai_beoordeeld_op = now(), ai_notitie = $2 WHERE id = $1",
-            [t.id, `Opslaan mislukt: ${err.message.slice(0, 150)}`]);
-        return { uitgesloten: false };
-    }
+    await client.query(`UPDATE titels SET ${zetten.join(', ')} WHERE id = $1`, waarden);
+    return { uitgesloten, wijzigingen };
+}
+
+async function logBeoordeling(t, b, { uitgesloten, wijzigingen = [] }) {
     if (uitgesloten) {
         await bank.log(t.id, 'uitgesloten', `${t.naam} uitgesloten: ${b.nl_bekend === 'nee' ? b.nl_reden : b.notitie}`);
     } else if (wijzigingen.length && t.ai_status !== 'nieuw') {
@@ -207,7 +232,6 @@ async function pasBeoordelingToe(t, b) {
     } else if (wijzigingen.some((w) => w.startsWith('categorie') || w.startsWith('naam'))) {
         await bank.log(t.id, 'beoordeling', `${t.naam}: ${wijzigingen.join(', ')}`);
     }
-    return { uitgesloten };
 }
 
 // ------------------------------------------------------------------
@@ -246,10 +270,15 @@ async function stapQuiz() {
     return true;
 }
 
-async function bewaarQuiz(t, q) {
+async function bewaarQuiz(oud, q) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        // Actuele sloten: de beheerder kan tijdens de AI-vraag iets hebben aangepast.
+        const { rows: [vers] } = await client.query(
+            'SELECT handmatig, ai_hints FROM titels WHERE id = $1 FOR UPDATE', [oud.id]);
+        if (!vers) { await client.query('ROLLBACK'); return; }
+        const t = { ...oud, ...vers };
         // Nooit een vollere set hints vervangen door een kleinere.
         if (!bank.isVast(t, 'hints') && q.hints.length && q.hints.length >= Math.min(3, (t.ai_hints || []).length)) {
             await client.query(
@@ -269,7 +298,7 @@ async function bewaarQuiz(t, q) {
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
-        logger.waarschuwing('Quiz opslaan mislukt', { id: t.id, melding: err.message });
+        logger.waarschuwing('Quiz opslaan mislukt', { id: oud.id, melding: err.message });
     } finally {
         client.release();
     }
@@ -465,8 +494,9 @@ async function verbeterQuizGaten() {
     const { rowCount } = await pool.query(`
         UPDATE titels t SET ai_quiz_op = NULL
          WHERE t.ai_quiz_op < now() - interval '7 days' AND t.curatie_status <> 'uitgesloten'
+           AND NOT ('hints' = ANY(t.handmatig) AND 'vragen' = ANY(t.handmatig))
            AND (COALESCE(array_length(t.ai_hints, 1), 0) < 3
-                OR NOT EXISTS (SELECT 1 FROM vragen v WHERE v.titel_id = t.id AND v.ai_review_status <> 'afgekeurd'))`);
+                OR (SELECT count(*) FROM vragen v WHERE v.titel_id = t.id AND v.ai_review_status <> 'afgekeurd') < 3)`);
     if (rowCount) await bank.log(null, 'verbeterpunt', `${rowCount} titels zonder volledige hints/vragen opnieuw in de wachtrij.`);
     await pool.query("DELETE FROM bank_log WHERE aangemaakt_op < now() - interval '30 days'");
     // Elke 60 dagen alles opnieuw laten beoordelen (kennis en bekendheid veranderen).
@@ -547,13 +577,18 @@ async function verbeterAudit() {
         if (c.veld === 'bekendheid' && !bank.TIERS.includes(waarde)) continue;
         if (c.veld === 'nl_bekend' && !['ja', 'nee', 'twijfel'].includes(waarde)) continue;
         if (!String(waarde ?? '').trim()) continue;
-        await pool.query(`UPDATE titels SET ${kolom[c.veld]} = $2 WHERE id = $1`, [t.id, waarde]);
+        // Slot opnieuw in de UPDATE zelf: een handmatige wijziging tijdens de
+        // AI-vraag wint altijd.
+        const { rowCount } = await pool.query(
+            `UPDATE titels SET ${kolom[c.veld]} = $2 WHERE id = $1 AND NOT ($3 = ANY(handmatig))`,
+            [t.id, waarde, slot[c.veld]]);
+        if (!rowCount) continue;
         if (c.veld === 'categorie') {
             await pool.query('UPDATE titels SET type = $2::titel_type WHERE id = $1', [t.id, bank.typeVoorCategorie(waarde, t.type)]);
         }
-        if (c.veld === 'nl_bekend' && waarde === 'nee' && !bank.isVast(t, 'actief')) {
+        if (c.veld === 'nl_bekend' && waarde === 'nee') {
             await pool.query(`UPDATE titels SET curatie_status = 'uitgesloten', ai_uitgesloten = true,
-                uitsluit_reden = $2 WHERE id = $1`, [t.id, `Niet bekend in Nederland: ${c.reden}`]);
+                uitsluit_reden = $2 WHERE id = $1 AND NOT ('actief' = ANY(handmatig))`, [t.id, `Niet bekend in Nederland: ${c.reden}`]);
         }
         if (c.veld === 'nummer_naam') {
             await pool.query(`UPDATE titels SET yt_zoekterm = NULL WHERE id = $1`, [t.id]);

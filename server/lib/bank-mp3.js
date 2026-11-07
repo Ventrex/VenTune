@@ -94,9 +94,11 @@ async function slaOp(t, video, { reden, handmatig = false }) {
     try {
         await downloadTrack({
             id: trackId, preview_url: video.videoId, bron: 'youtube', bron_url: bronUrl, start_seconde: 0,
-            // Titel-id in de bestandsnaam: twee titels met dezelfde naam en
-            // hetzelfde jaar overschrijven elkaars MP3 dan nooit.
-            naam: `${t.naam} ${t.id}`, type: t.type, jaar: t.jaar, genres: t.genres, taal: t.taal, land: t.land,
+            // Titel- én video-id in de bestandsnaam: twee titels botsen nooit,
+            // en een vervangende video krijgt een eigen bestand. yt-dlp
+            // overschrijft een bestaand bestand niet, dus anders bleef na
+            // "verkeerd nummer" stilletjes de oude audio staan.
+            naam: `${t.naam} ${t.id}-${video.videoId}`, type: t.type, jaar: t.jaar, genres: t.genres, taal: t.taal, land: t.land,
             talen: t.talen, media_map: '',
         }, false, { rateLimit: true });
     } catch (err) {
