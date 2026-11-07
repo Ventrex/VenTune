@@ -625,6 +625,12 @@ export function AntwoordInfo({ antwoord }) {
                 <img className="poster vt-small-poster" src={antwoord.poster} alt="" loading="lazy" />
             )}
             <div className="antwoord-tekst">
+            {antwoord.bekendheid && (
+                <p className="vt-bekendheid-punten">
+                    {({ iconisch: 'Iconisch', algemeen_bekend: 'Algemeen bekend', bekend: 'Bekend', onbekend: 'Onbekend', cult: 'Cult' })[antwoord.bekendheid]}
+                    {' · '}<strong>×{antwoord.puntenFactor || 1} punten</strong>
+                </p>
+            )}
             <details className="vt-info-toggle"><summary aria-label="Meer informatie over deze film of serie">ⓘ Info over {antwoord.type === 'serie' ? 'de serie' : 'de film'}</summary>
             <div className="info-rij">
                 <span className="info-chip">{type}</span>

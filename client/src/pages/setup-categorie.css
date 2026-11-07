@@ -827,3 +827,9 @@
 }
 .vt-home-topnav .vt-top-links{gap:8px;flex-wrap:wrap}
 @media(max-width:560px){.vt-home-topnav .vt-top-user{font-size:.78rem}.vt-home-topnav .vt-avatar-ring{width:29px!important;height:29px!important;min-width:29px!important;flex-basis:29px!important}}
+
+/* Bekendheid-keuze: altijd over de volle breedte, gewone chips. */
+.vt-subkeuzes.vt-tiers{grid-column:1/-1}
+.vt-tier-rij{display:flex;flex-wrap:wrap;gap:8px}
+.vt-tier-chip{min-height:42px;padding:0 14px;font-size:.95rem;white-space:nowrap}
+.vt-tier-chip small{opacity:.75;margin-left:4px}

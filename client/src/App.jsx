@@ -6,8 +6,6 @@ import Join from './pages/Join.jsx';
 import Host from './pages/Host.jsx';
 import Play from './pages/Play.jsx';
 import Admin from './pages/Admin.jsx';
-import AdminAI from './pages/AdminAI.jsx';
-import AdminSwipe from './pages/AdminSwipe.jsx';
 import AdminBank from './pages/AdminBank.jsx';
 import Review from './pages/Review.jsx';
 import Changelog from './pages/Changelog.jsx';
@@ -47,8 +45,8 @@ export default function App() {
                     <Route path="/play" element={<Play />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/admin/bank" element={<AdminBank />} />
-                    <Route path="/admin/ai" element={<AdminAI />} />
-                    <Route path="/admin/swipe" element={<AdminSwipe />} />
+                    <Route path="/admin/ai" element={<Navigate to="/admin/bank" replace />} />
+                    <Route path="/admin/swipe" element={<Navigate to="/admin/bank?tab=swipen" replace />} />
                     <Route path="/review" element={<Review />} />
                     <Route path="/changelog" element={<Changelog />} />
                     <Route path="*" element={<Navigate to="/" replace />} />

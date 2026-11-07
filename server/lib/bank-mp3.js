@@ -80,11 +80,14 @@ async function markeerMislukt(t, reden, { tellen = true } = {}) {
 async function slaOp(t, video, { reden, handmatig = false }) {
     const bronUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
     const { rows } = await pool.query(
+        // Een AI-keuze wacht op een swipe van de beheerder; een eigen link
+        // van de beheerder is meteen goedgekeurd.
         `INSERT INTO tracks (titel_id, bron, preview_url, bron_url, start_seconde, tracknaam, artiest,
                 songnaam, youtube_titel, werkt, gecontroleerd, bevestigd, review_status, review_handmatig,
-                verificatie_score, verificatie_reden, download_status, laatst_gecontroleerd_op)
-         VALUES ($1, 'youtube', $2, $3, 0, $4, $5, $6, $7, true, true, true, 'goedgekeurd', $8,
-                 $9, $10, 'pending', now())
+                verificatie_score, verificatie_reden, download_status, laatst_gecontroleerd_op, wacht_op_swipe)
+         VALUES ($1, 'youtube', $2, $3, 0, $4, $5, $6, $7, true, true, true,
+                 CASE WHEN $8 THEN 'goedgekeurd' ELSE 'open' END, $8,
+                 $9, $10, 'pending', now(), NOT $8)
          RETURNING id`,
         [t.id, video.videoId, bronUrl, t.nummer_naam || t.naam, t.nummer_artiest || 'Onbekend',
             t.nummer_naam || null, video.titel || null, handmatig, handmatig ? 1 : 0.95,

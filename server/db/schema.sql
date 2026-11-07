@@ -1140,3 +1140,17 @@ BEGIN
         INSERT INTO app_instellingen (sleutel, waarde) VALUES ('herstel_mp3_jsruntime_2026_11', 'true'::jsonb);
     END IF;
 END$$;
+
+-- Beheer 2.0: nummers die de AI vindt wachten op een handmatige swipe van de
+-- beheerder voordat ze in het spel komen. Oudere tracks blijven speelbaar.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS wacht_op_swipe BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_tracks_swipe ON tracks (wacht_op_swipe, titel_id) WHERE wacht_op_swipe;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM app_instellingen WHERE sleutel = 'swipe_ai_tracks_2026_11') THEN
+        UPDATE tracks SET wacht_op_swipe = true, review_status = 'open'
+         WHERE werkt = true AND review_handmatig = false
+           AND COALESCE(verificatie_reden, '') LIKE 'AI-keuze:%';
+        INSERT INTO app_instellingen (sleutel, waarde) VALUES ('swipe_ai_tracks_2026_11', 'true'::jsonb);
+    END IF;
+END$$;

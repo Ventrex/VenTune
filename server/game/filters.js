@@ -213,6 +213,7 @@ function bouwFilter(f = {}) {
         condities.push(`EXISTS (SELECT 1 FROM tracks vc
                                  WHERE vc.titel_id = t.id
                                    AND vc.werkt = true
+                                   AND vc.wacht_op_swipe = false
                                    AND vc.bron = 'lokaal'
                                    AND vc.itunes_track_id IS NULL
                                    AND (COALESCE(vc.review_status, 'open') = 'goedgekeurd'
@@ -228,6 +229,7 @@ function bouwFilter(f = {}) {
         condities.push(`EXISTS (SELECT 1 FROM tracks vl
                                  WHERE vl.titel_id = t.id
                                    AND vl.werkt = true
+                                   AND vl.wacht_op_swipe = false
                                    AND vl.bron = 'lokaal'
                                    AND vl.download_status = 'available'
                                    AND COALESCE(NULLIF(vl.bestand_pad, ''), NULLIF(vl.preview_url, '')) IS NOT NULL)`);

@@ -338,7 +338,12 @@ async function stapMp3() {
 // Stap: aanvullen tot het doelaantal
 // ------------------------------------------------------------------
 
-/** Kies categorie, bekendheid en periode voor de volgende aanvulling. */
+/**
+ * Kies categorie, bekendheid en periode voor de volgende aanvulling.
+ * Iconisch gaat altijd voor: eerst wordt elke categorie met iconische
+ * titels gevuld tot de AI er geen nieuwe meer weet, daarna algemeen
+ * bekend, bekend, onbekend en als laatste cult.
+ */
 function kiesAanvulling(inst, telling) {
     const kandidaten = [];
     for (const c of bank.CATEGORIEEN) {
@@ -347,14 +352,9 @@ function kiesAanvulling(inst, telling) {
         if (tekort > 0) kandidaten.push({ categorie: c, doel, tekort, ratio: tekort / doel });
     }
     kandidaten.sort((a, b) => b.ratio - a.ratio);
-    for (const k of kandidaten) {
-        const tiers = telling[k.categorie].tiers;
-        // Bekendheidsniveaus op volgorde van grootste tekort t.o.v. de verdeling.
-        const tierVolgorde = Object.entries(bank.TIER_VERDELING)
-            .map(([t, aandeel]) => [t, aandeel * k.doel - (tiers[t]?.totaal || 0)])
-            .sort((a, b) => b[1] - a[1]).map(([t]) => t);
-        const periodes = PERIODES[k.categorie];
-        for (const tier of tierVolgorde) {
+    for (const tier of bank.TIERS) {
+        for (const k of kandidaten) {
+            const periodes = PERIODES[k.categorie];
             for (let i = 0; i < periodes.length; i++) {
                 periodeIndex[k.categorie] = ((periodeIndex[k.categorie] || 0) + 1) % periodes.length;
                 const periode = periodes[periodeIndex[k.categorie]];
@@ -394,6 +394,7 @@ async function stapAanvullen(inst) {
     controleerAi(res);
 
     let toegevoegd = 0;
+    let passend = 0; // nieuwe titels van precies de gevraagde bekendheid
     const nieuweNamen = [];
     for (const it of res.items) {
         if (it.nl_bekend !== 'ja' || !it.geschikt) continue;
@@ -423,12 +424,15 @@ async function stapAanvullen(inst) {
                     cat === 'game' ? ['Videogames'] : cat === 'kerst' ? ['Kerst'] : []],
             );
             toegevoegd++;
+            if (it.bekendheid === tier) passend++;
             nieuweNamen.push(`${it.naam} (${bank.TIER_LABEL[it.bekendheid] || '—'})`);
         } catch (err) {
             logger.waarschuwing('Aanvulling opslaan mislukt', { naam: it.naam, melding: err.message });
         }
     }
-    if (toegevoegd < 3) uitgeput[`${categorie}|${periode}|${tier}`] = Date.now() + 24 * 3600 * 1000;
+    // Weet de AI in deze hoek bijna niets nieuws meer, dan drie dagen overslaan
+    // en door naar de volgende periode/categorie/bekendheid.
+    if (passend < 3) uitgeput[`${categorie}|${periode}|${tier}`] = Date.now() + 3 * 24 * 3600 * 1000;
     status.tellers.toegevoegd += toegevoegd;
     status.laatsteActie = `${bank.CATEGORIE_LABEL[categorie]}: ${toegevoegd} nieuwe titels toegevoegd`;
     await bank.log(null, 'aanvulling', `${status.laatsteActie}${nieuweNamen.length ? `: ${nieuweNamen.join(', ')}` : ''}`);

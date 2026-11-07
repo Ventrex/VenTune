@@ -9,7 +9,7 @@
 const { pool } = require('../db/pool');
 const { bouwFilter } = require('./filters');
 const { vergelijk, franchiseSleutel } = require('../lib/match');
-const { titelPunten, bonusPunten, leeftijdsFactor } = require('./scoring');
+const { titelPunten, bonusPunten, leeftijdsFactor, bekendheidFactor } = require('./scoring');
 const { genereerBonus } = require('./bonus');
 const vragenbank = require('./vragen');
 const logger = require('../lib/logger');
@@ -428,7 +428,7 @@ class SpelBeheer {
 
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
-            `SELECT t.id, t.naam, t.aliassen, t.franchise, t.categorie, t.type, t.taal, t.jaar,
+            `SELECT t.id, t.naam, t.aliassen, t.franchise, t.categorie, t.bekendheid_tier, t.type, t.taal, t.jaar,
                     t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
                     t.hoofdrollen, t.ai_hints, t.ai_hints_status, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
@@ -444,6 +444,7 @@ class SpelBeheer {
                 FROM titels t LEFT JOIN tracks tr ON tr.titel_id = t.id
                    AND tr.bron = 'lokaal' AND tr.werkt = true
                    AND tr.download_status = 'available' AND tr.preview_url IS NOT NULL
+                   AND tr.wacht_op_swipe = false
                 WHERE COALESCE(t.categorie, t.type::text) = ANY($1::text[])`,
                 [spelInstellingen.categorieen?.length ? spelInstellingen.categorieen : ['film', 'serie']]);
             const d = diagnostiek.rows[0] || {};
@@ -654,6 +655,7 @@ class SpelBeheer {
                FROM tracks tr
               WHERE tr.titel_id = $1
                 AND tr.werkt = true
+                AND tr.wacht_op_swipe = false
                 AND tr.bron = 'lokaal'
                 AND tr.download_status = 'available'
                 AND COALESCE(NULLIF(tr.bestand_pad, ''), NULLIF(tr.preview_url, '')) IS NOT NULL
@@ -999,7 +1001,9 @@ class SpelBeheer {
             const basisPunten = titelPunten(verstreken, hintsGebruikt, state.instellingen);
             const factor = leeftijdsFactor(state.leeftijden.get(spelerId), state.instellingen);
             const gokFactor = poging >= 2 ? 0.5 : 1;
-            const punten = Math.round(basisPunten * factor * gokFactor);
+            // Iconisch ×1 tot cult ×5: een moeilijk nummer is meer waard.
+            const tierFactor = bekendheidFactor(h.titel.bekendheid_tier);
+            const punten = Math.round(basisPunten * factor * gokFactor * tierFactor);
             h.klaar.add(spelerId);
             h.antwoorden.set(spelerId, { punten, verstreken, hintsGebruikt });
 
@@ -1643,6 +1647,9 @@ class SpelBeheer {
                 ? `https://image.tmdb.org/t/p/w342${h.titel.poster_pad}`
                 : h.titel.cover_url || null,
             omschrijving: h.titel.omschrijving || null,
+            // Bekendheid + puntenfactor, zodat spelers zien waarom een nummer meer opleverde.
+            bekendheid: h.titel.bekendheid_tier || null,
+            puntenFactor: bekendheidFactor(h.titel.bekendheid_tier),
             tracknaam: h.track.tracknaam,
             artiest: h.track.artiest,
             trackId: h.track.id,

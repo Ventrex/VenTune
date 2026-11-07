@@ -1,5 +1,11 @@
 # VenTune changelog
 
+## [0.6.1] - 2026-11-07
+
+- Kies bij een quiz Iconisch, Algemeen bekend, Bekend en/of Onbekend & cult. Standaard staan iconisch t/m bekend aan.
+- Hoe onbekender het nummer, hoe meer punten: iconisch ×1, algemeen bekend ×2, bekend ×3, onbekend ×4, cult ×5. Bij de onthulling zie je de factor.
+- Nieuwe nummers komen pas in het spel nadat de beheerder ze heeft beluisterd en goedgekeurd.
+
 ## [0.6.0] - 2026-11-07
 
 ### Opgeruimde vragenbank
