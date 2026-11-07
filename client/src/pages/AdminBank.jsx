@@ -214,9 +214,15 @@ function Swipen({ categorie, onWijzig }) {
         behandeld.current.add(huidig.track_id);
         setRij((r) => r.filter((i) => i.track_id !== huidig.track_id));
         if (keuze === 'later') return;
-        api(`/api/admin/bank/swipe/${huidig.track_id}`, { method: 'POST', body: { keuze } })
+        const item = huidig;
+        api(`/api/admin/bank/swipe/${item.track_id}`, { method: 'POST', body: { keuze } })
             .then(() => onWijzig())
-            .catch((e) => setMelding(`${huidig.naam}: ${e.message}`));
+            .catch((e) => {
+                // Niet opgeslagen: het nummer komt vooraan terug, zodat je opnieuw kunt kiezen.
+                behandeld.current.delete(item.track_id);
+                setRij((r) => (r.some((i) => i.track_id === item.track_id) ? r : [item, ...r]));
+                setMelding(`${item.naam} niet opgeslagen (${e.message}); kies opnieuw.`);
+            });
     }, [huidig, onWijzig]);
 
     useEffect(() => {
