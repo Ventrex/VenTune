@@ -382,28 +382,52 @@ router.post('/api/admin/bank/items/:id/vragen', vereisAdmin, async (req, res) =>
     } catch (err) { fout(res, err, /verplicht|foute/.test(err.message) ? 400 : 500); }
 });
 
+/**
+ * Wijzig een vraag onder het rijslot van de titel (hetzelfde slot dat de
+ * AI-curator gebruikt). Zo kan een lopende AI-run de vraag niet tussentijds
+ * vervangen, en merken we het als hij al verdwenen is.
+ */
+async function metVraagSlot(vraagId, werk) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const { rows: [v] } = await client.query('SELECT titel_id FROM vragen WHERE id = $1', [vraagId]);
+        if (!v) { await client.query('ROLLBACK'); return false; }
+        await client.query('SELECT id FROM titels WHERE id = $1 FOR UPDATE', [v.titel_id]);
+        // Opnieuw kijken: de AI kan de vraag net vervangen hebben.
+        const { rowCount } = await client.query('SELECT 1 FROM vragen WHERE id = $1', [vraagId]);
+        if (!rowCount) { await client.query('ROLLBACK'); return false; }
+        await client.query(
+            `UPDATE titels SET handmatig = (SELECT ARRAY(SELECT DISTINCT unnest(handmatig || ARRAY['vragen']))) WHERE id = $1`,
+            [v.titel_id]);
+        await werk(client);
+        await client.query('COMMIT');
+        return true;
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
 router.patch('/api/admin/bank/vragen/:id', vereisAdmin, async (req, res) => {
     try {
         const v = vraagUit(req.body);
-        // Eerst het slot op de titel (zelfde rij die de AI vergrendelt), dan
-        // de vraag: zo kan een lopende AI-run deze vraag niet meer weggooien.
-        const { rows: [vraag] } = await pool.query('SELECT titel_id FROM vragen WHERE id = $1', [req.params.id]);
-        if (!vraag) return fout(res, new Error('Vraag niet gevonden.'), 404);
-        await zetVast(vraag.titel_id, ['vragen']);
         // AI-vragen worden 'handmatig', zodat een latere AI-run ze nooit vervangt.
-        await pool.query(
+        const gelukt = await metVraagSlot(req.params.id, (client) => client.query(
             `UPDATE vragen SET vraag = $2, opties = $3, correct_index = $4, ai_review_status = 'goedgekeurd',
                     soort = 'handmatig' WHERE id = $1`,
-            [req.params.id, v.vraag, JSON.stringify(v.opties), v.correct_index]);
+            [req.params.id, v.vraag, JSON.stringify(v.opties), v.correct_index]));
+        if (!gelukt) return fout(res, new Error('Deze vraag bestaat niet meer (net door de AI vervangen). Ververs de lijst.'), 404);
         res.json({ ok: true });
     } catch (err) { fout(res, err, /verplicht|foute/.test(err.message) ? 400 : 500); }
 });
 
 router.delete('/api/admin/bank/vragen/:id', vereisAdmin, async (req, res) => {
     try {
-        const { rows: [vraag] } = await pool.query('SELECT titel_id FROM vragen WHERE id = $1', [req.params.id]);
-        if (vraag) await zetVast(vraag.titel_id, ['vragen']);
-        await pool.query("UPDATE vragen SET ai_review_status = 'afgekeurd' WHERE id = $1", [req.params.id]);
+        await metVraagSlot(req.params.id, (client) => client.query(
+            "UPDATE vragen SET ai_review_status = 'afgekeurd' WHERE id = $1", [req.params.id]));
         res.json({ ok: true });
     } catch (err) { fout(res, err); }
 });
