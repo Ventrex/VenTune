@@ -150,7 +150,7 @@ async function vulAan({ categorie, aantal, periode, tier, bestaand }, signal) {
     const periodeRegel = periode ? `Uit de periode ${periode}.` : '';
     const prompt = `Je vult de vragenbank van VenTune, een Nederlandse muziekquiz waarin spelers iets herkennen aan de muziek.
 
-Geef ${aantal} NIEUWE ${wat}. ${periodeRegel} Bij voorkeur met bekendheid "${tier}", maar vul het veld eerlijk in.
+Geef ${aantal} NIEUWE ${wat}. ${periodeRegel} Ze moeten bekendheid "${tier}" hebben${tier === 'iconisch' ? ' (alleen het allerbekendste: wat vrijwel iedereen in Nederland meteen herkent)' : ''}; vul het veld eerlijk in.
 Eisen: in Nederland bekend (nl_bekend = ja), met een herkenbaar origineel nummer, geen dubbele titels, niets uit de lijst hieronder (ook geen andere schrijfwijze of los deel van dezelfde reeks met hetzelfde nummer). Geef liever minder items dan obscure of verzonnen items.
 ${CRITERIA}
 

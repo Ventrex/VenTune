@@ -199,6 +199,7 @@ router.get('/api/tracks/telling', async (req, res) => {
                FROM titels t
                LEFT JOIN tracks tr ON tr.titel_id = t.id
                                   AND tr.werkt = true
+                                  AND tr.wacht_op_swipe = false
                                   AND tr.bron = 'lokaal'
                                   AND tr.download_status = 'available'
                                   AND COALESCE(NULLIF(tr.bestand_pad, ''), NULLIF(tr.preview_url, '')) IS NOT NULL
@@ -319,6 +320,7 @@ router.post('/api/presets', async (req, res) => {
                 b.alleen_gecontroleerd === true,
                 b.kindvriendelijk === true,
                 JSON.stringify({
+                    tiers: Array.isArray(b.tiers) ? b.tiers.filter((x) => ['iconisch', 'algemeen_bekend', 'bekend', 'onbekend', 'cult'].includes(x)) : undefined,
                     hints_aan: b.hints_aan !== false,
                     bonusvragen_aan: b.bonusvragen_aan !== false,
                     info_aan: b.info_aan !== false,

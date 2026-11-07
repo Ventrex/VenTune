@@ -80,11 +80,14 @@ async function markeerMislukt(t, reden, { tellen = true } = {}) {
 async function slaOp(t, video, { reden, handmatig = false }) {
     const bronUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
     const { rows } = await pool.query(
+        // Een AI-keuze wacht op een swipe van de beheerder; een eigen link
+        // van de beheerder is meteen goedgekeurd.
         `INSERT INTO tracks (titel_id, bron, preview_url, bron_url, start_seconde, tracknaam, artiest,
                 songnaam, youtube_titel, werkt, gecontroleerd, bevestigd, review_status, review_handmatig,
-                verificatie_score, verificatie_reden, download_status, laatst_gecontroleerd_op)
-         VALUES ($1, 'youtube', $2, $3, 0, $4, $5, $6, $7, true, true, true, 'goedgekeurd', $8,
-                 $9, $10, 'pending', now())
+                verificatie_score, verificatie_reden, download_status, laatst_gecontroleerd_op, wacht_op_swipe)
+         VALUES ($1, 'youtube', $2, $3, 0, $4, $5, $6, $7, true, true, true,
+                 CASE WHEN $8 THEN 'goedgekeurd' ELSE 'open' END, $8,
+                 $9, $10, 'pending', now(), NOT $8)
          RETURNING id`,
         [t.id, video.videoId, bronUrl, t.nummer_naam || t.naam, t.nummer_artiest || 'Onbekend',
             t.nummer_naam || null, video.titel || null, handmatig, handmatig ? 1 : 0.95,
@@ -118,11 +121,20 @@ async function slaOp(t, video, { reden, handmatig = false }) {
     return trackId;
 }
 
-// Tijdelijke storingen (blokkade, geen netwerk) tellen niet als mislukte
-// zoekpoging voor de titel; de worker probeert het later gewoon opnieuw.
+// Tijdelijke storingen (blokkade, geen netwerk) en serverproblemen (yt-dlp
+// kan YouTube niet uitlezen, ffmpeg ontbreekt) tellen niet als mislukte
+// poging en keuren de video níet af: het ligt dan niet aan de video. De
+// worker pauzeert en probeert het later opnieuw.
 function isBlokkade(err) {
-    return /sign in|bot|cookies|\b403\b|\b429\b|too many requests|rate limit|niet bereikbaar|fetch failed|ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i
+    return /sign in|bot|cookies|\b403\b|\b429\b|too many requests|rate limit|niet bereikbaar|fetch failed|ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|javascript runtime|js runtime|requested format is not available|only images are available|signature|nsig|po token|ffmpeg|ffprobe|ENOENT|not found|Errno|unable to extract|HTTP Error 5\d\d/i
         .test(String(err?.stderr || err?.message || ''));
+}
+
+// Een downloadfout die echt bij de video hoort (verwijderd, privé,
+// leeftijdsgrens, regioblokkade).
+function isVideoFout(err) {
+    return /video unavailable|private video|has been removed|confirm your age|age-restricted|not available in your country|copyright|members-only|premiere/i
+        .test(String(err?.message || ''));
 }
 
 /**
@@ -175,9 +187,11 @@ async function verwerkBatch(titels, signal) {
             gevonden++;
             await bank.log(t.id, 'mp3', `MP3 opgeslagen: ${k.kandidaat.titel}`, { videoId: k.kandidaat.videoId, reden: k.reden });
         } catch (err) {
-            if (isBlokkade(err)) {
+            if (isBlokkade(err) && !isVideoFout(err)) {
+                const reden = String(err.message).replace(/^YouTube lokaal opslaan mislukt:\s*/, '').slice(0, 250);
                 await pool.query("UPDATE titels SET zoek_melding = $2 WHERE id = $1",
-                    [t.id, 'YouTube blokkeert downloads tijdelijk; wordt later automatisch opnieuw geprobeerd.']);
+                    [t.id, `Download lukt tijdelijk niet (${reden}); wordt later automatisch opnieuw geprobeerd.`]);
+                await bank.log(t.id, 'fout', `Download tijdelijk mislukt, video niet afgekeurd: ${reden}`);
                 pauzeer();
                 for (const l of lijst) lopend.delete(l.titel.id);
                 return { gevonden, ai: true, blokkade: true };
@@ -187,7 +201,7 @@ async function verwerkBatch(titels, signal) {
                 "UPDATE titels SET mp3_afgekeurd = array_append(mp3_afgekeurd, $2) WHERE id = $1 AND NOT ($2 = ANY(mp3_afgekeurd))",
                 [t.id, k.kandidaat.videoId],
             );
-            await markeerMislukt(t, `Download mislukt: ${String(err.message).slice(0, 200)}`, { tellen: false });
+            await markeerMislukt(t, `Download mislukt: ${String(err.message).replace(/^YouTube lokaal opslaan mislukt:\s*/, '').slice(0, 300)}`, { tellen: false });
         } finally {
             lopend.delete(t.id);
         }

@@ -48,3 +48,10 @@ assert.strictEqual(typeVoorCategorie('anime', 'film'), 'film');
 assert.strictEqual(typeVoorCategorie('game', 'film'), 'muziek');
 
 console.log('bank: versie-onafhankelijk raden, AI-opschoning en MP3-links geslaagd');
+
+// Punten: iconisch ×1 tot cult ×5
+const { bekendheidFactor } = require('../game/scoring');
+assert.strictEqual(bekendheidFactor('iconisch'), 1);
+assert.strictEqual(bekendheidFactor('cult'), 5);
+assert.strictEqual(bekendheidFactor(null), 3);
+console.log('bank: bekendheidsfactor geslaagd');

@@ -129,6 +129,20 @@ function mediaPad(track, extensie) {
     return mediaWebpad(MEDIA_DIR, track, track.media_map || '', extensie);
 }
 
+/**
+ * Leesbare foutmelding uit een mislukte yt-dlp/ffmpeg-aanroep. err.message
+ * begint met de hele opdrachtregel, waardoor de echte oorzaak (de ERROR-regel
+ * in stderr) in logs en het beheer werd afgekapt.
+ */
+function procesFout(err) {
+    const regels = String(err?.stderr || '').split('\n').map((r) => r.trim()).filter(Boolean);
+    const fouten = regels.filter((r) => /^ERROR\b|error/i.test(r));
+    const kern = (fouten.length ? fouten.slice(-2) : regels.slice(-2)).join(' | ');
+    if (kern) return kern.slice(0, 400);
+    return String(err?.message || err || 'Onbekende fout').replace(/^Command failed: [^\n]*\n?/, '').slice(0, 400)
+        || 'yt-dlp stopte zonder melding.';
+}
+
 async function markeerMislukt(id, melding) {
     await pool.query(
         `UPDATE tracks SET download_status = 'failed', download_melding = $2
@@ -172,7 +186,7 @@ async function haalYouTubeStatistieken(track, { rateLimit = true } = {}) {
     try {
         const { stdout } = await execFileAsync(
             'yt-dlp',
-            ['--no-playlist', '--skip-download', '--dump-single-json', '--no-warnings', url],
+            ['--js-runtimes', 'node', '--no-playlist', '--skip-download', '--dump-single-json', '--no-warnings', url],
             { timeout: 60000, maxBuffer: 2 * 1024 * 1024 },
         );
         const gegevens = JSON.parse(String(stdout).trim());
@@ -198,7 +212,7 @@ async function controleerYoutubeUrl(track) {
     try {
         await execFileAsync(
             'yt-dlp',
-            ['--no-playlist', '--simulate', '--skip-download', '--print', 'id', url],
+            ['--js-runtimes', 'node', '--no-playlist', '--simulate', '--skip-download', '--print', 'id', url],
             { timeout: 45000, maxBuffer: 512 * 1024 },
         );
     } catch (err) {
@@ -407,6 +421,11 @@ async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } =
                 await execFileAsync(
                     'yt-dlp',
                     [
+                        // YouTube vereist een JavaScript-runtime om de
+                        // audiostreams vrij te geven; yt-dlp gebruikt node
+                        // alleen als je dat expliciet aanzet (net als de
+                        // swipe-downloads in aanbeveling-media.js).
+                        '--js-runtimes', 'node',
                         '--no-playlist',
                         '--download-sections', `*${start}-${eind}`,
                         '--force-keyframes-at-cuts',
@@ -457,8 +476,9 @@ async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } =
         );
         console.log(`OK   ${track.id}: ${naam} → ${bestand} (${naBegrenzen.size} bytes, ${duur.toFixed(1)} s)`);
     } catch (err) {
-        await markeerMislukt(track.id, err.message);
-        throw new Error(`YouTube lokaal opslaan mislukt: ${err.message}`);
+        const reden = procesFout(err);
+        await markeerMislukt(track.id, reden);
+        throw new Error(`YouTube lokaal opslaan mislukt: ${reden}`);
     }
 }
 
@@ -525,6 +545,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+    procesFout,
     downloadTrack,
     downloadYoutubeTrack,
     haalYouTubeStatistieken,

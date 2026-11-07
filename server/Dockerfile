@@ -17,8 +17,12 @@ RUN npm install --omit=dev
 # Lokale, door de admin aangevraagde YouTube-downloads. yt-dlp haalt alleen
 # expliciet aangewezen video's op; ffmpeg maakt browser-vriendelijke audio.
 # Eigen uploads, waaronder m4a, blijven ook ondersteund via /media.
-RUN apk add --no-cache python3 py3-pip ffmpeg \
-    && python3 -m pip install --no-cache-dir --break-system-packages 'yt-dlp[default]' bgutil-ytdlp-pot-provider
+# YouTube verandert vaak; een oude yt-dlp uit de Docker-cache breekt dan alle
+# downloads. Verhoog YTDLP_VERSIE (of geef --build-arg mee) om deze laag
+# opnieuw te bouwen met de nieuwste yt-dlp.
+ARG YTDLP_VERSIE=2026-11-07
+RUN echo "yt-dlp build ${YTDLP_VERSIE}" && apk add --no-cache python3 py3-pip ffmpeg \
+    && python3 -m pip install --no-cache-dir --break-system-packages -U 'yt-dlp[default]' bgutil-ytdlp-pot-provider
 
 # ChatGPT-aanbevelingen via de officiële Codex CLI (ChatGPT-login van de
 # beheerder, geen API-key). De login komt in CODEX_HOME (een volume), zodat

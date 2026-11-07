@@ -19,6 +19,16 @@ import './setup-categorie.css';
 
 const NU = new Date().getFullYear();
 
+// Bekendheid in de spelkeuze. "De rest" bundelt onbekend en cult.
+const ALLE_TIERS = ['iconisch', 'algemeen_bekend', 'bekend', 'onbekend', 'cult'];
+const STANDAARD_TIERS = ['iconisch', 'algemeen_bekend', 'bekend'];
+const TIER_KEUZES = [
+    { id: 'iconisch', label: 'Iconisch', tiers: ['iconisch'], factor: '×1' },
+    { id: 'algemeen_bekend', label: 'Algemeen bekend', tiers: ['algemeen_bekend'], factor: '×2' },
+    { id: 'bekend', label: 'Bekend', tiers: ['bekend'], factor: '×3' },
+    { id: 'rest', label: 'Onbekend & cult', tiers: ['onbekend', 'cult'], factor: '×4–5' },
+];
+
 const CATEGORIEEN = [
     { waarde: 'beide', label: 'Films & Series', logo: '/logos/films-series.svg', uitleg: 'Hitster voor intro’s, themes en soundtracks' },
     { waarde: 'films', label: 'Films', logo: '/logos/films.svg', uitleg: 'Alleen films' },
@@ -126,6 +136,8 @@ export default function Setup() {
         bonusvragen_aan: true,
         vraag_profiel: 'speler',
         min_bekendheid: 0,
+        // Standaard iconisch t/m bekend; onbekend en cult moet je bewust aanzetten.
+        tiers: STANDAARD_TIERS,
         zonder_genres: [],
         leeftijd_max: 0,
         kindvriendelijk: false,
@@ -334,6 +346,7 @@ export default function Setup() {
             periode_start: p.periode_start,
             periode_eind: p.periode_eind,
             rondes: p.rondes,
+            tiers: Array.isArray(p.extra_instellingen?.tiers) && p.extra_instellingen.tiers.length ? p.extra_instellingen.tiers : STANDAARD_TIERS,
             spelvorm: p.extra_instellingen?.spelvorm || 'tegen_elkaar',
             berg_fouten_max: p.extra_instellingen?.berg_fouten_max || 3,
             team_modus: p.extra_instellingen?.team_modus || 'snelste',
@@ -507,7 +520,7 @@ export default function Setup() {
                             {id:'films',naam:'Films & Series',icon:'/category/icon-film.svg',kleur:'#ff328e',beeld:categorieBeelden.films || '/category/approved-films.svg?v=hd840-20261101'},
                             {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:categorieBeelden.muziek || '/category/approved-music.svg?v=hd840-20261101'},
                             {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:categorieBeelden.games || '/category/approved-games.svg?v=hd840-20261101'},
-                            {id:'anime',naam:'Anime',icon:'/category/icon-film.svg',kleur:'#ff8a3d',beeld:categorieBeelden.anime || '/category/approved-films.svg?v=hd840-20261101'},
+                            {id:'anime',naam:'Anime',icon:'/category/icon-film.svg',kleur:'#ff8a3d',beeld:categorieBeelden.anime || '/category/approved-anime.svg?v=1'},
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
                                 setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],kindvriendelijk:false}));
@@ -559,17 +572,21 @@ export default function Setup() {
                             </div>
                         </div>}
                         
-                        <div className="vt-subkeuzes">
-                            <p>⭐ &nbsp; Hoe bekend?</p>
-                            <div className="vt-keuzerij">
-                                {[['iconisch','Iconisch'],['algemeen_bekend','Algemeen bekend'],['bekend','Bekend'],['onbekend','Onbekend'],['cult','Cult']].map(([id,label])=>{
-                                    const tiers=filters.tiers||[];
-                                    const aan=!tiers.length||tiers.includes(id);
-                                    return <button type="button" key={id} className={'chip'+(aan?' gekozen':'')}
-                                        onClick={()=>setFilters(f=>{const huidig=(f.tiers&&f.tiers.length)?f.tiers:['iconisch','algemeen_bekend','bekend','onbekend','cult'];
-                                            const volgende=huidig.includes(id)?huidig.filter(x=>x!==id):[...huidig,id];
-                                            return {...f,tiers:volgende.length===5||!volgende.length?[]:volgende};})}>
-                                        <span className="vt-option-label">{label}</span></button>;})}
+                        <div className="vt-subkeuzes vt-tiers">
+                            <p>⭐ &nbsp; Hoe bekend? <small className="dim">(onbekender = meer punten)</small></p>
+                            <div className="vt-tier-rij">
+                                {TIER_KEUZES.map(({ id, label, tiers, factor }) => {
+                                    const huidig = filters.tiers && filters.tiers.length ? filters.tiers : ALLE_TIERS;
+                                    const aan = tiers.every((t) => huidig.includes(t));
+                                    return <button type="button" key={id} className={'chip vt-tier-chip' + (aan ? ' gekozen' : '')}
+                                        onClick={() => setFilters((f) => {
+                                            const nu = f.tiers && f.tiers.length ? f.tiers : ALLE_TIERS;
+                                            const volgende = aan ? nu.filter((x) => !tiers.includes(x)) : [...new Set([...nu, ...tiers])];
+                                            // Nooit alles uit: dan blijft de vorige keuze staan.
+                                            return volgende.length ? { ...f, tiers: volgende } : f;
+                                        })}>
+                                        {label} <small>{factor}</small></button>;
+                                })}
                             </div>
                         </div>
                         <button className="vt-preset-link vt-preset-inline" type="button" onClick={()=>setStap(0)}>Of kies een kant-en-klare quiz</button>

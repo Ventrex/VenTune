@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Brand from '../components/Brand.jsx';
-import { ChatGptKoppeling } from './AdminAI.jsx';
 import './admin-bank.css';
 
 // =====================================================================
@@ -24,9 +23,22 @@ async function api(pad, opties = {}) {
     return d;
 }
 
-const TABS = [
-    ['overzicht', 'Overzicht'], ['nummers', 'Nummers'], ['mp3', 'MP3'], ['hints', 'Hints'],
-    ['vragen', 'Vragen'], ['jaartal', 'Jaartal'], ['nl', 'NL-check'], ['antwoorden', 'Antwoorden'], ['log', 'AI-log'],
+// Hoofdtabs met daaronder subtabs. Controles = alles bekijken en bewerken,
+// Fixes = alleen wat aandacht nodig heeft.
+const GROEPEN = [['overzicht', 'Overzicht'], ['swipen', 'Swipen'], ['controles', 'Controles'], ['fixes', 'Fixes'], ['log', 'AI-log']];
+const CONTROLES = [
+    ['nummers', 'Nummers'], ['mp3', 'MP3'], ['hints', 'Hints'], ['vragen', 'Vragen'],
+    ['jaartal', 'Jaartal'], ['nl', 'NL-check'], ['antwoorden', 'Antwoorden'],
+];
+// [id, label, lijst, filter, teller uit voorraad]
+const FIXES = [
+    ['mp3-mist', 'MP3 ontbreekt', 'mp3', 'mist', 'zonder_mp3'],
+    ['mp3-opgegeven', 'MP3 opgegeven', 'mp3', 'opgegeven', 'mp3_opgegeven'],
+    ['hints-leeg', 'Hints onvolledig', 'hints', 'leeg', 'zonder_hints'],
+    ['vragen-leeg', 'Vragen onvolledig', 'vragen', 'leeg', 'zonder_vragen'],
+    ['nl-twijfel', 'NL: twijfel', 'nl', 'twijfel', 'nl_twijfel'],
+    ['nog-bij-ai', 'Nog bij AI', 'nummers', 'te_beoordelen', 'te_beoordelen'],
+    ['uitgesloten', 'Uitgesloten', 'nummers', 'uitgesloten', 'uitgesloten'],
 ];
 const CATS = [['film', 'Films'], ['serie', 'Series'], ['anime', 'Anime'], ['game', 'Videogames'], ['muziek', 'Muziek'], ['kerst', 'Kerst'], ['kinder', 'Kinder']];
 const CAT_LABEL = Object.fromEntries(CATS);
@@ -77,7 +89,8 @@ function Login({ onOk }) {
 
 function Bank() {
     const [params, setParams] = useSearchParams();
-    const tab = TABS.some(([t]) => t === params.get('tab')) ? params.get('tab') : 'overzicht';
+    const tab = GROEPEN.some(([t]) => t === params.get('tab')) ? params.get('tab') : 'overzicht';
+    const sub = params.get('sub') || '';
     const [status, setStatus] = useState(null);
     const [fout, setFout] = useState('');
 
@@ -91,38 +104,309 @@ function Bank() {
     }, [laadStatus]);
 
     const ga = (nieuweTab, extra = {}) => setParams({ tab: nieuweTab, ...extra });
-    // Op een telefoon de actieve tab in beeld schuiven.
+    // Op een telefoon de actieve tabs in beeld schuiven.
     useEffect(() => {
-        document.querySelector('.ab-tab.actief')?.scrollIntoView({ inline: 'center', block: 'nearest' });
-    }, [tab]);
+        document.querySelectorAll('.ab-tab.actief, .ab-subtab.actief')
+            .forEach((el) => el.scrollIntoView({ inline: 'center', block: 'nearest' }));
+    }, [tab, sub]);
+
+    const controle = CONTROLES.some(([id]) => id === sub) ? sub : CONTROLES[0][0];
+    const fix = FIXES.find(([id]) => id === sub) || FIXES[0];
+    const v = status?.voorraad || {};
 
     return (
         <main className="ab">
             <header className="ab-kop">
                 <Brand link compact />
                 <h1>Vragenbank</h1>
-                <Link className="ab-link" to="/admin">Overig beheer →</Link>
+                <Link className="ab-link" to="/admin">Systeem →</Link>
             </header>
             {fout && <p className="waarschuwing">{fout}</p>}
             <WorkerBalk status={status} onWijzig={laadStatus} />
-            <nav className="ab-tabs" aria-label="Controles">
-                {TABS.map(([id, naam]) => (
+            <nav className="ab-tabs" aria-label="Onderdelen">
+                {GROEPEN.map(([id, naam]) => (
                     <button key={id} type="button" className={'ab-tab' + (tab === id ? ' actief' : '')}
                         onClick={() => ga(id)}>{naam}{tabTeller(id, status)}</button>
                 ))}
             </nav>
+            {tab === 'swipen' && (
+                <SubTabs actief={sub} onKies={(id) => ga('swipen', id ? { sub: id } : {})}
+                    items={[['', 'Alles'], ...CATS]} teller={(id) => (id ? status?.swipe?.[id] : v.te_swipen)} />
+            )}
+            {tab === 'controles' && (
+                <SubTabs actief={controle} onKies={(id) => ga('controles', { sub: id })} items={CONTROLES} />
+            )}
+            {tab === 'fixes' && (
+                <SubTabs actief={fix[0]} onKies={(id) => ga('fixes', { sub: id })}
+                    items={FIXES.map(([id, naam]) => [id, naam])}
+                    teller={(id) => v[FIXES.find((f) => f[0] === id)?.[4]]} />
+            )}
+
             {tab === 'overzicht' && <Overzicht status={status} onWijzig={laadStatus} ga={ga} />}
+            {tab === 'swipen' && <Swipen key={sub} categorie={sub} onWijzig={laadStatus} />}
+            {tab === 'controles' && <Lijst key={`c-${controle}`} tab={controle} standaardFilter="alle" />}
+            {tab === 'fixes' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
             {tab === 'log' && <Log />}
-            {tab !== 'overzicht' && tab !== 'log' && <Lijst key={tab} tab={tab} />}
         </main>
+    );
+}
+
+function SubTabs({ items, actief, onKies, teller }) {
+    return (
+        <nav className="ab-subtabs" aria-label="Subonderdelen">
+            {items.map(([id, naam]) => {
+                const n = teller ? teller(id) : null;
+                return (
+                    <button key={id || 'alles'} type="button" className={'ab-subtab' + (actief === id ? ' actief' : '')}
+                        onClick={() => onKies(id)}>
+                        {naam}{n ? <span className="ab-teller">{n > 999 ? '999+' : n}</span> : null}
+                    </button>
+                );
+            })}
+        </nav>
     );
 }
 
 function tabTeller(id, status) {
     const v = status?.voorraad;
     if (!v) return null;
-    const n = { mp3: v.zonder_mp3, hints: v.zonder_hints, vragen: v.zonder_vragen, nl: v.nl_twijfel }[id];
+    const n = { swipen: v.te_swipen, fixes: (v.mp3_opgegeven || 0) + (v.nl_twijfel || 0) }[id];
     return n ? <span className="ab-teller">{n > 999 ? '999+' : n}</span> : null;
+}
+
+// ------------------------------------------------------------------
+// Swipen: de MP3's die de AI vond goed- of afkeuren
+// ------------------------------------------------------------------
+
+const DREMPEL = 110; // zo ver slepen = beslissen
+
+function Swipen({ categorie, onWijzig }) {
+    const [rij, setRij] = useState([]);
+    const [klaar, setKlaar] = useState(false);
+    const [melding, setMelding] = useState('');
+    const behandeld = useRef(new Set());
+    const laden = useRef(false);
+
+    const laad = useCallback(async () => {
+        if (laden.current) return;
+        laden.current = true;
+        try {
+            const q = new URLSearchParams({ categorie, overslaan: [...behandeld.current].slice(-300).join(',') });
+            const d = await api(`/api/admin/bank/swipe?${q}`);
+            setRij((oud) => {
+                const al = new Set(oud.map((i) => i.track_id));
+                const nieuw = d.items.filter((i) => !behandeld.current.has(i.track_id) && !al.has(i.track_id));
+                return [...oud, ...nieuw];
+            });
+            setKlaar(d.items.length === 0);
+        } catch (e) { setMelding(e.message); }
+        finally { laden.current = false; }
+    }, [categorie]);
+    useEffect(() => { laad(); }, [laad]);
+    useEffect(() => { if (rij.length < 4 && !klaar) laad(); }, [rij.length, klaar, laad]);
+
+    const huidig = rij[0];
+    const volgende = rij[1];
+
+    // Direct door naar het volgende nummer; de server krijgt het op de achtergrond.
+    const beslis = useCallback((keuze) => {
+        if (!huidig) return;
+        behandeld.current.add(huidig.track_id);
+        setRij((r) => r.filter((i) => i.track_id !== huidig.track_id));
+        if (keuze === 'later') return;
+        const item = huidig;
+        api(`/api/admin/bank/swipe/${item.track_id}`, { method: 'POST', body: { keuze } })
+            .then(() => onWijzig())
+            .catch((e) => {
+                // Niet opgeslagen: het nummer komt vooraan terug, zodat je opnieuw kunt kiezen.
+                behandeld.current.delete(item.track_id);
+                setRij((r) => (r.some((i) => i.track_id === item.track_id) ? r : [item, ...r]));
+                setMelding(`${item.naam} niet opgeslagen (${e.message}); kies opnieuw.`);
+            });
+    }, [huidig, onWijzig]);
+
+    useEffect(() => {
+        const toets = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+            if (e.key === 'ArrowRight') beslis('goed');
+            else if (e.key === 'ArrowLeft') beslis('fout');
+            else if (e.key === 'ArrowDown') beslis('later');
+        };
+        window.addEventListener('keydown', toets);
+        return () => window.removeEventListener('keydown', toets);
+    }, [beslis]);
+
+    // Volgende MP3 alvast laden, zodat die meteen speelt.
+    useEffect(() => {
+        if (!volgende?.mp3_url) return;
+        const a = new Audio();
+        a.preload = 'auto';
+        a.src = volgende.mp3_url;
+    }, [volgende?.mp3_url]);
+
+    if (!huidig) {
+        return (
+            <div className="ab-kaart ab-swipe-leeg">
+                {melding && <p className="ab-rood">{melding}</p>}
+                <p><strong>{klaar ? 'Niets meer te swipen 🎉' : 'Laden…'}</strong></p>
+                {klaar && <p className="dim">De AI zoekt op de achtergrond verder; nieuwe nummers verschijnen hier vanzelf. Iconisch komt altijd eerst.</p>}
+                {klaar && <button type="button" className="ab-knop" onClick={() => { setKlaar(false); laad(); }}>Opnieuw kijken</button>}
+            </div>
+        );
+    }
+    return (
+        <div className="ab-swipe">
+            {melding && <p className="ab-rood ab-mini">{melding}</p>}
+            <SwipeKaart key={huidig.track_id} item={huidig} onBeslis={beslis} />
+            <p className="dim ab-mini ab-swipe-uitleg">Sleep naar rechts = goed, naar links = fout. Toetsen: → goed, ← fout, ↓ later.</p>
+        </div>
+    );
+}
+
+function SwipeKaart({ item, onBeslis }) {
+    const [dx, setDx] = useState(0);
+    const [weg, setWeg] = useState(0);
+    const start = useRef(null);
+
+    function down(e) {
+        if (e.target.closest('.ab-speler, button, a, input')) return;
+        start.current = { x: e.clientX, id: e.pointerId };
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+    function move(e) {
+        if (!start.current || start.current.id !== e.pointerId) return;
+        setDx(e.clientX - start.current.x);
+    }
+    function up() {
+        if (!start.current) return;
+        start.current = null;
+        if (Math.abs(dx) >= DREMPEL) beslisMet(dx > 0 ? 'goed' : 'fout');
+        else setDx(0);
+    }
+    function beslisMet(keuze) {
+        setWeg(keuze === 'goed' ? 1 : keuze === 'fout' ? -1 : 0);
+        setTimeout(() => onBeslis(keuze), 160);
+    }
+
+    const ver = Math.min(1, Math.abs(dx) / DREMPEL);
+    const richting = dx > 0 ? 'goed' : 'fout';
+    const transform = weg
+        ? `translateX(${weg * 120}%) rotate(${weg * 18}deg)`
+        : `translateX(${dx}px) rotate(${dx / 18}deg)`;
+    return (
+        <div className="ab-swipe-wrap">
+            {/* Balk die volloopt naarmate je verder sleept */}
+            <div className="ab-swipe-meter" aria-hidden="true">
+                <span className="fout" style={{ width: dx < 0 ? `${ver * 50}%` : 0 }} />
+                <span className="goed" style={{ width: dx > 0 ? `${ver * 50}%` : 0 }} />
+                <em className={ver >= 1 ? 'vol' : ''}>
+                    {Math.abs(dx) > 10
+                        ? (ver >= 1 ? `Loslaten = ${richting.toUpperCase()}` : `Verder slepen voor ${richting}…`)
+                        : '← fout · sleep de kaart · goed →'}
+                </em>
+            </div>
+            <article className={'ab-swipe-kaart' + (start.current ? ' slepen' : '')}
+                style={{ transform, transition: start.current ? 'none' : 'transform 0.18s ease' }}
+                onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+                <span className="ab-stempel goed" style={{ opacity: dx > 0 ? ver : 0 }}>GOED ✓</span>
+                <span className="ab-stempel fout" style={{ opacity: dx < 0 ? ver : 0 }}>FOUT ✕</span>
+                <div className="ab-badges">
+                    <span className={`ab-badge cat-${item.categorie}`}>{CAT_LABEL[item.categorie] || item.categorie}</span>
+                    {item.bekendheid_tier && <span className={`ab-badge tier-${item.bekendheid_tier}`}>{TIER_LABEL[item.bekendheid_tier]}</span>}
+                    {item.jaar && <span className="ab-badge">{item.jaar}</span>}
+                </div>
+                <h2 className="ab-swipe-titel">{item.naam}</h2>
+                <p className="ab-swipe-nummer">♪ {[item.nummer_naam, item.nummer_artiest].filter(Boolean).join(' – ') || 'Herkenningsnummer'}</p>
+                <Speler src={item.mp3_url} />
+                <p className="dim ab-mini">YouTube: {item.youtube_titel || '—'}</p>
+                {item.verificatie_reden && <p className="dim ab-mini">{item.verificatie_reden}</p>}
+            </article>
+            <div className="ab-swipe-knoppen">
+                <button type="button" className="ab-groot fout" onClick={() => beslisMet('fout')}>✕<span>Fout</span></button>
+                <button type="button" className="ab-groot later" onClick={() => onBeslis('later')}>↓<span>Later</span></button>
+                <button type="button" className="ab-groot goed" onClick={() => beslisMet('goed')}>✓<span>Goed</span></button>
+            </div>
+            <button type="button" className="ab-linkknop ab-mini dim" onClick={() => {
+                if (window.confirm(`${item.naam} helemaal uit het spel halen?`)) onBeslis('uitsluiten');
+            }}>Titel hoort niet in het spel</button>
+        </div>
+    );
+}
+
+/** Speler met grote knoppen en een brede schuifbalk (ook op mobiel). */
+function Speler({ src }) {
+    const audio = useRef(null);
+    const [speelt, setSpeelt] = useState(false);
+    const [tijd, setTijd] = useState(0);
+    const [duur, setDuur] = useState(0);
+    useEffect(() => {
+        const a = audio.current;
+        if (!a) return;
+        setTijd(0); setDuur(0);
+        a.load();
+        a.play().catch(() => setSpeelt(false));
+    }, [src]);
+    const fmt = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '0:00');
+    const spring = (d) => { const a = audio.current; if (a) a.currentTime = Math.max(0, Math.min((a.duration || 0) - 0.5, a.currentTime + d)); };
+    return (
+        <div className="ab-speler">
+            <audio ref={audio} src={src} preload="auto"
+                onPlay={() => setSpeelt(true)} onPause={() => setSpeelt(false)} onEnded={() => setSpeelt(false)}
+                onTimeUpdate={(e) => setTijd(e.currentTarget.currentTime)}
+                onLoadedMetadata={(e) => setDuur(e.currentTarget.duration)} />
+            <div className="ab-speler-knoppen">
+                <button type="button" className="ab-knop" onClick={() => spring(-10)}>−10s</button>
+                <button type="button" className="ab-speel" onClick={() => (speelt ? audio.current.pause() : audio.current.play())}>
+                    {speelt ? '❚❚' : '▶'}
+                </button>
+                <button type="button" className="ab-knop" onClick={() => spring(10)}>+10s</button>
+            </div>
+            <input className="ab-schuif" type="range" min="0" max={duur || 0} step="0.1" value={Math.min(tijd, duur || 0)}
+                onChange={(e) => { audio.current.currentTime = Number(e.target.value); setTijd(Number(e.target.value)); }} />
+            <div className="ab-speler-tijd dim ab-mini"><span>{fmt(tijd)}</span><span>{fmt(duur)}</span></div>
+        </div>
+    );
+}
+
+// ------------------------------------------------------------------
+// ChatGPT koppelen (eenmalig, via de Codex-login van de server)
+// ------------------------------------------------------------------
+
+function ChatGptKoppeling({ onWijzig }) {
+    const [login, setLogin] = useState(null);
+    const poll = useRef(null);
+    useEffect(() => () => clearInterval(poll.current), []);
+    async function koppel() {
+        try {
+            setLogin(await api('/api/admin/aanbevelingen/login/start', { method: 'POST' }));
+            clearInterval(poll.current);
+            poll.current = setInterval(async () => {
+                try {
+                    const st = await api('/api/admin/aanbevelingen/login/status');
+                    setLogin(st);
+                    if (st.status === 'done' || st.status === 'error') { clearInterval(poll.current); onWijzig?.(); }
+                } catch { /* opnieuw bij de volgende poll */ }
+            }, 2000);
+        } catch (e) { setLogin({ status: 'error', error: e.message }); }
+    }
+    if (login && login.status !== 'error' && login.status !== 'done') {
+        return login.url && login.code ? (
+            <div className="ab-stapel">
+                <p>1. Open de inlogpagina en log in bij ChatGPT:</p>
+                <a className="ab-knop" href={login.url} target="_blank" rel="noreferrer">Open inlogpagina ↗</a>
+                <p>2. Voer deze code in:</p>
+                <p className="ab-code">{login.code}</p>
+                <p className="dim ab-mini">Dit scherm springt vanzelf op gekoppeld.</p>
+            </div>
+        ) : <p className="dim">Bezig met starten…</p>;
+    }
+    return (
+        <div className="ab-stapel">
+            {login?.status === 'error' && <p className="ab-rood">{login.error || 'Inloggen mislukt.'}</p>}
+            {login?.status === 'done' ? <p>Gekoppeld ✓</p>
+                : <button type="button" className="ab-knop" onClick={koppel}>Koppel ChatGPT</button>}
+        </div>
+    );
 }
 
 // ------------------------------------------------------------------
@@ -178,14 +462,14 @@ function Overzicht({ status, onWijzig, ga }) {
         onWijzig();
     }
     const tegels = [
-        ['Nog door AI te beoordelen', voorraad.te_beoordelen, 'nummers', { filter: 'te_beoordelen' }],
-        ['Zonder MP3', voorraad.zonder_mp3, 'mp3', { filter: 'mist' }],
-        ['MP3 opgegeven (jij kijken)', voorraad.mp3_opgegeven, 'mp3', { filter: 'opgegeven' }],
-        ['Zonder 3 hints', voorraad.zonder_hints, 'hints', { filter: 'leeg' }],
-        ['Zonder bonusvragen', voorraad.zonder_vragen, 'vragen', { filter: 'leeg' }],
-        ['NL: twijfel', voorraad.nl_twijfel, 'nl', { filter: 'twijfel' }],
-        ['Niet bekend in NL (uit)', voorraad.nl_nee, 'nl', { filter: 'nee' }],
-        ['Uitgesloten totaal', voorraad.uitgesloten, 'nummers', { filter: 'uitgesloten' }],
+        ['Te swipen', voorraad.te_swipen, 'swipen', {}],
+        ['Nog door AI te beoordelen', voorraad.te_beoordelen, 'fixes', { sub: 'nog-bij-ai' }],
+        ['Zonder MP3', voorraad.zonder_mp3, 'fixes', { sub: 'mp3-mist' }],
+        ['MP3 opgegeven (jij kijken)', voorraad.mp3_opgegeven, 'fixes', { sub: 'mp3-opgegeven' }],
+        ['Zonder 3 hints', voorraad.zonder_hints, 'fixes', { sub: 'hints-leeg' }],
+        ['Zonder bonusvragen', voorraad.zonder_vragen, 'fixes', { sub: 'vragen-leeg' }],
+        ['NL: twijfel', voorraad.nl_twijfel, 'fixes', { sub: 'nl-twijfel' }],
+        ['Uitgesloten', voorraad.uitgesloten, 'fixes', { sub: 'uitgesloten' }],
     ];
     return (
         <div className="ab-stapel">
@@ -193,7 +477,7 @@ function Overzicht({ status, onWijzig, ga }) {
                 <section className="ab-kaart">
                     <p className="ab-label">ChatGPT koppelen</p>
                     <p className="dim">Zonder koppeling kan de AI-curator niets doen. Eén keer koppelen is genoeg.</p>
-                    <ChatGptKoppeling />
+                    <ChatGptKoppeling onWijzig={onWijzig} />
                 </section>
             )}
             <section className="ab-kaart">
@@ -209,10 +493,10 @@ function Overzicht({ status, onWijzig, ga }) {
                             const doel = instellingen.doelen[cat] || 0;
                             return (
                                 <tr key={cat}>
-                                    <th><button type="button" className="ab-linkknop" onClick={() => ga('nummers', { categorie: cat })}>{naam}</button></th>
+                                    <th><button type="button" className="ab-linkknop" onClick={() => ga('controles', { sub: 'nummers', categorie: cat })}>{naam}</button></th>
                                     {TIERS.map(([id]) => (
                                         <td key={id}>
-                                            <button type="button" className="ab-linkknop" onClick={() => ga('nummers', { categorie: cat, tier: id })}>
+                                            <button type="button" className="ab-linkknop" onClick={() => ga('controles', { sub: 'nummers', categorie: cat, tier: id })}>
                                                 {t.tiers[id]?.totaal || 0}
                                             </button>
                                         </td>
@@ -230,7 +514,7 @@ function Overzicht({ status, onWijzig, ga }) {
                         })}</tbody>
                     </table>
                 </div>
-                <p className="dim ab-mini">Staat een categorie onder het doel, dan vult de AI hem aan met titels die in Nederland bekend zijn, verdeeld over de bekendheidsniveaus.</p>
+                <p className="dim ab-mini">Staat een categorie onder het doel, dan vult de AI hem aan met titels die in Nederland bekend zijn: eerst iconisch voor alle categorieën, daarna algemeen bekend, bekend, onbekend en cult. Speelbaar = MP3 die jij bij Swipen hebt goedgekeurd.</p>
             </section>
             <section className="ab-tegels">
                 {tegels.map(([naam, n, t, extra]) => (
@@ -313,11 +597,11 @@ function Slot({ item, veld, onVrij }) {
 // Lijst met filters, gedeeld door alle controletabs
 // ------------------------------------------------------------------
 
-function Lijst({ tab }) {
+function Lijst({ tab, standaardFilter = '', vasteFilter = false }) {
     const [params, setParams] = useSearchParams();
     const categorie = params.get('categorie') || '';
     const tier = params.get('tier') || '';
-    const filter = params.get('filter') || '';
+    const filter = params.get('filter') || standaardFilter;
     const pagina = Number(params.get('pagina')) || 1;
     const [zoek, setZoek] = useState(params.get('zoek') || '');
     const [data, setData] = useState(null);
@@ -385,12 +669,12 @@ function Lijst({ tab }) {
                     {TIERS.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
                     <option value="geen">Nog niet bepaald</option>
                 </select>
-                <div className="ab-chips">
+                {!vasteFilter && <div className="ab-chips">
                     {filters.map((f) => (
                         <button key={f} type="button" className={'ab-chip' + ((data?.filter || filter) === f ? ' actief' : '')}
                             onClick={() => zetParam('filter', f)}>{FILTER_LABEL[f] || f}</button>
                     ))}
-                </div>
+                </div>}
             </div>
             {tab === 'nummers' && <NieuwNummer onKlaar={laad} />}
             {fout && <p className="waarschuwing">{fout}</p>}
@@ -590,6 +874,7 @@ function Mp3Rij({ item, acties }) {
             <div className="ab-cel breed">
                 {heeft ? (
                     <>
+                        {item.wacht_op_swipe && <span className="ab-badge tier-iconisch">Wacht op jouw swipe</span>}
                         <audio className="ab-audio" controls preload="none" src={item.mp3_url} />
                         <span className="dim ab-mini">{item.youtube_titel || 'Lokale MP3'}{item.verificatie_reden ? ` · ${item.verificatie_reden}` : ''}</span>
                     </>

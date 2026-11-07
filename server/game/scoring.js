@@ -62,4 +62,13 @@ function leeftijdsFactor(leeftijd, instellingen = {}) {
     return 1;
 }
 
-module.exports = { titelPunten, bonusPunten, leeftijdsFactor };
+/**
+ * Hoe onbekender het nummer, hoe meer punten: iconisch ×1 … cult ×5.
+ * Nog niet beoordeelde titels tellen als 'bekend'.
+ */
+const BEKENDHEID_FACTOR = { iconisch: 1, algemeen_bekend: 2, bekend: 3, onbekend: 4, cult: 5 };
+function bekendheidFactor(tier) {
+    return BEKENDHEID_FACTOR[tier] || BEKENDHEID_FACTOR.bekend;
+}
+
+module.exports = { titelPunten, bonusPunten, leeftijdsFactor, bekendheidFactor, BEKENDHEID_FACTOR };

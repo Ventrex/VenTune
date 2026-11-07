@@ -18,8 +18,19 @@ Codex-login, geen API-key) draait 24/7 op de server en bepaalt én keurt alles:
 | Verbeteren | handelt spelermeldingen af, sluit dubbelen uit, controleert bestaande MP3's, loopt steekproeven na en beoordeelt alles elke 60 dagen opnieuw |
 
 Niet in Nederland bekend → automatisch uit het spel (terug te zetten via
-NL-check). Elke controle heeft een eigen tab: Nummers, MP3, Hints, Vragen,
-Jaartal, NL-check en Antwoorden; alles is direct in de lijst te bewerken.
+NL-check). Iconisch gaat overal voor: de AI vult eerst alle categorieën met
+iconische titels, daarna algemeen bekend, bekend, onbekend en cult.
+
+**Alleen de nummers keur je zelf goed**, in de tab **Swipen** (subtabs per
+categorie, iconisch eerst). Een MP3 die de AI vindt, komt pas in het spel als
+jij hem goedkeurt. Sleep naar rechts of tik ✓ = goed, links of ✕ = fout (de
+AI zoekt een andere versie), ↓ = later. Een eigen YouTube-link is meteen
+goedgekeurd.
+
+Tabs: Overzicht · Swipen · Controles (Nummers, MP3, Hints, Vragen, Jaartal,
+NL-check, Antwoorden — alles bekijken en direct bewerken) · Fixes (alleen wat
+aandacht nodig heeft) · AI-log. Systeem, gebruikers en meldingen staan onder
+"Systeem".
 Wat je zelf aanpast krijgt een 🔒: de AI blijft daarvan af. Tik op het slotje
 om het weer aan de AI over te laten. Het AI-log toont alles wat de curator
 deed.

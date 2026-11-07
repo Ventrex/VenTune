@@ -45,8 +45,16 @@ const HEEFT_MP3 = `EXISTS (SELECT 1 FROM tracks mp
       AND mp.download_status = 'available'
       AND COALESCE(NULLIF(mp.bestand_pad, ''), NULLIF(mp.preview_url, '')) IS NOT NULL)`;
 
+/** Speelbaar = lokaal én door de beheerder goedgekeurd (niet meer wachtend op een swipe). */
+const HEEFT_SPEELBAAR = `EXISTS (SELECT 1 FROM tracks sp
+    WHERE sp.titel_id = t.id AND sp.werkt = true AND sp.wacht_op_swipe = false AND sp.bron = 'lokaal'
+      AND sp.download_status = 'available'
+      AND COALESCE(NULLIF(sp.bestand_pad, ''), NULLIF(sp.preview_url, '')) IS NOT NULL)`;
+
+// Iconisch gaat overal voor: eerst iconisch, dan algemeen bekend … cult.
+// Nog niet beoordeelde titels komen na iconisch/algemeen bekend.
 const TIER_RANG = `CASE t.bekendheid_tier WHEN 'iconisch' THEN 0 WHEN 'algemeen_bekend' THEN 1
-    WHEN 'bekend' THEN 2 WHEN 'cult' THEN 3 WHEN 'onbekend' THEN 4 ELSE 5 END`;
+    WHEN 'bekend' THEN 2 WHEN 'onbekend' THEN 3 WHEN 'cult' THEN 4 ELSE 5 END`;
 
 /** Welk inhoudstype (enum titel_type) past bij een categorie. */
 function typeVoorCategorie(categorie, huidig) {
@@ -107,7 +115,7 @@ async function tellingen() {
         SELECT COALESCE(t.categorie, t.type::text) AS categorie,
                COALESCE(t.bekendheid_tier, 'nog_niet') AS tier,
                count(*)::int AS totaal,
-               count(*) FILTER (WHERE ${HEEFT_MP3})::int AS speelbaar
+               count(*) FILTER (WHERE ${HEEFT_SPEELBAAR})::int AS speelbaar
           FROM titels t
          WHERE t.curatie_status <> 'uitgesloten'
          GROUP BY 1, 2`);
@@ -135,6 +143,9 @@ async function werkvoorraad() {
           count(*) FILTER (WHERE t.curatie_status <> 'uitgesloten' AND NOT ${HEEFT_MP3})::int AS zonder_mp3,
           count(*) FILTER (WHERE t.curatie_status <> 'uitgesloten' AND NOT ${HEEFT_MP3}
                              AND t.zoek_status = 'opgegeven')::int AS mp3_opgegeven,
+          count(*) FILTER (WHERE t.curatie_status <> 'uitgesloten' AND EXISTS (SELECT 1 FROM tracks ws
+                             WHERE ws.titel_id = t.id AND ws.wacht_op_swipe AND ws.werkt
+                               AND ws.download_status = 'available'))::int AS te_swipen,
           count(*) FILTER (WHERE t.nl_bekend = 'nee')::int AS nl_nee,
           count(*) FILTER (WHERE t.nl_bekend = 'twijfel' AND t.curatie_status <> 'uitgesloten')::int AS nl_twijfel,
           count(*) FILTER (WHERE t.curatie_status = 'uitgesloten')::int AS uitgesloten,
@@ -158,6 +169,6 @@ async function oudeAutomatiseringToegestaan() {
 module.exports = {
     oudeAutomatiseringToegestaan,
     AI_VERSIE, CATEGORIEEN, CATEGORIE_LABEL, MUZIEK_CATEGORIEEN, TIERS, TIER_LABEL,
-    TIER_VERDELING, VASTZETBAAR, HEEFT_MP3, TIER_RANG,
+    TIER_VERDELING, VASTZETBAAR, HEEFT_MP3, HEEFT_SPEELBAAR, TIER_RANG,
     typeVoorCategorie, isVast, norm, log, instellingen, bewaarInstellingen, tellingen, werkvoorraad,
 };

@@ -33,15 +33,21 @@ const fout = (res, err, code = 500) => res.status(code).json({ fout: err.message
 
 router.get('/api/admin/bank/status', vereisAdmin, async (_req, res) => {
     try {
-        const [inst, telling, voorraad, login] = await Promise.all([
+        const [inst, telling, voorraad, login, swipe] = await Promise.all([
             bank.instellingen(), bank.tellingen(), bank.werkvoorraad(),
             codex.loginStatus().catch(() => ({ loggedIn: false, text: 'Onbekend' })),
+            pool.query(`SELECT COALESCE(t.categorie, t.type::text) AS categorie, count(DISTINCT t.id)::int AS n
+                          FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+                         WHERE tr.wacht_op_swipe AND tr.werkt AND tr.download_status = 'available'
+                           AND t.curatie_status <> 'uitgesloten'
+                         GROUP BY 1`),
         ]);
         res.json({
             worker: worker.huidigeStatus(),
             instellingen: inst,
             tellingen: telling,
             voorraad,
+            swipe: Object.fromEntries(swipe.rows.map((r) => [r.categorie, r.n])),
             chatgpt: { gekoppeld: !!login.loggedIn, tekst: login.text || '' },
             categorieen: bank.CATEGORIEEN.map((c) => ({ id: c, naam: bank.CATEGORIE_LABEL[c] })),
             tiers: bank.TIERS.map((t) => ({ id: t, naam: bank.TIER_LABEL[t] })),
@@ -164,10 +170,10 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
                    t.uitsluit_reden, t.zoek_status, t.zoek_melding, t.zoek_pogingen, t.volgende_poging,
                    t.ai_hints, t.ai_quiz_op,
                    mp.id AS track_id, mp.preview_url AS mp3_url, mp.youtube_titel, mp.bron_url,
-                   mp.verificatie_reden
+                   mp.verificatie_reden, mp.wacht_op_swipe
               FROM titels t
               LEFT JOIN LATERAL (
-                  SELECT tr.id, tr.preview_url, tr.youtube_titel, tr.bron_url, tr.verificatie_reden
+                  SELECT tr.id, tr.preview_url, tr.youtube_titel, tr.bron_url, tr.verificatie_reden, tr.wacht_op_swipe
                     FROM tracks tr
                    WHERE tr.titel_id = t.id AND tr.werkt = true AND tr.bron = 'lokaal'
                      AND tr.download_status = 'available'
@@ -428,6 +434,78 @@ router.delete('/api/admin/bank/vragen/:id', vereisAdmin, async (req, res) => {
     try {
         await metVraagSlot(req.params.id, (client) => client.query(
             "UPDATE vragen SET ai_review_status = 'afgekeurd' WHERE id = $1", [req.params.id]));
+        res.json({ ok: true });
+    } catch (err) { fout(res, err); }
+});
+
+// ------------------------------------------------------------------
+// Swipen: de MP3's die de AI vond, handmatig goed- of afkeuren.
+// Iconisch eerst, daarna algemeen bekend … cult.
+// ------------------------------------------------------------------
+
+router.get('/api/admin/bank/swipe', vereisAdmin, async (req, res) => {
+    try {
+        const params = [];
+        const condities = [
+            "tr.wacht_op_swipe = true", "tr.werkt = true", "tr.download_status = 'available'",
+            "t.curatie_status <> 'uitgesloten'",
+        ];
+        if (bank.CATEGORIEEN.includes(req.query.categorie)) {
+            params.push(req.query.categorie);
+            condities.push(`COALESCE(t.categorie, t.type::text) = $${params.length}`);
+        }
+        const overslaan = String(req.query.overslaan || '').split(',').map((x) => parseInt(x, 10)).filter(Number.isInteger);
+        if (overslaan.length) {
+            params.push(overslaan);
+            condities.push(`NOT (tr.id = ANY($${params.length}::int[]))`);
+        }
+        const { rows } = await pool.query(`
+            SELECT tr.id AS track_id, tr.preview_url AS mp3_url, tr.youtube_titel, tr.bron_url,
+                   tr.verificatie_reden, t.id, t.naam, COALESCE(t.categorie, t.type::text) AS categorie,
+                   t.bekendheid_tier, t.jaar, t.nummer_naam, t.nummer_artiest, t.franchise
+              FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+             WHERE ${condities.join(' AND ')}
+             ORDER BY ${bank.TIER_RANG}, tr.id
+             LIMIT 15`, params);
+        const { rows: tel } = await pool.query(`
+            SELECT COALESCE(t.categorie, t.type::text) AS categorie, count(*)::int AS n
+              FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+             WHERE tr.wacht_op_swipe AND tr.werkt AND tr.download_status = 'available'
+               AND t.curatie_status <> 'uitgesloten'
+             GROUP BY 1`);
+        res.json({ items: rows, tellingen: Object.fromEntries(tel.map((r) => [r.categorie, r.n])) });
+    } catch (err) { fout(res, err); }
+});
+
+router.post('/api/admin/bank/swipe/:trackId', vereisAdmin, async (req, res) => {
+    try {
+        const keuze = req.body?.keuze;
+        if (!['goed', 'fout', 'uitsluiten'].includes(keuze)) return fout(res, new Error('Kies goed, fout of uitsluiten.'), 400);
+        const { rows: [tr] } = await pool.query(
+            `SELECT tr.id, tr.titel_id, tr.wacht_op_swipe, t.naam FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+              WHERE tr.id = $1`, [req.params.trackId]);
+        if (!tr) return fout(res, new Error('Nummer niet gevonden.'), 404);
+        // Dubbel tikken of een herhaalde aanvraag doet niets extra.
+        if (!tr.wacht_op_swipe) return res.json({ ok: true, alGedaan: true });
+        if (keuze === 'goed') {
+            await pool.query(
+                `UPDATE tracks SET wacht_op_swipe = false, review_status = 'goedgekeurd', review_handmatig = true,
+                        gecontroleerd = true, bevestigd = true, review_laatste_op = now(),
+                        review_reden = 'Goedgekeurd bij swipen' WHERE id = $1`, [tr.id]);
+            await bank.log(tr.titel_id, 'mp3', `${tr.naam}: nummer goedgekeurd bij swipen.`);
+        } else if (keuze === 'fout') {
+            await bankMp3.keurAf(tr.titel_id, 'Afgekeurd bij swipen');
+            await pool.query('UPDATE tracks SET wacht_op_swipe = false WHERE id = $1', [tr.id]);
+            worker.porren();
+        } else {
+            await pool.query(
+                `UPDATE titels SET curatie_status = 'uitgesloten', ai_uitgesloten = false,
+                        uitsluit_reden = 'Uitgesloten bij swipen',
+                        handmatig = (SELECT ARRAY(SELECT DISTINCT unnest(handmatig || ARRAY['actief'])))
+                  WHERE id = $1`, [tr.titel_id]);
+            await pool.query('UPDATE tracks SET wacht_op_swipe = false, werkt = false WHERE id = $1', [tr.id]);
+            await bank.log(tr.titel_id, 'uitgesloten', `${tr.naam}: uit het spel gehaald bij swipen.`);
+        }
         res.json({ ok: true });
     } catch (err) { fout(res, err); }
 });
