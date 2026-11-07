@@ -1114,3 +1114,17 @@ VALUES ('ai_curator', '{
   "doelen": {"film": 500, "serie": 400, "anime": 100, "game": 500, "muziek": 500, "kerst": 150, "kinder": 100}
 }'::jsonb)
 ON CONFLICT (sleutel) DO NOTHING;
+
+-- Eenmalig herstel (nov 2026): yt-dlp draaide zonder JavaScript-runtime,
+-- waardoor elke download mislukte en de gekozen video's onterecht werden
+-- afgekeurd. Die titels krijgen een schone lei en worden opnieuw gezocht.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM app_instellingen WHERE sleutel = 'herstel_mp3_jsruntime_2026_11') THEN
+        UPDATE titels
+           SET mp3_afgekeurd = '{}', zoek_status = 'nieuw', zoek_pogingen = 0,
+               volgende_poging = NULL, zoek_melding = 'Opnieuw zoeken na herstel van de downloader.'
+         WHERE zoek_melding LIKE 'Download mislukt%' OR zoek_melding LIKE 'YouTube blokkeert downloads%';
+        INSERT INTO app_instellingen (sleutel, waarde) VALUES ('herstel_mp3_jsruntime_2026_11', 'true'::jsonb);
+    END IF;
+END$$;
