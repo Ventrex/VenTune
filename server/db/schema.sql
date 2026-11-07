@@ -1121,10 +1121,22 @@ ON CONFLICT (sleutel) DO NOTHING;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM app_instellingen WHERE sleutel = 'herstel_mp3_jsruntime_2026_11') THEN
-        UPDATE titels
-           SET mp3_afgekeurd = '{}', zoek_status = 'nieuw', zoek_pogingen = 0,
+        -- Alleen video's terugzetten die op een mislukte download strandden.
+        -- Bewust afgekeurde opnames (beheerder, spelermelding, AI-controle)
+        -- staan met hun video-id in bank_log en blijven afgekeurd.
+        UPDATE titels t
+           SET mp3_afgekeurd = ARRAY(
+                   SELECT x FROM unnest(t.mp3_afgekeurd) AS x
+                    WHERE x NOT IN (SELECT tr.preview_url FROM tracks tr
+                                     WHERE tr.titel_id = t.id AND tr.download_status = 'failed'
+                                       AND tr.preview_url IS NOT NULL)
+                       OR x IN (SELECT jsonb_array_elements_text(l.details -> 'videoIds')
+                                  FROM bank_log l
+                                 WHERE l.titel_id = t.id AND l.bericht LIKE 'MP3 afgekeurd%'
+                                   AND jsonb_typeof(l.details -> 'videoIds') = 'array')),
+               zoek_status = 'nieuw', zoek_pogingen = 0,
                volgende_poging = NULL, zoek_melding = 'Opnieuw zoeken na herstel van de downloader.'
-         WHERE zoek_melding LIKE 'Download mislukt%' OR zoek_melding LIKE 'YouTube blokkeert downloads%';
+         WHERE t.zoek_melding LIKE 'Download mislukt%' OR t.zoek_melding LIKE 'YouTube blokkeert downloads%';
         INSERT INTO app_instellingen (sleutel, waarde) VALUES ('herstel_mp3_jsruntime_2026_11', 'true'::jsonb);
     END IF;
 END$$;
