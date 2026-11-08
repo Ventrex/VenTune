@@ -16,6 +16,15 @@
 //   PATCH  /api/admin/bank/vragen/:id             { vraag, juist, fout }
 //   DELETE /api/admin/bank/vragen/:id
 //   GET    /api/admin/bank/log                    ?soort&pagina
+//   GET    /api/admin/bank/collecties             lijst + voortgang
+//   POST   /api/admin/bank/collecties             { naam, criteria, soort, doel, emoji }
+//   PATCH  /api/admin/bank/collecties/:id         losse velden
+//   POST   /api/admin/bank/collecties/:id/opnieuw AI scant alles opnieuw
+//   DELETE /api/admin/bank/collecties/:id
+//   GET    /api/admin/bank/collecties/:id/leden   ?zoek
+//   GET    /api/admin/bank/collecties/:id/zoek    ?q  (titels om toe te voegen)
+//   POST   /api/admin/bank/collecties/:id/leden   { titel_id }
+//   DELETE /api/admin/bank/collecties/:id/leden/:titelId
 // =====================================================================
 
 const express = require('express');
@@ -581,6 +590,145 @@ router.get('/api/admin/bank/log', vereisAdmin, async (req, res) => {
              ORDER BY l.id DESC
              LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
         res.json({ items: rows, pagina, soorten });
+    } catch (err) { fout(res, err); }
+});
+
+// ------------------------------------------------------------------
+// Collecties (Sinterklaas, Rock, Disney …)
+// ------------------------------------------------------------------
+
+const SOORTEN = ['muziek', 'beide', 'film', 'serie', 'alles'];
+
+function slug(naam) {
+    return String(naam || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'collectie';
+}
+
+router.get('/api/admin/bank/collecties', vereisAdmin, async (_req, res) => {
+    try {
+        const { rows: [{ max }] } = await pool.query('SELECT COALESCE(max(id), 0)::int AS max FROM titels');
+        const { rows } = await pool.query(`
+            SELECT c.id, c.sleutel, c.naam, c.emoji, c.beschrijving, c.ai_criteria, c.standaard_type, c.actief,
+                   c.ai_aan, c.ai_doel, c.ai_scan_tot, c.voorrang, c.ai_laatst, c.ai_uitgeput_tot,
+                   count(tc.titel_id)::int AS aantal,
+                   count(tc.titel_id) FILTER (WHERE ${bank.HEEFT_SPEELBAAR.replace(/\bt\.id\b/g, 'tc.titel_id')})::int AS speelbaar,
+                   count(tc.titel_id) FILTER (WHERE tc.bron = 'ai')::int AS door_ai
+              FROM collecties c LEFT JOIN titel_collecties tc ON tc.collectie_id = c.id
+             GROUP BY c.id
+             ORDER BY c.voorrang DESC, c.actief DESC, c.naam`);
+        res.json({
+            items: rows.map((c) => ({ ...c, scan_klaar: c.ai_scan_tot >= max, scan_procent: max ? Math.min(100, Math.round((c.ai_scan_tot / max) * 100)) : 100 })),
+        });
+    } catch (err) { fout(res, err); }
+});
+
+router.post('/api/admin/bank/collecties', vereisAdmin, async (req, res) => {
+    try {
+        const naam = String(req.body?.naam || '').trim().slice(0, 60);
+        if (!naam) return res.status(400).json({ fout: 'Geef de collectie een naam.' });
+        const soort = SOORTEN.includes(req.body?.soort) ? req.body.soort : 'muziek';
+        const doel = Math.max(0, Math.min(1000, Number(req.body?.doel) || 60));
+        const criteria = String(req.body?.criteria || '').trim().slice(0, 600) || null;
+        const emoji = String(req.body?.emoji || '').trim().slice(0, 8) || null;
+        let sleutel = slug(naam);
+        const { rows: dubbel } = await pool.query('SELECT sleutel FROM collecties WHERE sleutel LIKE $1', [`${sleutel}%`]);
+        const bezet = new Set(dubbel.map((d) => d.sleutel));
+        for (let i = 2; bezet.has(sleutel); i++) sleutel = `${slug(naam)}-${i}`;
+        const { rows: [c] } = await pool.query(
+            `INSERT INTO collecties (sleutel, naam, beschrijving, ai_criteria, standaard_type, emoji, ai_doel, ai_aan, actief, toevoeg_reden)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, 'Aangemaakt in Beheer; de AI deelt in en vult aan.') RETURNING *`,
+            [sleutel, naam, criteria || naam, criteria, soort, emoji, doel]);
+        await bank.log(null, 'collectie', `Nieuwe collectie "${naam}" — de AI gaat bestaande titels indelen en aanvullen tot ${doel}.`);
+        worker.porren();
+        res.json(c);
+    } catch (err) { fout(res, err); }
+});
+
+router.patch('/api/admin/bank/collecties/:id', vereisAdmin, async (req, res) => {
+    try {
+        const b = req.body || {};
+        const zetten = [];
+        const waarden = [Number(req.params.id)];
+        const set = (k, v) => { waarden.push(v); zetten.push(`${k} = $${waarden.length}`); };
+        let opnieuw = false;
+        if (b.naam !== undefined) { const n = String(b.naam).trim().slice(0, 60); if (n) set('naam', n); }
+        if (b.emoji !== undefined) set('emoji', String(b.emoji).trim().slice(0, 8) || null);
+        if (b.ai_criteria !== undefined) { set('ai_criteria', String(b.ai_criteria).trim().slice(0, 600) || null); opnieuw = true; }
+        if (b.standaard_type !== undefined && SOORTEN.includes(b.standaard_type)) { set('standaard_type', b.standaard_type); opnieuw = true; }
+        if (b.ai_doel !== undefined) { set('ai_doel', Math.max(0, Math.min(1000, Number(b.ai_doel) || 0))); zetten.push('ai_uitgeput_tot = NULL'); }
+        for (const k of ['actief', 'ai_aan', 'voorrang']) if (typeof b[k] === 'boolean') set(k, b[k]);
+        if (opnieuw) zetten.push('ai_scan_tot = 0', 'ai_uitgeput_tot = NULL');
+        if (!zetten.length) return res.status(400).json({ fout: 'Niets om op te slaan.' });
+        const { rows: [c] } = await pool.query(`UPDATE collecties SET ${zetten.join(', ')} WHERE id = $1 RETURNING *`, waarden);
+        if (!c) return res.status(404).json({ fout: 'Collectie niet gevonden.' });
+        worker.porren();
+        res.json(c);
+    } catch (err) { fout(res, err); }
+});
+
+router.post('/api/admin/bank/collecties/:id/opnieuw', vereisAdmin, async (req, res) => {
+    try {
+        await pool.query('UPDATE collecties SET ai_scan_tot = 0, ai_uitgeput_tot = NULL, ai_aan = true WHERE id = $1', [Number(req.params.id)]);
+        worker.porren();
+        res.json({ ok: true });
+    } catch (err) { fout(res, err); }
+});
+
+router.delete('/api/admin/bank/collecties/:id', vereisAdmin, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM collecties WHERE id = $1', [Number(req.params.id)]);
+        res.json({ ok: true });
+    } catch (err) { fout(res, err); }
+});
+
+router.get('/api/admin/bank/collecties/:id/leden', vereisAdmin, async (req, res) => {
+    try {
+        const zoek = String(req.query.zoek || '').trim();
+        const { rows } = await pool.query(`
+            SELECT t.id, t.naam, t.jaar, COALESCE(t.categorie, t.type::text) AS categorie, t.bekendheid_tier,
+                   t.nummer_naam, t.nummer_artiest, tc.bron, ${bank.HEEFT_SPEELBAAR} AS speelbaar
+              FROM titel_collecties tc JOIN titels t ON t.id = tc.titel_id
+             WHERE tc.collectie_id = $1 AND ($2 = '' OR t.naam ILIKE '%' || $2 || '%' OR t.nummer_naam ILIKE '%' || $2 || '%')
+             ORDER BY ${bank.TIER_RANG}, t.naam LIMIT 400`, [Number(req.params.id), zoek]);
+        res.json({ items: rows });
+    } catch (err) { fout(res, err); }
+});
+
+router.get('/api/admin/bank/collecties/:id/zoek', vereisAdmin, async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        if (q.length < 2) return res.json({ items: [] });
+        const { rows } = await pool.query(`
+            SELECT t.id, t.naam, t.jaar, COALESCE(t.categorie, t.type::text) AS categorie, t.nummer_naam, t.nummer_artiest
+              FROM titels t
+             WHERE (t.naam ILIKE '%' || $2 || '%' OR t.nummer_naam ILIKE '%' || $2 || '%')
+               AND NOT EXISTS (SELECT 1 FROM titel_collecties tc WHERE tc.titel_id = t.id AND tc.collectie_id = $1)
+             ORDER BY (lower(t.naam) = lower($2)) DESC, ${bank.TIER_RANG}, t.naam LIMIT 20`, [Number(req.params.id), q]);
+        res.json({ items: rows });
+    } catch (err) { fout(res, err); }
+});
+
+router.post('/api/admin/bank/collecties/:id/leden', vereisAdmin, async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const titelId = Number(req.body?.titel_id);
+        if (!Number.isInteger(titelId)) return res.status(400).json({ fout: 'Kies een titel.' });
+        await pool.query('DELETE FROM titel_collecties_uit WHERE titel_id = $1 AND collectie_id = $2', [titelId, id]);
+        await pool.query(
+            `INSERT INTO titel_collecties (titel_id, collectie_id, bron) VALUES ($1, $2, 'handmatig')
+             ON CONFLICT (titel_id, collectie_id) DO UPDATE SET bron = 'handmatig'`, [titelId, id]);
+        res.json({ ok: true });
+    } catch (err) { fout(res, err); }
+});
+
+router.delete('/api/admin/bank/collecties/:id/leden/:titelId', vereisAdmin, async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const titelId = Number(req.params.titelId);
+        await pool.query('DELETE FROM titel_collecties WHERE titel_id = $1 AND collectie_id = $2', [titelId, id]);
+        // Zelf weggehaald: de AI zet hem er niet meer in.
+        await pool.query('INSERT INTO titel_collecties_uit (titel_id, collectie_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [titelId, id]);
+        res.json({ ok: true });
     } catch (err) { fout(res, err); }
 });
 

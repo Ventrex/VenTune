@@ -22,7 +22,10 @@ const muziek = bouwFilter({
     periode_start: 1950,
     periode_eind: 2026,
 });
-assert.deepStrictEqual(muziek.params[0], ['muziek', 'kerst', 'kinder'], 'muziek omvat kerst en kinder, geen games');
+// Muziekcollectie (Rock): ook films/series/games met een passend nummer (Rocky).
+assert(muziek.params[0].includes('film') && muziek.params[0].includes('muziek'), 'muziekcollectie kijkt naar het nummer');
+const muziekLos = bouwFilter({ categorie: 'muziek', periode_start: 1950, periode_eind: 2026 });
+assert.deepStrictEqual(muziekLos.params[0], ['muziek', 'kerst', 'kinder'], 'muziek omvat kerst en kinder, geen games');
 assert(muziek.where.includes('c.sleutel = ANY($2::text[])'), 'enkele collectie ontbreekt');
 
 const standaard = bouwFilter({ categorie: 'beide', periode_start: 1950, periode_eind: 2026 });

@@ -11,7 +11,7 @@ const logger = require('./logger');
 
 // Ophogen wanneer de beoordelingsprompt inhoudelijk verandert: alle titels
 // worden dan opnieuw door de AI bekeken (handmatige velden blijven staan).
-const AI_VERSIE = 3; // 3: bekendheid titel+nummer, anime binnen anime, eerdere: taal/land/eindjaar
+const AI_VERSIE = 4; // 3: bekendheid titel+nummer, anime binnen anime, eerdere: taal/land/eindjaar
 
 const CATEGORIEEN = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'kinder'];
 const CATEGORIE_LABEL = {
@@ -59,7 +59,11 @@ const TIER_RANG = `CASE t.bekendheid_tier WHEN 'iconisch' THEN 0 WHEN 'algemeen_
 
 /** SQL-volgorde: categorieën met voorrang eerst (param = text[]). */
 function voorrangSql(param) {
-    return `(COALESCE(t.categorie, t.type::text) = ANY(${param}::text[])) DESC`;
+    // Eerst titels uit een collectie met voorrang (bv. ★ Sinterklaas), dan
+    // de categorieën met voorrang.
+    return `EXISTS (SELECT 1 FROM titel_collecties tcv JOIN collecties cv ON cv.id = tcv.collectie_id
+                     WHERE tcv.titel_id = t.id AND cv.voorrang AND cv.actief) DESC,
+            (COALESCE(t.categorie, t.type::text) = ANY(${param}::text[])) DESC`;
 }
 
 /** Welk inhoudstype (enum titel_type) past bij een categorie. */

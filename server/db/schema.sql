@@ -447,6 +447,31 @@ CREATE TABLE IF NOT EXISTS titel_collecties (
 
 CREATE INDEX IF NOT EXISTS idx_titel_collecties_collectie ON titel_collecties (collectie_id, titel_id);
 
+-- Titelsong in een Nederlandstalige versie (Maya de Bij) en titels die
+-- alleen kinderen van nu kennen (die vallen buiten het nostalgische spel).
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_versie BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS alleen_kids_nu BOOLEAN NOT NULL DEFAULT false;
+
+-- AI-collecties: de beheerder maakt een collectie (bv. Sinterklaas of Rock)
+-- en de AI-curator deelt bestaande titels/nummers in (een nummer kan in
+-- meerdere collecties) en vult aan tot het doel.
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS emoji TEXT;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_criteria TEXT;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_aan BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_doel INTEGER NOT NULL DEFAULT 60;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_scan_tot INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_uitgeput_tot TIMESTAMPTZ;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_laatst TIMESTAMPTZ;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS voorrang BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS volgorde INTEGER NOT NULL DEFAULT 100;
+ALTER TABLE titel_collecties ADD COLUMN IF NOT EXISTS bron TEXT NOT NULL DEFAULT 'handmatig';
+-- Door de beheerder uit een collectie gehaald: de AI zet ze niet terug.
+CREATE TABLE IF NOT EXISTS titel_collecties_uit (
+    titel_id        INTEGER NOT NULL REFERENCES titels (id) ON DELETE CASCADE,
+    collectie_id    INTEGER NOT NULL REFERENCES collecties (id) ON DELETE CASCADE,
+    PRIMARY KEY (titel_id, collectie_id)
+);
+
 INSERT INTO collecties (sleutel, naam, beschrijving, standaard_type, toevoeg_reden)
 VALUES
     ('disney', 'Disney', 'Disney-films en -series', 'beide', 'Bekende Disney-titels voor een eigen Disney-editie.'),
@@ -464,11 +489,17 @@ VALUES
     ('zomer', 'Zomer', 'Zomerse films, series en muziek', 'alles', 'Seizoenscollectie voor de Summer Quiz.'),
     ('nl-pop', 'Nederpop', 'Nederlandstalige popmuziek', 'muziek', 'Nederlandstalige muziek voor de 100% NL-editie.'),
     ('sport', 'Sport', 'Sportfilms, sportseries en sportmuziek', 'alles', 'Sportcollectie voor een eigen editie.'),
-    ('james-bond', 'James Bond', 'De Bond-films en hun titelsongs', 'film', 'Bond-titelsongs zijn een herkenbare eigen editie.')
-ON CONFLICT (sleutel) DO UPDATE SET
-    naam = EXCLUDED.naam,
-    beschrijving = EXCLUDED.beschrijving,
-    standaard_type = EXCLUDED.standaard_type;
+    ('james-bond', 'James Bond', 'De Bond-films en hun titelsongs', 'film', 'Bond-titelsongs zijn een herkenbare eigen editie.'),
+    ('sinterklaas', 'Sinterklaas', 'Sinterklaasliedjes en bekende Sinterklaas-muziek', 'muziek', 'Seizoenscollectie voor Sinterklaas.')
+-- Bestaande collecties niet overschrijven: de beheerder kan ze aanpassen.
+ON CONFLICT (sleutel) DO NOTHING;
+
+UPDATE collecties c SET emoji = v.emoji
+  FROM (VALUES ('disney','🏰'),('pixar','💡'),('kids','🧸'),('marvel','🦸'),('star-wars','🌌'),
+               ('cult-classics','📼'),('fantasy','🐉'),('superhelden','🦸'),('streaming','📺'),
+               ('smartlappen','🍺'),('rock','🎸'),('kerst','🎄'),('zomer','☀️'),('nl-pop','🇳🇱'),
+               ('sport','🏆'),('james-bond','🍸'),('sinterklaas','🎁')) AS v(sleutel, emoji)
+ WHERE c.sleutel = v.sleutel AND c.emoji IS NULL;
 
 -- ---------------------------------------------------------------------
 -- Quizzen: kant-en-klare spelvarianten (zoals de edities van Hitster).

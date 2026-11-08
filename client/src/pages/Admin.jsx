@@ -47,7 +47,7 @@ function hoofdtabVan(sectie) {
 
 // Systeembeheer. Wordt als tab "Systeem" in de vragenbank (/admin/bank)
 // getoond; ingebed = zonder eigen kop en inlogscherm.
-export default function Admin({ ingebed = false }) {
+export default function Admin({ ingebed = false, sectie = '' }) {
     const [ingelogd, setIngelogd] = useState(null); // null=laden
 
     useEffect(() => {
@@ -56,7 +56,7 @@ export default function Admin({ ingebed = false }) {
 
     if (ingelogd === null) return <main className="scherm"><p className="dim">Laden…</p></main>;
     if (!ingelogd) return <Login onIn={() => setIngelogd(true)} />;
-    return <Beheer ingebed={ingebed} onUit={() => setIngelogd(false)} />;
+    return <Beheer ingebed={ingebed} sectie={sectie} onUit={() => setIngelogd(false)} />;
 }
 
 function Login({ onIn }) {
@@ -95,7 +95,7 @@ function Login({ onIn }) {
     );
 }
 
-function Beheer({ onUit, ingebed = false }) {
+function Beheer({ onUit, ingebed = false, sectie = '' }) {
     const [titels, setTitels] = useState([]);
     const [zoek, setZoek] = useState('');
     const [titelFilter, setTitelFilter] = useState('');
@@ -120,7 +120,9 @@ function Beheer({ onUit, ingebed = false }) {
     const [spelers, setSpelers] = useState([]);
     const [ontbrekend, setOntbrekend] = useState([]);
     const [collecties, setCollecties] = useState([]);
-    const [tab, setTab] = useState('database');
+    // Ingebed in Beheer kiest de vragenbank de sectie (één set tabs).
+    const [tab, setTab] = useState(sectie || 'database');
+    useEffect(() => { if (sectie) setTab(sectie); }, [sectie]);
     const [catalogusStart,setCatalogusStart]=useState({});
     const [importGenre, setImportGenre] = useState('');
     const [voortgang, setVoortgang] = useState(null);
@@ -596,15 +598,15 @@ function Beheer({ onUit, ingebed = false }) {
     return (
         <div className={'admin-portaal' + (ingebed ? ' admin-ingebed' : ' scherm host-scherm')}>
             {!ingebed && <Brand compact />}
-            <div className="raden-kop">
-                {!ingebed && <h1 style={{ margin: 0 }}>Systeem</h1>}
+            {!ingebed && <div className="raden-kop">
+                <h1 style={{ margin: 0 }}>Systeem</h1>
                 <button className="terug als-link" onClick={uitloggen}>Uitloggen</button>
-            </div>
+            </div>}
 
             {/* De tabs volgen de weg van een titel: eerst wat er te doen is,
                 dan de catalogus, dan de muziek, dan de kwaliteit, en pas
                 daarna het systeembeheer. */}
-            <nav className="admin-tabs" aria-label="Adminsecties">
+            {!ingebed && <nav className="admin-tabs" aria-label="Adminsecties">
                 {[
                     ['systeem', 'Systeem'],
                     ['spelers', 'Spelers'],
@@ -620,10 +622,10 @@ function Beheer({ onUit, ingebed = false }) {
                         {label}
                     </button>
                 ))}
-            </nav>
+            </nav>}
 
             {/* Binnen een groep de losse secties. */}
-            {(SUBTABS[hoofdtabVan(tab)] || []).length > 1 && (
+            {!ingebed && (SUBTABS[hoofdtabVan(tab)] || []).length > 1 && (
                 <nav className="admin-subtabs" aria-label="Onderdelen">
                     {SUBTABS[hoofdtabVan(tab)].map(([waarde, label]) => (
                         <button

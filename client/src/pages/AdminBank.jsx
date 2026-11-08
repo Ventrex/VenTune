@@ -26,7 +26,12 @@ async function api(pad, opties = {}) {
 
 // Hoofdtabs met daaronder subtabs. Controles = alles bekijken en bewerken,
 // Fixes = alleen wat aandacht nodig heeft.
-const GROEPEN = [['overzicht', 'Overzicht'], ['swipen', 'Swipen'], ['controles', 'Controles'], ['fixes', 'Fixes'], ['log', 'AI-log'], ['systeem', 'Systeem']];
+// Alles van beheer staat hier: één pagina, één rij tabs met subtabs.
+const GROEPEN = [['overzicht', 'Overzicht'], ['swipen', 'Swipen'], ['collecties', 'Collecties'], ['controles', 'Controles'],
+    ['fixes', 'Fixes'], ['spelers', 'Spelers'], ['log', 'Logs'], ['systeem', 'Systeem']];
+const SPELERS = [['meldingen', 'Meldingen'], ['vragen', 'Vraagsuggesties'], ['controle', 'Verdachte spellen'], ['users', 'Accounts']];
+const LOGS = [['ai', 'AI-log'], ['logs', 'Gebeurtenissen']];
+const SYSTEEM = [['database', 'Database'], ['uiterlijk', 'Uiterlijk'], ['teksten', 'Teksten']];
 const CONTROLES = [
     ['nummers', 'Nummers'], ['mp3', 'MP3'], ['hints', 'Hints'], ['vragen', 'Vragen'],
     ['jaartal', 'Jaartal'], ['nl', 'NL-check'], ['antwoorden', 'Antwoorden'],
@@ -60,7 +65,7 @@ function jaarTekst(item) {
 
 const STAP_LABEL = {
     opstarten: 'Opstarten', beoordelen: 'Beoordelen', mp3: 'MP3 zoeken', quiz: 'Hints & vragen',
-    aanvullen: 'Aanvullen', verbeteren: 'Verbeterpunten', pauze: 'Even pauze', klaar: 'Alles bijgewerkt',
+    aanvullen: 'Aanvullen', collecties: 'Collecties', verbeteren: 'Verbeterpunten', pauze: 'Even pauze', klaar: 'Alles bijgewerkt',
     wacht: 'Wacht', uit: 'Uit', fout: 'Fout',
 };
 
@@ -120,6 +125,14 @@ function Bank() {
     }, [tab, sub]);
 
     const controle = CONTROLES.some(([id]) => id === sub) ? sub : CONTROLES[0][0];
+    const kies = (lijst) => (lijst.some(([id]) => id === sub) ? sub : lijst[0][0]);
+    const spelerSub = kies(SPELERS);
+    const logSub = kies(LOGS);
+    const systeemSub = kies(SYSTEEM);
+    async function uitloggen() {
+        await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+        window.location.reload();
+    }
     const fix = FIXES.find(([id]) => id === sub) || FIXES[0];
     const v = status?.voorraad || {};
 
@@ -127,7 +140,8 @@ function Bank() {
         <main className="ab">
             <header className="ab-kop">
                 <Brand link compact />
-                <h1>Vragenbank</h1>
+                <h1>Beheer</h1>
+                <button type="button" className="ab-linkknop ab-uitlog" onClick={uitloggen}>Uitloggen</button>
             </header>
             {fout && <p className="waarschuwing">{fout}</p>}
             <WorkerBalk status={status} onWijzig={laadStatus} />
@@ -154,8 +168,14 @@ function Bank() {
             {tab === 'swipen' && <Swipen key={sub} categorie={sub} onWijzig={laadStatus} />}
             {tab === 'controles' && <Lijst key={`c-${controle}`} tab={controle} standaardFilter="alle" />}
             {tab === 'fixes' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
-            {tab === 'log' && <Log />}
-            {tab === 'systeem' && <Admin ingebed />}
+            {tab === 'collecties' && <Collecties key={sub} gekozen={sub} onKies={(id) => ga('collecties', id ? { sub: String(id) } : {})} />}
+            {tab === 'spelers' && <SubTabs actief={spelerSub} onKies={(id) => ga('spelers', { sub: id })} items={SPELERS} />}
+            {tab === 'log' && <SubTabs actief={logSub} onKies={(id) => ga('log', { sub: id })} items={LOGS} />}
+            {tab === 'systeem' && <SubTabs actief={systeemSub} onKies={(id) => ga('systeem', { sub: id })} items={SYSTEEM} />}
+            {tab === 'log' && logSub === 'ai' && <Log />}
+            {tab === 'log' && logSub !== 'ai' && <Admin ingebed sectie={logSub} />}
+            {tab === 'spelers' && <Admin ingebed sectie={spelerSub} />}
+            {tab === 'systeem' && <Admin ingebed sectie={systeemSub} />}
         </main>
     );
 }
@@ -512,7 +532,7 @@ function Overzicht({ status, onWijzig, ga }) {
                             onClick={() => wisselVoorrang(id)}>{voorrang.includes(id) ? '★ ' : ''}{naam}</button>
                     ))}
                 </div>
-                <p className="dim ab-mini">Bijvoorbeeld ★ Videogames: eerst alle videogames indelen (iconisch t/m cult), MP3's zoeken, hints maken en aanvullen — daarna de rest.</p>
+                <p className="dim ab-mini">Bijvoorbeeld ★ Videogames: eerst alle videogames indelen (iconisch t/m cult), MP3's zoeken, hints maken en aanvullen — daarna de rest. Een thema voorrang geven (bv. ★ Sinterklaas)? Dat doe je bij <button type="button" className="ab-linkknop" onClick={() => ga('collecties')}>Collecties</button>.</p>
             </section>
             {!chatgpt.gekoppeld && (
                 <section className="ab-kaart">
@@ -1007,6 +1027,192 @@ const LOG_LABEL = {
     '': 'Alles', beoordeling: 'Beoordeling', uitgesloten: 'Uitgesloten', quiz: 'Hints & vragen', mp3: 'MP3',
     aanvulling: 'Aanvulling', verbeterpunt: 'Verbeterpunten', fout: 'Fouten', systeem: 'Systeem',
 };
+
+// ------------------------------------------------------------------
+// Collecties: zelf een thema maken (Sinterklaas, Rock …); de AI deelt
+// bestaande nummers in en vult aan. Eén nummer kan in meerdere collecties.
+// ------------------------------------------------------------------
+
+const SOORT_OPTIES = [
+    ['muziek', 'Muziek (op nummer — ook films/series/games met een passend nummer)'],
+    ['beide', 'Films, series & anime'],
+    ['film', 'Alleen films'],
+    ['serie', 'Alleen series'],
+    ['alles', 'Alles'],
+];
+const SOORT_KORT = { muziek: 'Muziek', beide: 'Films & series', film: 'Films', serie: 'Series', alles: 'Alles' };
+
+function Collecties({ gekozen, onKies }) {
+    const [lijst, setLijst] = useState(null);
+    const [fout, setFout] = useState('');
+    const laad = useCallback(() => {
+        api('/api/admin/bank/collecties').then((d) => { setLijst(d.items); setFout(''); }).catch((e) => setFout(e.message));
+    }, []);
+    useEffect(() => { laad(); const t = setInterval(laad, 15000); return () => clearInterval(t); }, [laad]);
+    const actief = lijst?.find((c) => String(c.id) === String(gekozen));
+    if (fout) return <p className="waarschuwing">{fout}</p>;
+    if (!lijst) return <p className="dim">Laden…</p>;
+    if (actief) return <CollectieDetail c={actief} onTerug={() => onKies('')} onWijzig={laad} />;
+    return (
+        <div className="ab-stapel">
+            <NieuweCollectie onKlaar={(c) => { laad(); if (c?.id) onKies(c.id); }} />
+            <section className="ab-kaart">
+                <p className="ab-label">Collecties ({lijst.length})</p>
+                <p className="dim ab-mini">★ = voorrang: de AI deelt deze eerst in en zoekt eerst hun MP3's, hints en vragen. Alleen actieve collecties met speelbare nummers staan in Nieuw spel.</p>
+                <div className="ab-collecties">
+                    {lijst.map((c) => (
+                        <button key={c.id} type="button" className={'ab-collectie' + (c.actief ? '' : ' uit')} onClick={() => onKies(c.id)}>
+                            <span className="ab-collectie-emoji">{c.emoji || '✨'}</span>
+                            <span className="ab-collectie-tekst">
+                                <strong>{c.voorrang ? '★ ' : ''}{c.naam}</strong>
+                                <span className="dim ab-mini">{SOORT_KORT[c.standaard_type] || c.standaard_type} · {c.aantal} items · {c.speelbaar} speelbaar{c.ai_doel ? ` · doel ${c.ai_doel}` : ''}</span>
+                                <span className="dim ab-mini">{!c.ai_aan ? 'AI uit' : !c.scan_klaar ? `AI deelt in… ${c.scan_procent}%` : c.aantal < c.ai_doel ? (c.ai_uitgeput_tot && new Date(c.ai_uitgeput_tot) > new Date() ? 'AI weet even niets nieuws' : 'AI vult aan') : 'Op doel'}{!c.actief ? ' · niet in spel' : ''}</span>
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            </section>
+        </div>
+    );
+}
+
+function NieuweCollectie({ onKlaar }) {
+    const [naam, setNaam] = useState('');
+    const [criteria, setCriteria] = useState('');
+    const [soort, setSoort] = useState('muziek');
+    const [doel, setDoel] = useState('60');
+    const [emoji, setEmoji] = useState('');
+    const [bezig, setBezig] = useState(false);
+    async function maak(e) {
+        e.preventDefault();
+        if (!naam.trim()) return;
+        setBezig(true);
+        try {
+            const c = await api('/api/admin/bank/collecties', { method: 'POST', body: { naam, criteria, soort, doel: Number(doel), emoji } });
+            setNaam(''); setCriteria(''); setEmoji('');
+            onKlaar(c);
+        } catch (err) { alert(err.message); }
+        finally { setBezig(false); }
+    }
+    return (
+        <form className="ab-kaart ab-nieuwe-collectie" onSubmit={maak}>
+            <p className="ab-label">Nieuwe collectie via AI</p>
+            <div className="ab-rij">
+                <input className="ab-in ab-emoji-in" placeholder="🎁" value={emoji} onChange={(e) => setEmoji(e.target.value)} aria-label="Emoji" />
+                <input className="ab-in" placeholder="Naam, bv. Sinterklaas" value={naam} onChange={(e) => setNaam(e.target.value)} />
+            </div>
+            <textarea className="ab-in" rows={2} value={criteria} onChange={(e) => setCriteria(e.target.value)}
+                placeholder="Wat hoort erin? bv. Sinterklaasliedjes die iedereen kent (Zie ginds komt de stoomboot, Sinterklaas kapoentje) en bekende Sinterklaas-hits" />
+            <div className="ab-rij">
+                <select className="ab-in" value={soort} onChange={(e) => setSoort(e.target.value)}>
+                    {SOORT_OPTIES.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+                </select>
+                <label className="ab-veld"><span className="ab-veld-label">Doel</span>
+                    <input className="ab-in ab-doel" type="number" min="0" value={doel} onChange={(e) => setDoel(e.target.value)} /></label>
+                <button className="ab-knop" disabled={bezig || !naam.trim()}>{bezig ? 'Bezig…' : 'Maak & laat AI vullen'}</button>
+            </div>
+            <p className="dim ab-mini">De AI zoekt eerst in de hele database wat erbij past (bv. Rocky met Eye of the Tiger komt ook in Rock — geen dubbele MP3) en vult daarna aan tot het doel. Nieuwe nummers krijgen automatisch MP3, hints en vragen.</p>
+        </form>
+    );
+}
+
+function CollectieDetail({ c, onTerug, onWijzig }) {
+    const [leden, setLeden] = useState(null);
+    const [zoek, setZoek] = useState('');
+    const [toevoegen, setToevoegen] = useState('');
+    const [treffers, setTreffers] = useState([]);
+    const laadLeden = useCallback(() => {
+        api(`/api/admin/bank/collecties/${c.id}/leden?zoek=${encodeURIComponent(zoek)}`).then((d) => setLeden(d.items)).catch((e) => alert(e.message));
+    }, [c.id, zoek]);
+    useEffect(() => { const t = setTimeout(laadLeden, 250); return () => clearTimeout(t); }, [laadLeden]);
+    useEffect(() => {
+        if (toevoegen.trim().length < 2) { setTreffers([]); return undefined; }
+        const t = setTimeout(() => {
+            api(`/api/admin/bank/collecties/${c.id}/zoek?q=${encodeURIComponent(toevoegen)}`).then((d) => setTreffers(d.items)).catch(() => {});
+        }, 250);
+        return () => clearTimeout(t);
+    }, [c.id, toevoegen]);
+    const patch = async (velden) => { await api(`/api/admin/bank/collecties/${c.id}`, { method: 'PATCH', body: velden }); onWijzig(); };
+    async function voegToe(t) {
+        try { await api(`/api/admin/bank/collecties/${c.id}/leden`, { method: 'POST', body: { titel_id: t.id } }); setToevoegen(''); laadLeden(); onWijzig(); }
+        catch (e) { alert(e.message); }
+    }
+    async function haalWeg(t) {
+        setLeden((l) => l.filter((x) => x.id !== t.id));
+        try { await api(`/api/admin/bank/collecties/${c.id}/leden/${t.id}`, { method: 'DELETE' }); onWijzig(); }
+        catch (e) { alert(e.message); laadLeden(); }
+    }
+    async function opnieuw() {
+        await api(`/api/admin/bank/collecties/${c.id}/opnieuw`, { method: 'POST' }).catch((e) => alert(e.message));
+        onWijzig();
+    }
+    async function verwijder() {
+        if (!window.confirm(`Collectie "${c.naam}" verwijderen? De nummers zelf blijven gewoon in de database.`)) return;
+        await api(`/api/admin/bank/collecties/${c.id}`, { method: 'DELETE' }).catch((e) => alert(e.message));
+        onWijzig(); onTerug();
+    }
+    return (
+        <div className="ab-stapel">
+            <section className="ab-kaart">
+                <div className="ab-rij">
+                    <button type="button" className="ab-knop klein" onClick={onTerug}>← Alle collecties</button>
+                    <strong className="ab-collectie-kop">{c.emoji || '✨'} {c.naam}</strong>
+                    <span className="dim ab-mini">{c.aantal} items · {c.speelbaar} speelbaar · {c.door_ai} door AI</span>
+                </div>
+                <div className="ab-chips" style={{ marginTop: '0.6rem' }}>
+                    <button type="button" className={'ab-chip' + (c.voorrang ? ' actief' : '')} onClick={() => patch({ voorrang: !c.voorrang })}>{c.voorrang ? '★ Voorrang' : '☆ Voorrang'}</button>
+                    <button type="button" className={'ab-chip' + (c.actief ? ' actief' : '')} onClick={() => patch({ actief: !c.actief })}>{c.actief ? '✓ In Nieuw spel' : 'Niet in Nieuw spel'}</button>
+                    <button type="button" className={'ab-chip' + (c.ai_aan ? ' actief' : '')} onClick={() => patch({ ai_aan: !c.ai_aan })}>{c.ai_aan ? '✓ AI beheert' : 'AI uit'}</button>
+                </div>
+                <p className="dim ab-mini">{!c.ai_aan ? 'De AI doet niets met deze collectie.' : !c.scan_klaar ? `De AI loopt de database na: ${c.scan_procent}%.` : c.aantal < c.ai_doel ? 'Database nagelopen; de AI vult aan tot het doel.' : 'Op doel. Verhoog het doel voor meer.'}</p>
+                <div className="ab-velden">
+                    <Tekst label="Naam" waarde={c.naam} onSave={(v) => patch({ naam: v })} />
+                    <Tekst label="Emoji" waarde={c.emoji || ''} onSave={(v) => patch({ emoji: v })} />
+                    <Tekst label="Doel" type="number" waarde={c.ai_doel} onSave={(v) => patch({ ai_doel: Number(v) })} />
+                    <Keuze label="Soort" waarde={c.standaard_type} opties={SOORT_OPTIES.map(([id]) => [id, SOORT_KORT[id]])} onSave={(v) => patch({ standaard_type: v })} />
+                    <Tekst label="Wat hoort erin (voor de AI)" breed waarde={c.ai_criteria || c.beschrijving || ''} onSave={(v) => patch({ ai_criteria: v })} />
+                </div>
+                <div className="ab-rij" style={{ marginTop: '0.6rem' }}>
+                    <button type="button" className="ab-knop klein" onClick={opnieuw}>↻ AI opnieuw laten indelen</button>
+                    <button type="button" className="ab-knop klein ab-gevaar" onClick={verwijder}>Verwijderen</button>
+                </div>
+            </section>
+            <section className="ab-kaart">
+                <p className="ab-label">Zelf toevoegen uit de database</p>
+                <input className="ab-in" placeholder="Zoek een titel of nummer, bv. Eye of the Tiger" value={toevoegen} onChange={(e) => setToevoegen(e.target.value)} />
+                {treffers.length > 0 && (
+                    <ul className="ab-treffers">
+                        {treffers.map((t) => (
+                            <li key={t.id}><button type="button" onClick={() => voegToe(t)}>
+                                + {t.naam} <span className="dim">({CAT_LABEL[t.categorie] || t.categorie}{t.jaar ? `, ${t.jaar}` : ''}{t.nummer_naam && t.nummer_naam !== t.naam ? ` · ♪ ${t.nummer_naam}` : ''})</span>
+                            </button></li>
+                        ))}
+                    </ul>
+                )}
+            </section>
+            <section className="ab-kaart">
+                <div className="ab-rij">
+                    <p className="ab-label">Inhoud</p>
+                    <input className="ab-in" placeholder="Zoeken…" value={zoek} onChange={(e) => setZoek(e.target.value)} />
+                </div>
+                {!leden ? <p className="dim">Laden…</p> : !leden.length ? <p className="dim">Nog leeg — de AI is ermee bezig.</p> : (
+                    <ul className="ab-leden">
+                        {leden.map((t) => (
+                            <li key={t.id}>
+                                <TitelKop item={t} />
+                                <span className="ab-badges">
+                                    {!t.speelbaar && <span className="ab-badge uit">geen MP3</span>}
+                                    <span className="ab-badge">{t.bron === 'ai' ? 'AI' : 'zelf'}</span>
+                                </span>
+                                <button type="button" className="ab-knop klein" title="Uit deze collectie halen (de AI zet hem niet terug)" onClick={() => haalWeg(t)}>✕</button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </section>
+        </div>
+    );
+}
 
 function Log() {
     const [soort, setSoort] = useState('');

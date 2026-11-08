@@ -18,6 +18,7 @@ import UiterlijkOpties from '../components/UiterlijkOpties.jsx';
 import './setup-categorie.css';
 
 const NU = new Date().getFullYear();
+const VASTE_BEELDEN = { "80s": 1, "90s": 1, animatie: 1, kinder: 1, kerst: 1, alles: 1 };
 
 /** Leesbare naam van wat er gespeeld wordt, ook voor videogames en anime. */
 function spelNaam(f) {
@@ -323,6 +324,17 @@ export default function Setup() {
         };
     }
 
+    // Collecties uit Beheer (ook nieuwe zoals Sinterklaas) verschijnen hier
+    // vanzelf zodra er iets speelbaars in zit.
+    function dbCollecties(soorten) {
+        return collecties
+            .filter((c) => soorten.includes(c.standaard_type) && (c.speelbaar ?? c.aantal) > 0)
+            .map((c) => [c.sleutel, `${c.emoji || '✨'} ${c.naam}`]);
+    }
+    function emojiVan(id) {
+        return collecties.find((c) => c.sleutel === id)?.emoji || null;
+    }
+
     function wisselCollectie(collectie) {
         setFilters((f) => {
             const huidig = f.collecties || [];
@@ -568,8 +580,8 @@ export default function Setup() {
                         {(hoofdgroep==='films'||hoofdgroep==='muziek'||hoofdgroep==='games'||hoofdgroep==='thema')&&<div className="vt-subkeuzes">
                             <p>{hoofdgroep==='films'?'▱  Collectie':hoofdgroep==='muziek'?'Welk muziekgenre?':hoofdgroep==='games'?'Kies één of meerdere fabrikanten': 'Kies een thema'}</p>
                             <div className="vt-keuzerij">
-                                {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder'],['kerst','🎄 Kerst']]
-                                :hoofdgroep==='muziek'?[['alles','🎧 Alles'],['rock','🎸 Rock'],['100nl','🇳🇱 100% NL']]
+                                {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder'],...dbCollecties(['film','serie','beide','alles'])]
+                                :hoofdgroep==='muziek'?[['alles','🎧 Alles'],...dbCollecties(['muziek','alles'])]
                                 :hoofdgroep==='games'?[['alles','🎮 Alle games'],['nintendo','🕹️ Nintendo'],['sega','💫 Sega'],['playstation','🔵 PlayStation'],['xbox','🟢 Xbox'],['pc','💻 PC']]
                                 :[['alles','✨ Alle thema’s'],['kerst','🎄 Kerst']]).map(([id,label])=>
                                     <button type="button" key={id} className={'chip'+((hoofdgroep==='games'? (id==='alles'?!(filters.platformen||[]).length:(filters.platformen||[]).includes(id)) :subkeuze===id)?' gekozen':'')}
@@ -589,6 +601,8 @@ export default function Setup() {
                                             ? (categorieBeelden['platform-'+id]
                                                 ? <span className="vt-collectie-pictogram"><img src={categorieBeelden['platform-'+id]} alt="" /></span>
                                                 : null)
+                                            : (!categorieBeelden["collectie-"+id] && !VASTE_BEELDEN[id] && emojiVan(id))
+                                            ? <span className="vt-collectie-pictogram vt-collectie-emoji" aria-hidden="true">{emojiVan(id)}</span>
                                             : <span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || ({ "80s": "/category/collection-80s.svg", "90s": "/category/collection-90s.svg", animatie: "/category/collection-animatie.svg", kinder: "/category/collection-kinder.svg", kerst: "/category/collection-christmas.svg", alles: "/category/collection-all.svg" })[id] || "/category/icon-music.svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span>}<span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
                             </div>
                         </div>}

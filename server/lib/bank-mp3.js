@@ -43,8 +43,26 @@ function zoektermen(t) {
         anime: `${t.naam} opening`,
         game: `${t.naam} ${t.nummer_naam || 'main theme'} OST`,
     }[t.categorie] || `${t.nummer_naam || t.naam} ${t.nummer_artiest || ''} official audio`;
-    return [...new Set([t.yt_zoekterm, nummer && `${nummer}${bank.MUZIEK_CATEGORIEEN.has(t.categorie) ? ' official audio' : ''}`, extra]
+    // Kennen Nederlanders de Nederlandse versie (Maya de Bij), dan die eerst.
+    const nl = t.nl_versie ? `${t.naam} intro Nederlands` : null;
+    return [...new Set([t.yt_zoekterm, nl, nummer && `${nummer}${bank.MUZIEK_CATEGORIEEN.has(t.categorie) ? ' official audio' : ''}`, extra]
         .map((x) => String(x || '').replace(/\s+/g, ' ').trim()).filter((x) => x.length >= 3))].slice(0, 3);
+}
+
+// Anderstalige nasynchronisaties (Maya de Bij in het Duits) overslaan,
+// behalve als de titel zelf uit dat land komt.
+const ANDERSTALIG = [
+    [/\b(deutsch|german|titellied|titelsong deutsch|auf deutsch)\b/i, ['DE', 'AT', 'CH']],
+    [/\b(fran[cç]ais|french version|version fran[cç]aise|en fran[cç]ais)\b/i, ['FR', 'BE', 'CA']],
+    [/\b(espa[nñ]ol|castellano|spanish version|en espa[nñ]ol)\b/i, ['ES', 'MX', 'AR']],
+    [/\b(italiano|in italiano|sigla)\b/i, ['IT']],
+    [/\b(polski|po polsku|czołówka)\b/i, ['PL']],
+    [/\b(t[uü]rk[cç]e|portugu[eê]s|dublado|svenska|dansk|norsk|suomi)\b/i, []],
+];
+function isAnderstalig(titel, t) {
+    const tekst = String(titel || '');
+    const land = String(t.land || '').toUpperCase();
+    return ANDERSTALIG.some(([re, landen]) => re.test(tekst) && !landen.includes(land));
 }
 
 async function kandidatenVoor(t) {
@@ -56,6 +74,7 @@ async function kandidatenVoor(t) {
         for (const r of res || []) {
             if (!r?.videoId || afgekeurd.has(r.videoId) || gezien.has(r.videoId)) continue;
             if (!ytzoek.isLatijnsSchrift(r.titel)) continue;
+            if (isAnderstalig(r.titel, t)) continue;
             if (r.duurSeconden && (r.duurSeconden < 15 || r.duurSeconden > 15 * 60)) continue;
             gezien.set(r.videoId, r);
         }
@@ -213,7 +232,7 @@ async function haalTitel(id) {
     const { rows } = await pool.query(
         `SELECT id, naam, type::text AS type, jaar, genres, taal::text AS taal, land, talen,
                 COALESCE(categorie, type::text) AS categorie, nummer_naam, nummer_artiest,
-                yt_zoekterm, mp3_afgekeurd, zoek_pogingen, handmatig
+                yt_zoekterm, nl_versie, mp3_afgekeurd, zoek_pogingen, handmatig
            FROM titels WHERE id = $1`, [id]);
     return rows[0] || null;
 }
@@ -274,5 +293,5 @@ async function zoekOpnieuw(titelId) {
 }
 
 module.exports = {
-    verwerkBatch, gepauzeerd, plaatsEigenUrl, keurAf, zoekOpnieuw, isBezig, bezigeIds, videoIdUit, zoektermen,
+    verwerkBatch, gepauzeerd, plaatsEigenUrl, keurAf, zoekOpnieuw, isBezig, bezigeIds, videoIdUit, zoektermen, isAnderstalig,
 };

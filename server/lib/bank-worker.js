@@ -23,12 +23,12 @@ const bankAi = require('./bank-ai');
 const bankMp3 = require('./bank-mp3');
 const logger = require('./logger');
 
-const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'beoordelen', 'mp3', 'aanvullen', 'quiz', 'verbeteren'];
+const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'collecties', 'beoordelen', 'mp3', 'aanvullen', 'quiz', 'collecties', 'verbeteren'];
 // Inhaalslag: zolang er titels zonder (actuele) beoordeling zijn, eerst de
 // hele database indelen (iconisch … cult); pas daarna nieuwe titels zoeken.
-const INHAAL = ['beoordelen', 'beoordelen', 'beoordelen', 'mp3', 'beoordelen', 'beoordelen', 'beoordelen', 'quiz', 'verbeteren'];
+const INHAAL = ['beoordelen', 'beoordelen', 'beoordelen', 'mp3', 'beoordelen', 'beoordelen', 'collecties', 'beoordelen', 'quiz', 'verbeteren'];
 // Alles gaat in lijsten: één AI-vraag per lijst van dezelfde categorie.
-const BATCH = { beoordelen: 25, quiz: 8, mp3: 6, aanvullen: 25 };
+const BATCH = { beoordelen: 25, quiz: 8, mp3: 6, aanvullen: 25, collectieScan: 120, collectieAanvullen: 25 };
 const PERIODES = {
     film: ['1970-1984', '1985-1994', '1995-2004', '2005-2014', '2015-nu'],
     serie: ['1970-1989', '1990-1999', '2000-2009', '2010-2017', '2018-nu'],
@@ -161,12 +161,19 @@ async function pasBeoordelingToe(oud, b) {
         await client.query('BEGIN');
         const { rows: [vers] } = await client.query(
             `SELECT handmatig, curatie_status, ai_uitgesloten, naam, nummer_naam, jaar, aliassen,
-                    type::text AS type, categorie, taal::text AS taal
+                    type::text AS type, categorie, taal::text AS taal, nl_versie
                FROM titels WHERE id = $1 FOR UPDATE`, [oud.id]);
         if (!vers) { await client.query('ROLLBACK'); return { uitgesloten: false }; }
         const r = await pasBeoordelingToeIn(client, { ...oud, ...vers }, b);
         await client.query('COMMIT');
         await logBeoordeling({ ...oud, ...vers }, b, r);
+        // Nu bekend dat Nederlanders de Nederlandse versie kennen: een MP3 die
+        // nog op een swipe wacht (vaak de Duitse of Engelse versie) opnieuw zoeken.
+        if (b.nl_versie && !vers.nl_versie && !bank.isVast(vers, 'mp3') && !bank.isVast(vers, 'nummer')) {
+            const { rows: [w] } = await pool.query(
+                'SELECT bool_and(wacht_op_swipe) AS wacht FROM tracks WHERE titel_id = $1 AND werkt = true', [oud.id]);
+            if (w?.wacht) await bankMp3.keurAf(oud.id, 'Nederlandse versie gewenst').catch(() => {});
+        }
         return r;
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
@@ -229,19 +236,23 @@ async function pasBeoordelingToeIn(client, t, b) {
         set('nummer_naam', b.nummer_naam || null);
         set('nummer_artiest', b.nummer_artiest || null);
         set('yt_zoekterm', b.yt_zoekterm || null);
+        set('nl_versie', b.nl_versie);
     }
+    set('alleen_kids_nu', b.alleen_kids_nu);
 
     // Uitsluiten of terughalen. De AI raakt alleen uitsluitingen aan die ze
     // zelf heeft gedaan; oude uitsluitingen en handmatige keuzes blijven.
     let uitgesloten = false;
     if (!vast('actief') && !vast('nl')) {
-        const weg = b.nl_bekend === 'nee' || !b.geschikt;
+        const weg = b.nl_bekend === 'nee' || !b.geschikt || b.alleen_kids_nu;
         if (weg && t.curatie_status !== 'uitgesloten') {
             set('curatie_status', 'uitgesloten');
             set('ai_uitgesloten', true);
             set('uitsluit_reden', b.nl_bekend === 'nee'
                 ? `Niet bekend in Nederland: ${b.nl_reden || 'AI-oordeel'}`
-                : `Ongeschikt: ${b.notitie || 'geen herkenbaar nummer'}`);
+                : b.alleen_kids_nu
+                    ? 'Alleen bekend bij kinderen van nu (geen nostalgie voor volwassenen)'
+                    : `Ongeschikt: ${b.notitie || 'geen herkenbaar nummer'}`);
             uitgesloten = true;
         } else if (!weg && t.ai_uitgesloten) {
             set('curatie_status', 'goedgekeurd');
@@ -359,7 +370,7 @@ async function stapMp3(inst) {
     const { rows } = await pool.query(`
         SELECT t.id, t.naam, t.type::text AS type, t.jaar, t.genres, t.taal::text AS taal, t.land, t.talen,
                COALESCE(t.categorie, t.type::text) AS categorie, t.nummer_naam, t.nummer_artiest,
-               t.yt_zoekterm, t.mp3_afgekeurd, t.zoek_pogingen, t.handmatig
+               t.yt_zoekterm, t.nl_versie, t.mp3_afgekeurd, t.zoek_pogingen, t.handmatig
           FROM titels t
          WHERE t.ai_status = 'klaar' AND t.curatie_status <> 'uitgesloten'
            AND NOT ${bank.HEEFT_MP3}
@@ -474,6 +485,152 @@ async function stapAanvullen(inst) {
     status.laatsteActie = `${bank.CATEGORIE_LABEL[categorie]}: ${toegevoegd} nieuwe titels op de lijst (worden direct gecontroleerd)`;
     await bank.log(null, 'aanvulling', `${status.laatsteActie}${nieuweNamen.length ? `: ${nieuweNamen.join(', ')}` : ''}`);
     return true;
+}
+
+// ------------------------------------------------------------------
+// Stap: collecties (Sinterklaas, Rock …)
+//
+// 1. Scannen: bestaande titels in lijsten van ~120 langs alle AI-collecties
+//    tegelijk. Zo komt Rocky (Eye of the Tiger) in Film én in Rock zonder
+//    dat er een tweede MP3 nodig is.
+// 2. Aanvullen: is de scan klaar en zit de collectie onder haar doel, dan
+//    bedenkt de AI nieuwe items. Bestaat een item al (ook als nummer van een
+//    film/serie/game), dan wordt het hergebruikt; anders komt het erbij.
+// ------------------------------------------------------------------
+
+// Welke categorieën bij welk soort collectie mogen (null = alles).
+const COLLECTIE_SCOPE = { film: ['film'], serie: ['serie'], beide: ['film', 'serie', 'anime'], muziek: null, alles: null };
+function pastInCollectie(c, categorie) {
+    const scope = COLLECTIE_SCOPE[c.standaard_type];
+    return !scope || scope.includes(categorie);
+}
+
+async function koppel(titelId, c, bron = 'ai') {
+    const { rowCount } = await pool.query(
+        `INSERT INTO titel_collecties (titel_id, collectie_id, bron)
+         SELECT $1, $2, $3
+          WHERE NOT EXISTS (SELECT 1 FROM titel_collecties_uit u WHERE u.titel_id = $1 AND u.collectie_id = $2)
+         ON CONFLICT DO NOTHING`, [titelId, c.id, bron]);
+    return rowCount > 0;
+}
+
+async function scanCollecties(open) {
+    const start = open[0].ai_scan_tot;
+    const { rows: titels } = await pool.query(`
+        SELECT t.id, t.naam, t.jaar, t.type::text AS type, COALESCE(t.categorie, t.type::text) AS categorie,
+               t.nummer_naam, t.nummer_artiest
+          FROM titels t WHERE t.id > $1 ORDER BY t.id LIMIT $2`, [start, BATCH.collectieScan]);
+    const tot = titels.length ? titels[titels.length - 1].id : Number.MAX_SAFE_INTEGER;
+    // Alleen collecties die tot `start` al gescand zijn; een collectie die
+    // verder achterloopt komt in een eigen ronde, anders slaat ze iets over.
+    const mee = open.filter((c) => c.ai_scan_tot >= start && c.ai_scan_tot < tot).slice(0, 12);
+    if (!titels.length) {
+        await pool.query('UPDATE collecties SET ai_scan_tot = (SELECT COALESCE(max(id), 0) FROM titels) WHERE id = ANY($1)',
+            [mee.map((c) => c.id)]);
+        return false;
+    }
+    zet('collecties', `Indelen in ${mee.map((c) => c.naam).join(', ')} (titels ${titels[0].id}–${tot})`);
+    const res = await bankAi.deelCollectiesIn(titels, mee);
+    controleerAi(res);
+    const perTitel = new Map(titels.map((t) => [t.id, t]));
+    const erbij = {};
+    for (const [id, sleutels] of res.items) {
+        const t = perTitel.get(id);
+        for (const c of mee) {
+            if (!sleutels.includes(c.sleutel) || !pastInCollectie(c, t.categorie)) continue;
+            if (await koppel(id, c)) (erbij[c.naam] = erbij[c.naam] || []).push(t.naam);
+        }
+    }
+    await pool.query('UPDATE collecties SET ai_scan_tot = GREATEST(ai_scan_tot, $2), ai_laatst = now() WHERE id = ANY($1)',
+        [mee.map((c) => c.id), tot]);
+    const regels = Object.entries(erbij).map(([naam, lijst]) => `${naam}: +${lijst.length} (${lijst.slice(0, 8).join(', ')}${lijst.length > 8 ? '…' : ''})`);
+    status.laatsteActie = regels.length ? `Collecties ingedeeld — ${regels.join('; ')}` : `Collecties: ${titels.length} titels nagelopen, niets nieuws`;
+    if (regels.length) await bank.log(null, 'collectie', status.laatsteActie);
+    return true;
+}
+
+async function vulCollectie(c) {
+    const { rows: leden } = await pool.query(`
+        SELECT t.naam, t.nummer_naam FROM titel_collecties tc JOIN titels t ON t.id = tc.titel_id
+         WHERE tc.collectie_id = $1 ORDER BY t.naam LIMIT 1500`, [c.id]);
+    const bestaand = [...new Set(leden.flatMap((l) => [l.naam, l.nummer_naam]).filter(Boolean))];
+    const aantal = Math.min(BATCH.collectieAanvullen, Math.max(5, c.ai_doel - c.aantal));
+    zet('collecties', `Collectie ${c.naam} aanvullen (${c.aantal}/${c.ai_doel})`);
+    const res = await bankAi.vulCollectieAan(c, { aantal, bestaand });
+    controleerAi(res);
+
+    const zoek = [...new Set(res.items.map((i) => i.naam.toLowerCase()))];
+    const { rows: kandidaten } = zoek.length ? await pool.query(`
+        SELECT t.id, t.naam, t.nummer_naam, t.nummer_artiest, COALESCE(t.categorie, t.type::text) AS categorie
+          FROM titels t
+         WHERE lower(t.naam) = ANY($1) OR lower(t.nummer_naam) = ANY($1)
+            OR lower(regexp_replace(t.naam, '[^[:alnum:]]+', '', 'g')) = ANY($2)`,
+        [zoek, zoek.map((z) => z.replace(/[^\p{L}\p{N}]+/gu, ''))]) : { rows: [] };
+
+    let nieuw = 0;
+    let hergebruikt = 0;
+    const namen = [];
+    for (const it of res.items) {
+        if (!pastInCollectie(c, it.categorie)) continue;
+        const sleutel = bank.norm(it.naam);
+        const artiest = bank.norm(it.artiest);
+        // 1. dezelfde titel in dezelfde categorie, 2. het nummer van een
+        // film/serie/game (Eye of the Tiger → Rocky), 3. dezelfde naam elders.
+        const bestaat = kandidaten.find((k) => k.categorie === it.categorie && bank.norm(k.naam) === sleutel)
+            || kandidaten.find((k) => bank.norm(k.nummer_naam) === sleutel
+                && (!artiest || !k.nummer_artiest || bank.norm(k.nummer_artiest) === artiest)
+                && pastInCollectie(c, k.categorie))
+            || kandidaten.find((k) => bank.norm(k.naam) === sleutel && pastInCollectie(c, k.categorie));
+        if (bestaat) {
+            if (await koppel(bestaat.id, c)) { hergebruikt++; namen.push(`${bestaat.naam} (bestond al)`); }
+            continue;
+        }
+        const muziek = bank.MUZIEK_CATEGORIEEN.has(it.categorie);
+        try {
+            const { rows: [t] } = await pool.query(
+                `INSERT INTO titels (naam, type, taal, jaar, categorie, bekendheid_tier, nummer_naam, nummer_artiest,
+                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres)
+                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, '{}', '{}')
+                 RETURNING id`,
+                [it.naam, bank.typeVoorCategorie(it.categorie, it.categorie === 'anime' ? 'serie' : 'film'), it.jaar,
+                    it.categorie, it.bekendheid, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
+                    `AI-curator: aangevuld voor collectie ${c.naam}`]);
+            await koppel(t.id, c);
+            kandidaten.push({ id: t.id, naam: it.naam, nummer_naam: muziek ? it.naam : null, nummer_artiest: it.artiest, categorie: it.categorie });
+            nieuw++;
+            namen.push(it.naam);
+        } catch (err) {
+            logger.waarschuwing('Collectie-aanvulling opslaan mislukt', { naam: it.naam, melding: err.message });
+        }
+    }
+    const uitgeput = nieuw + hergebruikt < 3;
+    await pool.query(
+        `UPDATE collecties SET ai_laatst = now(), ai_uitgeput_tot = CASE WHEN $2 THEN now() + interval '3 days' ELSE NULL END WHERE id = $1`,
+        [c.id, uitgeput]);
+    status.tellers.toegevoegd += nieuw;
+    status.laatsteActie = `Collectie ${c.naam}: ${hergebruikt} bestaande hergebruikt, ${nieuw} nieuw${uitgeput ? ' (AI weet even niets meer, over 3 dagen opnieuw)' : ''}`;
+    await bank.log(null, 'collectie', `${status.laatsteActie}${namen.length ? `: ${namen.join(', ')}` : ''}`);
+    return true;
+}
+
+async function stapCollecties() {
+    const { rows: [{ max }] } = await pool.query('SELECT COALESCE(max(id), 0)::int AS max FROM titels');
+    const { rows: open } = await pool.query(`
+        SELECT id, sleutel, naam, beschrijving, ai_criteria, standaard_type, ai_scan_tot, voorrang
+          FROM collecties WHERE ai_aan AND actief AND ai_scan_tot < $1
+         ORDER BY voorrang DESC, ai_scan_tot, id`, [max]);
+    if (open.length && await scanCollecties(open)) return true;
+    const { rows: [c] } = await pool.query(`
+        SELECT c.*, (SELECT count(*)::int FROM titel_collecties tc WHERE tc.collectie_id = c.id) AS aantal
+          FROM collecties c
+         WHERE c.ai_aan AND c.actief AND c.ai_doel > 0 AND c.ai_scan_tot >= $1
+           AND (c.ai_uitgeput_tot IS NULL OR c.ai_uitgeput_tot < now())
+           AND (SELECT count(*) FROM titel_collecties tc WHERE tc.collectie_id = c.id) < c.ai_doel
+         ORDER BY c.voorrang DESC,
+                  (SELECT count(*) FROM titel_collecties tc WHERE tc.collectie_id = c.id)::float / c.ai_doel, c.id
+         LIMIT 1`, [max]);
+    if (!c) return false;
+    return vulCollectie(c);
 }
 
 // ------------------------------------------------------------------
@@ -661,6 +818,7 @@ const STAPPEN = {
     mp3: stapMp3,
     quiz: stapQuiz,
     aanvullen: stapAanvullen,
+    collecties: stapCollecties,
     verbeteren: stapVerbeteren,
 };
 
@@ -744,4 +902,4 @@ function huidigeStatus() {
     return { ...status, tellers: { ...status.tellers }, mp3Bezig: bankMp3.bezigeIds().length };
 }
 
-module.exports = { start, porren, hervat, huidigeStatus, pasBeoordelingToe, bewaarQuiz };
+module.exports = { start, porren, hervat, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties };

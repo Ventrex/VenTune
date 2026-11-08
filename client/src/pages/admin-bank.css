@@ -387,3 +387,27 @@ select.ab-in { padding-right: 0.3rem; }
 .admin-ingebed { text-align: left; }
 .admin-ingebed .raden-kop { display: flex; justify-content: flex-end; margin: 0; }
 .admin-ingebed .raden-kop .terug { font-size: 0.9rem; }
+
+/* Collecties */
+.ab-collecties { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
+.ab-collectie {
+    display: flex; gap: 0.7rem; align-items: center; text-align: left; padding: 0.7rem 0.8rem;
+    border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 70%, transparent);
+    color: var(--text); cursor: pointer; font: inherit;
+}
+.ab-collectie:hover { border-color: var(--accent); }
+.ab-collectie.uit { opacity: 0.55; }
+.ab-collectie-emoji { font-size: 1.8rem; line-height: 1; }
+.ab-collectie-tekst { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.ab-collectie-kop { font-size: 1.15rem; }
+.ab-nieuwe-collectie { display: flex; flex-direction: column; gap: 0.5rem; }
+.ab-nieuwe-collectie textarea.ab-in { width: 100%; resize: vertical; font: inherit; }
+.ab-emoji-in { flex: 0 0 3.4rem !important; width: 3.4rem; text-align: center; }
+.ab-velden { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.ab-velden .ab-veld.breed { flex: 1 1 100%; }
+.ab-gevaar { border-color: #ff5c7a !important; color: #ff8fa3 !important; }
+.ab-treffers, .ab-leden { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.ab-treffers button { width: 100%; text-align: left; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; font: inherit; }
+.ab-treffers button:hover { border-color: var(--accent); }
+.ab-leden li { display: flex; gap: 0.5rem; align-items: center; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
+.ab-leden li .ab-titel { flex: 1; min-width: 0; }

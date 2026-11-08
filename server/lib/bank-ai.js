@@ -12,13 +12,16 @@ const { CATEGORIEEN, TIERS, norm } = require('./bank');
 const NU = new Date().getFullYear();
 
 const CRITERIA = `
+DOELGROEP: VenTune is vooral een nostalgisch spel voor volwassenen (ongeveer 25-60 jaar) die terugdenken aan vroeger. Beoordeel bekendheid vanuit hen, niet vanuit kinderen van nu.
+- alleen_kids_nu=true voor kinderprogramma's/-series, kinderfilms of kidsmuziek die vooral bekend zijn bij kinderen van nu (ongeveer 6-14 jaar) en die volwassenen niet van vroeger kennen (bv. recente Nickelodeon-, Disney Channel-, Netflix Kids- of YouTube-kidstitels). Kinderseries die volwassenen van hun eigen jeugd kennen (Alfred J. Kwak, Maya de Bij, Teletubbies, Pokémon, Bassie & Adriaan, Sesamstraat) zijn juist wél goed: alleen_kids_nu=false.
+
 BEKENDHEID (kies precies één, kijk naar Nederland). Kijk naar de titel ÉN het nummer:
 - iconisch: zowel de titel als het nummer zijn vrijwel bij iedereen in Nederland bekend; je herkent het meteen, ook als je geen fan bent (Rocky + Eye of the Tiger, Star Wars, Friends, Titanic, Super Mario, Last Christmas).
 - algemeen_bekend: óf de titel óf het nummer is breed bekend, de ander iets minder; de meeste Nederlanders kennen het (bv. Sliders, Baywatch, Knight Rider).
 - bekend: bekend bij een flink deel van het publiek en bij iedereen die het genre volgt.
 - onbekend: vooral fans en kenners herkennen het.
 - cult: echt niche, met een kleine maar trouwe fanbase die het als klassieker ziet. Een serie die in Nederland jarenlang op tv was (zoals Sliders) is géén cult maar minstens algemeen bekend.
-Bij videogames tellen het spel én de muziek: is het spel of de gamemuziek iconisch (Super Mario, Tetris, Zelda, Pac-Man), dan is het iconisch.
+Bij videogames tellen het spel én de muziek, gemeten onder mensen die games spelen of speelden: is het spel óf de gamemuziek iconisch, dan is het iconisch. Een miljoenenverkoper die bij een populaire console hoorde en waarvan iedereen met die console het thema kent, is iconisch: Super Mario, Tetris, Pac-Man, Wii Sports, Mario Kart, Zelda (ook A Link to the Past en Ocarina of Time), Pokémon Rood/Blauw, Sonic, Street Fighter II, The Sims, GTA San Andreas, Minecraft, Halo, Final Fantasy VII. Wees bij games niet te streng: de vraag is of gamers het thema herkennen, niet of je oma het kent.
 Bij anime vergelijk je binnen anime: Pokémon, Dragon Ball en Naruto zijn iconisch; Death Note, One Piece, Attack on Titan, Ghost in the Shell en Sailor Moon zijn algemeen bekend of bekend.
 
 BEKEND IN NEDERLAND (nl_bekend):
@@ -29,12 +32,15 @@ BEKEND IN NEDERLAND (nl_bekend):
 
 CATEGORIE:
 - film / serie: speelfilms en tv-series (ook westerse animatie zoals Disney, Pixar, The Simpsons).
-- anime: Japanse tekenfilmseries en -films (Naruto, Death Note, Ghost in the Shell, Dragon Ball, One Piece, Attack on Titan, Pokémon, Sailor Moon, Studio Ghibli). Westerse animatie (Disney, Pixar, DreamWorks, The Simpsons) is géén anime maar film of serie. Zet anime_breed_bekend=true als ook mensen die niets met anime hebben het in Nederland kennen (bv. Pokémon, Dragon Ball Z, Sailor Moon, Spirited Away); anders false.
+- Oude Japanse of Japans-Europese tekenfilmseries die in Nederland als gewone kinder-tekenfilm op tv waren (vooral jaren 70-80, nagesynchroniseerd: Maya de Bij, Mrs. Theelepel, Nils Holgersson, Heidi, Alfred J. Kwak, Barbapapa, Vicky de Viking, Wickie) zijn géén anime maar categorie serie.
+- anime: Japanse animeseries en -films die Nederlanders als ANIME kennen (Naruto, Death Note, Ghost in the Shell, Dragon Ball, One Piece, Attack on Titan, Pokémon, Sailor Moon, Studio Ghibli). Westerse animatie (Disney, Pixar, DreamWorks, The Simpsons) is géén anime maar film of serie. Zet anime_breed_bekend=true als ook mensen die niets met anime hebben het in Nederland kennen (bv. Pokémon, Dragon Ball Z, Sailor Moon, Spirited Away); anders false.
 - game: videogames; het nummer is gamemuziek.
 - muziek: een los nummer (single/hit) dat niet bij een film, serie of game hoort.
 - kerst: kerstmuziek. kinder: kinderliedjes.
 
-HET NUMMER: het herkenningsnummer dat spelers moeten herkennen. Film/serie/anime: de titelsong, intro of het bekendste thema. Game: het bekendste originele gamethema. Muziek/kerst/kinder: het nummer zelf (nummer_naam = naam, nummer_artiest = de originele uitvoerende artiest). yt_zoekterm vindt de ORIGINELE versie op YouTube (geen cover, live of remix).
+TAAL VAN HET NUMMER: nl_versie=true als Nederlanders de titelsong vooral in een NEDERLANDSTALIGE versie kennen (nagesynchroniseerde series en films zoals Maya de Bij, Pokémon, Nils Holgersson, Alfred J. Kwak, Disney-liedjes in het Nederlands). Dan zijn nummer_naam en yt_zoekterm die van de Nederlandse versie (bv. "Maya de Bij intro Nederlands"). Anders false: dan geldt het origineel. Nooit een Duitse, Franse, Spaanse of andere anderstalige versie.
+
+HET NUMMER: het herkenningsnummer dat spelers moeten herkennen. Film/serie/anime: de titelsong, intro of het bekendste thema. Game: het bekendste originele gamethema. Muziek/kerst/kinder: het nummer zelf (nummer_naam = naam, nummer_artiest = de originele uitvoerende artiest). yt_zoekterm vindt de ORIGINELE versie op YouTube (of de Nederlandse versie bij nl_versie=true; geen cover, live of remix).
 
 GEGEVENS KLOPPEN: jaar = jaar van de (eerste) release, bij een serie het beginjaar. eind_jaar = laatste jaar van een serie die is afgelopen (null bij films, games, muziek of een serie die nog loopt); serie_lopend = true als een serie nog loopt. taal = "nl" alleen voor Nederlandstalige producties/nummers (Flodder, Baantjer, Marco Borsato), anders "en" — The Office, Friends en Pokémon zijn dus "en". land = productieland als code (NL, BE, US, GB, JP, FR, DE, …).
 
@@ -65,6 +71,8 @@ const BEOORDELING_PROPS = {
     nummer_naam: STR,
     nummer_artiest: STR,
     yt_zoekterm: STR,
+    nl_versie: S('boolean'),
+    alleen_kids_nu: S('boolean'),
     geschikt: S('boolean'),
     notitie: STR,
 };
@@ -105,6 +113,8 @@ function schoonBeoordeling(b) {
         nummer_naam: schoonTekst(b.nummer_naam, 200),
         nummer_artiest: schoonTekst(b.nummer_artiest, 200),
         yt_zoekterm: schoonTekst(b.yt_zoekterm, 200),
+        nl_versie: b.nl_versie === true,
+        alleen_kids_nu: b.alleen_kids_nu === true,
         geschikt: b.geschikt !== false,
         notitie: schoonTekst(b.notitie, 400),
     };
@@ -168,6 +178,7 @@ async function vulAan({ categorie, aantal, periode, tier, bestaand }, signal) {
     const prompt = `Je vult de vragenbank van VenTune, een Nederlandse muziekquiz waarin spelers iets herkennen aan de muziek.
 
 Geef een LIJST van ${aantal} nieuwe ${wat} die in Nederland bekend zijn en een herkenbaar origineel nummer hebben. ${periodeRegel}
+Denk aan wat volwassenen (25-60) van vroeger kennen; geen titels die alleen kinderen van nu kennen.
 Ze moeten bekendheid "${tier}" hebben${tier === 'iconisch' ? ' (alleen het allerbekendste: wat vrijwel iedereen in Nederland meteen herkent)' : ''}.
 Niets uit de lijst hieronder (ook geen andere schrijfwijze of een los deel van dezelfde reeks met hetzelfde nummer). Liever minder dan obscure of verzonnen titels.
 Per item alleen: naam (zoals Nederlanders hem kennen), jaar (release; bij series het beginjaar), artiest (alleen bij muziek/kerst/kinder, anders leeg) en bekendheid (je eerlijke inschatting: iconisch, algemeen_bekend, bekend, onbekend of cult).
@@ -292,11 +303,13 @@ async function kiesVideo(lijst, signal) {
     const invoer = lijst.map(({ titel, kandidaten }) => ({
         id: titel.id,
         zoek: { naam: titel.naam, categorie: titel.categorie, jaar: titel.jaar || null,
-            nummer: titel.nummer_naam || null, artiest: titel.nummer_artiest || null },
+            nummer: titel.nummer_naam || null, artiest: titel.nummer_artiest || null,
+            versie: titel.nl_versie ? 'Nederlandstalig' : 'origineel' },
         kandidaten: kandidaten.map((k, i) => ({ i, titel: k.titel, kanaal: k.kanaal || null, duur: duur(k.duurSeconden), views: k.views || null })),
     }));
     const prompt = `Kies voor elke zoekopdracht de YouTube-video met de ORIGINELE versie van het gevraagde nummer, voor een muziekquiz.
 Wel: officiële video of audio, "- Topic"-kanalen, het originele titelthema/intro/gamethema, duur tussen ongeveer 0:20 en 7:00.
+Taal: bij versie "Nederlandstalig" alleen de Nederlandse versie (Nederlandse titelsong/nasynchronisatie); bij "origineel" de originele taal. NOOIT een Duitse, Franse, Spaanse, Italiaanse, Poolse of andere anderstalige versie (let op titels als "deutsch", "German", "français", "español", "Titellied").
 Niet: covers, live, remix, sped up/slowed, nightcore, piano/8-bit/orkest-versies (tenzij dat het origineel is), trailers, reacties, uitleg, compilaties, "1 hour"/"10 hours", karaoke, een ander deel of seizoen met ander thema.
 Geef keuze = index van de kandidaat, of -1 als geen enkele kandidaat zeker goed is. reden: korte uitleg in het Nederlands.
 
@@ -377,7 +390,98 @@ ${invoer.map((i) => JSON.stringify(i)).join('\n')}`;
     return { ok: true, correcties };
 }
 
+// ------------------------------------------------------------------
+// Collecties (Sinterklaas, Rock, Disney …)
+// ------------------------------------------------------------------
+
+const SOORT_UITLEG = {
+    muziek: 'Kijk naar het NUMMER: ook een film, serie of game hoort erbij als het herkenningsnummer past (bv. Rocky met Eye of the Tiger in Rock).',
+    film: 'Alleen films.',
+    serie: 'Alleen series.',
+    beide: 'Films, series en anime.',
+    alles: 'Alles: films, series, anime, games en muziek.',
+};
+
+function collectieRegel(c) {
+    return `- ${c.sleutel}: "${c.naam}" — ${c.ai_criteria || c.beschrijving || c.naam}. ${SOORT_UITLEG[c.standaard_type] || ''}`;
+}
+
+/**
+ * Welke titels uit de lijst horen in welke collecties? Eén lijst titels,
+ * meerdere collecties tegelijk: zo kost een scan van de database weinig.
+ * @returns {Promise<{ok:true, items: Map<number, string[]>}|{ok:false,error:string}>}
+ */
+async function deelCollectiesIn(titels, collecties, signal) {
+    const prompt = `Je beheert de collecties (thema's) van VenTune, een Nederlandse muziekquiz waarin spelers iets herkennen aan de muziek.
+Bepaal per titel in welke van deze collecties hij past. Een titel mag in meerdere collecties of in geen enkele. Wees streng: alleen als het duidelijk past.
+
+Collecties:
+${collecties.map(collectieRegel).join('\n')}
+
+Geef ALLEEN titels terug die in minstens één collectie passen, met id en de sleutels van de collecties.
+${GUARD}
+
+Titels (id | categorie | naam | jaar | nummer):
+${titels.map((t) => `${t.id} | ${t.categorie || t.type} | ${t.naam} | ${t.jaar || ''} | ${[t.nummer_naam, t.nummer_artiest].filter(Boolean).join(' – ')}`).join('\n')}`;
+    const sleutels = collecties.map((c) => c.sleutel);
+    const res = await codex.vraagJson({
+        prompt,
+        schema: lijstSchema({ id: S('integer'), collecties: S('array', { items: S('string', { enum: sleutels }) }) }),
+        signal,
+    });
+    if (!res.ok) return res;
+    const geldig = new Set(titels.map((t) => t.id));
+    const items = new Map();
+    for (const r of res.data?.items || []) {
+        if (!geldig.has(r?.id)) continue;
+        const lijst = [...new Set((r.collecties || []).filter((x) => sleutels.includes(x)))];
+        if (lijst.length) items.set(r.id, lijst);
+    }
+    return { ok: true, items };
+}
+
+/** Nieuwe items voor één collectie bedenken (bestaande worden hergebruikt). */
+async function vulCollectieAan(c, { aantal, bestaand }, signal) {
+    const prompt = `Je vult de collectie "${c.naam}" van VenTune, een Nederlandse muziekquiz voor volwassenen die terugdenken aan vroeger.
+Wat hoort erin: ${c.ai_criteria || c.beschrijving || c.naam}. ${SOORT_UITLEG[c.standaard_type] || ''}
+
+Geef een LIJST van maximaal ${aantal} items die in Nederland bekend zijn en een herkenbaar nummer hebben. Begin met het allerbekendste.
+Per item: naam (zoals Nederlanders hem kennen; bij muziek de nummertitel), categorie (film, serie, anime, game, muziek, kerst of kinder — kinder voor kinderliedjes, ook Sinterklaasliedjes), jaar, artiest (alleen bij muziek/kerst/kinder) en bekendheid.
+Niets uit de lijst hieronder. Liever minder dan obscure of verzonnen items.
+
+${GUARD}
+
+Zit er al in (overslaan):
+${bestaand.length ? bestaand.join(' | ') : '(nog niets)'}`;
+    const res = await codex.vraagJson({
+        prompt,
+        schema: lijstSchema({
+            naam: STR,
+            categorie: S('string', { enum: CATEGORIEEN }),
+            jaar: S(['integer', 'null']),
+            artiest: STR,
+            bekendheid: S('string', { enum: TIERS }),
+        }),
+        signal,
+    });
+    if (!res.ok) return res;
+    const items = [];
+    for (const raw of res.data?.items || []) {
+        const naam = schoonTekst(raw?.naam, 200);
+        if (!naam || !CATEGORIEEN.includes(raw.categorie)) continue;
+        items.push({
+            naam,
+            categorie: raw.categorie,
+            jaar: Number.isInteger(raw.jaar) && raw.jaar >= 1900 && raw.jaar <= NU + 1 ? raw.jaar : null,
+            artiest: schoonTekst(raw.artiest, 200),
+            bekendheid: TIERS.includes(raw.bekendheid) ? raw.bekendheid : null,
+        });
+    }
+    return { ok: true, items };
+}
+
 module.exports = {
+    deelCollectiesIn, vulCollectieAan,
     beoordeel, vulAan, maakQuiz, kiesVideo, controleerTracks, audit,
     // voor tests
     schoonBeoordeling, schoonQuiz, maakOpties,

@@ -46,6 +46,11 @@ function bouwFilter(f = {}) {
     }
     const sqlCats = new Set(gekozen);
     if (sqlCats.has('muziek')) { sqlCats.add('kerst'); sqlCats.add('kinder'); }
+    // Een muziekcollectie (Rock, Sinterklaas) draait om het nummer: daar
+    // horen ook films/series/games bij waarvan het nummer past, zoals Rocky
+    // met Eye of the Tiger. Het nummer wordt hergebruikt, geen dubbele MP3.
+    const heeftCollectie = (Array.isArray(f.collecties) && f.collecties.length) || (f.collectie && f.collectie !== 'alles');
+    if (heeftCollectie && gekozen.length === 1 && gekozen[0] === 'muziek') toegestaan.forEach((c) => sqlCats.add(c));
     params.push([...sqlCats]);
     const catParam = params.length;
     const filmSerie = gekozen.filter((c) => c === 'film' || c === 'serie');

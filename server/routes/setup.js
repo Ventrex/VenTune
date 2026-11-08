@@ -14,6 +14,7 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { bouwFilter } = require('../game/filters');
 const logger = require('../lib/logger');
+const bank = require('../lib/bank');
 
 const router = express.Router();
 
@@ -59,13 +60,14 @@ router.get('/api/tracks/diagnose', async (_req, res) => {
 router.get('/api/collecties', async (_req, res) => {
     try {
         const { rows } = await pool.query(
-            `SELECT c.sleutel, c.naam, c.beschrijving, c.standaard_type,
-                    COUNT(tc.titel_id)::int AS aantal
+            `SELECT c.sleutel, c.naam, c.beschrijving, c.standaard_type, c.emoji,
+                    COUNT(tc.titel_id)::int AS aantal,
+                    COUNT(tc.titel_id) FILTER (WHERE ${bank.HEEFT_SPEELBAAR.replace(/\bt\.id\b/g, 'tc.titel_id')})::int AS speelbaar
                FROM collecties c
                LEFT JOIN titel_collecties tc ON tc.collectie_id = c.id
               WHERE c.actief = true
               GROUP BY c.id
-              ORDER BY c.naam ASC`,
+              ORDER BY c.volgorde ASC, c.naam ASC`,
         );
         res.json(rows);
     } catch (err) {
