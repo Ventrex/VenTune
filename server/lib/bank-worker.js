@@ -239,6 +239,7 @@ async function pasBeoordelingToeIn(client, t, b) {
         set('nl_versie', b.nl_versie);
     }
     set('alleen_kids_nu', b.alleen_kids_nu);
+    if (!vast('genres') && b.genres.length) set('ai_genres', b.genres);
 
     // Uitsluiten of terughalen. De AI raakt alleen uitsluitingen aan die ze
     // zelf heeft gedaan; oude uitsluitingen en handmatige keuzes blijven.

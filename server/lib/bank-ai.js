@@ -7,7 +7,7 @@
 // =====================================================================
 
 const codex = require('./codex');
-const { CATEGORIEEN, TIERS, norm } = require('./bank');
+const { CATEGORIEEN, TIERS, norm, ALLE_GENRES, GENRES_BEELD, GENRES_GAME, GENRES_MUZIEK, schoonGenres } = require('./bank');
 
 const NU = new Date().getFullYear();
 
@@ -44,6 +44,11 @@ HET NUMMER: het herkenningsnummer dat spelers moeten herkennen. Film/serie/anime
 
 GEGEVENS KLOPPEN: jaar = jaar van de (eerste) release, bij een serie het beginjaar. eind_jaar = laatste jaar van een serie die is afgelopen (null bij films, games, muziek of een serie die nog loopt); serie_lopend = true als een serie nog loopt. taal = "nl" alleen voor Nederlandstalige producties/nummers (Flodder, Baantjer, Marco Borsato), anders "en" — The Office, Friends en Pokémon zijn dus "en". land = productieland als code (NL, BE, US, GB, JP, FR, DE, …).
 
+GENRES: 1 tot 3 genres die het best passen, alleen uit deze lijsten.
+- film/serie/anime: ${GENRES_BEELD.join(', ')}
+- game: ${GENRES_GAME.join(', ')}
+- muziek/kerst/kinder: ${GENRES_MUZIEK.join(', ')}
+
 ANTWOORD: spelers raden de naam (film, serie, game of nummertitel). franchise is de korte naam van de reeks die spelers ook goed mogen rekenen, versie-onafhankelijk (bv. "Terminator" voor Terminator 2, "Super Mario" voor Super Mario Bros. 3, "Harry Potter"). Leeg als er geen reeks is. aliassen: andere geldige namen (Nederlandse titel, originele titel, gangbare afkorting zoals "GTA"), maximaal 5, zonder de franchise te herhalen.
 
 geschikt=false als er geen herkenbaar nummer bestaat of de titel ongeschikt is voor een muziekquiz (nieuws, talkshow, documentaire zonder herkenbaar thema, dubbel record).`;
@@ -72,6 +77,7 @@ const BEOORDELING_PROPS = {
     nummer_artiest: STR,
     yt_zoekterm: STR,
     nl_versie: S('boolean'),
+    genres: S('array', { items: S('string', { enum: ALLE_GENRES }) }),
     alleen_kids_nu: S('boolean'),
     geschikt: S('boolean'),
     notitie: STR,
@@ -114,6 +120,7 @@ function schoonBeoordeling(b) {
         nummer_artiest: schoonTekst(b.nummer_artiest, 200),
         yt_zoekterm: schoonTekst(b.yt_zoekterm, 200),
         nl_versie: b.nl_versie === true,
+        genres: schoonGenres(b.genres, CATEGORIEEN.includes(b.categorie) ? b.categorie : 'film'),
         alleen_kids_nu: b.alleen_kids_nu === true,
         geschikt: b.geschikt !== false,
         notitie: schoonTekst(b.notitie, 400),

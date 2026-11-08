@@ -31,7 +31,28 @@ const TIER_VERDELING = { iconisch: 0.2, algemeen_bekend: 0.25, bekend: 0.25, onb
 // Velden die de beheerder kan aanpassen. Na een aanpassing staat het veld
 // in titels.handmatig en blijft de AI eraf.
 const VASTZETBAAR = ['naam', 'categorie', 'tier', 'jaar', 'nl', 'taal', 'actief', 'franchise',
-    'aliassen', 'nummer', 'hints', 'vragen', 'mp3'];
+    'aliassen', 'nummer', 'hints', 'vragen', 'mp3', 'genres'];
+
+// Vaste genrelijst, zodat je in Nieuw spel kunt kiezen voor bv. alleen
+// komedieseries of alleen actiegames. De AI kiest per titel 1-3 genres.
+const GENRES_BEELD = ['Actie', 'Avontuur', 'Animatie', 'Komedie', 'Sitcom', 'Drama', 'Fantasy', 'Sciencefiction',
+    'Horror', 'Thriller', 'Misdaad', 'Mysterie', 'Romantiek', 'Familie', 'Kinderserie', 'Musical', 'Western',
+    'Oorlog', 'Sport', 'Superhelden', 'Historisch', 'Documentaire'];
+const GENRES_GAME = ['Actie', 'Avontuur', 'Platform', 'RPG', 'Shooter', 'Race', 'Sport', 'Vechtspel', 'Puzzel',
+    'Strategie', 'Simulatie', 'Horror', 'Party', 'Open wereld', 'Muziek', 'Indie'];
+const GENRES_MUZIEK = ['Pop', 'Rock', 'Metal', 'Punk', 'Alternatief', 'Indie', 'Hiphop', 'R&B', 'Soul', 'Funk',
+    'Disco', 'Dance', 'Reggae', 'Latin', 'Country', 'Blues', 'Jazz', 'Klassiek', 'Schlager', 'Levenslied',
+    'Nederpop', 'Singer-songwriter', 'Soundtrack', 'Kinderlied', 'Kerst'];
+const ALLE_GENRES = [...new Set([...GENRES_BEELD, ...GENRES_GAME, ...GENRES_MUZIEK])];
+function genresVoor(categorie) {
+    if (categorie === 'game') return GENRES_GAME;
+    if (['muziek', 'kerst', 'kinder'].includes(categorie)) return GENRES_MUZIEK;
+    return GENRES_BEELD;
+}
+function schoonGenres(lijst, categorie) {
+    const geldig = new Set(genresVoor(categorie));
+    return [...new Set((Array.isArray(lijst) ? lijst : []).filter((g) => geldig.has(g)))].slice(0, 3);
+}
 
 const STANDAARD_INSTELLINGEN = {
     aan: true,
@@ -181,5 +202,6 @@ module.exports = {
     oudeAutomatiseringToegestaan,
     AI_VERSIE, CATEGORIEEN, CATEGORIE_LABEL, MUZIEK_CATEGORIEEN, TIERS, TIER_LABEL,
     TIER_VERDELING, VASTZETBAAR, HEEFT_MP3, HEEFT_SPEELBAAR, TIER_RANG,
+    GENRES_BEELD, GENRES_GAME, GENRES_MUZIEK, ALLE_GENRES, genresVoor, schoonGenres,
     voorrangSql, typeVoorCategorie, isVast, norm, log, instellingen, bewaarInstellingen, tellingen, werkvoorraad,
 };

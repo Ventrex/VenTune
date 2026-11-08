@@ -247,6 +247,7 @@ async function zoekTitels(zoekterm, type) {
         poster: item.poster_path ? 'https://image.tmdb.org/t/p/w185' + item.poster_path : null,
         omschrijving: item.overview || '',
         taal: item.original_language === 'nl' ? 'nl' : 'en',
+        genre_ids: Array.isArray(item.genre_ids) ? item.genre_ids : [],
     }));
 }
 

@@ -86,6 +86,7 @@ async function zoek(term, opties = {}) {
             preview_url: r.previewUrl,
             hoes: r.artworkUrl100 || null,
             jaar: r.releaseDate ? Number(r.releaseDate.slice(0, 4)) : null,
+            genre: r.primaryGenreName || null,
         }));
 
     if (opties.cache !== false) await cache.schrijf('itunes', term.trim(), uit);

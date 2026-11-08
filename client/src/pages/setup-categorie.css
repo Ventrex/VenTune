@@ -842,3 +842,6 @@
 /* Zonder uitlegpaneel aan de zijkant: de keuze gebruikt de volle breedte. */
 .vt-category-workspace{grid-template-columns:1fr!important}
 .vt-subkeuzes.vt-tiers .chip.vt-tier-chip{height:auto!important;min-height:42px!important;width:auto!important;flex:0 0 auto!important;padding:0 14px!important;display:inline-flex!important;align-items:center!important;gap:4px!important}
+.vt-genre-rij{display:flex;flex-wrap:wrap;gap:6px}
+.vt-genre-chip{min-height:36px;padding:0 12px;font-size:.88rem;white-space:nowrap}
+.vt-genre-chip small{opacity:.7;margin-left:4px}

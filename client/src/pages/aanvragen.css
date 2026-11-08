@@ -19,3 +19,7 @@
 .scherm.aanvraag-scherm { text-align: left; }
 .aanvraag-scherm .invoer { flex: 0 0 auto; min-height: 50px; }
 .aanvraag-scherm .aanvraag-naam { min-height: 44px; }
+.aanvraag-genres { color: var(--accent, #ff4fa3); font-size: 0.75rem; }
+.aanvraag-al { font-size: 0.85rem; color: #6fe3a1; max-width: 11rem; text-align: right; }
+.aanvraag-al.uitgesloten { color: #ff9a9a; }
+.aanvraag-al.bezig { color: #f5c96a; }

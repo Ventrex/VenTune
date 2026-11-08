@@ -5,8 +5,10 @@
 //   POST /api/aanvragen                                aanvragen
 //   GET  /api/aanvragen/recent                         laatste aanvragen + status
 //
-// Bronnen: TMDB voor films, series en anime (als er een TMDB-sleutel is),
-// iTunes voor muziek, Wikipedia voor videogames (en als reserve). Een
+// Alleen geregistreerde spelers (of de beheerder) kunnen toevoegen.
+// Bronnen: TMDB voor films, series en anime, IGDB voor videogames (met
+// IGDB_CLIENT_ID/SECRET), iTunes + Discogs (met DISCOGS_TOKEN) voor muziek,
+// en Wikipedia als reserve. Genres van de bron gaan meteen mee. Een
 // aanvraag wordt meteen een titel; de AI-curator pakt aanvragen als eerste
 // op (beoordelen, MP3 zoeken, hints) en de beheerder keurt het nummer bij
 // het swipen.
@@ -17,11 +19,38 @@ const { pool } = require('../db/pool');
 const bank = require('../lib/bank');
 const tmdb = require('../lib/tmdb');
 const itunes = require('../lib/itunes');
+const igdb = require('../lib/igdb');
+const discogs = require('../lib/discogs');
 const worker = require('../lib/bank-worker');
 const { gebruikerUitRequest } = require('../lib/auth');
+const { isIngelogd: isAdmin } = require('./admin');
 const logger = require('../lib/logger');
 
 const router = express.Router();
+
+// TMDB-genre-id's naar VenTune-genres.
+const TMDB_GENRE = {
+    28: ['Actie'], 12: ['Avontuur'], 16: ['Animatie'], 35: ['Komedie'], 80: ['Misdaad'], 99: ['Documentaire'],
+    18: ['Drama'], 10751: ['Familie'], 14: ['Fantasy'], 36: ['Historisch'], 27: ['Horror'], 10402: ['Musical'],
+    9648: ['Mysterie'], 10749: ['Romantiek'], 878: ['Sciencefiction'], 53: ['Thriller'], 10752: ['Oorlog'],
+    37: ['Western'], 10759: ['Actie', 'Avontuur'], 10762: ['Kinderserie'], 10765: ['Sciencefiction', 'Fantasy'],
+    10768: ['Oorlog'],
+};
+
+/** Ingelogde speler of beheerder; anders null. */
+async function wie(req) {
+    const gebruiker = await gebruikerUitRequest(req).catch(() => null);
+    if (gebruiker) return { id: gebruiker.id, naam: gebruiker.display_naam || gebruiker.gebruikersnaam };
+    try { if (isAdmin(req)) return { id: null, naam: 'Beheer' }; } catch { /* niet ingelogd */ }
+    return null;
+}
+
+router.get('/api/aanvragen/wie', async (req, res) => {
+    const w = await wie(req);
+    res.json({ ingelogd: !!w, naam: w?.naam || null, bronnen: {
+        tmdb: tmdb.beschikbaar(), igdb: igdb.beschikbaar(), discogs: discogs.beschikbaar(),
+    } });
+});
 const MUZIEK = new Set(['muziek', 'kerst', 'kinder']);
 
 // Eenvoudige rem: maximaal 30 aanvragen per uur per IP-adres.
@@ -56,21 +85,80 @@ async function wikipedia(term, extra) {
     });
 }
 
+const GENRE_ITUNES = {
+    'Hip-Hop/Rap': 'Hiphop', 'R&B/Soul': 'R&B', Dance: 'Dance', Electronic: 'Dance', Alternative: 'Alternatief',
+    'Singer/Songwriter': 'Singer-songwriter', Soundtrack: 'Soundtrack', "Children's Music": 'Kinderlied',
+    Christmas: 'Kerst', Holiday: 'Kerst', 'Hard Rock': 'Rock', Classical: 'Klassiek', 'Nederlandstalig': 'Nederpop',
+    'Nederlandse muziek': 'Nederpop', 'Hip Hop/Rap': 'Hiphop', Schlager: 'Schlager', Metal: 'Metal',
+};
+
+/** Staat het er al in? Kijkt naar naam, aliassen, het nummer en TMDB-id. */
+async function alAanwezig(categorie, items) {
+    const namen = [...new Set(items.map((i) => i.naam.toLowerCase()))];
+    if (!namen.length) return new Map();
+    const tmdbIds = items.filter((i) => i.bron === 'tmdb').map((i) => Number(i.extern_id)).filter(Boolean);
+    const muziek = MUZIEK.has(categorie);
+    const { rows } = await pool.query(`
+        SELECT t.id, lower(t.naam) AS n, lower(COALESCE(t.nummer_naam, '')) AS nn, lower(COALESCE(t.nummer_artiest, '')) AS na,
+               t.tmdb_id, t.naam, COALESCE(t.categorie, t.type::text) AS categorie, t.curatie_status, t.uitsluit_reden,
+               ${bank.HEEFT_SPEELBAAR} AS speelbaar,
+               ARRAY(SELECT lower(a) FROM unnest(COALESCE(t.aliassen, '{}')) a) AS al
+          FROM titels t
+         WHERE lower(t.naam) = ANY($1) OR t.tmdb_id = ANY($2::int[])
+            OR EXISTS (SELECT 1 FROM unnest(COALESCE(t.aliassen, '{}')) a WHERE lower(a) = ANY($1))
+            OR ($3 AND lower(t.nummer_naam) = ANY($1))`, [namen, tmdbIds, muziek]);
+    const uit = new Map();
+    for (const i of items) {
+        const n = i.naam.toLowerCase();
+        const a = bank.norm(i.artiest);
+        const hit = rows.find((r) => i.bron === 'tmdb' && r.tmdb_id && r.tmdb_id === Number(i.extern_id))
+            || rows.find((r) => (r.n === n || r.al.includes(n)) && (r.categorie === categorie || (MUZIEK.has(r.categorie) && muziek)))
+            || (muziek && rows.find((r) => r.nn === n && (!a || !r.na || bank.norm(r.na) === a)));
+        if (hit) {
+            const als = hit.naam.toLowerCase() !== n ? ` (als ${hit.naam})` : '';
+            uit.set(i, {
+                id: hit.id,
+                status: hit.curatie_status === 'uitgesloten' ? 'uitgesloten' : hit.speelbaar ? 'speelbaar' : 'bezig',
+                tekst: hit.curatie_status === 'uitgesloten' ? `Staat erin${als} maar is uitgesloten`
+                    : hit.speelbaar ? `Staat er al in${als}`
+                        : `Staat er al in${als}, wordt nog klaargemaakt`,
+            });
+        }
+    }
+    return uit;
+}
+
 async function zoekBij(categorie, q) {
     if (MUZIEK.has(categorie)) {
-        const lijst = await itunes.zoek(q, { limiet: 12 });
-        return lijst.map((r) => ({
-            extern_id: r.trackId ? String(r.trackId) : null,
-            naam: r.tracknaam, artiest: r.artiest, jaar: r.jaar, poster: r.hoes, bron: 'itunes',
-        }));
+        const [it, dc] = await Promise.all([
+            itunes.zoek(q, { limiet: 12, cache: false }).catch(() => []),
+            discogs.beschikbaar() ? discogs.zoek(q, { limiet: 8 }).catch(() => []) : [],
+        ]);
+        const lijst = [...it.map((r) => ({
+            extern_id: r.itunes_track_id ? String(r.itunes_track_id) : null,
+            naam: r.tracknaam, artiest: r.artiest, jaar: r.jaar, poster: r.hoes,
+            genres: bank.schoonGenres([GENRE_ITUNES[r.genre] || r.genre], 'muziek'), bron: 'itunes',
+        })), ...dc];
+        // Dubbelen (zelfde nummer + artiest) weghalen.
+        const gezien = new Set();
+        return lijst.filter((r) => {
+            const k = `${bank.norm(r.naam)}|${bank.norm(r.artiest)}`;
+            if (gezien.has(k)) return false;
+            gezien.add(k);
+            return true;
+        }).slice(0, 15);
     }
-    if (categorie === 'game') return wikipedia(q, 'video game');
+    if (categorie === 'game') {
+        if (igdb.beschikbaar()) return igdb.zoek(q, { limiet: 12 });
+        return wikipedia(q, 'video game');
+    }
     const type = categorie === 'film' ? 'film' : 'serie';
     if (tmdb.beschikbaar()) {
         const lijst = await tmdb.zoekTitels(q, type);
         return lijst.map((r) => ({
             extern_id: String(r.tmdb_id), naam: r.naam, jaar: r.jaar, poster: r.poster,
             omschrijving: (r.omschrijving || '').slice(0, 160), bron: 'tmdb',
+            genres: bank.schoonGenres((r.genre_ids || []).flatMap((g) => TMDB_GENRE[g] || []), categorie),
         }));
     }
     return wikipedia(q, categorie === 'film' ? 'film' : categorie === 'anime' ? 'anime' : 'TV series');
@@ -78,17 +166,13 @@ async function zoekBij(categorie, q) {
 
 router.get('/api/aanvragen/zoek', async (req, res) => {
     try {
+        if (!(await wie(req))) return res.status(401).json({ fout: 'Log in of registreer om iets toe te voegen.' });
         const categorie = bank.CATEGORIEEN.includes(req.query.categorie) ? req.query.categorie : 'film';
         const q = String(req.query.q || '').trim();
         if (q.length < 2 || q.length > 120) return res.json({ items: [] });
         const items = (await zoekBij(categorie, q)).filter((i) => i.naam);
-        // Staat het er al in?
-        const { rows } = await pool.query(
-            `SELECT lower(naam) AS n, curatie_status FROM titels
-              WHERE COALESCE(categorie, type::text) = $1 AND lower(naam) = ANY($2::text[])`,
-            [categorie, items.map((i) => i.naam.toLowerCase())]);
-        const al = new Map(rows.map((r) => [r.n, r.curatie_status]));
-        res.json({ items: items.map((i) => ({ ...i, al_aanwezig: al.has(i.naam.toLowerCase()) })) });
+        const al = await alAanwezig(categorie, items);
+        res.json({ items: items.map((i) => ({ ...i, al_aanwezig: al.has(i), aanwezig: al.get(i) || null })) });
     } catch (err) {
         logger.waarschuwing('Aanvraag zoeken mislukt', { melding: err.message });
         res.status(502).json({ fout: 'Zoeken lukt nu even niet. Typ de naam zelf in en vraag hem zo aan.' });
@@ -97,27 +181,26 @@ router.get('/api/aanvragen/zoek', async (req, res) => {
 
 router.post('/api/aanvragen', async (req, res) => {
     try {
-        if (teVeel(req.ip)) return res.status(429).json({ fout: 'Even rustig aan: maximaal 30 aanvragen per uur.' });
+        const persoon = await wie(req);
+        if (!persoon) return res.status(401).json({ fout: 'Log in of registreer om iets toe te voegen.' });
+        if (persoon.id && teVeel(`g${persoon.id}`)) return res.status(429).json({ fout: 'Even rustig aan: maximaal 30 per uur.' });
         const b = req.body || {};
         const categorie = bank.CATEGORIEEN.includes(b.categorie) ? b.categorie : null;
         const naam = String(b.naam || '').replace(/\s+/g, ' ').trim().slice(0, 200);
         if (!categorie || naam.length < 2) return res.status(400).json({ fout: 'Kies een categorie en vul een naam in.' });
         const jaar = Number.isInteger(Number(b.jaar)) && Number(b.jaar) >= 1900 && Number(b.jaar) <= new Date().getFullYear() + 1 ? Number(b.jaar) : null;
         const artiest = MUZIEK.has(categorie) ? String(b.artiest || '').trim().slice(0, 200) || null : null;
-        const gebruiker = await gebruikerUitRequest(req).catch(() => null);
-        const door = (gebruiker?.display_naam || String(b.door || '').trim() || 'een speler').slice(0, 60);
+        const door = String(persoon.naam || 'een speler').slice(0, 60);
+        const genres = bank.schoonGenres(b.genres, categorie);
 
-        const { rows: bestaand } = await pool.query(
-            `SELECT id, curatie_status, uitsluit_reden FROM titels
-              WHERE COALESCE(categorie, type::text) = $1 AND lower(naam) = lower($2) LIMIT 1`, [categorie, naam]);
-        if (bestaand.length) {
+        const item = { naam, artiest, bron: b.bron, extern_id: b.extern_id };
+        const bestaat = (await alAanwezig(categorie, [item])).get(item);
+        if (bestaat) {
             await pool.query(
-                `INSERT INTO aanvragen (titel_id, categorie, naam, jaar, artiest, bron, extern_id, aangevraagd_door, status)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'bestaat')`,
-                [bestaand[0].id, categorie, naam, jaar, artiest, b.bron || null, b.extern_id || null, door]);
-            return res.json({ status: 'bestaat', melding: bestaand[0].curatie_status === 'uitgesloten'
-                ? `Die staat er al, maar is uitgesloten (${bestaand[0].uitsluit_reden || 'door de beheerder'}).`
-                : 'Die staat er al in.' });
+                `INSERT INTO aanvragen (titel_id, categorie, naam, jaar, artiest, bron, extern_id, aangevraagd_door, gebruiker_id, status)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'bestaat')`,
+                [bestaat.id, categorie, naam, jaar, artiest, b.bron || null, b.extern_id || null, door, persoon.id]);
+            return res.json({ status: 'bestaat', melding: `${bestaat.tekst}.` });
         }
 
         const tmdbId = b.bron === 'tmdb' && /^\d+$/.test(String(b.extern_id || '')) ? Number(b.extern_id) : null;
@@ -125,19 +208,19 @@ router.post('/api/aanvragen', async (req, res) => {
         const posterPad = poster && /image\.tmdb\.org\/t\/p\/\w+(\/.+)$/.test(poster) ? poster.match(/image\.tmdb\.org\/t\/p\/\w+(\/.+)$/)[1] : null;
         const { rows: [t] } = await pool.query(
             `INSERT INTO titels (naam, type, taal, jaar, categorie, tmdb_id, poster_pad, cover_url, nummer_naam, nummer_artiest,
-                    ai_status, curatie_status, toevoeg_reden, handmatig, genres, muziek_genres)
-             VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, $8, $9, 'nieuw', 'goedgekeurd', $10, ARRAY['categorie'], $11, $11)
+                    ai_status, curatie_status, toevoeg_reden, handmatig, genres, muziek_genres, ai_genres)
+             VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, $8, $9, 'nieuw', 'goedgekeurd', $10, ARRAY['categorie'], $11, $11, $12)
              RETURNING id`,
             [naam, bank.typeVoorCategorie(categorie, categorie === 'film' ? 'film' : 'serie'), jaar, categorie, tmdbId,
                 posterPad, MUZIEK.has(categorie) ? poster : null, MUZIEK.has(categorie) ? naam : null, artiest,
-                `Aanvraag van ${door}`, categorie === 'game' ? ['Videogames'] : []]);
+                `Aanvraag van ${door}`, categorie === 'game' ? ['Videogames'] : [], genres]);
         await pool.query(
-            `INSERT INTO aanvragen (titel_id, categorie, naam, jaar, artiest, bron, extern_id, aangevraagd_door)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-            [t.id, categorie, naam, jaar, artiest, b.bron || 'handmatig', b.extern_id || null, door]);
+            `INSERT INTO aanvragen (titel_id, categorie, naam, jaar, artiest, bron, extern_id, aangevraagd_door, gebruiker_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            [t.id, categorie, naam, jaar, artiest, b.bron || 'handmatig', b.extern_id || null, door, persoon.id]);
         await bank.log(t.id, 'aanvulling', `Aanvraag van ${door}: ${naam} (${bank.CATEGORIE_LABEL[categorie]})`);
         worker.porren();
-        res.json({ status: 'toegevoegd', melding: 'Aangevraagd! De AI controleert hem en zoekt de muziek.' });
+        res.json({ status: 'toegevoegd', melding: 'Toegevoegd! De AI controleert hem en zoekt de muziek.' });
     } catch (err) {
         logger.fout('Aanvraag mislukt', { melding: err.message });
         res.status(500).json({ fout: 'Aanvragen mislukt, probeer het later opnieuw.' });

@@ -451,6 +451,27 @@ CREATE INDEX IF NOT EXISTS idx_titel_collecties_collectie ON titel_collecties (c
 -- alleen kinderen van nu kennen (die vallen buiten het nostalgische spel).
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS nl_versie BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS alleen_kids_nu BOOLEAN NOT NULL DEFAULT false;
+-- Genres uit de vaste VenTune-lijst (AI of bron), voor de genrekeuze in Nieuw spel.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_genres TEXT[] NOT NULL DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS idx_titels_ai_genres ON titels USING gin (ai_genres);
+-- Eenmalig: bestaande TMDB-genres omzetten, zodat de genrekeuze meteen werkt.
+-- De AI vult en verbetert ze daarna bij de volgende beoordeling.
+UPDATE titels t SET ai_genres = sub.g
+  FROM (SELECT t2.id, (ARRAY(SELECT DISTINCT m.nl FROM unnest(t2.genres) AS x(naam)
+                 JOIN (VALUES ('Action','Actie'),('Actie','Actie'),('Action & Adventure','Actie'),('Adventure','Avontuur'),
+                              ('Avontuur','Avontuur'),('Animation','Animatie'),('Animatie','Animatie'),('Comedy','Komedie'),
+                              ('Komedie','Komedie'),('Drama','Drama'),('Fantasy','Fantasy'),('Science Fiction','Sciencefiction'),
+                              ('Sciencefiction','Sciencefiction'),('Sci-Fi & Fantasy','Sciencefiction'),('Horror','Horror'),
+                              ('Thriller','Thriller'),('Crime','Misdaad'),('Misdaad','Misdaad'),('Mystery','Mysterie'),
+                              ('Mysterie','Mysterie'),('Romance','Romantiek'),('Romantiek','Romantiek'),('Family','Familie'),
+                              ('Familie','Familie'),('Kids','Kinderserie'),('Western','Western'),('War','Oorlog'),
+                              ('Oorlog','Oorlog'),('War & Politics','Oorlog'),('Documentary','Documentaire'),
+                              ('Documentaire','Documentaire'),('History','Historisch'),('Historisch','Historisch'),
+                              ('Musical','Musical')) AS m(en, nl) ON m.en = x.naam))[1:3] AS g
+          FROM titels t2
+         WHERE t2.ai_genres = '{}' AND COALESCE(array_length(t2.genres, 1), 0) > 0
+           AND COALESCE(t2.categorie, t2.type::text) IN ('film', 'serie', 'anime')) sub
+ WHERE t.id = sub.id AND COALESCE(array_length(sub.g, 1), 0) > 0;
 
 -- AI-collecties: de beheerder maakt een collectie (bv. Sinterklaas of Rock)
 -- en de AI-curator deelt bestaande titels/nummers in (een nummer kan in
@@ -1220,3 +1241,5 @@ CREATE TABLE IF NOT EXISTS aanvragen (
     aangemaakt_op  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_aanvragen_tijd ON aanvragen (aangemaakt_op DESC);
+-- Wie (geregistreerd) iets heeft aangevraagd.
+ALTER TABLE aanvragen ADD COLUMN IF NOT EXISTS gebruiker_id INTEGER;

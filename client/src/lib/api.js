@@ -126,6 +126,7 @@ export async function haalTelling(filters) {
         platformen: (filters.platformen || []).join(','),
         zonder: (filters.zonder_genres || []).join(','),
         genres: (filters.met_genres || []).join(','),
+        genre_keuze: (filters.genre_keuze || []).join(','),
         studios: (filters.studios || []).join(','),
         collectie: (filters.collecties || []).join(',') || filters.collectie || 'alles',
         leeftijd_max: String(filters.leeftijd_max ?? 0),

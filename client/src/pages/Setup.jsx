@@ -168,6 +168,12 @@ export default function Setup() {
     const [bezig, setBezig] = useState(false);
     const [host, setHost] = useState(null);
     const [collecties, setCollecties] = useState([]);
+    const [genreLijst, setGenreLijst] = useState([]);
+    const genreCats = (filters.game_only ? ['game'] : (filters.categorieen || [])).join(',');
+    useEffect(() => {
+        fetch(`/api/genres?categorieen=${encodeURIComponent(genreCats)}`).then((r) => r.json())
+            .then((d) => setGenreLijst(Array.isArray(d) ? d : [])).catch(() => setGenreLijst([]));
+    }, [genreCats]);
     const [tellingFout, setTellingFout] = useState('');
     const [categorieBeelden, setCategorieBeelden] = useState({});
     useEffect(() => { fetch("/api/categorie-beelden").then(r=>r.ok?r.json():{}).then(setCategorieBeelden).catch(()=>{}); }, []);
@@ -250,7 +256,7 @@ export default function Setup() {
     // antwoordwijze veranderen de inhoud niet en laten de naam dus staan.
     const INHOUDSFILTERS = new Set([
         'game_only',
-        'categorie', 'categorieen', 'collecties', 'met_genres', 'studios',
+        'categorie', 'categorieen', 'collecties', 'met_genres', 'genre_keuze', 'studios',
         'taal', 'periode_start', 'periode_eind', 'zonder_genres',
         'kindvriendelijk', 'leeftijd_max',
     ]);
@@ -556,7 +562,7 @@ export default function Setup() {
                             {id:'anime',naam:'Anime',icon:'/category/icon-film.svg',kleur:'#ff8a3d',beeld:categorieBeelden.anime || '/category/approved-anime.svg?v=1'},
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
-                                setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],kindvriendelijk:false}));
+                                setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],genre_keuze:[],kindvriendelijk:false}));
                                 if(g.id==='films')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='muziek')setFilters(f=>({...f,categorie:'muziek',categorieen:['muziek'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='games')setFilters(f=>({...f,categorie:'games',categorieen:['game'],game_only:true,collecties:[],periode_start:1930,periode_eind:NU}));
@@ -607,6 +613,20 @@ export default function Setup() {
                             </div>
                         </div>}
                         
+                        {genreLijst.length > 0 && <div className="vt-subkeuzes vt-genres">
+                            <p>🎭 &nbsp; Genre <small className="dim">(optioneel, meerdere kan)</small></p>
+                            <div className="vt-genre-rij">
+                                <button type="button" className={'chip vt-genre-chip' + (!(filters.genre_keuze || []).length ? ' gekozen' : '')}
+                                    onClick={() => zet('genre_keuze', [])}>Alle genres</button>
+                                {genreLijst.map((g) => {
+                                    const aan = (filters.genre_keuze || []).includes(g.genre);
+                                    return <button type="button" key={g.genre} className={'chip vt-genre-chip' + (aan ? ' gekozen' : '')}
+                                        onClick={() => zet('genre_keuze', aan ? (filters.genre_keuze || []).filter((x) => x !== g.genre) : [...(filters.genre_keuze || []), g.genre])}>
+                                        {g.genre} <small className="dim">{g.aantal}</small></button>;
+                                })}
+                            </div>
+                        </div>}
+
                         <div className="vt-subkeuzes vt-tiers">
                             <p>⭐ &nbsp; Hoe bekend? <small className="dim">(onbekender = meer punten)</small></p>
                             <div className="vt-tier-rij">

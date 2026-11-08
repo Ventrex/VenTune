@@ -163,6 +163,11 @@ function bouwFilter(f = {}) {
     // Genres eisen: de basis onder de Comedy-, Actie- en Tekenfilm-quiz.
     // TMDB levert genres soms in het Nederlands en soms in het Engels, dus
     // beide schrijfwijzen worden meegegeven.
+    // Genrekeuze in Nieuw spel (vaste VenTune-genres: Komedie, Actie, Rock …).
+    if (Array.isArray(f.genre_keuze) && f.genre_keuze.length > 0) {
+        params.push(f.genre_keuze.map((g) => String(g).slice(0, 40)));
+        condities.push(`t.ai_genres && $${params.length}::text[]`);
+    }
     if (Array.isArray(f.met_genres) && f.met_genres.length > 0) {
         params.push(f.met_genres);
         condities.push(`t.genres && $${params.length}::text[]`);

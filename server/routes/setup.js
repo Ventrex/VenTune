@@ -76,6 +76,27 @@ router.get('/api/collecties', async (_req, res) => {
     }
 });
 
+// Genres voor de genrekeuze in Nieuw spel, met het aantal speelbare titels.
+router.get('/api/genres', async (req, res) => {
+    try {
+        const toegestaan = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'kinder'];
+        let cats = String(req.query.categorieen || '').split(',').filter((c) => toegestaan.includes(c));
+        if (!cats.length) cats = ['film', 'serie'];
+        if (cats.includes('muziek')) cats = [...new Set([...cats, 'kerst', 'kinder'])];
+        const { rows } = await pool.query(`
+            SELECT g AS genre, count(*)::int AS aantal
+              FROM titels t, unnest(t.ai_genres) AS g
+             WHERE COALESCE(t.categorie, t.type::text) = ANY($1::text[])
+               AND t.curatie_status <> 'uitgesloten' AND ${bank.HEEFT_SPEELBAAR}
+             GROUP BY g HAVING count(*) >= 3
+             ORDER BY count(*) DESC`, [cats]);
+        res.json(rows);
+    } catch (err) {
+        logger.waarschuwing('Genres ophalen mislukt.', { melding: err.message });
+        res.json([]);
+    }
+});
+
 /**
  * Kant-en-klare spelvarianten ("edities"), met per quiz het aantal titels
  * dat écht speelbaar is: een lokale MP3 op de server. Zo zie je meteen
@@ -175,6 +196,7 @@ router.get('/api/tracks/telling', async (req, res) => {
         met_genres: req.query.genres
             ? String(req.query.genres).split(',').filter(Boolean)
             : [],
+        genre_keuze: req.query.genre_keuze ? String(req.query.genre_keuze).split(',').filter(Boolean) : [],
         studios: req.query.studios
             ? String(req.query.studios).split(',').filter(Boolean)
             : [],
