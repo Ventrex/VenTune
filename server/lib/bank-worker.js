@@ -84,7 +84,7 @@ class AiFout extends Error {}
 function controleerAi(res) {
     if (res.ok) return;
     const e = new AiFout(res.error || 'AI-fout');
-    if (/limiet/i.test(res.error || '')) e.limiet = true;
+    if (/limiet/i.test(res.error || '')) { e.limiet = true; e.wachtMinuten = res.wachtMinuten || null; }
     if (/gekoppeld/i.test(res.error || '')) e.login = true;
     throw e;
 }
@@ -123,13 +123,15 @@ async function stapBeoordelen(inst) {
     if (!rows.length) return false;
     zet('beoordelen', `Lijst ${bank.CATEGORIE_LABEL[eerste.categorie] || eerste.categorie} (${rows.length}): ${rows.slice(0, 3).map((r) => r.naam).join(', ')}…`);
     const res = await bankAi.beoordeel(rows);
-    if (!res.ok) {
+    // Bij een limiet of ontbrekende koppeling de titels niet als fout markeren
+    // (dan zouden ze 6 uur blijven liggen); gewoon later opnieuw.
+    if (!res.ok && !/limiet|gekoppeld/i.test(res.error || '')) {
         await pool.query(
             "UPDATE titels SET ai_status = 'fout', ai_beoordeeld_op = now(), ai_notitie = $2 WHERE id = ANY($1)",
             [rows.map((r) => r.id), `AI-fout: ${String(res.error).slice(0, 200)}`],
         );
-        controleerAi(res);
     }
+    controleerAi(res);
     const uitgesloten = [];
     for (const t of rows) {
         const b = res.items.get(t.id);
@@ -864,9 +866,11 @@ async function lus() {
             status.laatsteFout = null;
         } catch (err) {
             if (err instanceof AiFout && err.limiet) {
-                status.pauzeTot = Date.now() + 30 * 60 * 1000;
-                zet('pauze', 'Limiet van het ChatGPT-abonnement bereikt; over 30 minuten verder.');
-                await bank.log(null, 'systeem', 'ChatGPT-limiet bereikt, 30 minuten pauze.');
+                // Wachten tot de tijd die ChatGPT zelf noemt (max 5 uur), anders 30 min.
+                const minuten = err.wachtMinuten ? Math.min(300, Math.max(5, err.wachtMinuten + 1)) : 30;
+                status.pauzeTot = Date.now() + minuten * 60 * 1000;
+                zet('pauze', `Limiet van het ChatGPT-abonnement bereikt; over ${minuten} minuten verder.`);
+                await bank.log(null, 'systeem', `ChatGPT-limiet bereikt (stap ${stap}), ${minuten} minuten pauze. Melding: ${err.message}`);
                 continue;
             }
             if (err instanceof AiFout && err.login) { zet('wacht', err.message); await slaap(60000); continue; }

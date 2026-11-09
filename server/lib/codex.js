@@ -237,6 +237,30 @@ function logUit() {
 }
 
 /**
+ * Hoe lang wachten na een limiet? Codex meldt vaak "try again in 2h 13m"
+ * of "try again at 3:45 PM". Onbekend = null (de curator kiest dan zelf).
+ */
+function wachttijd(tekst) {
+    const t = String(tekst || '');
+    const m = t.match(/try again in\s+(?:(\d+)\s*(?:days?|d)\s*)?(?:(\d+)\s*(?:hours?|hrs?|h)\s*)?(?:(\d+)\s*(?:minutes?|mins?|m)\b)?(?:\s*(\d+)\s*(?:seconds?|secs?|s)\b)?/i);
+    if (m && (m[1] || m[2] || m[3] || m[4])) {
+        return Math.max(1, (Number(m[1]) || 0) * 1440 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0) + Math.ceil((Number(m[4]) || 0) / 60));
+    }
+    const at = t.match(/try again at\s+(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+    if (at) {
+        let uur = Number(at[1]) % 12;
+        if (!at[3] && Number(at[1]) === 12) uur = 12;
+        if (at[3] && at[3].toLowerCase() === 'pm') uur += 12;
+        const nu = new Date();
+        const doel = new Date(nu);
+        doel.setHours(uur, Number(at[2]), 0, 0);
+        if (doel <= nu) doel.setDate(doel.getDate() + 1);
+        return Math.max(1, Math.round((doel - nu) / 60000));
+    }
+    return null;
+}
+
+/**
  * Vraag ChatGPT om een antwoord dat voldoet aan een JSON-schema.
  * @param {{prompt: string, schema: object, signal?: AbortSignal}} request
  * @returns {Promise<{ok: true, data: any} | {ok: false, error: string}>}
@@ -290,22 +314,30 @@ async function vraagJson(request) {
                 loginCache = null;
                 return { ok: false, error: 'ChatGPT is niet (meer) gekoppeld. Log opnieuw in.' };
             }
-            if (/usage limit|rate limit|\b429\b|quota/i.test(err)) {
-                return { ok: false, error: 'De limiet van het ChatGPT-abonnement is even bereikt.' };
-            }
-            // Probeer een foutregel uit de JSON-events (--json) te vissen.
+            // Foutmeldingen uit de JSON-events (--json) vissen. Alleen díe en
+            // stderr gebruiken om een limiet te herkennen: in de rest van de
+            // uitvoer staan tokentellingen (bv. 429 tokens) en zoekresultaten.
             let detail = '';
             for (const regel of String(res.stdout).split('\n')) {
                 try {
                     const ev = JSON.parse(regel);
                     if (ev && (ev.type === 'error' || ev.type === 'turn.failed')) {
-                        detail = (ev.message || (ev.error && ev.error.message) || '').slice(0, 200);
+                        detail = String(ev.message || (ev.error && ev.error.message) || '').slice(0, 300);
                     }
                 } catch { /* geen json-regel */ }
             }
+            const stderrTekst = String(res.stderr || '').split('\n').filter((r) => !r.trim().startsWith('{')).join('\n');
             if (!detail) {
-                const laatste = redact(`${res.stderr}`).trim().split('\n').filter(Boolean).pop();
-                detail = (laatste || '').slice(0, 200);
+                const laatste = redact(stderrTekst).trim().split('\n').filter(Boolean).pop();
+                detail = (laatste || '').slice(0, 300);
+            }
+            const foutTekst = `${detail}\n${stderrTekst}`;
+            if (/usage limit|hit your limit|rate[ _-]?limit(?:ed)?\b|too many requests|status(?: code)?:? 429|quota/i.test(foutTekst)) {
+                return {
+                    ok: false,
+                    error: `De limiet van het ChatGPT-abonnement is bereikt${detail ? ` (${redact(detail).slice(0, 200)})` : ''}.`,
+                    wachtMinuten: wachttijd(foutTekst),
+                };
             }
             return { ok: false, error: 'ChatGPT gaf geen antwoord' + (detail ? `: ${detail}` : '. Probeer opnieuw.') };
         }
@@ -325,6 +357,6 @@ async function vraagJson(request) {
 }
 
 module.exports = {
-    vraagJson, loginStatus, redact, CFG,
+    vraagJson, loginStatus, redact, CFG, wachttijd,
     startLogin, loginSessieStatus, logUit,
 };
