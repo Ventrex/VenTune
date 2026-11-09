@@ -862,10 +862,17 @@ async function lus() {
         codex.zetZoekModus(inst.webZoeken);
         // Vaste pauze (na een limiet of zelf ingesteld) overleeft een herstart.
         const pauzeTot = Math.max(status.pauzeTot, inst.pauzeTot ? new Date(inst.pauzeTot).getTime() : 0);
+        // Geen AI (pauze of dagbudget op)? MP3's zoeken en downloaden kost geen
+        // AI en gaat gewoon door.
+        const alleenZonderAi = async (melding, tot) => {
+            let gedaan = false;
+            try { gedaan = await stapMp3(inst); } catch (err) { logger.waarschuwing('MP3-stap mislukt', { melding: err.message }); }
+            zet('pauze', `${melding} MP3's zoeken gaat door.`);
+            await slaap(gedaan ? inst.pauzeSeconden * 1000 : Math.min(10 * 60 * 1000, Math.max(1000, tot - Date.now())));
+        };
         if (Date.now() < pauzeTot) {
             status.pauzeTot = pauzeTot;
-            zet('pauze', `Gepauzeerd tot ${new Date(pauzeTot).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`);
-            await slaap(Math.min(60000, pauzeTot - Date.now()));
+            await alleenZonderAi(`AI gepauzeerd tot ${new Date(pauzeTot).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`, pauzeTot);
             continue;
         }
         // Dagbudget: zuinig met het ChatGPT-abonnement.
@@ -873,8 +880,7 @@ async function lus() {
             const gebruikt = await bank.aiGebruikVandaag().catch(() => 0);
             status.vandaag = gebruikt;
             if (gebruikt >= inst.maxPerDag) {
-                zet('wacht', `Dagbudget op (${gebruikt}/${inst.maxPerDag} AI-vragen). Morgen verder.`);
-                await slaap(Math.min(15 * 60 * 1000, middernacht() - Date.now()));
+                await alleenZonderAi(`Dagbudget op (${gebruikt}/${inst.maxPerDag} AI-vragen), morgen verder.`, middernacht());
                 continue;
             }
         }
