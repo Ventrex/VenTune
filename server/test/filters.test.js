@@ -37,7 +37,9 @@ assert(!anime.where.includes('anime_breed_bekend'), 'animequiz pakt alle anime')
 
 const games = bouwFilter({ categorie: 'games', game_only: true, categorieen: ['muziek'], platformen: ['sega'] });
 assert.deepStrictEqual(games.params[0], ['game'], 'games filteren op categorie game');
-assert(games.where.includes('lower(platform.naam) = ANY($2::text[])'), 'platformfilter moet een bindparameter gebruiken');
+assert(games.where.includes('lower(platform.naam) ~ $2'), 'platformfilter moet een bindparameter gebruiken');
+const alleVijf = bouwFilter({ categorie: 'games', game_only: true, platformen: ['nintendo', 'sega', 'playstation', 'xbox', 'pc'] });
+assert(!alleVijf.where.includes('platform.naam'), 'alle fabrikanten aangevinkt = geen beperking');
 
 const tiers = bouwFilter({ categorieen: ['film'], tiers: ['iconisch', 'cult', 'onzin'] });
 assert(tiers.where.includes("COALESCE(t.bekendheid_tier, 'bekend') = ANY"), 'bekendheidsfilter ontbreekt');

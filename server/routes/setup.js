@@ -233,8 +233,43 @@ router.get('/api/tracks/telling', async (req, res) => {
             [...params, filter.alleen_gecontroleerd === true],
         );
         const titels = rows[0].titels;
+        // Te weinig? Dan uitzoeken welke filter het meeste wegfiltert, zodat
+        // de host meteen ziet wat hij moet loslaten.
+        const hulp = [];
+        if (titels < MIN_TITELS) {
+            const VOLLEDIG = { periode_start: 1930, periode_eind: 2100 };
+            const proeven = [
+                ['platformen', 'zonder fabrikantkeuze', { platformen: [] }],
+                ['tiers', 'met alle bekendheden', { tiers: [] }],
+                ['genre_keuze', 'zonder genrekeuze', { genre_keuze: [] }],
+                ['collecties', 'zonder collectie', { collecties: [], collectie: 'alles' }],
+                ['periode', 'met alle jaren', VOLLEDIG],
+                ['taal', 'met alle talen', { taal: 'beide' }],
+                ['leeftijd', 'zonder leeftijdsfilter', { leeftijd_max: 0, kindvriendelijk: false }],
+                ['alles', 'zonder al deze filters', { platformen: [], tiers: [], genre_keuze: [], collecties: [], collectie: 'alles', ...VOLLEDIG, taal: 'beide', leeftijd_max: 0, kindvriendelijk: false, met_genres: [], zonder_genres: [], studios: [], min_bekendheid: 0 }],
+            ];
+            for (const [sleutel, tekst, wijziging] of proeven) {
+                try {
+                    const p = bouwFilter({ ...filter, ...wijziging });
+                    const { rows: [r] } = await pool.query(`SELECT count(*)::int AS n FROM titels t ${p.where}`, p.params);
+                    if (r.n > titels) hulp.push({ sleutel, tekst, aantal: r.n });
+                } catch { /* proef overslaan */ }
+            }
+            if (!hulp.length) {
+                // Zelfs zonder filters niets: laat zien wat er in de categorie staat.
+                const cats = filter.game_only ? ['game'] : filter.categorieen;
+                const { rows: [d] } = await pool.query(`
+                    SELECT count(*)::int AS totaal,
+                           count(*) FILTER (WHERE t.curatie_status <> 'uitgesloten')::int AS actief,
+                           count(*) FILTER (WHERE t.curatie_status <> 'uitgesloten' AND ${bank.HEEFT_SPEELBAAR})::int AS speelbaar,
+                           count(*) FILTER (WHERE EXISTS (SELECT 1 FROM meldingen m WHERE m.titel_id = t.id AND m.afgehandeld = false))::int AS met_melding
+                      FROM titels t WHERE COALESCE(t.categorie, t.type::text) = ANY($1::text[])`, [cats?.length ? cats : ['film', 'serie']]);
+                hulp.push({ sleutel: 'diagnose', tekst: `in de database: ${d.totaal} titels, ${d.actief} actief, ${d.speelbaar} speelbaar, ${d.met_melding} met open melding`, aantal: 0 });
+            }
+        }
         res.json({
             titels,
+            hulp,
             speelbare_titels: titels,
             catalogus: rows[0].catalogus,
             tracks: rows[0].tracks,

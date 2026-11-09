@@ -73,17 +73,26 @@ function bouwFilter(f = {}) {
 
     // Consoles/fabrikanten zijn afzonderlijke catalogustags; de selectie
     // toont nooit nummers uit een andere fabrikant als er één is gekozen.
+    // Alle vijf aangevinkt = geen beperking. Tags als "Nintendo Switch",
+    // "PS4" of "Mega Drive" tellen ook voor hun fabrikant.
     if (gekozen.includes('game') && Array.isArray(f.platformen) && f.platformen.length) {
-        const geldig = f.platformen.filter(v => ['nintendo','sega','playstation','xbox','pc'].includes(v));
-        if (geldig.length) {
-            params.push([...new Set(geldig)]);
+        const PATRONEN = {
+            nintendo: 'nintendo|wii|switch|game ?boy|gamecube|\\mnes\\M|snes|n64|\\mds\\M|3ds',
+            sega: 'sega|mega ?drive|genesis|dreamcast|saturn|master system|game gear',
+            playstation: 'playstation|\\mps[1-5]?\\M|\\mpsp\\M|vita',
+            xbox: 'xbox',
+            pc: '\\mpc\\M|windows|steam|\\mdos\\M|ms-dos|\\mmac',
+        };
+        const geldig = [...new Set(f.platformen.filter((v) => PATRONEN[v]))];
+        if (geldig.length && geldig.length < 5) {
+            params.push(geldig.map((v) => PATRONEN[v]).join('|'));
             condities.push(`EXISTS (
                 SELECT 1 FROM unnest(
                     COALESCE(t.themas, '{}'::text[]) ||
                     COALESCE(t.muziek_genres, '{}'::text[]) ||
                     COALESCE(t.genres, '{}'::text[])
                 ) AS platform(naam)
-                WHERE lower(platform.naam) = ANY($${params.length}::text[])
+                WHERE lower(platform.naam) ~ $${params.length}
             )`);
         }
     }

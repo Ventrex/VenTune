@@ -876,6 +876,22 @@ export default function Setup() {
                                     {telling.drempel} nodig. Verruim de filters of voeg
                                     meer nummers toe.
                                     {telling.catalogus > telling.titels && ` De filter bevat ${telling.catalogus} titels, maar ${telling.catalogus - telling.titels} daarvan heeft nog geen werkende track.`}
+                                    {(telling.hulp || []).map((h) => (
+                                        <span key={h.sleutel} className="telling-hulp">
+                                            {h.aantal ? `${h.aantal} titels ${h.tekst}` : `ⓘ ${h.tekst}`}
+                                            {h.aantal > 0 && h.sleutel !== 'alles' && h.sleutel !== 'periode' && (
+                                                <button type="button" className="afspeelknop klein" onClick={() => setFilters((f) => ({
+                                                    ...f,
+                                                    ...(h.sleutel === 'platformen' ? { platformen: [] } : {}),
+                                                    ...(h.sleutel === 'tiers' ? { tiers: [] } : {}),
+                                                    ...(h.sleutel === 'genre_keuze' ? { genre_keuze: [] } : {}),
+                                                    ...(h.sleutel === 'collecties' ? { collecties: [] } : {}),
+                                                    ...(h.sleutel === 'taal' ? { taal: 'beide' } : {}),
+                                                    ...(h.sleutel === 'leeftijd' ? { leeftijd_max: 0, kindvriendelijk: false } : {}),
+                                                }))}>Loslaten</button>
+                                            )}
+                                        </span>
+                                    ))}
                                 </p>
                             )
                         ) : (

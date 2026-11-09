@@ -483,6 +483,21 @@ CREATE TABLE IF NOT EXISTS database_dagstat (
     PRIMARY KEY (datum, categorie, soort)
 );
 
+-- Fabrikanten voor games zonder platformtag alvast afleiden uit de naam
+-- (de AI vult ze bij de volgende beoordeling volledig aan).
+UPDATE titels t SET themas = ARRAY(SELECT DISTINCT x FROM unnest(COALESCE(t.themas, '{}'::text[]) || v.tags) AS x)
+  FROM (VALUES
+    ('mario|zelda|pok[eé]mon|kirby|metroid|donkey kong|smash bros|animal crossing|splatoon|wii |wii$|star fox|f-zero|fire emblem|xenoblade|pikmin|yoshi|wario|punch-out|excitebike|duck hunt|tetris', ARRAY['nintendo']),
+    ('sonic|streets of rage|golden axe|altered beast|shenmue|jet set radio|outrun|out run|yakuza|virtua', ARRAY['sega']),
+    ('halo|gears of war|forza|fable|banjo|perfect dark|crackdown|sea of thieves|state of decay', ARRAY['xbox']),
+    ('uncharted|god of war|gran turismo|crash bandicoot|spyro|the last of us|ratchet|jak and daxter|killzone|little ?big ?planet|horizon zero|ghost of tsushima|bloodborne|wipeout|parappa|sly cooper|infamous|spider-man', ARRAY['playstation']),
+    ('half-life|portal|counter-strike|world of warcraft|starcraft|warcraft|diablo|the sims|simcity|age of empires|command & conquer|doom|quake|league of legends|minecraft|roller ?coaster tycoon|civilization|monkey island|day of the tentacle|commander keen', ARRAY['pc'])
+  ) AS v(patroon, tags)
+ WHERE COALESCE(t.categorie, t.type::text) = 'game'
+   AND lower(t.naam) ~ v.patroon
+   AND NOT EXISTS (SELECT 1 FROM unnest(COALESCE(t.themas, '{}'::text[])) x
+                    WHERE lower(x) ~ 'nintendo|sega|playstation|xbox|^pc$|wii|switch|ps[1-5]');
+
 -- AI-collecties: de beheerder maakt een collectie (bv. Sinterklaas of Rock)
 -- en de AI-curator deelt bestaande titels/nummers in (een nummer kan in
 -- meerdere collecties) en vult aan tot het doel.

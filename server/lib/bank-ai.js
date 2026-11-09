@@ -152,9 +152,11 @@ ${GUARD}
 INVOER, één titel per regel: id|naam|type|jaar|land|huidige_categorie|huidige_taal|bekend_nummer
 
 UITVOER: precies één regel per titel in "regels", velden gescheiden door | (gebruik nooit | in een waarde, lijsten met ;), in deze volgorde:
-id|naam|categorie|anime_breed_bekend(0/1)|bekendheid|nl_bekend(ja/nee/twijfel)|nl_reden(kort)|jaar|eind_jaar|serie_lopend(0/1)|taal(nl/en)|land|franchise|aliassen(;)|nummer_naam|nummer_artiest|yt_zoekterm|nl_versie(0/1)|alleen_kids_nu(0/1)|genres(;)|geschikt(0/1)|notitie(kort)
-Leeg laten mag (dan niets tussen de |). Voorbeeld:
-123|Rocky|film|0|iconisch|ja||1976||0|en|US|Rocky|Rocky Balboa|Gonna Fly Now|Bill Conti|Rocky theme Gonna Fly Now Bill Conti|0|0|Drama;Sport|1|
+id|naam|categorie|anime_breed_bekend(0/1)|bekendheid|nl_bekend(ja/nee/twijfel)|nl_reden(kort)|jaar|eind_jaar|serie_lopend(0/1)|taal(nl/en)|land|franchise|aliassen(;)|nummer_naam|nummer_artiest|yt_zoekterm|nl_versie(0/1)|alleen_kids_nu(0/1)|genres(;)|geschikt(0/1)|platformen(;)|notitie(kort)
+platformen alleen bij games: de fabrikanten waarop het spel of een remake/remaster verscheen, uit nintendo, sega, playstation, xbox, pc. Anders leeg.
+Leeg laten mag (dan niets tussen de |). Voorbeelden:
+123|Rocky|film|0|iconisch|ja||1976||0|en|US|Rocky|Rocky Balboa|Gonna Fly Now|Bill Conti|Rocky theme Gonna Fly Now Bill Conti|0|0|Drama;Sport|1||
+456|Grand Theft Auto V|game|0|iconisch|ja||2013||0|en|GB|Grand Theft Auto|GTA V;GTA 5|Welcome to Los Santos|Oh No|GTA V theme Welcome to Los Santos|0|0|Actie;Open wereld|1|playstation;xbox;pc|
 
 Titels:
 ${invoer.join('\n')}`;
@@ -179,9 +181,12 @@ ${invoer.join('\n')}`;
             naam: v[1], categorie: v[2], anime_breed_bekend: bool(v[3]), bekendheid: v[4], nl_bekend: v[5], nl_reden: v[6],
             jaar: getal(v[7]), eind_jaar: getal(v[8]), serie_lopend: bool(v[9]), taal: v[10], land: v[11], franchise: v[12],
             aliassen: lijst(v[13]), nummer_naam: v[14], nummer_artiest: v[15], yt_zoekterm: v[16], nl_versie: bool(v[17]),
-            alleen_kids_nu: bool(v[18]), genres: lijst(v[19]), geschikt: v[20] === '' ? true : bool(v[20]), notitie: v.slice(21).join(' '),
+            alleen_kids_nu: bool(v[18]), genres: lijst(v[19]), geschikt: v[20] === '' ? true : bool(v[20]), notitie: v.slice(22).join(' '),
         });
-        if (b) items.set(id, b);
+        if (b) {
+            b.platformen = [...new Set(lijst(v[21]).map((x) => x.toLowerCase()).filter((x) => ['nintendo', 'sega', 'playstation', 'xbox', 'pc'].includes(x)))];
+            items.set(id, b);
+        }
     }
     return { ok: true, items };
 }

@@ -248,6 +248,12 @@ async function pasBeoordelingToeIn(client, t, b) {
     }
     set('alleen_kids_nu', b.alleen_kids_nu);
     if (!vast('genres') && b.genres.length) set('ai_genres', b.genres);
+    // Fabrikanten (Nintendo, PlayStation …) voor de fabrikantkeuze bij Videogames.
+    if ((b.categorie || t.categorie) === 'game' && b.platformen?.length) {
+        waarden.push(b.platformen);
+        zetten.push(`themas = ARRAY(SELECT DISTINCT x FROM unnest(COALESCE(themas, '{}'::text[])
+                         || $${waarden.length}::text[]) AS x)`);
+    }
 
     // Uitsluiten of terughalen. De AI raakt alleen uitsluitingen aan die ze
     // zelf heeft gedaan; oude uitsluitingen en handmatige keuzes blijven.
