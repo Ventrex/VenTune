@@ -52,7 +52,7 @@ export default function HostProfile() {
             const form=new FormData();form.append('afbeelding',avatarFile);
             const r=await fetch('/api/auth/avatar',{method:'POST',credentials:'include',body:form});
             const data=await r.json().catch(()=>({}));
-            if(!r.ok)throw Error(data.fout||'Avatar upload mislukt');
+            if(!r.ok)throw Error(data.fout||(r.status===413?'Afbeelding is te groot voor de server (max. 5 MB).':`Avatar upload mislukt (fout ${r.status}).`));
             setData(v=>({...v,profiel:{...v.profiel,avatar_url:data.avatar_url}}));
             setAvatarFile(null);setMelding('Avatar opgeslagen.');
         }catch(err){setFout(err.message)}finally{setBezigAccount(false)}
@@ -106,7 +106,7 @@ export default function HostProfile() {
                     <section className="kaart cw-profile-security" style={{marginTop:'1rem'}}>
                         <h2>Avatar en beveiliging</h2>
                         <form className="cw-profile-row" onSubmit={uploadAvatar}>
-                            <label>Profielfoto <small>PNG, JPG of WebP · max. 2 MB</small>
+                            <label>Profielfoto <small>PNG, JPG of WebP · max. 5 MB</small>
                                 <input className="invoer" type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setAvatarFile(e.target.files?.[0]||null)}/>
                             </label>
                             <button className="knop knop-stil" type="submit" disabled={!avatarFile||bezigAccount}>Avatar opslaan</button>

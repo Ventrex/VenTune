@@ -3,6 +3,7 @@
 .aanvraag-cats { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .aanvraag-naam { min-height: 44px; font-size: 1rem; }
 .aanvraag-melding { padding: 0.6rem 0.8rem; border-radius: 12px; background: color-mix(in srgb, #2ecc71 18%, transparent); border: 1px solid #2ecc71; margin: 0; }
+.aanvraag-melding.fout { background: color-mix(in srgb, #ff4d6d 18%, transparent); border-color: #ff4d6d; }
 .aanvraag-lijst { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .aanvraag-lijst li { display: grid; grid-template-columns: 54px 1fr auto; gap: 0.7rem; align-items: center; padding: 0.5rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .aanvraag-lijst img, .aanvraag-leeg { width: 54px; height: 76px; object-fit: cover; border-radius: 8px; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }

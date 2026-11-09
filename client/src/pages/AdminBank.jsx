@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom';
 import Brand from '../components/Brand.jsx';
 import Admin from './Admin.jsx';
+import Hint from '../components/Hint.jsx';
 import './admin-bank.css';
 
 // =====================================================================
@@ -277,8 +278,7 @@ function Swipen({ categorie, onWijzig }) {
         return (
             <div className="ab-kaart ab-swipe-leeg">
                 {melding && <p className="ab-rood">{melding}</p>}
-                <p><strong>{klaar ? 'Niets meer te swipen 🎉' : 'Laden…'}</strong></p>
-                {klaar && <p className="dim">De AI zoekt op de achtergrond verder; nieuwe nummers verschijnen hier vanzelf. Iconisch komt altijd eerst.</p>}
+                <p><strong>{klaar ? 'Niets meer te swipen 🎉' : 'Laden…'}</strong>{klaar && <Hint tekst="De AI zoekt op de achtergrond verder; nieuwe nummers verschijnen hier vanzelf. Iconisch komt altijd eerst." />}</p>
                 {klaar && <button type="button" className="ab-knop" onClick={() => { setKlaar(false); laad(); }}>Opnieuw kijken</button>}
             </div>
         );
@@ -447,6 +447,8 @@ function WorkerBalk({ status, onWijzig }) {
     const w = status.worker;
     const aan = status.instellingen.aan;
     const bezig = !['uit', 'wacht', 'fout', 'klaar'].includes(w.stap);
+    const pauzeTot = Math.max(w.pauzeTot || 0, status.instellingen.pauzeTot ? new Date(status.instellingen.pauzeTot).getTime() : 0);
+    const max = status.instellingen.maxPerDag;
     async function zet(nieuw) {
         await api('/api/admin/bank/worker', { method: 'POST', body: { aan: nieuw } }).catch(() => {});
         onWijzig();
@@ -460,14 +462,15 @@ function WorkerBalk({ status, onWijzig }) {
                 <span className="dim">{w.bericht}</span>
                 {w.laatsteActie && <span className="dim">Laatst: {w.laatsteActie}</span>}
                 {w.laatsteFout && <span className="ab-rood">Fout: {w.laatsteFout}</span>}
-                {w.pauzeTot > Date.now() && (
-                    <span className="ab-rood">ChatGPT-limiet bereikt · gaat vanzelf verder om {new Date(w.pauzeTot).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}{' '}
-                        <button type="button" className="ab-linkknop" onClick={async () => { await api('/api/admin/bank/hervat', { method: 'POST' }).catch(() => {}); onWijzig(); }}>Nu proberen</button>
+                {pauzeTot > Date.now() && (
+                    <span className="ab-rood">Gepauzeerd tot {new Date(pauzeTot).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}{' '}
+                        <button type="button" className="ab-linkknop" onClick={async () => { await api('/api/admin/bank/hervat', { method: 'POST' }).catch(() => {}); onWijzig(); }}>Nu verder</button>
                     </span>
                 )}
             </div>
             <div className="ab-balk-cijfers dim">
-                {w.tellers.beoordeeld} beoordeeld · {w.tellers.mp3} MP3 · {w.tellers.quiz} quiz · {w.tellers.toegevoegd} nieuw · {w.tellers.verbeterd} verbeterd
+                Vandaag {w.vandaag ?? 0}{max ? `/${max}` : ''} AI-vragen
+                <Hint tekst={`Sinds de herstart: ${w.tellers.beoordeeld} beoordeeld, ${w.tellers.mp3} MP3, ${w.tellers.quiz} quiz, ${w.tellers.toegevoegd} nieuw, ${w.tellers.verbeterd} verbeterd.`} />
             </div>
             <button type="button" className="ab-knop" onClick={() => zet(!aan)}>{aan ? 'Pauzeren' : 'Aanzetten'}</button>
         </section>
@@ -479,7 +482,6 @@ function WorkerBalk({ status, onWijzig }) {
 // ------------------------------------------------------------------
 
 function Overzicht({ status, onWijzig, ga }) {
-    const [pauze, setPauze] = useState('');
     if (!status) return null;
     const { tellingen, instellingen, voorraad, chatgpt } = status;
     async function verhoog(cat, erbij) {
@@ -494,12 +496,6 @@ function Overzicht({ status, onWijzig, ga }) {
     }
     async function zetDoel(cat, waarde) {
         await api('/api/admin/bank/instellingen', { method: 'PATCH', body: { doelen: { [cat]: Number(waarde) } } }).catch((e) => alert(e.message));
-        onWijzig();
-    }
-    async function zetPauze() {
-        if (!pauze) return;
-        await api('/api/admin/bank/instellingen', { method: 'PATCH', body: { pauzeSeconden: Number(pauze) } }).catch((e) => alert(e.message));
-        setPauze('');
         onWijzig();
     }
     const tegels = [
@@ -525,24 +521,23 @@ function Overzicht({ status, onWijzig, ga }) {
                 <div className="ab-rij">
                     <button type="button" className="ab-knop ab-groot-knop" onClick={allesOpnieuw}>▶ Alles starten &amp; opnieuw zoeken</button>
                 </div>
-                <p className="ab-label" style={{ marginTop: '0.8rem' }}>Voorrang — deze categorie gaat bij alles voor</p>
+                <p className="ab-label" style={{ marginTop: '0.8rem' }}>Voorrang <Hint tekst="Een categorie met ★ gaat bij alles voor: eerst indelen (iconisch t/m cult), MP3's zoeken, hints maken en aanvullen, daarna de rest. Een thema (bv. Sinterklaas) geef je voorrang bij Collecties." /></p>
                 <div className="ab-chips">
                     {CATS.map(([id, naam]) => (
                         <button key={id} type="button" className={'ab-chip' + (voorrang.includes(id) ? ' actief' : '')}
                             onClick={() => wisselVoorrang(id)}>{voorrang.includes(id) ? '★ ' : ''}{naam}</button>
                     ))}
                 </div>
-                <p className="dim ab-mini">Bijvoorbeeld ★ Videogames: eerst alle videogames indelen (iconisch t/m cult), MP3's zoeken, hints maken en aanvullen — daarna de rest. Een thema voorrang geven (bv. ★ Sinterklaas)? Dat doe je bij <button type="button" className="ab-linkknop" onClick={() => ga('collecties')}>Collecties</button>.</p>
             </section>
             {!chatgpt.gekoppeld && (
                 <section className="ab-kaart">
                     <p className="ab-label">ChatGPT koppelen</p>
-                    <p className="dim">Zonder koppeling kan de AI-curator niets doen. Eén keer koppelen is genoeg.</p>
+                    <p><Hint soort="!" tekst="Zonder koppeling kan de AI-curator niets doen. Eén keer koppelen is genoeg." /></p>
                     <ChatGptKoppeling onWijzig={onWijzig} />
                 </section>
             )}
             <section className="ab-kaart">
-                <p className="ab-label">Per categorie en bekendheid</p>
+                <p className="ab-label">Per categorie en bekendheid <Hint tekst="Onder het doel vult de AI aan met titels die in Nederland bekend zijn: eerst iconisch, dan algemeen bekend, bekend, onbekend en cult. Speelbaar = MP3 die jij bij Swipen hebt goedgekeurd." /></p>
                 <div className="ab-scroll">
                     <table className="ab-matrix">
                         <thead><tr>
@@ -580,7 +575,6 @@ function Overzicht({ status, onWijzig, ga }) {
                         })}</tbody>
                     </table>
                 </div>
-                <p className="dim ab-mini">Staat een categorie onder het doel, dan vult de AI hem aan met titels die in Nederland bekend zijn: eerst iconisch voor alle categorieën, daarna algemeen bekend, bekend, onbekend en cult. Speelbaar = MP3 die jij bij Swipen hebt goedgekeurd. ★ Voorrang: die categorie gaat bij alles voor, bv. eerst alle iconische videogames.</p>
             </section>
             <section className="ab-tegels">
                 {tegels.map(([naam, n, t, extra]) => (
@@ -589,16 +583,45 @@ function Overzicht({ status, onWijzig, ga }) {
                     </button>
                 ))}
             </section>
-            <section className="ab-kaart">
-                <p className="ab-label">Tempo</p>
-                <p className="dim">Pauze tussen twee AI-vragen: <strong>{instellingen.pauzeSeconden} s</strong>. Hoger = rustiger voor je ChatGPT-abonnement.</p>
-                <div className="ab-rij">
-                    <input className="ab-in" type="number" min="5" max="600" placeholder="Seconden" value={pauze} onChange={(e) => setPauze(e.target.value)} />
-                    <button type="button" className="ab-knop" onClick={zetPauze}>Opslaan</button>
-                </div>
-                {chatgpt.gekoppeld && <p className="dim ab-mini">ChatGPT is gekoppeld.</p>}
-            </section>
+            <Tempo instellingen={instellingen} vandaag={status.worker?.vandaag ?? 0} onWijzig={onWijzig} />
         </div>
+    );
+}
+
+// Tempo: hoe hard de AI het ChatGPT-abonnement gebruikt.
+const TEMPOS = [
+    ['zuinig', 'Zuinig', { maxPerDag: 40, pauzeSeconden: 180, webZoeken: 'belangrijk' }],
+    ['normaal', 'Normaal', { maxPerDag: 120, pauzeSeconden: 60, webZoeken: 'belangrijk' }],
+    ['snel', 'Snel', { maxPerDag: 0, pauzeSeconden: 30, webZoeken: 'altijd' }],
+];
+function Tempo({ instellingen, vandaag, onWijzig }) {
+    const [tot, setTot] = useState('');
+    const huidig = TEMPOS.find(([, , v]) => v.maxPerDag === instellingen.maxPerDag && v.pauzeSeconden === instellingen.pauzeSeconden && v.webZoeken === instellingen.webZoeken)?.[0];
+    const patch = async (body) => { await api('/api/admin/bank/instellingen', { method: 'PATCH', body }).catch((e) => alert(e.message)); onWijzig(); };
+    const pauzeTot = instellingen.pauzeTot ? new Date(instellingen.pauzeTot) : null;
+    return (
+        <section className="ab-kaart">
+            <p className="ab-label">Tempo <Hint tekst="Hoe zuiniger, hoe minder je ChatGPT-limiet opgaat. Het indelen, hints en vragen duren dan langer, maar lopen gewoon door. Webzoeken kost het meest; bij Zuinig en Normaal gebruikt de AI het alleen bij het beoordelen." /></p>
+            <div className="ab-chips">
+                {TEMPOS.map(([id, naam, v]) => (
+                    <button key={id} type="button" className={'ab-chip' + (huidig === id ? ' actief' : '')} onClick={() => patch(v)}>{naam}</button>
+                ))}
+            </div>
+            <div className="ab-velden">
+                <Tekst label="AI-vragen per dag (0 = onbeperkt)" type="number" waarde={instellingen.maxPerDag} onSave={(v) => patch({ maxPerDag: Number(v) })} />
+                <Tekst label="Seconden tussen stappen" type="number" waarde={instellingen.pauzeSeconden} onSave={(v) => patch({ pauzeSeconden: Number(v) })} />
+                <Keuze label="Webzoeken" waarde={instellingen.webZoeken} opties={[['belangrijk', 'Alleen bij beoordelen'], ['altijd', 'Altijd'], ['nooit', 'Nooit']]} onSave={(v) => patch({ webZoeken: v })} />
+            </div>
+            <p className="dim ab-mini">Vandaag {vandaag}{instellingen.maxPerDag ? ` van ${instellingen.maxPerDag}` : ''} AI-vragen gebruikt.</p>
+            <p className="ab-label" style={{ marginTop: '0.8rem' }}>Pauzeren tot <Hint tekst="Handig als je ChatGPT-limiet op is: de AI doet tot dat moment niets. Na een limiet zet hij dit zelf, als ChatGPT zegt wanneer het weer kan." /></p>
+            {pauzeTot && pauzeTot > new Date()
+                ? <div className="ab-rij"><span>Gepauzeerd tot <strong>{pauzeTot.toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</strong></span>
+                    <button type="button" className="ab-knop klein" onClick={() => patch({ pauzeTot: null })}>Opheffen</button></div>
+                : <div className="ab-rij">
+                    <input className="ab-in" type="datetime-local" value={tot} onChange={(e) => setTot(e.target.value)} />
+                    <button type="button" className="ab-knop" disabled={!tot} onClick={() => { patch({ pauzeTot: new Date(tot).toISOString() }); setTot(''); }}>Pauzeren</button>
+                </div>}
+        </section>
     );
 }
 
@@ -1057,8 +1080,7 @@ function Collecties({ gekozen, onKies }) {
         <div className="ab-stapel">
             <NieuweCollectie onKlaar={(c) => { laad(); if (c?.id) onKies(c.id); }} />
             <section className="ab-kaart">
-                <p className="ab-label">Collecties ({lijst.length})</p>
-                <p className="dim ab-mini">★ = voorrang: de AI deelt deze eerst in en zoekt eerst hun MP3's, hints en vragen. Alleen actieve collecties met speelbare nummers staan in Nieuw spel.</p>
+                <p className="ab-label">Collecties ({lijst.length}) <Hint tekst="★ = voorrang: de AI deelt deze eerst in en zoekt eerst hun MP3's, hints en vragen. Alleen actieve collecties met speelbare nummers staan in Nieuw spel." /></p>
                 <div className="ab-collecties">
                     {lijst.map((c) => (
                         <button key={c.id} type="button" className={'ab-collectie' + (c.actief ? '' : ' uit')} onClick={() => onKies(c.id)}>
@@ -1096,7 +1118,7 @@ function NieuweCollectie({ onKlaar }) {
     }
     return (
         <form className="ab-kaart ab-nieuwe-collectie" onSubmit={maak}>
-            <p className="ab-label">Nieuwe collectie via AI</p>
+            <p className="ab-label">Nieuwe collectie via AI <Hint tekst="De AI zoekt eerst in de hele database wat erbij past (Rocky met Eye of the Tiger komt ook in Rock, zonder dubbele MP3) en vult daarna aan tot het doel. Nieuwe nummers krijgen vanzelf MP3, hints en vragen." /></p>
             <div className="ab-rij">
                 <input className="ab-in ab-emoji-in" placeholder="🎁" value={emoji} onChange={(e) => setEmoji(e.target.value)} aria-label="Emoji" />
                 <input className="ab-in" placeholder="Naam, bv. Sinterklaas" value={naam} onChange={(e) => setNaam(e.target.value)} />
@@ -1111,7 +1133,6 @@ function NieuweCollectie({ onKlaar }) {
                     <input className="ab-in ab-doel" type="number" min="0" value={doel} onChange={(e) => setDoel(e.target.value)} /></label>
                 <button className="ab-knop" disabled={bezig || !naam.trim()}>{bezig ? 'Bezig…' : 'Maak & laat AI vullen'}</button>
             </div>
-            <p className="dim ab-mini">De AI zoekt eerst in de hele database wat erbij past (bv. Rocky met Eye of the Tiger komt ook in Rock — geen dubbele MP3) en vult daarna aan tot het doel. Nieuwe nummers krijgen automatisch MP3, hints en vragen.</p>
         </form>
     );
 }

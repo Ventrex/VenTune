@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const { pool } = require('../db/pool');
 
 const router = express.Router();
 const PAD = path.join(__dirname, '../../CHANGELOG.md');
@@ -44,7 +45,12 @@ function leesChangelog() {
             continue;
         }
         const punt = regel.match(/^[-*]\s+(.+)$/);
-        if (punt && sectie) sectie.punten.push(punt[1].trim());
+        if (punt && huidig && !sectie) {
+            // Punten direct onder een versie, zonder ### kopje.
+            sectie = { titel: 'Wijzigingen', doelgroep: 'spelers', punten: [] };
+            huidig.secties.push(sectie);
+        }
+        if (punt && sectie) sectie.punten.push(punt[1].trim().replace(/\*\*(.+?)\*\*/g, '$1'));
     }
     return entries;
 }
@@ -63,6 +69,31 @@ router.get('/api/changelog', (req, res) => {
         res.json({ entries });
     } catch {
         res.status(500).json({ fout: 'Changelog kon niet worden geladen.' });
+    }
+});
+
+// Database-wijzigingen per dag: "100 nummers toegevoegd bij Videogames".
+const CAT = { film: 'Films', serie: 'Series', anime: 'Anime', game: 'Videogames', muziek: 'Muziek' };
+const SOORT = { toegevoegd: ['nummer', 'nummers', 'toegevoegd bij'], aangepast: ['titel', 'titels', 'verbeterd bij'], hints: ['titel', 'titels', 'kreeg hints en bonusvragen bij|kregen hints en bonusvragen bij'] };
+router.get('/api/changelog/database', async (_req, res) => {
+    try {
+        const { rows } = await pool.query(`
+            SELECT to_char(datum, 'YYYY-MM-DD') AS datum, categorie, soort, aantal
+              FROM database_dagstat
+             WHERE datum >= CURRENT_DATE - 60 AND aantal > 0
+             ORDER BY datum DESC, CASE soort WHEN 'toegevoegd' THEN 0 WHEN 'hints' THEN 1 ELSE 2 END, aantal DESC`);
+        const dagen = [];
+        for (const r of rows) {
+            if (!SOORT[r.soort] || !CAT[r.categorie]) continue;
+            let dag = dagen[dagen.length - 1];
+            if (!dag || dag.datum !== r.datum) { dag = { datum: r.datum, regels: [] }; dagen.push(dag); }
+            const [een, meer, werk] = SOORT[r.soort];
+            const [werkEen, werkMeer] = werk.includes('|') ? werk.split('|') : [werk, werk];
+            dag.regels.push(`${r.aantal} ${r.aantal === 1 ? een : meer} ${r.aantal === 1 ? werkEen : werkMeer} ${CAT[r.categorie]}`);
+        }
+        res.json({ dagen });
+    } catch {
+        res.json({ dagen: [] });
     }
 });
 

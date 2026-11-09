@@ -431,4 +431,46 @@ router.get('/api/ranking', async (_req, res) => {
     }
 });
 
+// Scores per categorie: wie is de beste in videogames, films, series …
+// Telt alle rondes uit afgelopen spellen van spelers met een account.
+// Rangorde op percentage goed (minimaal 5 rondes), daarna punten per ronde.
+const SCORE_GROEP = `CASE WHEN COALESCE(t.categorie, t.type::text) IN ('kerst', 'kinder') THEN 'muziek'
+                         ELSE COALESCE(t.categorie, t.type::text) END`;
+router.get('/api/scores/categorieen', async (_req, res) => {
+    try {
+        const { rows } = await pool.query(`
+            SELECT ${SCORE_GROEP} AS categorie,
+                   COALESCE(p.gebruiker_id::text, lower(trim(p.naam))) AS sleutel,
+                   MAX(COALESCE(g.display_naam, p.naam)) AS naam,
+                   MAX(g.avatar_url) AS avatar_url,
+                   COUNT(*)::int AS rondes,
+                   COUNT(*) FILTER (WHERE a.titel_goed)::int AS goed,
+                   ROUND(100.0 * COUNT(*) FILTER (WHERE a.titel_goed) / NULLIF(COUNT(*), 0), 0)::int AS procent,
+                   ROUND(AVG(a.titel_punten + a.bonus_punten)::numeric, 1) AS punten_per_ronde
+              FROM antwoorden a
+              JOIN spelers p ON p.id = a.speler_id
+              JOIN rondes r ON r.id = a.ronde_id
+              JOIN lobbies l ON l.id = r.lobby_id
+              JOIN titels t ON t.id = r.titel_id
+              LEFT JOIN gebruikers g ON g.id = p.gebruiker_id
+             WHERE l.status = 'afgelopen'
+               AND p.gebruiker_id IS NOT NULL
+               AND p.is_gast IS DISTINCT FROM true
+               AND p.score_uitgesloten IS DISTINCT FROM true
+             GROUP BY 1, 2`);
+        const per = {};
+        for (const r of rows) (per[r.categorie] = per[r.categorie] || []).push(r);
+        for (const c of Object.keys(per)) {
+            per[c] = per[c]
+                .sort((a, b) => (b.rondes >= 5) - (a.rondes >= 5) || b.procent - a.procent
+                    || Number(b.punten_per_ronde) - Number(a.punten_per_ronde) || b.rondes - a.rondes)
+                .slice(0, 20);
+        }
+        res.json(per);
+    } catch (err) {
+        logger.waarschuwing('Scores per categorie mislukt.', { melding: err.message });
+        res.json({});
+    }
+});
+
 module.exports = router;

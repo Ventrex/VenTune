@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './aanvragen.css';
+import Hint from '../components/Hint.jsx';
 
 // =====================================================================
 // Iedereen met een account kan hier een film, serie, anime, game of nummer
@@ -24,6 +25,7 @@ export default function Aanvragen() {
     const [zoeken, setZoeken] = useState(false);
     const [fout, setFout] = useState('');
     const [melding, setMelding] = useState('');
+    const [meldingFout, setMeldingFout] = useState(false);
     const [recent, setRecent] = useState([]);
     const [artiest, setArtiest] = useState('');
     const [wie, setWie] = useState(null);
@@ -60,7 +62,8 @@ export default function Aanvragen() {
             body: JSON.stringify({ categorie, ...item }),
         });
         const d = await json(r);
-        setMelding(r.ok ? `${item.naam}: ${d.melding}` : (d?.fout || 'Aanvragen mislukt.'));
+        setMeldingFout(!r.ok);
+        setMelding(r.ok ? `${item.naam}: ${d.melding}` : (d?.fout || `Toevoegen mislukt (fout ${r.status}).`));
         if (r.ok) {
             setItems((lijst) => lijst.map((i) => (i === item ? { ...i, al_aanwezig: true, aanwezig: { tekst: d.status === 'bestaat' ? d.melding.replace(/\.$/, '') : 'Toegevoegd' } } : i)));
             laadRecent();
@@ -82,7 +85,7 @@ export default function Aanvragen() {
         <main className="scherm aanvraag-scherm">
             <Link className="terug" to="/">← Terug</Link>
             <h1>Zelf toevoegen</h1>
-            <p className="dim">Mis je een film, serie, anime, game of nummer? Zoek hem op en voeg hem toe{wie?.naam ? `, ${wie.naam}` : ''}. Staat hij er al in, dan zie je dat meteen. De AI controleert hem en zoekt de muziek erbij.</p>
+            <p className="dim">Zoek een film, serie, anime, game of nummer op <Hint tekst="Staat hij er al in, dan zie je dat meteen. Wat je toevoegt controleert de AI; die zoekt er ook de muziek bij." /></p>
 
             <div className="aanvraag-cats">
                 {CATS.map(([id, naam]) => (
@@ -92,7 +95,7 @@ export default function Aanvragen() {
             </div>
             <input className="invoer" placeholder={MUZIEK.has(categorie) ? 'Zoek nummer of artiest…' : 'Zoek op naam…'} value={q}
                 onChange={(e) => setQ(e.target.value)} autoFocus />
-            {melding && <p className="aanvraag-melding">{melding}</p>}
+            {melding && <p className={'aanvraag-melding' + (meldingFout ? ' fout' : '')}>{meldingFout ? '⚠ ' : '✓ '}{melding}</p>}
             {fout && <p className="waarschuwing">{fout}</p>}
             {zoeken && <p className="dim">Zoeken…</p>}
 

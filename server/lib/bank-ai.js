@@ -153,6 +153,7 @@ ${GUARD}
 Items:
 ${invoer.map((i) => JSON.stringify(i)).join('\n')}`;
     const res = await codex.vraagJson({
+        zoeken: 'belangrijk',
         prompt,
         schema: lijstSchema({ id: S('integer'), ...BEOORDELING_PROPS }),
         signal,

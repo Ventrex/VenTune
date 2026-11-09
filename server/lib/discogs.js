@@ -25,27 +25,44 @@ function zetGenres(r) {
     return [...uit].slice(0, 4);
 }
 
+// Versie-aanduidingen weghalen: "Bad Mojo Maker (Extended Version)" → "Bad Mojo Maker".
+const VERSIE = /\s*[([](?:[^)\]]*\b(?:version|versie|mix|remix|edit|remaster(?:ed)?|radio|extended|single|live|instrumental|acoustic|mono|stereo|demo|club|dub|original)\b[^)\]]*)[)\]]/gi;
+function schoonTitel(t) {
+    return String(t || '').replace(VERSIE, '').replace(/\s+-\s+(?:remaster(?:ed)?|radio edit|single version).*$/i, '').replace(/\s+/g, ' ').trim();
+}
+
 async function zoek(q, { limiet = 10 } = {}) {
-    const params = new URLSearchParams({ q: String(q).slice(0, 100), type: 'master', per_page: String(Math.min(20, limiet)) });
+    // Alleen singles: zo kan niemand een heel album aanvragen.
+    const params = new URLSearchParams({ q: String(q).slice(0, 100), type: 'release', format: 'single', per_page: '30' });
     const r = await fetch(`https://api.discogs.com/database/search?${params}`, {
         headers: { Authorization: `Discogs token=${process.env.DISCOGS_TOKEN}`, 'User-Agent': 'VenTune/1.0 (self-hosted quiz)' },
         signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) throw new Error(`Discogs gaf ${r.status}`);
     const d = await r.json();
-    return (d.results || []).map((x) => {
+    const gezien = new Set();
+    return (d.results || []).filter((x) => {
+        const formats = (x.format || []).map((f) => String(f).toLowerCase());
+        return !formats.some((f) => ['album', 'lp', 'compilation', 'ep'].includes(f));
+    }).map((x) => {
         // Discogs-titel: "Artiest - Titel"
         const [artiest, ...rest] = String(x.title || '').split(' - ');
         return {
             extern_id: String(x.master_id || x.id),
-            naam: (rest.join(' - ') || artiest).trim(),
+            naam: schoonTitel(rest.join(' - ') || artiest),
             artiest: rest.length ? artiest.replace(/\s*\(\d+\)$/, '').trim() : '',
             jaar: Number(x.year) || null,
             poster: x.cover_image && !/spacer\.gif/.test(x.cover_image) ? x.cover_image : null,
             genres: zetGenres(x),
             bron: 'discogs',
         };
-    });
+    }).filter((r) => {
+        // Elke persing van dezelfde single maar één keer tonen.
+        const k = `${r.naam.toLowerCase()}|${r.artiest.toLowerCase()}`;
+        if (!r.naam || gezien.has(k)) return false;
+        gezien.add(k);
+        return true;
+    }).slice(0, limiet);
 }
 
-module.exports = { beschikbaar, zoek, zetGenres };
+module.exports = { beschikbaar, zoek, zetGenres, schoonTitel };

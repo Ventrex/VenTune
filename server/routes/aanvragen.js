@@ -136,7 +136,7 @@ async function zoekBij(categorie, q) {
         ]);
         const lijst = [...it.map((r) => ({
             extern_id: r.itunes_track_id ? String(r.itunes_track_id) : null,
-            naam: r.tracknaam, artiest: r.artiest, jaar: r.jaar, poster: r.hoes,
+            naam: discogs.schoonTitel(r.tracknaam), artiest: r.artiest, jaar: r.jaar, poster: r.hoes,
             genres: bank.schoonGenres([GENRE_ITUNES[r.genre] || r.genre], 'muziek'), bron: 'itunes',
         })), ...dc];
         // Dubbelen (zelfde nummer + artiest) weghalen.
@@ -186,7 +186,8 @@ router.post('/api/aanvragen', async (req, res) => {
         if (persoon.id && teVeel(`g${persoon.id}`)) return res.status(429).json({ fout: 'Even rustig aan: maximaal 30 per uur.' });
         const b = req.body || {};
         const categorie = bank.CATEGORIEEN.includes(b.categorie) ? b.categorie : null;
-        const naam = String(b.naam || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+        const ruw = String(b.naam || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+        const naam = MUZIEK.has(b.categorie) ? (discogs.schoonTitel(ruw) || ruw) : ruw;
         if (!categorie || naam.length < 2) return res.status(400).json({ fout: 'Kies een categorie en vul een naam in.' });
         const jaar = Number.isInteger(Number(b.jaar)) && Number(b.jaar) >= 1900 && Number(b.jaar) <= new Date().getFullYear() + 1 ? Number(b.jaar) : null;
         const artiest = MUZIEK.has(categorie) ? String(b.artiest || '').trim().slice(0, 200) || null : null;

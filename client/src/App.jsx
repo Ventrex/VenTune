@@ -9,6 +9,7 @@ import AdminBank from './pages/AdminBank.jsx';
 import Review from './pages/Review.jsx';
 import Changelog from './pages/Changelog.jsx';
 import Aanvragen from './pages/Aanvragen.jsx';
+import Scores from './pages/Scores.jsx';
 import HostAuth from './pages/HostAuth.jsx';
 import HostProfile from './pages/HostProfile.jsx';
 import { haalAppInstellingen } from './lib/api.js';
@@ -50,6 +51,7 @@ export default function App() {
                     <Route path="/review" element={<Review />} />
                     <Route path="/changelog" element={<Changelog />} />
                     <Route path="/aanvragen" element={<Aanvragen />} />
+                    <Route path="/scores" element={<Scores />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </BrowserRouter>

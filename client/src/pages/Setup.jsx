@@ -13,6 +13,8 @@ import {
 } from '../lib/api.js';
 import { bewaarSessie } from '../lib/sessie.js';
 import Brand from '../components/Brand.jsx';
+import TopNav from '../components/TopNav.jsx';
+import Hint from '../components/Hint.jsx';
 import ThemaKiezer from '../components/ThemaKiezer.jsx';
 import UiterlijkOpties from '../components/UiterlijkOpties.jsx';
 import './setup-categorie.css';
@@ -436,16 +438,7 @@ export default function Setup() {
 
     return (
         <main className="scherm setup-scherm">
-            {stap === 1 && <nav className="vt-category-topnav" aria-label="VenTune navigatie">
-                <Link className="vt-top-brand" to="/"><img className="vt-top-equalizer" src="/category/equalizer.svg" alt="" /><strong><span>Ven</span>Tune</strong></Link>
-                <div className="vt-top-links">
-                    <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt="" />Spelen</Link>
-                    <Link to="/"><img src="/category/icon-trophy.svg" alt="" />Scores</Link>
-                    <Link to="/host/profile"><img src="/category/icon-users.svg" alt="" />Profielen</Link>
-                    <Link to="/admin/bank"><img src="/category/icon-settings.svg" alt="" />Beheer</Link>
-                </div>
-                <Link className="vt-top-user" to="/host/profile"><span className="vt-avatar-ring">♫</span><span>{host?.display_naam || 'Profiel'}</span><span aria-hidden="true">⌄</span></Link>
-            </nav>}
+            {stap === 1 && <TopNav actief="home" />}
             <Brand compact />
             {host && (
                 <div className="account-balk">
@@ -614,7 +607,7 @@ export default function Setup() {
                         </div>}
                         
                         {genreLijst.length > 0 && <div className="vt-subkeuzes vt-genres">
-                            <p>🎭 &nbsp; Genre <small className="dim">(optioneel, meerdere kan)</small></p>
+                            <p>🎭 &nbsp; Genre <Hint tekst="Optioneel. Meerdere genres tegelijk kiezen kan." /></p>
                             <div className="vt-genre-rij">
                                 <button type="button" className={'chip vt-genre-chip' + (!(filters.genre_keuze || []).length ? ' gekozen' : '')}
                                     onClick={() => zet('genre_keuze', [])}>Alle genres</button>
@@ -628,7 +621,7 @@ export default function Setup() {
                         </div>}
 
                         <div className="vt-subkeuzes vt-tiers">
-                            <p>⭐ &nbsp; Hoe bekend? <small className="dim">(onbekender = meer punten)</small></p>
+                            <p>⭐ &nbsp; Hoe bekend? <Hint tekst="Hoe onbekender, hoe meer punten: iconisch ×1 tot cult ×5." /></p>
                             <div className="vt-tier-rij">
                                 {TIER_KEUZES.map(({ id, label, tiers, factor }) => {
                                     const huidig = filters.tiers && filters.tiers.length ? filters.tiers : ALLE_TIERS;

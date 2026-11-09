@@ -52,7 +52,7 @@ router.get('/api/admin/bank/status', vereisAdmin, async (_req, res) => {
                          GROUP BY 1`),
         ]);
         res.json({
-            worker: worker.huidigeStatus(),
+            worker: { ...worker.huidigeStatus(), vandaag: await bank.aiGebruikVandaag().catch(() => 0) },
             instellingen: inst,
             tellingen: telling,
             voorraad,
@@ -109,8 +109,11 @@ router.patch('/api/admin/bank/instellingen', vereisAdmin, async (req, res) => {
         if (req.body?.doelen && typeof req.body.doelen === 'object') patch.doelen = req.body.doelen;
         if (req.body?.pauzeSeconden !== undefined) patch.pauzeSeconden = req.body.pauzeSeconden;
         if (Array.isArray(req.body?.voorrang)) patch.voorrang = req.body.voorrang;
+        if (req.body?.maxPerDag !== undefined) patch.maxPerDag = req.body.maxPerDag;
+        if (req.body?.webZoeken !== undefined) patch.webZoeken = req.body.webZoeken;
+        if (req.body?.pauzeTot !== undefined) patch.pauzeTot = req.body.pauzeTot || null;
         res.json(await bank.bewaarInstellingen(patch));
-        worker.porren();
+        if (patch.pauzeTot !== undefined) worker.vergeetPauze(); else worker.porren();
     } catch (err) { fout(res, err); }
 });
 
@@ -554,6 +557,11 @@ router.post('/api/admin/bank/swipe/:trackId', vereisAdmin, async (req, res) => {
                         gecontroleerd = true, bevestigd = true, review_laatste_op = now(),
                         review_reden = 'Goedgekeurd bij swipen' WHERE id = $1`, [tr.id]);
             await bank.log(tr.titel_id, 'mp3', `${tr.naam}: nummer goedgekeurd bij swipen.`);
+            // Nieuw speelbaar (had nog geen andere goedgekeurde MP3)? Dan telt hij als toegevoegd.
+            const { rows: [ander] } = await pool.query(
+                `SELECT 1 FROM tracks WHERE titel_id = $1 AND id <> $2 AND werkt AND wacht_op_swipe = false
+                    AND download_status = 'available' LIMIT 1`, [tr.titel_id, tr.id]);
+            await bank.telDag(tr.titel_id, ander ? 'aangepast' : 'toegevoegd');
         } else if (keuze === 'fout') {
             await bankMp3.keurAf(tr.titel_id, 'Afgekeurd bij swipen');
             await pool.query('UPDATE tracks SET wacht_op_swipe = false WHERE id = $1', [tr.id]);

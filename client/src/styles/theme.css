@@ -2317,3 +2317,21 @@ body {
 .koth-winst { margin: 0; font-weight: 800; color: #f0c969; }
 
 .vt-aanvraag-link { display: inline-block; margin-top: 0.4rem; padding: 0.55rem 1rem; border-radius: 999px; border: 1px solid var(--accent); color: var(--text); text-decoration: none; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* Uitleg achter een rondje: i = info, ? = vraag/hulp, ! = waarschuwing */
+.vt-hint { position: relative; display: inline-flex; vertical-align: middle; margin: 0 0.25rem; }
+.vt-hint-knop {
+    width: 1.35rem; height: 1.35rem; border-radius: 50%; padding: 0; display: inline-grid; place-items: center;
+    font: 700 0.8rem/1 system-ui, sans-serif; cursor: pointer; background: transparent;
+    border: 1.5px solid currentColor; color: #8fb4ff; font-style: normal;
+}
+.vt-hint-vraag .vt-hint-knop { color: #c9a6ff; }
+.vt-hint-let-op .vt-hint-knop { color: #ffb35c; }
+.vt-hint-info .vt-hint-knop { font-family: Georgia, serif; font-style: italic; }
+.vt-hint-tekst {
+    position: absolute; z-index: 50; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    width: max-content; max-width: min(18rem, 80vw); padding: 0.55rem 0.7rem; border-radius: 10px;
+    background: #14102b; border: 1px solid #3b3270; color: #e6e9ff; font-size: 0.85rem; font-weight: 400;
+    line-height: 1.35; text-align: left; text-transform: none; letter-spacing: normal; white-space: normal;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}

@@ -75,9 +75,13 @@ function porren() { if (wekker) wekker(); }
 /** Alles opnieuw: limietpauze en "uitgeput"-geheugen wissen en meteen verder. */
 function hervat({ vergeet = false } = {}) {
     status.pauzeTot = 0;
+    bank.bewaarInstellingen({ pauzeTot: null }).catch(() => {});
     if (vergeet) for (const k of Object.keys(uitgeput)) delete uitgeput[k];
     porren();
 }
+
+/** Alleen het geheugen van de limietpauze wissen (de opgeslagen pauze telt). */
+function vergeetPauze() { status.pauzeTot = 0; porren(); }
 
 class AiFout extends Error {}
 
@@ -169,6 +173,7 @@ async function pasBeoordelingToe(oud, b) {
         const r = await pasBeoordelingToeIn(client, { ...oud, ...vers }, b);
         await client.query('COMMIT');
         await logBeoordeling({ ...oud, ...vers }, b, r);
+        if (r.wijzigingen?.length && oud.ai_status !== 'nieuw') bank.telDag(oud.id, 'aangepast');
         // Nu bekend dat Nederlanders de Nederlandse versie kennen: een MP3 die
         // nog op een swipe wacht (vaak de Duitse of Engelse versie) opnieuw zoeken.
         if (b.nl_versie && !vers.nl_versie && !bank.isVast(vers, 'mp3') && !bank.isVast(vers, 'nummer')) {
@@ -340,6 +345,7 @@ async function bewaarQuiz(oud, q) {
         const t = { ...oud, ...vers };
         // Nooit een vollere set hints vervangen door een kleinere.
         if (!bank.isVast(t, 'hints') && q.hints.length && q.hints.length >= Math.min(3, (t.ai_hints || []).length)) {
+            if (!(t.ai_hints || []).length) bank.telDag(t.id, 'hints');
             await client.query(
                 "UPDATE titels SET ai_hints = $2, ai_hints_status = 'goedgekeurd' WHERE id = $1",
                 [t.id, q.hints]);
@@ -829,8 +835,16 @@ const STAPPEN = {
 // De lus
 // ------------------------------------------------------------------
 
+/** Volgende middernacht (lokale tijd) als tijdstempel. */
+function middernacht() {
+    const d = new Date();
+    d.setHours(24, 0, 30, 0);
+    return d.getTime();
+}
+
 async function lus() {
     let leeg = 0;
+    codex.bijGebruik(() => bank.telAiGebruik());
     for (;;) {
         let inst;
         try {
@@ -841,7 +855,25 @@ async function lus() {
             continue;
         }
         if (!inst.aan) { zet('uit', 'De AI-curator staat uit.'); await slaap(30000); continue; }
-        if (Date.now() < status.pauzeTot) { await slaap(Math.min(60000, status.pauzeTot - Date.now())); continue; }
+        codex.zetZoekModus(inst.webZoeken);
+        // Vaste pauze (na een limiet of zelf ingesteld) overleeft een herstart.
+        const pauzeTot = Math.max(status.pauzeTot, inst.pauzeTot ? new Date(inst.pauzeTot).getTime() : 0);
+        if (Date.now() < pauzeTot) {
+            status.pauzeTot = pauzeTot;
+            zet('pauze', `Gepauzeerd tot ${new Date(pauzeTot).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`);
+            await slaap(Math.min(60000, pauzeTot - Date.now()));
+            continue;
+        }
+        // Dagbudget: zuinig met het ChatGPT-abonnement.
+        if (inst.maxPerDag > 0) {
+            const gebruikt = await bank.aiGebruikVandaag().catch(() => 0);
+            status.vandaag = gebruikt;
+            if (gebruikt >= inst.maxPerDag) {
+                zet('wacht', `Dagbudget op (${gebruikt}/${inst.maxPerDag} AI-vragen). Morgen verder.`);
+                await slaap(Math.min(15 * 60 * 1000, middernacht() - Date.now()));
+                continue;
+            }
+        }
 
         const login = await codex.loginStatus().catch(() => ({ loggedIn: false }));
         if (!login.loggedIn) {
@@ -867,8 +899,9 @@ async function lus() {
         } catch (err) {
             if (err instanceof AiFout && err.limiet) {
                 // Wachten tot de tijd die ChatGPT zelf noemt (max 5 uur), anders 30 min.
-                const minuten = err.wachtMinuten ? Math.min(300, Math.max(5, err.wachtMinuten + 1)) : 30;
+                const minuten = err.wachtMinuten ? Math.min(14 * 1440, Math.max(5, err.wachtMinuten + 1)) : 30;
                 status.pauzeTot = Date.now() + minuten * 60 * 1000;
+                await bank.bewaarInstellingen({ pauzeTot: new Date(status.pauzeTot).toISOString() }).catch(() => {});
                 zet('pauze', `Limiet van het ChatGPT-abonnement bereikt; over ${minuten} minuten verder.`);
                 await bank.log(null, 'systeem', `ChatGPT-limiet bereikt (stap ${stap}), ${minuten} minuten pauze. Melding: ${err.message}`);
                 continue;
@@ -907,4 +940,4 @@ function huidigeStatus() {
     return { ...status, tellers: { ...status.tellers }, mp3Bezig: bankMp3.bezigeIds().length };
 }
 
-module.exports = { start, porren, hervat, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties };
+module.exports = { start, porren, hervat, vergeetPauze, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties };

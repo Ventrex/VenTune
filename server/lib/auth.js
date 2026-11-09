@@ -289,8 +289,16 @@ router.post('/api/auth/wachtwoord-wijzigen', vereisHost, async(req,res)=>{
     }catch(err){res.status(400).json({fout:err.message})}
 });
 
-const avatarUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:2*1024*1024}});
-router.post('/api/auth/avatar',vereisHost,avatarUpload.single('afbeelding'),async(req,res)=>{
+const avatarUpload=multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024}});
+// Multer-fouten (te groot bestand) als nette JSON-melding teruggeven.
+function avatarOntvangen(req,res,next){
+    avatarUpload.single('afbeelding')(req,res,(err)=>{
+        if(!err)return next();
+        if(err.code==='LIMIT_FILE_SIZE')return res.status(413).json({fout:'Afbeelding is te groot (max. 5 MB).'});
+        return res.status(400).json({fout:'Upload mislukt: '+err.message});
+    });
+}
+router.post('/api/auth/avatar',vereisHost,avatarOntvangen,async(req,res)=>{
     try{
         const bytes=req.file?.buffer;
         if(!bytes)return res.status(400).json({fout:'Kies een afbeelding.'});

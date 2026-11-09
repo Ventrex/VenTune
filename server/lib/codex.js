@@ -236,6 +236,16 @@ function logUit() {
     return { ok: true };
 }
 
+// Zuinig met het abonnement: webzoeken kost veel. Modus 'altijd',
+// 'belangrijk' (alleen vragen met zoeken: 'belangrijk', zoals beoordelen)
+// of 'nooit'. Elke echte aanroep meldt zich bij de gebruikshook (dagbudget).
+let zoekModus = 'belangrijk';
+let gebruikHook = null;
+function zetZoekModus(m) { if (['altijd', 'belangrijk', 'nooit'].includes(m)) zoekModus = m; }
+function bijGebruik(fn) { gebruikHook = fn; }
+
+const MAANDEN = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, mei: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, okt: 9, nov: 10, dec: 11 };
+
 /**
  * Hoe lang wachten na een limiet? Codex meldt vaak "try again in 2h 13m"
  * of "try again at 3:45 PM". Onbekend = null (de curator kiest dan zelf).
@@ -245,6 +255,15 @@ function wachttijd(tekst) {
     const m = t.match(/try again in\s+(?:(\d+)\s*(?:days?|d)\s*)?(?:(\d+)\s*(?:hours?|hrs?|h)\s*)?(?:(\d+)\s*(?:minutes?|mins?|m)\b)?(?:\s*(\d+)\s*(?:seconds?|secs?|s)\b)?/i);
     if (m && (m[1] || m[2] || m[3] || m[4])) {
         return Math.max(1, (Number(m[1]) || 0) * 1440 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0) + Math.ceil((Number(m[4]) || 0) / 60));
+    }
+    // "try again at Nov 12th, 2026 1:09 AM"
+    const dag = t.match(/try again at\s+([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})?,?\s+(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+    if (dag && MAANDEN[dag[1].toLowerCase()] !== undefined) {
+        let uur = Number(dag[4]);
+        if (dag[6]) uur = (uur % 12) + (dag[6].toLowerCase() === 'pm' ? 12 : 0);
+        const nu = new Date();
+        const doel = new Date(Number(dag[3]) || nu.getFullYear(), MAANDEN[dag[1].toLowerCase()], Number(dag[2]), uur, Number(dag[5]));
+        if (doel > nu) return Math.max(1, Math.round((doel - nu) / 60000));
     }
     const at = t.match(/try again at\s+(\d{1,2}):(\d{2})\s*(am|pm)?/i);
     if (at) {
@@ -286,8 +305,9 @@ async function vraagJson(request) {
         '--sandbox', 'read-only', '--color', 'never', '--json',
         '--output-schema', schemaFile, '-o', outFile,
         '-c', 'model_reasoning_effort="low"',
-        '-c', 'web_search="live"',
+        '-c', `web_search="${(request.zoeken === 'belangrijk' ? zoekModus !== 'nooit' : zoekModus === 'altijd') ? 'live' : 'disabled'}"`,
     ];
+    try { if (gebruikHook) await gebruikHook(); } catch { /* telling is niet belangrijk */ }
     for (const f of DISABLED_FEATURES) args.push('--disable', f);
     if (CFG.model) args.push('-m', CFG.model);
     if (CFG.extraArgs) args.push(...CFG.extraArgs.split(/\s+/).filter(Boolean));
@@ -357,6 +377,6 @@ async function vraagJson(request) {
 }
 
 module.exports = {
-    vraagJson, loginStatus, redact, CFG, wachttijd,
+    vraagJson, loginStatus, redact, CFG, wachttijd, zetZoekModus, bijGebruik,
     startLogin, loginSessieStatus, logUit,
 };

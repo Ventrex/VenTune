@@ -1,5 +1,17 @@
 # VenTune changelog
 
+## [0.7.0] - 2026-11-09
+
+- Nieuw: **Scores** als eigen pagina, met per categorie wie de beste is in films, series, anime, videogames en muziek.
+- Nieuw: **zelf toevoegen** voor iedereen met een account. Zoek een film, serie, anime, game of nummer op; staat hij er al in, dan zie je dat meteen.
+- Nieuw: kies in Nieuw spel een **genre**, bijvoorbeeld alleen komedieseries of alleen actiegames.
+- Nieuw: **thema's** zoals Sinterklaas en Rock. Een nummer kan in meerdere thema's zitten (Eye of the Tiger bij Films én Rock).
+- Titelsongs in de Nederlandse versie als Nederlanders die kennen (zoals Maya de Bij).
+- Het spel draait om herkenning van vroeger: titels die alleen kinderen van nu kennen gaan eruit.
+- Videogames die iedereen met die console kent (Wii Sports, Zelda) tellen als iconisch.
+- De changelog toont ook per dag wat er in de database is bijgekomen.
+- Profielfoto's tot 5 MB uploaden werkt weer.
+
 ## [0.6.2] - 2026-11-07
 
 - Nieuw: **King of the Hill** (vervangt Bergexpeditie). Goed = een stap omhoog, fout = een stap omlaag; wie het eerst bovenaan staat wint. Speel tegen elkaar of samen, met 5 tot 20 stappen.

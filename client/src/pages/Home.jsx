@@ -1,8 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { haalRanking, authSessie } from '../lib/api.js';
 import Brand from '../components/Brand.jsx';
-import Icon from '../components/Icon.jsx';
+import TopNav from '../components/TopNav.jsx';
 import { leesSessie, wisSessie, bewaarSessie, leesOpgeslagenSpellen, verwijderOpgeslagenSpel } from '../lib/sessie.js';
 import './setup-categorie.css';
 import { ThemaContext } from '../lib/thema.js';
@@ -15,30 +14,13 @@ export default function Home() {
     const [vorigeSessie, setVorigeSessie] = useState(leesSessie);
     const [opgeslagenSpellen, setOpgeslagenSpellen] = useState(leesOpgeslagenSpellen);
     const [fout, setFout] = useState('');
-    const [hostAccount,setHostAccount]=useState(null);
-    const [isAdmin,setIsAdmin]=useState(false);
     const [siteTeksten,setSiteTeksten]=useState({});
     const kop=(sleutel,standaard)=>siteTeksten[sleutel]||standaard;
     useEffect(()=>{
         fetch('/api/site-teksten').then(r=>r.ok?r.json():{}).then(setSiteTeksten).catch(()=>{});
     },[]);
 
-    useEffect(()=>{
-        authSessie().then(d=>setHostAccount(d.ingelogd?d.gebruiker:null)).catch(()=>setHostAccount(null));
-        fetch('/api/admin/sessie',{credentials:'include'}).then(r=>r.ok?r.json():{ingelogd:false})
-            .then(d=>setIsAdmin(d.ingelogd===true)).catch(()=>setIsAdmin(false));
-    },[]);
 
-    const [ranking, setRanking] = useState({
-        beste_gemiddeld: [],
-        meeste_spellen: [],
-        punten_gemiddeld: [],
-    });
-
-    // Ranglijst over eerdere spellen.
-    useEffect(() => {
-        haalRanking().then(setRanking).catch(() => {});
-    }, []);
 
     function nieuwSpel() {
         // Een host moet eerst een account hebben; het account-scherm stuurt
@@ -58,23 +40,7 @@ export default function Home() {
 
     return (
         <main className="scherm ventune-home">
-            <nav className="vt-category-topnav vt-home-topnav" aria-label="VenTune navigatie">
-                <Link className="vt-top-brand" to="/setup"><img className="vt-top-equalizer" src="/category/equalizer.svg" alt=""/><strong><span>Ven</span>Tune</strong></Link>
-                <div className="vt-top-links">
-                    <Link className="vt-top-active" to="/setup"><img src="/category/icon-game.svg" alt=""/>{kop("nav.spelen","Spelen")}</Link>
-                    <Link to="/"><img src="/category/icon-trophy.svg" alt=""/>{kop("nav.scores","Scores")}</Link>
-                    <Link to="/aanvragen"><img src="/category/icon-music.svg" alt=""/>{kop("nav.aanvragen","Toevoegen")}</Link>
-                    {(isAdmin || hostAccount?.rol==='beoordelaar') && <Link to={isAdmin?'/admin/bank?tab=swipen':'/review'}><img src="/category/icon-play.svg" alt=""/>{kop("nav.controleren","Controleren")}</Link>}
-                    {isAdmin && <Link to="/admin/bank"><img src="/category/icon-settings.svg" alt=""/>{kop("nav.beheer","Beheer")}</Link>}
-                    {(isAdmin || (hostAccount && hostAccount.rol!=='beoordelaar')) && <Link to={hostAccount?'/host/profile':'/host/login?return=/host/profile'}><img src="/category/icon-users.svg" alt=""/>{kop("nav.profielen","Profielen")}</Link>}
-                </div>
-                <Link className="vt-top-user" to={hostAccount?'/host/profile':isAdmin?'/admin':'/host/login?return=/host/profile'}>
-                    <span className="vt-avatar-ring">{hostAccount?.avatar_url
-                        ? <img src={hostAccount.avatar_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
-                        : hostAccount?.display_naam?.slice(0,1).toUpperCase() || '♫'}</span>
-                    {hostAccount?.display_naam || (isAdmin ? 'Beheerder' : kop('nav.inloggen','Inloggen'))}
-                </Link>
-            </nav>
+            <TopNav actief="home" teksten={siteTeksten} />
             <header className="vt-home-hero">
                 <h1>{kop("home.titel","Kies je volgende quiz")}</h1>
                 <p>{kop("home.ondertitel","Start een nieuw spel, doe mee met vrienden of ga verder waar je was gebleven.")}</p>
@@ -112,45 +78,12 @@ export default function Home() {
                     </div>
                 </div>
             </div>
-            {(ranking.beste_gemiddeld?.length > 0 || ranking.meeste_spellen?.length > 0 || ranking.punten_gemiddeld?.length > 0) && (
-                <div style={{ marginTop: '2.5rem' }}>
-                    <p className="kaart-label" style={{ textAlign: 'left' }}>
-                        Topscores
-                    </p>
-                    <div className="ranking-blokken">
-                        <RankingBlok titel="Beste gemiddelde per spel" veld="gemiddelde" suffix=" pnt" lijst={ranking.beste_gemiddeld} />
-                        <RankingBlok titel="Meeste spellen" veld="spellen" suffix=" spel" lijst={ranking.meeste_spellen} />
-                        <RankingBlok titel="Meeste punten gemiddeld" veld="punten_gemiddeld" suffix=" pnt/ronde" lijst={ranking.punten_gemiddeld} />
-                    </div>
-                </div>
-            )}
 
             <p style={{ marginTop: '1rem', display: 'flex', gap: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <Link className="terug" to="/changelog">
-                    Wat is nieuw? →
-                </Link>
-                {isAdmin && <Link className="terug" to="/admin/bank">Beheer</Link>}
+                <Link className="terug" to="/changelog">Changelog →</Link>
             </p>
 
         </main>
     );
 }
 
-function RankingBlok({ titel, veld, suffix, lijst = [] }) {
-    return (
-        <section className="kaart ranking-blok">
-            <p className="kaart-label">{titel}</p>
-            {lijst.length === 0 ? <p className="dim">Nog geen resultaten</p> : (
-                <ol className="ranking-lijst">
-                    {lijst.slice(0, 5).map((r) => (
-                        <li key={`${titel}-${r.sleutel || r.naam}`}>
-                            <span>{r.naam}</span>
-                            <strong>{Number(r[veld] || 0).toFixed(veld === 'spellen' ? 0 : 1)}{suffix}</strong>
-                        </li>
-                    ))}
-                </ol>
-            )}
-            <p className="dim ranking-uitleg">Gebaseerd op {lijst[0]?.spellen || 0} gespeelde spellen; punten/ronde maakt 10 vragen en eindeloos eerlijk vergelijkbaar.</p>
-        </section>
-    );
-}

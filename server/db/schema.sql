@@ -473,6 +473,16 @@ UPDATE titels t SET ai_genres = sub.g
            AND COALESCE(t2.categorie, t2.type::text) IN ('film', 'serie', 'anime')) sub
  WHERE t.id = sub.id AND COALESCE(array_length(sub.g, 1), 0) > 0;
 
+-- Dagelijkse database-wijzigingen voor de publieke changelog
+-- ("100 nummers toegevoegd bij Videogames").
+CREATE TABLE IF NOT EXISTS database_dagstat (
+    datum      DATE    NOT NULL DEFAULT CURRENT_DATE,
+    categorie  TEXT    NOT NULL,
+    soort      TEXT    NOT NULL,
+    aantal     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (datum, categorie, soort)
+);
+
 -- AI-collecties: de beheerder maakt een collectie (bv. Sinterklaas of Rock)
 -- en de AI-curator deelt bestaande titels/nummers in (een nummer kan in
 -- meerdere collecties) en vult aan tot het doel.
@@ -1225,6 +1235,14 @@ ON CONFLICT (sleutel) DO UPDATE SET
 UPDATE app_instellingen SET waarde = waarde || '{"voorrang":["game"]}'::jsonb
  WHERE sleutel = 'ai_curator' AND NOT (waarde ? 'voorrang');
 
+-- Zuinige stand (eenmalig, als er nog geen dagbudget is): 60 AI-vragen per
+-- dag, 2 minuten tussen stappen, en pauze tot de weeklimiet van ChatGPT
+-- weer vrij is (12 nov 01:09).
+UPDATE app_instellingen
+   SET waarde = waarde || '{"maxPerDag":60,"pauzeSeconden":120,"webZoeken":"belangrijk"}'::jsonb
+                || CASE WHEN now() < '2026-11-12T00:15:00Z' THEN '{"pauzeTot":"2026-11-12T00:15:00.000Z"}'::jsonb ELSE '{}'::jsonb END
+ WHERE sleutel = 'ai_curator' AND NOT (waarde ? 'maxPerDag');
+
 -- Aanvragen: iedereen kan vanaf het beginscherm een film, serie, anime,
 -- game of nummer aanvragen. De titel gaat meteen naar de AI-curator.
 CREATE TABLE IF NOT EXISTS aanvragen (
@@ -1242,4 +1260,6 @@ CREATE TABLE IF NOT EXISTS aanvragen (
 );
 CREATE INDEX IF NOT EXISTS idx_aanvragen_tijd ON aanvragen (aangemaakt_op DESC);
 -- Wie (geregistreerd) iets heeft aangevraagd.
-ALTER TABLE aanvragen ADD COLUMN IF NOT EXISTS gebruiker_id INTEGER;
+ALTER TABLE aanvragen ADD COLUMN IF NOT EXISTS gebruiker_id TEXT;
+-- Gebruikers-id's zijn UUID's: een eerder aangemaakte INTEGER-kolom omzetten.
+ALTER TABLE aanvragen ALTER COLUMN gebruiker_id TYPE TEXT USING gebruiker_id::text;
