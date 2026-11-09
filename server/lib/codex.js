@@ -316,7 +316,7 @@ async function vraagJson(request) {
     try {
         const res = await run(args, {
             input: `${request.prompt}\n\n${GUARDRAILS}`,
-            cwd: work, timeoutMs: CFG.timeoutMs, signal: request.signal,
+            cwd: work, timeoutMs: Math.max(CFG.timeoutMs, Number(request.timeoutMs) || 0), signal: request.signal,
         });
         if (request.signal && request.signal.aborted) return { ok: false, error: 'Gestopt.' };
 

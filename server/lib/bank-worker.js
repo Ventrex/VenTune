@@ -29,7 +29,7 @@ const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'collecties', 'beoordelen', 'mp3', 
 // geen AI en loopt mee; hints, vragen, collecties en aanvullen wachten.
 const INHAAL = ['beoordelen', 'mp3', 'beoordelen', 'mp3', 'beoordelen', 'verbeteren'];
 // Alles gaat in lijsten: één AI-vraag per lijst van dezelfde categorie.
-const BATCH = { beoordelen: 25, quiz: 8, mp3: 6, aanvullen: 25, collectieScan: 120, collectieAanvullen: 25 };
+const BATCH = { beoordelen: 100, quiz: 30, mp3: 6, aanvullen: 40, collectieScan: 200, collectieAanvullen: 30 };
 const PERIODES = {
     film: ['1970-1984', '1985-1994', '1995-2004', '2005-2014', '2015-nu'],
     serie: ['1970-1989', '1990-1999', '2000-2009', '2010-2017', '2018-nu'],

@@ -1244,6 +1244,12 @@ UPDATE app_instellingen
                 || CASE WHEN now() < '2026-11-12T00:15:00Z' THEN '{"pauzeTot":"2026-11-12T00:15:00.000Z"}'::jsonb ELSE '{}'::jsonb END
  WHERE sleutel = 'ai_curator' AND NOT (waarde ? 'maxPerDag');
 
+-- Grote lijsten (100 titels per AI-vraag): minder vragen per dag nodig.
+-- Eenmalig 20 per dag en geen webzoeken; zelf aan te passen bij Tempo.
+UPDATE app_instellingen
+   SET waarde = waarde || '{"maxPerDag":20,"webZoeken":"nooit","lijstenV2":true}'::jsonb
+ WHERE sleutel = 'ai_curator' AND NOT (waarde ? 'lijstenV2');
+
 -- Aanvragen: iedereen kan vanaf het beginscherm een film, serie, anime,
 -- game of nummer aanvragen. De titel gaat meteen naar de AI-curator.
 CREATE TABLE IF NOT EXISTS aanvragen (

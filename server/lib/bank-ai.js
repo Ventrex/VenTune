@@ -135,38 +135,53 @@ function schoonBeoordeling(b) {
  * @returns {Promise<{ok:true, items: Map<number, object>}|{ok:false, error:string}>}
  */
 async function beoordeel(titels, signal) {
-    const invoer = titels.map((t) => ({
-        id: t.id,
-        naam: t.naam,
-        type: t.type,
-        jaar: t.jaar || null,
-        land: t.land || null,
-        huidige_categorie: t.categorie || null,
-        huidige_taal: t.taal || null,
-        bekend_nummer: [t.nummer_naam || t.tracknaam, t.nummer_artiest || t.artiest].filter(Boolean).join(' – ') || null,
-    }));
+    // Compact: één regel per titel in en uit (zoals een CSV), zodat er 100
+    // titels in één AI-vraag passen zonder steeds dezelfde veldnamen.
+    const schoon = (v) => String(v ?? '').replace(/[|\n\r]+/g, ' ').trim();
+    const invoer = titels.map((t) => [
+        t.id, schoon(t.naam), t.type, t.jaar || '', t.land || '', t.categorie || '', t.taal || '',
+        schoon([t.nummer_naam || t.tracknaam, t.nummer_artiest || t.artiest].filter(Boolean).join(' – ')),
+    ].join('|'));
     const prompt = `Je bent de curator van VenTune, een Nederlandse muziekquiz (zoals Hitster) waarin spelers een film, serie, anime, game of nummer herkennen aan de muziek.
 
-Hieronder staat een lijst. Beoordeel elk item in de lijst ten opzichte van de andere (hoe bekend is dit vergeleken met de rest?), controleer of de gegevens kloppen en vul alle velden in. Houd het id gelijk. Corrigeer de naam alleen naar de gangbare officiële schrijfwijze (zoals Nederlanders hem kennen); verander niet naar een andere titel.
+Hieronder staat een lijst van ${titels.length} titels. Beoordeel elke titel ten opzichte van de rest, controleer de gegevens en vul alles in. Corrigeer de naam alleen naar de gangbare officiële schrijfwijze (zoals Nederlanders hem kennen); verander niet naar een andere titel.
 ${CRITERIA}
 
 ${GUARD}
 
-Items:
-${invoer.map((i) => JSON.stringify(i)).join('\n')}`;
+INVOER, één titel per regel: id|naam|type|jaar|land|huidige_categorie|huidige_taal|bekend_nummer
+
+UITVOER: precies één regel per titel in "regels", velden gescheiden door | (gebruik nooit | in een waarde, lijsten met ;), in deze volgorde:
+id|naam|categorie|anime_breed_bekend(0/1)|bekendheid|nl_bekend(ja/nee/twijfel)|nl_reden(kort)|jaar|eind_jaar|serie_lopend(0/1)|taal(nl/en)|land|franchise|aliassen(;)|nummer_naam|nummer_artiest|yt_zoekterm|nl_versie(0/1)|alleen_kids_nu(0/1)|genres(;)|geschikt(0/1)|notitie(kort)
+Leeg laten mag (dan niets tussen de |). Voorbeeld:
+123|Rocky|film|0|iconisch|ja||1976||0|en|US|Rocky|Rocky Balboa|Gonna Fly Now|Bill Conti|Rocky theme Gonna Fly Now Bill Conti|0|0|Drama;Sport|1|
+
+Titels:
+${invoer.join('\n')}`;
     const res = await codex.vraagJson({
         zoeken: 'belangrijk',
         prompt,
-        schema: lijstSchema({ id: S('integer'), ...BEOORDELING_PROPS }),
+        schema: objectSchema({ regels: STR_ARR }),
+        timeoutMs: 15 * 60 * 1000,
         signal,
     });
     if (!res.ok) return res;
     const items = new Map();
     const geldig = new Set(titels.map((t) => t.id));
-    for (const raw of res.data?.items || []) {
-        if (!geldig.has(raw?.id)) continue;
-        const b = schoonBeoordeling(raw);
-        if (b) items.set(raw.id, b);
+    const bool = (v) => /^(1|true|ja|j|y|yes)$/i.test(String(v || '').trim());
+    const lijst = (v) => String(v || '').split(';').map((x) => x.trim()).filter(Boolean);
+    const getal = (v) => (/^\d{4}$/.test(String(v || '').trim()) ? Number(v) : null);
+    for (const regel of res.data?.regels || []) {
+        const v = String(regel || '').split('|').map((x) => x.trim());
+        const id = Number(v[0]);
+        if (!geldig.has(id) || v.length < 21) continue;
+        const b = schoonBeoordeling({
+            naam: v[1], categorie: v[2], anime_breed_bekend: bool(v[3]), bekendheid: v[4], nl_bekend: v[5], nl_reden: v[6],
+            jaar: getal(v[7]), eind_jaar: getal(v[8]), serie_lopend: bool(v[9]), taal: v[10], land: v[11], franchise: v[12],
+            aliassen: lijst(v[13]), nummer_naam: v[14], nummer_artiest: v[15], yt_zoekterm: v[16], nl_versie: bool(v[17]),
+            alleen_kids_nu: bool(v[18]), genres: lijst(v[19]), geschikt: v[20] === '' ? true : bool(v[20]), notitie: v.slice(21).join(' '),
+        });
+        if (b) items.set(id, b);
     }
     return { ok: true, items };
 }
@@ -264,11 +279,9 @@ function maakOpties(vraag) {
 }
 
 async function maakQuiz(titels, signal) {
-    const invoer = titels.map((t) => ({
-        id: t.id, naam: t.naam, categorie: t.categorie, jaar: t.jaar || null,
-        nummer: [t.nummer_naam, t.nummer_artiest].filter(Boolean).join(' – ') || null,
-        omschrijving: t.omschrijving || null,
-    }));
+    const schoon = (v) => String(v ?? '').replace(/[|\n\r]+/g, ' ').trim();
+    const invoer = titels.map((t) => [t.id, schoon(t.naam), t.categorie, t.jaar || '',
+        schoon([t.nummer_naam, t.nummer_artiest].filter(Boolean).join(' – ')), schoon(t.omschrijving).slice(0, 160)].join('|'));
     const prompt = `Maak voor elke titel in deze lijst voor VenTune (Nederlandse muziekquiz) precies 3 hints en 3 bonusvragen, in het Nederlands. De 6 items per titel gaan elk over een ANDER onderwerp en hebben geen raakvlakken met elkaar (geen hint die een vraag beantwoordt of naar hetzelfde feit verwijst).
 
 HINTS (tijdens het raden, van vaag naar concreet): helpen de titel te raden zonder de naam, franchise of een deel daarvan te noemen. Film/serie/anime: hoofdpersonage, acteur, setting, plot zonder spoilers. Game: maker, hoofdpersonage, genre, wereld (niet de platforms; daar gaat een bonusvraag over). Muziek/kerst/kinder: artiest, jaar/decennium, waar je het hoort — zonder de nummertitel.
@@ -277,24 +290,31 @@ Bij een game is één van de 3 vragen over de platforms, remakes en remasters me
 
 ${GUARD}
 
+INVOER, één titel per regel: id|naam|categorie|jaar|nummer|omschrijving
+
+UITVOER: precies één regel per titel in "regels", velden gescheiden door | (gebruik nooit | in een tekst; foute antwoorden gescheiden door ;):
+id|hint1|hint2|hint3|vraag1|juist1|fout1a;fout1b;fout1c;fout1d;fout1e|vraag2|juist2|fouten2|vraag3|juist3|fouten3
+
 Titels:
-${invoer.map((i) => JSON.stringify(i)).join('\n')}`;
+${invoer.join('\n')}`;
     const res = await codex.vraagJson({
         prompt,
-        schema: lijstSchema({
-            id: S('integer'),
-            hints: STR_ARR,
-            vragen: S('array', { items: objectSchema({ vraag: STR, juist: STR, fout: STR_ARR }) }),
-        }),
+        schema: objectSchema({ regels: STR_ARR }),
+        timeoutMs: 15 * 60 * 1000,
         signal,
     });
     if (!res.ok) return res;
     const items = new Map();
     const perId = new Map(titels.map((t) => [t.id, t]));
-    for (const raw of res.data?.items || []) {
-        const titel = perId.get(raw?.id);
+    for (const regel of res.data?.regels || []) {
+        const v = String(regel || '').split('|').map((x) => x.trim());
+        const titel = perId.get(Number(v[0]));
         if (!titel) continue;
-        const q = schoonQuiz(raw, titel);
+        const vragen = [];
+        for (let k = 4; k + 2 < v.length + 1 && vragen.length < 3; k += 3) {
+            if (v[k] && v[k + 1]) vragen.push({ vraag: v[k], juist: v[k + 1], fout: String(v[k + 2] || '').split(';').map((x) => x.trim()).filter(Boolean) });
+        }
+        const q = schoonQuiz({ hints: v.slice(1, 4).filter(Boolean), vragen }, titel);
         if (q) items.set(titel.id, q);
     }
     return { ok: true, items };

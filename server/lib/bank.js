@@ -60,8 +60,8 @@ const STANDAARD_INSTELLINGEN = {
     // Zuinig met het ChatGPT-abonnement: maximaal zoveel AI-vragen per dag
     // (0 = onbeperkt), webzoeken alleen bij beoordelen, en een vaste pauze
     // tot een tijdstip (na een limiet of zelf ingesteld).
-    maxPerDag: 60,
-    webZoeken: 'belangrijk',
+    maxPerDag: 20,
+    webZoeken: 'nooit',
     pauzeTot: null,
     voorrang: [], // categorieën die bij alles voorgaan, bv. ['game']
     doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, kinder: 100 },

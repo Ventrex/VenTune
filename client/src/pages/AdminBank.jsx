@@ -592,9 +592,9 @@ function Overzicht({ status, onWijzig, ga }) {
 
 // Tempo: hoe hard de AI het ChatGPT-abonnement gebruikt.
 const TEMPOS = [
-    ['zuinig', 'Zuinig', { maxPerDag: 40, pauzeSeconden: 180, webZoeken: 'belangrijk' }],
-    ['normaal', 'Normaal', { maxPerDag: 120, pauzeSeconden: 60, webZoeken: 'belangrijk' }],
-    ['snel', 'Snel', { maxPerDag: 0, pauzeSeconden: 30, webZoeken: 'altijd' }],
+    ['zuinig', 'Zuinig', { maxPerDag: 20, pauzeSeconden: 180, webZoeken: 'nooit' }],
+    ['normaal', 'Normaal', { maxPerDag: 50, pauzeSeconden: 120, webZoeken: 'belangrijk' }],
+    ['snel', 'Snel', { maxPerDag: 0, pauzeSeconden: 30, webZoeken: 'belangrijk' }],
 ];
 function Tempo({ instellingen, vandaag, onWijzig }) {
     const [tot, setTot] = useState('');
@@ -603,7 +603,7 @@ function Tempo({ instellingen, vandaag, onWijzig }) {
     const pauzeTot = instellingen.pauzeTot ? new Date(instellingen.pauzeTot) : null;
     return (
         <section className="ab-kaart">
-            <p className="ab-label">Tempo <Hint tekst="Hoe zuiniger, hoe minder je ChatGPT-limiet opgaat. Het indelen, hints en vragen duren dan langer, maar lopen gewoon door. Webzoeken kost het meest; bij Zuinig en Normaal gebruikt de AI het alleen bij het beoordelen." /></p>
+            <p className="ab-label">Tempo <Hint tekst="Hoe zuiniger, hoe minder je ChatGPT-limiet opgaat. Het indelen, hints en vragen duren dan langer, maar lopen gewoon door. Eén AI-vraag = een lijst van 100 titels (beoordelen) of 30 titels (hints en vragen). Webzoeken kost het meest; bij Zuinig staat het uit." /></p>
             <div className="ab-chips">
                 {TEMPOS.map(([id, naam, v]) => (
                     <button key={id} type="button" className={'ab-chip' + (huidig === id ? ' actief' : '')} onClick={() => patch(v)}>{naam}</button>
