@@ -24,9 +24,10 @@ const bankMp3 = require('./bank-mp3');
 const logger = require('./logger');
 
 const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'collecties', 'beoordelen', 'mp3', 'aanvullen', 'quiz', 'collecties', 'verbeteren'];
-// Inhaalslag: zolang er titels zonder (actuele) beoordeling zijn, eerst de
-// hele database indelen (iconisch … cult); pas daarna nieuwe titels zoeken.
-const INHAAL = ['beoordelen', 'beoordelen', 'beoordelen', 'mp3', 'beoordelen', 'beoordelen', 'collecties', 'beoordelen', 'quiz', 'verbeteren'];
+// Inhaalslag: zolang er titels zonder (actuele) beoordeling zijn, gaat de AI
+// alleen daaraan (het juiste nummer + hoe bekend het is). MP3 zoeken kost
+// geen AI en loopt mee; hints, vragen, collecties en aanvullen wachten.
+const INHAAL = ['beoordelen', 'mp3', 'beoordelen', 'mp3', 'beoordelen', 'verbeteren'];
 // Alles gaat in lijsten: één AI-vraag per lijst van dezelfde categorie.
 const BATCH = { beoordelen: 25, quiz: 8, mp3: 6, aanvullen: 25, collectieScan: 120, collectieAanvullen: 25 };
 const PERIODES = {
@@ -51,7 +52,7 @@ const status = {
 };
 let cyclusIndex = 0;
 let wekker = null;
-let verbeterIndex = 0;
+let laatsteAudit = 0;
 let laatsteVerbeter = 0;
 const periodeIndex = {};
 const uitgeput = {}; // `${categorie}|${periode}|${tier}` -> tot wanneer overslaan
@@ -706,9 +707,9 @@ async function verbeterQuizGaten() {
                 OR (SELECT count(*) FROM vragen v WHERE v.titel_id = t.id AND v.ai_review_status <> 'afgekeurd') < 3)`);
     if (rowCount) await bank.log(null, 'verbeterpunt', `${rowCount} titels zonder volledige hints/vragen opnieuw in de wachtrij.`);
     await pool.query("DELETE FROM bank_log WHERE aangemaakt_op < now() - interval '30 days'");
-    // Elke 60 dagen alles opnieuw laten beoordelen (kennis en bekendheid veranderen).
+    // Eens per half jaar alles opnieuw laten beoordelen (bekendheid verandert).
     await pool.query(`UPDATE titels SET ai_status = 'nieuw'
-         WHERE ai_status = 'klaar' AND ai_beoordeeld_op < now() - interval '60 days'`);
+         WHERE ai_status = 'klaar' AND ai_beoordeeld_op < now() - interval '180 days'`);
     return false;
 }
 
@@ -817,9 +818,12 @@ async function stapVerbeteren() {
     await verbeterMeldingen();
     await verbeterDubbelen();
     await verbeterQuizGaten();
-    // Afwisselend: bestaande MP3's controleren of een steekproef nalopen.
-    const ai = verbeterIndex++ % 2 === 0 ? verbeterMp3Controle : verbeterAudit;
-    return ai();
+    // MP3's controleert de beheerder zelf bij het swipen; daar is geen AI
+    // voor nodig. Een AI-steekproef pas als de hele database is ingedeeld,
+    // en hooguit eens per 6 uur.
+    if (status.inhaalslag || Date.now() - laatsteAudit < 6 * 3600 * 1000) return false;
+    laatsteAudit = Date.now();
+    return verbeterAudit();
 }
 
 const STAPPEN = {

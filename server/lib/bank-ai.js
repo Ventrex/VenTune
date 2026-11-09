@@ -15,13 +15,15 @@ const CRITERIA = `
 DOELGROEP: VenTune is vooral een nostalgisch spel voor volwassenen (ongeveer 25-60 jaar) die terugdenken aan vroeger. Beoordeel bekendheid vanuit hen, niet vanuit kinderen van nu.
 - alleen_kids_nu=true voor kinderprogramma's/-series, kinderfilms of kidsmuziek die vooral bekend zijn bij kinderen van nu (ongeveer 6-14 jaar) en die volwassenen niet van vroeger kennen (bv. recente Nickelodeon-, Disney Channel-, Netflix Kids- of YouTube-kidstitels). Kinderseries die volwassenen van hun eigen jeugd kennen (Alfred J. Kwak, Maya de Bij, Teletubbies, Pokémon, Bassie & Adriaan, Sesamstraat) zijn juist wél goed: alleen_kids_nu=false.
 
-BEKENDHEID (kies precies één, kijk naar Nederland). Kijk naar de titel ÉN het nummer:
-- iconisch: zowel de titel als het nummer zijn vrijwel bij iedereen in Nederland bekend; je herkent het meteen, ook als je geen fan bent (Rocky + Eye of the Tiger, Star Wars, Friends, Titanic, Super Mario, Last Christmas).
+PRIORITEIT: het belangrijkste is (1) het JUISTE herkenningsnummer bij de titel en (2) hoe bekend dat nummer is. Besteed daar de meeste zorg aan.
+
+BEKENDHEID (kies precies één, kijk naar Nederland). Het gaat om de HERKENBAARHEID VAN HET NUMMER: hoort iemand het nummer, weet hij dan meteen "Dit is Donkey Kong!"? Hoe bekend iets vroeger was telt volledig mee; een klassieker is nooit cult omdat hij oud is.
+- iconisch: vrijwel iedereen in Nederland herkent het nummer meteen en weet waar het bij hoort, ook als je geen fan bent (Rocky + Eye of the Tiger, Star Wars, Friends, Titanic, Super Mario, Donkey Kong, Tetris, Pac-Man, Last Christmas).
 - algemeen_bekend: óf de titel óf het nummer is breed bekend, de ander iets minder; de meeste Nederlanders kennen het (bv. Sliders, Baywatch, Knight Rider).
 - bekend: bekend bij een flink deel van het publiek en bij iedereen die het genre volgt.
 - onbekend: vooral fans en kenners herkennen het.
-- cult: echt niche, met een kleine maar trouwe fanbase die het als klassieker ziet. Een serie die in Nederland jarenlang op tv was (zoals Sliders) is géén cult maar minstens algemeen bekend.
-Bij videogames tellen het spel én de muziek, gemeten onder mensen die games spelen of speelden: is het spel óf de gamemuziek iconisch, dan is het iconisch. Een miljoenenverkoper die bij een populaire console hoorde en waarvan iedereen met die console het thema kent, is iconisch: Super Mario, Tetris, Pac-Man, Wii Sports, Mario Kart, Zelda (ook A Link to the Past en Ocarina of Time), Pokémon Rood/Blauw, Sonic, Street Fighter II, The Sims, GTA San Andreas, Minecraft, Halo, Final Fantasy VII. Wees bij games niet te streng: de vraag is of gamers het thema herkennen, niet of je oma het kent.
+- cult: echt niche, met een kleine maar trouwe fanbase die het als klassieker ziet. Een serie die in Nederland jarenlang op tv was (zoals Sliders) is géén cult maar minstens algemeen bekend. Wat ooit groot was (Donkey Kong, Pac-Man, Knight Rider) is nooit cult. Twijfel je tussen twee niveaus, kies dan het bekendere.
+Bij videogames tellen het spel én de muziek, gemeten onder mensen die games spelen of speelden: is het spel óf de gamemuziek iconisch, dan is het iconisch. Remakes en remasters tellen mee voor de bekendheid. Een miljoenenverkoper die bij een populaire console hoorde en waarvan iedereen met die console het thema kent, is iconisch: Super Mario, Tetris, Pac-Man, Wii Sports, Mario Kart, Zelda (ook A Link to the Past en Ocarina of Time), Pokémon Rood/Blauw, Sonic, Street Fighter II, The Sims, GTA San Andreas, Minecraft, Halo, Final Fantasy VII. Wees bij games niet te streng: de vraag is of gamers het thema herkennen, niet of je oma het kent.
 Bij anime vergelijk je binnen anime: Pokémon, Dragon Ball en Naruto zijn iconisch; Death Note, One Piece, Attack on Titan, Ghost in the Shell en Sailor Moon zijn algemeen bekend of bekend.
 
 BEKEND IN NEDERLAND (nl_bekend):
@@ -269,8 +271,9 @@ async function maakQuiz(titels, signal) {
     }));
     const prompt = `Maak voor elke titel in deze lijst voor VenTune (Nederlandse muziekquiz) precies 3 hints en 3 bonusvragen, in het Nederlands. De 6 items per titel gaan elk over een ANDER onderwerp en hebben geen raakvlakken met elkaar (geen hint die een vraag beantwoordt of naar hetzelfde feit verwijst).
 
-HINTS (tijdens het raden, van vaag naar concreet): helpen de titel te raden zonder de naam, franchise of een deel daarvan te noemen. Film/serie/anime: hoofdpersonage, acteur, setting, plot zonder spoilers. Game: platform, maker, hoofdpersonage, genre. Muziek/kerst/kinder: artiest, jaar/decennium, waar je het hoort — zonder de nummertitel.
-BONUSVRAGEN (na het raden, meerkeuze): feitelijk en controleerbaar, elk een ander onderwerp, hooguit één jaartalvraag. "juist" is het goede antwoord, "fout" precies 5 geloofwaardige foute antwoorden van hetzelfde soort. Een hint mag het antwoord op een bonusvraag niet verklappen.
+HINTS (tijdens het raden, van vaag naar concreet): helpen de titel te raden zonder de naam, franchise of een deel daarvan te noemen. Film/serie/anime: hoofdpersonage, acteur, setting, plot zonder spoilers. Game: maker, hoofdpersonage, genre, wereld (niet de platforms; daar gaat een bonusvraag over). Muziek/kerst/kinder: artiest, jaar/decennium, waar je het hoort — zonder de nummertitel.
+BONUSVRAGEN (na het raden, meerkeuze): feitelijk en controleerbaar, elk een ander onderwerp, hooguit één jaartalvraag.
+Bij een game is één van de 3 vragen over de platforms, remakes en remasters meegerekend. Bijvoorbeeld "Op welk platform is GTA V NIET uitgebracht?" met juist "PlayStation 2" en fout "PlayStation 3", "PlayStation 4", "PC", "Xbox One", "Xbox Series X/S", of "Op welke console verscheen X ook?" met één echt platform als juist en platforms waarop het spel nooit verscheen als fout. "juist" is het goede antwoord, "fout" precies 5 geloofwaardige foute antwoorden van hetzelfde soort. Een hint mag het antwoord op een bonusvraag niet verklappen.
 
 ${GUARD}
 

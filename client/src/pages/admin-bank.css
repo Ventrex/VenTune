@@ -411,3 +411,22 @@ select.ab-in { padding-right: 0.3rem; }
 .ab-treffers button:hover { border-color: var(--accent); }
 .ab-leden li { display: flex; gap: 0.5rem; align-items: center; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
 .ab-leden li .ab-titel { flex: 1; min-width: 0; }
+.ab-emoji-kiezer { position: relative; display: inline-flex; }
+.ab-emoji-knop { width: 3.2rem; height: 2.6rem; font-size: 1.4rem; padding: 0; display: grid; place-items: center; cursor: pointer; }
+.ab-emoji-knop img, .ab-collectie-emoji img { width: 2rem; height: 2rem; object-fit: contain; border-radius: 6px; }
+.ab-emoji-paneel {
+    position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; display: flex; flex-direction: column; gap: 0.5rem;
+    padding: 0.6rem; border-radius: 12px; background: #14102b; border: 1px solid #3b3270; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+    width: min(21rem, 86vw);
+}
+.ab-emoji-raster { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.ab-emoji-raster button { font-size: 1.3rem; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0.2rem 0; cursor: pointer; }
+.ab-emoji-raster button:hover, .ab-emoji-raster button.actief { border-color: var(--accent); }
+.ab-dubbel { display: flex; flex-direction: column; gap: 0.6rem; }
+.ab-dubbel > .ab-badge { align-self: flex-start; }
+.ab-dubbel-item { border-top: 1px solid var(--border); padding-top: 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.ab-dubbel-item.uit { opacity: 0.75; }
+.ab-dubbel-kop { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.ab-dubbel-kop .ab-titel { flex: 1 1 14rem; }
+.ab-dubbel-mp3 { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.ab-dubbel-mp3 audio { height: 2.2rem; flex: 1 1 16rem; max-width: 26rem; }

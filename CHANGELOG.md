@@ -11,6 +11,8 @@
 - Videogames die iedereen met die console kent (Wii Sports, Zelda) tellen als iconisch.
 - De changelog toont ook per dag wat er in de database is bijgekomen.
 - Profielfoto's tot 5 MB uploaden werkt weer.
+- Bonusvraag bij games: op welke consoles is het spel (inclusief remakes) uitgebracht?
+- Klassiekers zoals Donkey Kong tellen als iconisch: het gaat erom of je het nummer meteen herkent.
 
 ## [0.6.2] - 2026-11-07
 

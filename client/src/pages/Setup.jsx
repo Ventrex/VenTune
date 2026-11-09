@@ -342,6 +342,9 @@ export default function Setup() {
     function emojiVan(id) {
         return collecties.find((c) => c.sleutel === id)?.emoji || null;
     }
+    function plaatjeVan(id) {
+        return collecties.find((c) => c.sleutel === id)?.afbeelding_url || null;
+    }
 
     function wisselCollectie(collectie) {
         setFilters((f) => {
@@ -600,9 +603,9 @@ export default function Setup() {
                                             ? (categorieBeelden['platform-'+id]
                                                 ? <span className="vt-collectie-pictogram"><img src={categorieBeelden['platform-'+id]} alt="" /></span>
                                                 : null)
-                                            : (!categorieBeelden["collectie-"+id] && !VASTE_BEELDEN[id] && emojiVan(id))
+                                            : (!categorieBeelden["collectie-"+id] && !plaatjeVan(id) && !VASTE_BEELDEN[id] && emojiVan(id))
                                             ? <span className="vt-collectie-pictogram vt-collectie-emoji" aria-hidden="true">{emojiVan(id)}</span>
-                                            : <span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return beelden["collectie-"+id] || ({ "80s": "/category/collection-80s.svg", "90s": "/category/collection-90s.svg", animatie: "/category/collection-animatie.svg", kinder: "/category/collection-kinder.svg", kerst: "/category/collection-christmas.svg", alles: "/category/collection-all.svg" })[id] || "/category/icon-music.svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span>}<span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
+                                            : <span className="vt-collectie-pictogram" aria-hidden="true"><img src={(() => { const beelden = categorieBeelden; return plaatjeVan(id) || beelden["collectie-"+id] || ({ "80s": "/category/collection-80s.svg", "90s": "/category/collection-90s.svg", animatie: "/category/collection-animatie.svg", kinder: "/category/collection-kinder.svg", kerst: "/category/collection-christmas.svg", alles: "/category/collection-all.svg" })[id] || "/category/icon-music.svg"; })()} alt="" onError={e=>{e.currentTarget.style.display="none"}} /></span>}<span className="vt-collectie-label">{label.replace(/^[^A-Za-zÀ-ÿ0-9]+/u,"").trim()}</span>{id==="alles"&&hoofdgroep==="films"&&<small>(volledige database)</small>}</button>)}
                             </div>
                         </div>}
                         

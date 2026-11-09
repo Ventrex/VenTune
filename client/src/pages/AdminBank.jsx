@@ -46,6 +46,7 @@ const FIXES = [
     ['nl-twijfel', 'NL: twijfel', 'nl', 'twijfel', 'nl_twijfel'],
     ['nog-bij-ai', 'Nog bij AI', 'nummers', 'te_beoordelen', 'te_beoordelen'],
     ['uitgesloten', 'Uitgesloten', 'nummers', 'uitgesloten', 'uitgesloten'],
+    ['dubbelen', 'Dubbelen', null, null, null],
 ];
 const CATS = [['film', 'Films'], ['serie', 'Series'], ['anime', 'Anime'], ['game', 'Videogames'], ['muziek', 'Muziek'], ['kerst', 'Kerst'], ['kinder', 'Kinder']];
 const CAT_LABEL = Object.fromEntries(CATS);
@@ -168,7 +169,8 @@ function Bank() {
             {tab === 'overzicht' && <Overzicht status={status} onWijzig={laadStatus} ga={ga} />}
             {tab === 'swipen' && <Swipen key={sub} categorie={sub} onWijzig={laadStatus} />}
             {tab === 'controles' && <Lijst key={`c-${controle}`} tab={controle} standaardFilter="alle" />}
-            {tab === 'fixes' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
+            {tab === 'fixes' && fix[0] === 'dubbelen' && <Dubbelen />}
+            {tab === 'fixes' && fix[0] !== 'dubbelen' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
             {tab === 'collecties' && <Collecties key={sub} gekozen={sub} onKies={(id) => ga('collecties', id ? { sub: String(id) } : {})} />}
             {tab === 'spelers' && <SubTabs actief={spelerSub} onKies={(id) => ga('spelers', { sub: id })} items={SPELERS} />}
             {tab === 'log' && <SubTabs actief={logSub} onKies={(id) => ga('log', { sub: id })} items={LOGS} />}
@@ -741,6 +743,11 @@ function Lijst({ tab, standaardFilter = '', vasteFilter = false }) {
                 : wat === 'quiz' ? { ai_quiz_op: null, ai_notitie: 'AI maakt nieuwe hints en vragen…' }
                     : { ai_status: 'nieuw', ai_notitie: 'AI beoordeelt opnieuw…' });
         },
+        async verwijder(item) {
+            if (!window.confirm(`"${item.naam}" verwijderen, met MP3's? Is hij al eens gespeeld, dan blijft de speelgeschiedenis bewaard en gaat hij alleen uit het spel.`)) return;
+            await api(`/api/admin/bank/items/${item.id}`, { method: 'DELETE' });
+            setData((d) => d && ({ ...d, items: d.items.filter((i) => i.id !== item.id), totaal: d.totaal - 1 }));
+        },
         laad,
     }), [laad]);
 
@@ -859,6 +866,7 @@ function Rij({ tab, item, acties }) {
                         onChange={(e) => p({ actief: e.target.checked, curatie_status: e.target.checked ? 'goedgekeurd' : 'uitgesloten' })} /> In het spel</label>
                     {slot('actief')}
                     <button type="button" className="ab-knop klein" onClick={() => acties.ai(item, 'alles')}>↻ AI</button>
+                    <button type="button" className="ab-knop klein ab-gevaar" title="Verwijderen" onClick={() => acties.verwijder(item).catch((e) => alert(e.message))}>🗑</button>
                 </div>
             </div>
         );
@@ -1084,7 +1092,7 @@ function Collecties({ gekozen, onKies }) {
                 <div className="ab-collecties">
                     {lijst.map((c) => (
                         <button key={c.id} type="button" className={'ab-collectie' + (c.actief ? '' : ' uit')} onClick={() => onKies(c.id)}>
-                            <span className="ab-collectie-emoji">{c.emoji || '✨'}</span>
+                            <span className="ab-collectie-emoji">{c.afbeelding_url ? <img src={c.afbeelding_url} alt="" /> : (c.emoji || '✨')}</span>
                             <span className="ab-collectie-tekst">
                                 <strong>{c.voorrang ? '★ ' : ''}{c.naam}</strong>
                                 <span className="dim ab-mini">{SOORT_KORT[c.standaard_type] || c.standaard_type} · {c.aantal} items · {c.speelbaar} speelbaar{c.ai_doel ? ` · doel ${c.ai_doel}` : ''}</span>
@@ -1098,12 +1106,58 @@ function Collecties({ gekozen, onKies }) {
     );
 }
 
+// Kies een emoji uit een raster of upload een eigen plaatje.
+const EMOJIS = ['🎁', '🎅', '🎄', '⛄', '🐴', '🍫', '🎸', '🤘', '🎤', '🎧', '🎹', '🥁', '🎺', '🎻', '🪩', '💃',
+    '🕺', '🇳🇱', '🌷', '🧡', '🍺', '☀️', '🏖️', '🌴', '🎃', '👻', '💘', '❤️', '🏆', '⚽', '🏎️', '🚀',
+    '🦸', '🧙', '🐉', '🏰', '👑', '🤖', '👾', '🎮', '🕹️', '🎬', '📺', '📼', '🍿', '🎭', '🌌', '🦖',
+    '🧸', '🎈', '🎂', '🎉', '🍸', '🕵️', '🔫', '🚓', '🏴‍☠️', '⚔️', '🌸', '🍣', '🐼', '⭐'];
+function EmojiKiezer({ waarde, onKies, plaatje, onUpload, onWisPlaatje }) {
+    const [open, setOpen] = useState(false);
+    const bestand = useRef(null);
+    return (
+        <span className="ab-emoji-kiezer">
+            <button type="button" className="ab-in ab-emoji-knop" onClick={() => setOpen((o) => !o)} aria-label="Plaatje kiezen">
+                {plaatje ? <img src={plaatje} alt="" /> : (waarde || '✨')}
+            </button>
+            {open && (
+                <span className="ab-emoji-paneel">
+                    <span className="ab-emoji-raster">
+                        {EMOJIS.map((e) => (
+                            <button key={e} type="button" className={e === waarde && !plaatje ? 'actief' : ''}
+                                onClick={() => { onKies(e); setOpen(false); }}>{e}</button>
+                        ))}
+                    </span>
+                    {onUpload && (
+                        <span className="ab-rij">
+                            <button type="button" className="ab-knop klein" onClick={() => bestand.current?.click()}>⬆ Eigen plaatje</button>
+                            {plaatje && <button type="button" className="ab-knop klein" onClick={() => { onWisPlaatje(); setOpen(false); }}>Plaatje weg</button>}
+                            <input ref={bestand} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) { onUpload(f); setOpen(false); } e.target.value = ''; }} />
+                        </span>
+                    )}
+                </span>
+            )}
+        </span>
+    );
+}
+
+async function uploadPlaatje(id, bestand) {
+    const form = new FormData();
+    form.append('afbeelding', bestand);
+    const r = await fetch(`/api/admin/bank/collecties/${id}/afbeelding`, { method: 'POST', credentials: 'include', body: form });
+    const d = await jsonOfNull(r);
+    if (!r.ok) throw new Error(d?.fout || `Uploaden mislukt (fout ${r.status}).`);
+    return d;
+}
+
 function NieuweCollectie({ onKlaar }) {
     const [naam, setNaam] = useState('');
     const [criteria, setCriteria] = useState('');
     const [soort, setSoort] = useState('muziek');
     const [doel, setDoel] = useState('60');
-    const [emoji, setEmoji] = useState('');
+    const [emoji, setEmoji] = useState('🎁');
+    const [plaatje, setPlaatje] = useState(null);
+    const voorbeeld = useMemo(() => (plaatje ? URL.createObjectURL(plaatje) : null), [plaatje]);
     const [bezig, setBezig] = useState(false);
     async function maak(e) {
         e.preventDefault();
@@ -1111,7 +1165,8 @@ function NieuweCollectie({ onKlaar }) {
         setBezig(true);
         try {
             const c = await api('/api/admin/bank/collecties', { method: 'POST', body: { naam, criteria, soort, doel: Number(doel), emoji } });
-            setNaam(''); setCriteria(''); setEmoji('');
+            if (plaatje) await uploadPlaatje(c.id, plaatje).catch((e) => alert(e.message));
+            setNaam(''); setCriteria(''); setEmoji('🎁'); setPlaatje(null);
             onKlaar(c);
         } catch (err) { alert(err.message); }
         finally { setBezig(false); }
@@ -1120,7 +1175,8 @@ function NieuweCollectie({ onKlaar }) {
         <form className="ab-kaart ab-nieuwe-collectie" onSubmit={maak}>
             <p className="ab-label">Nieuwe collectie via AI <Hint tekst="De AI zoekt eerst in de hele database wat erbij past (Rocky met Eye of the Tiger komt ook in Rock, zonder dubbele MP3) en vult daarna aan tot het doel. Nieuwe nummers krijgen vanzelf MP3, hints en vragen." /></p>
             <div className="ab-rij">
-                <input className="ab-in ab-emoji-in" placeholder="🎁" value={emoji} onChange={(e) => setEmoji(e.target.value)} aria-label="Emoji" />
+                <EmojiKiezer waarde={emoji} onKies={(e) => { setEmoji(e); setPlaatje(null); }}
+                    plaatje={voorbeeld} onUpload={setPlaatje} onWisPlaatje={() => setPlaatje(null)} />
                 <input className="ab-in" placeholder="Naam, bv. Sinterklaas" value={naam} onChange={(e) => setNaam(e.target.value)} />
             </div>
             <textarea className="ab-in" rows={2} value={criteria} onChange={(e) => setCriteria(e.target.value)}
@@ -1177,7 +1233,10 @@ function CollectieDetail({ c, onTerug, onWijzig }) {
             <section className="ab-kaart">
                 <div className="ab-rij">
                     <button type="button" className="ab-knop klein" onClick={onTerug}>← Alle collecties</button>
-                    <strong className="ab-collectie-kop">{c.emoji || '✨'} {c.naam}</strong>
+                    <EmojiKiezer waarde={c.emoji} plaatje={c.afbeelding_url} onKies={(e) => patch({ emoji: e })}
+                        onUpload={async (f) => { try { await uploadPlaatje(c.id, f); onWijzig(); } catch (e) { alert(e.message); } }}
+                        onWisPlaatje={async () => { await api(`/api/admin/bank/collecties/${c.id}/afbeelding`, { method: 'DELETE' }).catch(() => {}); onWijzig(); }} />
+                    <strong className="ab-collectie-kop">{c.naam}</strong>
                     <span className="dim ab-mini">{c.aantal} items · {c.speelbaar} speelbaar · {c.door_ai} door AI</span>
                 </div>
                 <div className="ab-chips" style={{ marginTop: '0.6rem' }}>
@@ -1188,7 +1247,6 @@ function CollectieDetail({ c, onTerug, onWijzig }) {
                 <p className="dim ab-mini">{!c.ai_aan ? 'De AI doet niets met deze collectie.' : !c.scan_klaar ? `De AI loopt de database na: ${c.scan_procent}%.` : c.aantal < c.ai_doel ? 'Database nagelopen; de AI vult aan tot het doel.' : 'Op doel. Verhoog het doel voor meer.'}</p>
                 <div className="ab-velden">
                     <Tekst label="Naam" waarde={c.naam} onSave={(v) => patch({ naam: v })} />
-                    <Tekst label="Emoji" waarde={c.emoji || ''} onSave={(v) => patch({ emoji: v })} />
                     <Tekst label="Doel" type="number" waarde={c.ai_doel} onSave={(v) => patch({ ai_doel: Number(v) })} />
                     <Keuze label="Soort" waarde={c.standaard_type} opties={SOORT_OPTIES.map(([id]) => [id, SOORT_KORT[id]])} onSave={(v) => patch({ standaard_type: v })} />
                     <Tekst label="Wat hoort erin (voor de AI)" breed waarde={c.ai_criteria || c.beschrijving || ''} onSave={(v) => patch({ ai_criteria: v })} />
@@ -1231,6 +1289,80 @@ function CollectieDetail({ c, onTerug, onWijzig }) {
                     </ul>
                 )}
             </section>
+        </div>
+    );
+}
+
+// ------------------------------------------------------------------
+// Dubbelen: luisteren, vergelijken en opruimen
+// ------------------------------------------------------------------
+
+function Dubbelen() {
+    const [alleenMp3, setAlleenMp3] = useState(true);
+    const [data, setData] = useState(null);
+    const [bezig, setBezig] = useState(false);
+    const laad = useCallback(() => {
+        setData(null);
+        api(`/api/admin/bank/dubbelen?mp3=${alleenMp3 ? 1 : 0}`).then(setData).catch((e) => alert(e.message));
+    }, [alleenMp3]);
+    useEffect(() => { laad(); }, [laad]);
+    // Lokaal bijwerken, zodat je niet steeds naar boven springt.
+    const zonder = (pred) => setData((d) => d && ({
+        ...d,
+        groepen: d.groepen.map((g) => ({ ...g, items: g.items.map(pred).filter(Boolean) })).filter((g) => g.items.length > 1),
+    }));
+    async function mp3Weg(item, mp3) {
+        try {
+            await api(`/api/admin/bank/tracks/${mp3.id}`, { method: 'DELETE' });
+            zonder((i) => (i.id === item.id ? { ...i, mp3s: i.mp3s.filter((m) => m.id !== mp3.id) } : i));
+        } catch (e) { alert(e.message); }
+    }
+    async function titelWeg(item) {
+        if (!window.confirm(`"${item.naam}" (#${item.id}) verwijderen, met MP3's?`)) return;
+        try {
+            await api(`/api/admin/bank/items/${item.id}`, { method: 'DELETE' });
+            zonder((i) => (i.id === item.id ? null : i));
+        } catch (e) { alert(e.message); }
+    }
+    async function opruimen() {
+        if (!window.confirm(`Alle ${data.uitgesloten_dubbel} uitgesloten dubbelen verwijderen, met hun MP3's? Wat al eens gespeeld is, blijft als geschiedenis bewaard.`)) return;
+        setBezig(true);
+        try { const r = await api('/api/admin/bank/opruimen/dubbelen', { method: 'POST' }); alert(r.tekst); laad(); }
+        catch (e) { alert(e.message); }
+        finally { setBezig(false); }
+    }
+    return (
+        <div className="ab-stapel">
+            <section className="ab-kaart">
+                <div className="ab-rij">
+                    <label className="ab-check"><input type="checkbox" checked={alleenMp3} onChange={(e) => setAlleenMp3(e.target.checked)} /> Alleen met meerdere MP3's</label>
+                    <Hint tekst="Titels met dezelfde naam of hetzelfde nummer. Luister en verwijder de MP3 of titel die je niet wilt houden (bv. de Engelse versie als de Nederlandse beter is)." />
+                    {data?.uitgesloten_dubbel > 0 && (
+                        <button type="button" className="ab-knop" disabled={bezig} onClick={opruimen}>🧹 {data.uitgesloten_dubbel} uitgesloten dubbelen opruimen</button>
+                    )}
+                </div>
+            </section>
+            {!data ? <p className="dim">Laden…</p> : !data.groepen.length ? <p className="dim">Geen dubbelen. 🎉</p> : data.groepen.map((g) => (
+                <section key={g.items.map((i) => i.id).join('-')} className="ab-kaart ab-dubbel">
+                    <span className="ab-badge">{g.reden}</span>
+                    {g.items.map((item) => (
+                        <div key={item.id} className={'ab-dubbel-item' + (item.curatie_status === 'uitgesloten' ? ' uit' : '')}>
+                            <div className="ab-dubbel-kop">
+                                <TitelKop item={item} />
+                                <span className="dim ab-mini">#{item.id}{item.uitsluit_reden ? ` · ${item.uitsluit_reden}` : ''}</span>
+                                <button type="button" className="ab-knop klein ab-gevaar" onClick={() => titelWeg(item)}>🗑 Titel</button>
+                            </div>
+                            {!item.mp3s.length ? <span className="dim ab-mini">Geen MP3</span> : item.mp3s.map((m) => (
+                                <div key={m.id} className="ab-dubbel-mp3">
+                                    <audio controls preload="none" src={m.mp3_url} />
+                                    <span className="dim ab-mini">{m.youtube_titel || 'MP3'}{m.wacht ? ' · nog niet geswiped' : ''}</span>
+                                    <button type="button" className="ab-knop klein ab-gevaar" onClick={() => mp3Weg(item, m)}>🗑 MP3</button>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </section>
+            ))}
         </div>
     );
 }

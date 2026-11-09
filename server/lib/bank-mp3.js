@@ -65,6 +65,55 @@ function isAnderstalig(titel, t) {
     return ANDERSTALIG.some(([re, landen]) => re.test(tekst) && !landen.includes(land));
 }
 
+// ------------------------------------------------------------------
+// De juiste video kiezen zonder AI. De AI heeft het nummer (naam +
+// artiest) al bepaald; hier tellen we alleen punten op de videotitel.
+// De beheerder swipet daarna toch elk nummer, dus een misser is goedkoop.
+// ------------------------------------------------------------------
+const SLECHT = /\b(cover|remix|sped ?up|slowed|nightcore|8[ -]?bit|piano|guitar|orchestra(?:l)?|karaoke|reaction|review|trailer|tutorial|lesson|live|concert|1 hour|10 hours|hour loop|extended mix|mashup|parody|teaser|full album|compilation|lyrics? video by|fan ?made|ai cover|bass boosted)\b/i;
+const OFFICIEEL = /\b(official|officiele|officiële|topic|vevo|audio)\b/i;
+const SIGNAAL = /\b(intro|opening|titelsong|titelmuziek|main theme|theme song|title theme|main title|theme|tune|generiek|soundtrack|ost)\b/i;
+
+function woorden(s) {
+    return bank.norm(s).split(' ').filter((w) => w.length > 1);
+}
+function bevat(tekst, deel) {
+    const w = woorden(deel);
+    if (!w.length) return false;
+    const t = ` ${bank.norm(tekst)} `;
+    return t.includes(` ${w.join(' ')} `) || w.every((x) => t.includes(` ${x} `));
+}
+
+function scoreKandidaat(t, k) {
+    const titel = String(k.titel || '');
+    const kanaal = String(k.kanaal || '');
+    if (SLECHT.test(titel) && !SLECHT.test(`${t.naam} ${t.nummer_naam || ''}`)) return -1;
+    if (k.duurSeconden && (k.duurSeconden < 20 || k.duurSeconden > 8 * 60)) return -1;
+    let score = 0;
+    const heeftNummer = t.nummer_naam && bevat(titel, t.nummer_naam);
+    const heeftNaam = bevat(titel, t.naam);
+    const heeftArtiest = t.nummer_artiest && (bevat(titel, t.nummer_artiest) || bevat(kanaal, t.nummer_artiest));
+    if (heeftNummer) score += 50;
+    if (heeftNaam) score += 30;
+    if (heeftArtiest) score += 20;
+    if (OFFICIEEL.test(titel) || / - topic$/i.test(kanaal) || /vevo/i.test(kanaal)) score += 15;
+    if (!bank.MUZIEK_CATEGORIEEN.has(t.categorie) && SIGNAAL.test(titel)) score += 15;
+    if (t.nl_versie && /\b(nederlands|nl|dutch|nederlandse)\b/i.test(titel)) score += 25;
+    if (k.views) score += Math.min(12, Math.log10(Number(k.views) || 1) * 2);
+    // Zonder nummer én zonder titel van de film/serie/game is het te gokkerig.
+    if (!heeftNummer && !heeftNaam) return -1;
+    return score;
+}
+
+function kiesZonderAi(t, kandidaten) {
+    const gescoord = kandidaten.map((k) => ({ k, s: scoreKandidaat(t, k) }))
+        .filter((x) => x.s >= 45)
+        .sort((a, b) => b.s - a.s);
+    if (!gescoord.length) return null;
+    const { k, s } = gescoord[0];
+    return { kandidaat: k, reden: `automatisch gekozen (score ${Math.round(s)}): ${k.titel}${k.kanaal ? ` · ${k.kanaal}` : ''}` };
+}
+
 async function kandidatenVoor(t) {
     const afgekeurd = new Set(t.mp3_afgekeurd || []);
     const gezien = new Map();
@@ -189,20 +238,16 @@ async function verwerkBatch(titels, signal) {
     }
     if (!lijst.length) return { gevonden, ai: false };
 
-    const keuze = await bankAi.kiesVideo(lijst, signal);
-    if (!keuze.ok) {
-        for (const l of lijst) lopend.delete(l.titel.id);
-        return { gevonden, ai: true, fout: keuze.error };
-    }
+    // Geen AI nodig: het nummer is al bepaald, de beheerder swipet daarna.
     for (const { titel: t, kandidaten } of lijst) {
-        const k = keuze.items.get(t.id);
+        const k = kiesZonderAi(t, kandidaten);
         try {
             if (!k || !k.kandidaat) {
-                await markeerMislukt(t, `AI vond tussen ${kandidaten.length} YouTube-resultaten geen originele versie${k?.reden ? `: ${k.reden}` : '.'}`);
+                await markeerMislukt(t, `Tussen ${kandidaten.length} YouTube-resultaten zat geen video met "${t.nummer_naam || t.naam}" in de titel.`);
                 continue;
             }
             lopend.set(t.id, { sinds: Date.now(), wat: 'downloaden' });
-            await slaOp(t, k.kandidaat, { reden: `AI-keuze: ${k.reden}` });
+            await slaOp(t, k.kandidaat, { reden: `Automatisch: ${k.reden}` });
             gevonden++;
             await bank.log(t.id, 'mp3', `MP3 opgeslagen: ${k.kandidaat.titel}`, { videoId: k.kandidaat.videoId, reden: k.reden });
         } catch (err) {
@@ -293,5 +338,6 @@ async function zoekOpnieuw(titelId) {
 }
 
 module.exports = {
+    kiesZonderAi, scoreKandidaat,
     verwerkBatch, gepauzeerd, plaatsEigenUrl, keurAf, zoekOpnieuw, isBezig, bezigeIds, videoIdUit, zoektermen, isAnderstalig,
 };

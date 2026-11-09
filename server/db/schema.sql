@@ -487,6 +487,7 @@ CREATE TABLE IF NOT EXISTS database_dagstat (
 -- en de AI-curator deelt bestaande titels/nummers in (een nummer kan in
 -- meerdere collecties) en vult aan tot het doel.
 ALTER TABLE collecties ADD COLUMN IF NOT EXISTS emoji TEXT;
+ALTER TABLE collecties ADD COLUMN IF NOT EXISTS afbeelding_url TEXT;
 ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_criteria TEXT;
 ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_aan BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE collecties ADD COLUMN IF NOT EXISTS ai_doel INTEGER NOT NULL DEFAULT 60;

@@ -28,6 +28,11 @@
 // =====================================================================
 
 const express = require('express');
+const path = require('path');
+const fsp = require('fs/promises');
+const crypto = require('crypto');
+const multer = require('multer');
+const mediaFiles = require('../lib/media-files');
 const { pool } = require('../db/pool');
 const codex = require('../lib/codex');
 const bank = require('../lib/bank');
@@ -602,6 +607,132 @@ router.get('/api/admin/bank/log', vereisAdmin, async (req, res) => {
 });
 
 // ------------------------------------------------------------------
+// Dubbelen: vergelijken (luisteren) en opruimen
+//
+//   GET    /api/admin/bank/dubbelen               groepen met dezelfde naam of hetzelfde nummer
+//   DELETE /api/admin/bank/tracks/:id              één MP3 weg (bestand + track)
+//   DELETE /api/admin/bank/items/:id               titel weg (met MP3's)
+//   POST   /api/admin/bank/opruimen/dubbelen       alle uitgesloten dubbelen in één keer weg
+// ------------------------------------------------------------------
+
+/** MP3 weg. Speelgeschiedenis blijft: is de track ooit gespeeld, dan alleen uitzetten. */
+async function verwijderTrack(id) {
+    const { rows: [tr] } = await pool.query('SELECT id, titel_id, bestand_pad, preview_url FROM tracks WHERE id = $1', [id]);
+    if (!tr) return false;
+    await mediaFiles.verwijderBestanden([tr]);
+    const { rows: [gespeeld] } = await pool.query('SELECT 1 FROM rondes WHERE track_id = $1 LIMIT 1', [id]);
+    if (gespeeld) {
+        await pool.query(
+            `UPDATE tracks SET werkt = false, wacht_op_swipe = false, download_status = 'failed', review_status = 'afgekeurd',
+                    review_reden = 'Verwijderd door beheerder (dubbel)' WHERE id = $1`, [id]);
+    } else {
+        await pool.query('DELETE FROM tracks WHERE id = $1', [id]);
+    }
+    return tr.titel_id;
+}
+
+/** Titel weg met MP3's. Is hij ooit gespeeld, dan uitsluiten (scores blijven kloppen). */
+async function verwijderTitel(id, reden = 'Verwijderd door beheerder') {
+    const { rows: tracks } = await pool.query('SELECT id FROM tracks WHERE titel_id = $1', [id]);
+    for (const t of tracks) await verwijderTrack(t.id);
+    const { rows: [gespeeld] } = await pool.query('SELECT 1 FROM rondes WHERE titel_id = $1 LIMIT 1', [id]);
+    if (gespeeld) {
+        await pool.query(
+            `UPDATE titels SET curatie_status = 'uitgesloten', ai_uitgesloten = false, uitsluit_reden = $2,
+                    handmatig = (SELECT ARRAY(SELECT DISTINCT unnest(handmatig || ARRAY['actief'])))
+              WHERE id = $1`, [id, reden]);
+        return 'uitgesloten';
+    }
+    try {
+        await pool.query('DELETE FROM titels WHERE id = $1', [id]);
+        return 'verwijderd';
+    } catch (err) {
+        if (err.code !== '23503') throw err; // ergens nog naar verwezen: dan uitsluiten
+        await pool.query(`UPDATE titels SET curatie_status = 'uitgesloten', uitsluit_reden = $2 WHERE id = $1`, [id, reden]);
+        return 'uitgesloten';
+    }
+}
+
+router.get('/api/admin/bank/dubbelen', vereisAdmin, async (req, res) => {
+    try {
+        const alleenMp3 = req.query.mp3 === '1';
+        const { rows } = await pool.query(`
+            WITH t AS (
+                SELECT t.id, t.naam, COALESCE(t.categorie, t.type::text) AS categorie, t.jaar, t.curatie_status, t.uitsluit_reden,
+                       t.nummer_naam, t.nummer_artiest, t.bekendheid_tier, ${bank.HEEFT_MP3} AS heeft_mp3,
+                       lower(regexp_replace(t.naam, '[^[:alnum:]]+', '', 'g')) AS n_naam,
+                       CASE WHEN COALESCE(t.nummer_naam, '') <> '' THEN
+                            lower(regexp_replace(t.nummer_naam, '[^[:alnum:]]+', '', 'g')) || '|' ||
+                            lower(regexp_replace(COALESCE(t.nummer_artiest, ''), '[^[:alnum:]]+', '', 'g')) END AS n_nummer
+                  FROM titels t
+            ), groepen AS (
+                SELECT 'naam:' || n_naam AS sleutel, array_agg(id ORDER BY id) AS ids FROM t WHERE n_naam <> '' GROUP BY n_naam HAVING count(*) > 1
+                UNION
+                SELECT 'nummer:' || n_nummer, array_agg(id ORDER BY id) FROM t WHERE n_nummer IS NOT NULL AND n_nummer NOT LIKE '|%'
+                 GROUP BY n_nummer HAVING count(*) > 1
+            )
+            SELECT g.sleutel, g.ids FROM groepen g
+             WHERE NOT $1 OR (SELECT count(*) FROM t WHERE t.id = ANY(g.ids) AND t.heeft_mp3) > 1
+             ORDER BY g.ids[1] LIMIT 60`, [alleenMp3]);
+        const ids = [...new Set(rows.flatMap((r) => r.ids))];
+        const { rows: titels } = ids.length ? await pool.query(`
+            SELECT t.id, t.naam, COALESCE(t.categorie, t.type::text) AS categorie, t.jaar, t.curatie_status, t.uitsluit_reden,
+                   t.nummer_naam, t.nummer_artiest, t.bekendheid_tier,
+                   COALESCE((SELECT json_agg(json_build_object('id', tr.id, 'mp3_url', tr.preview_url, 'youtube_titel', tr.youtube_titel,
+                                        'wacht', tr.wacht_op_swipe) ORDER BY tr.id)
+                               FROM tracks tr WHERE tr.titel_id = t.id AND tr.werkt AND tr.download_status = 'available'
+                                AND tr.bron = 'lokaal' AND tr.preview_url IS NOT NULL), '[]') AS mp3s
+              FROM titels t WHERE t.id = ANY($1)`, [ids]) : { rows: [] };
+        const perId = new Map(titels.map((t) => [t.id, t]));
+        // Een paar titels kan door naam én nummer dubbel zijn: één groep tonen.
+        const gezien = new Set();
+        const groepen = [];
+        for (const r of rows) {
+            const k = r.ids.join(',');
+            if (gezien.has(k)) continue;
+            gezien.add(k);
+            groepen.push({ reden: r.sleutel.startsWith('naam:') ? 'Zelfde naam' : 'Zelfde nummer', items: r.ids.map((id) => perId.get(id)).filter(Boolean) });
+        }
+        const { rows: [u] } = await pool.query(`SELECT count(*)::int AS n FROM titels WHERE curatie_status = 'uitgesloten' AND uitsluit_reden LIKE 'Dubbel van #%'`);
+        res.json({ groepen, uitgesloten_dubbel: u.n });
+    } catch (err) { fout(res, err); }
+});
+
+router.delete('/api/admin/bank/tracks/:id', vereisAdmin, async (req, res) => {
+    try {
+        const titelId = await verwijderTrack(Number(req.params.id));
+        if (!titelId) return res.status(404).json({ fout: 'MP3 niet gevonden.' });
+        await bank.log(titelId, 'mp3', 'MP3 verwijderd door beheerder (dubbel).');
+        res.json({ ok: true });
+    } catch (err) { fout(res, err); }
+});
+
+router.delete('/api/admin/bank/items/:id', vereisAdmin, async (req, res) => {
+    try {
+        const { rows: [t] } = await pool.query('SELECT naam FROM titels WHERE id = $1', [Number(req.params.id)]);
+        if (!t) return res.status(404).json({ fout: 'Titel niet gevonden.' });
+        const uitkomst = await verwijderTitel(Number(req.params.id), 'Verwijderd door beheerder (dubbel)');
+        await bank.log(uitkomst === 'verwijderd' ? null : Number(req.params.id), 'uitgesloten',
+            `${t.naam}: ${uitkomst === 'verwijderd' ? 'verwijderd' : 'uit het spel gehaald (was al eens gespeeld, geschiedenis blijft)'} door beheerder.`);
+        res.json({ ok: true, uitkomst });
+    } catch (err) { fout(res, err); }
+});
+
+router.post('/api/admin/bank/opruimen/dubbelen', vereisAdmin, async (_req, res) => {
+    try {
+        const { rows } = await pool.query(`SELECT id FROM titels WHERE curatie_status = 'uitgesloten' AND uitsluit_reden LIKE 'Dubbel van #%'`);
+        let verwijderd = 0;
+        let uitgezet = 0;
+        for (const r of rows) {
+            if ((await verwijderTitel(r.id, 'Dubbel, opgeruimd')) === 'verwijderd') verwijderd++; else uitgezet++;
+        }
+        const tekst = `Opgeruimd: ${verwijderd} dubbele titels verwijderd${uitgezet ? `, ${uitgezet} al eens gespeeld (MP3 weg, geschiedenis blijft)` : ''}.`;
+        await bank.log(null, 'systeem', tekst);
+        res.json({ ok: true, verwijderd, uitgezet, tekst });
+    } catch (err) { fout(res, err); }
+});
+
+// ------------------------------------------------------------------
 // Collecties (Sinterklaas, Rock, Disney …)
 // ------------------------------------------------------------------
 
@@ -616,7 +747,7 @@ router.get('/api/admin/bank/collecties', vereisAdmin, async (_req, res) => {
     try {
         const { rows: [{ max }] } = await pool.query('SELECT COALESCE(max(id), 0)::int AS max FROM titels');
         const { rows } = await pool.query(`
-            SELECT c.id, c.sleutel, c.naam, c.emoji, c.beschrijving, c.ai_criteria, c.standaard_type, c.actief,
+            SELECT c.id, c.sleutel, c.naam, c.emoji, c.afbeelding_url, c.beschrijving, c.ai_criteria, c.standaard_type, c.actief,
                    c.ai_aan, c.ai_doel, c.ai_scan_tot, c.voorrang, c.ai_laatst, c.ai_uitgeput_tot,
                    count(tc.titel_id)::int AS aantal,
                    count(tc.titel_id) FILTER (WHERE ${bank.HEEFT_SPEELBAAR.replace(/\bt\.id\b/g, 'tc.titel_id')})::int AS speelbaar,
@@ -678,6 +809,41 @@ router.post('/api/admin/bank/collecties/:id/opnieuw', vereisAdmin, async (req, r
     try {
         await pool.query('UPDATE collecties SET ai_scan_tot = 0, ai_uitgeput_tot = NULL, ai_aan = true WHERE id = $1', [Number(req.params.id)]);
         worker.porren();
+        res.json({ ok: true });
+    } catch (err) { fout(res, err); }
+});
+
+// Eigen plaatje voor een collectie (wordt in Nieuw spel getoond).
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.env.MEDIA_DIR || '/media', 'uploads');
+const plaatjeUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+function soortPlaatje(b) {
+    if (b.length > 8 && b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return '.png';
+    if (b.length > 3 && b[0] === 255 && b[1] === 216 && b[2] === 255) return '.jpg';
+    if (b.length > 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return '.webp';
+    if (/^\s*(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(b.toString('utf8', 0, 300)) && !/<script|on\w+=/i.test(b.toString('utf8'))) return '.svg';
+    return null;
+}
+router.post('/api/admin/bank/collecties/:id/afbeelding', vereisAdmin, (req, res) => {
+    plaatjeUpload.single('afbeelding')(req, res, async (err) => {
+        try {
+            if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ fout: err.code === 'LIMIT_FILE_SIZE' ? 'Plaatje is te groot (max. 5 MB).' : err.message });
+            const b = req.file?.buffer;
+            if (!b) return res.status(400).json({ fout: 'Kies een plaatje.' });
+            const ext = soortPlaatje(b);
+            if (!ext) return res.status(415).json({ fout: 'Gebruik PNG, JPG, WebP of SVG.' });
+            await fsp.mkdir(UPLOAD_DIR, { recursive: true });
+            const naam = `collectie-${Number(req.params.id)}-${crypto.randomUUID()}${ext}`;
+            await fsp.writeFile(path.join(UPLOAD_DIR, naam), b, { flag: 'wx' });
+            const url = `/media/uploads/${naam}`;
+            const { rowCount } = await pool.query('UPDATE collecties SET afbeelding_url = $2 WHERE id = $1', [Number(req.params.id), url]);
+            if (!rowCount) return res.status(404).json({ fout: 'Collectie niet gevonden.' });
+            res.json({ afbeelding_url: url });
+        } catch (e) { fout(res, e); }
+    });
+});
+router.delete('/api/admin/bank/collecties/:id/afbeelding', vereisAdmin, async (req, res) => {
+    try {
+        await pool.query('UPDATE collecties SET afbeelding_url = NULL WHERE id = $1', [Number(req.params.id)]);
         res.json({ ok: true });
     } catch (err) { fout(res, err); }
 });

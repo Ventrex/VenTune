@@ -60,7 +60,7 @@ router.get('/api/tracks/diagnose', async (_req, res) => {
 router.get('/api/collecties', async (_req, res) => {
     try {
         const { rows } = await pool.query(
-            `SELECT c.sleutel, c.naam, c.beschrijving, c.standaard_type, c.emoji,
+            `SELECT c.sleutel, c.naam, c.beschrijving, c.standaard_type, c.emoji, c.afbeelding_url,
                     COUNT(tc.titel_id)::int AS aantal,
                     COUNT(tc.titel_id) FILTER (WHERE ${bank.HEEFT_SPEELBAAR.replace(/\bt\.id\b/g, 'tc.titel_id')})::int AS speelbaar
                FROM collecties c
