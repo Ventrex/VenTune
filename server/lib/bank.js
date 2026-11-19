@@ -62,6 +62,7 @@ const STANDAARD_INSTELLINGEN = {
     // (0 = onbeperkt), webzoeken alleen bij beoordelen, en een vaste pauze
     // tot een tijdstip (na een limiet of zelf ingesteld).
     maxPerDag: 20,
+    maxPerWeek: 70, // Naast het dagbudget: begrens ook de cumulatieve weekbelasting.
     webZoeken: 'nooit',
     pauzeTot: null,
     voorrang: [], // categorieën die bij alles voorgaan, bv. ['game']
@@ -136,6 +137,7 @@ async function bewaarInstellingen(patch) {
     const nieuw = { ...huidig, ...patch, doelen: { ...huidig.doelen, ...(patch.doelen || {}) } };
     nieuw.pauzeSeconden = Math.min(1800, Math.max(5, Number(nieuw.pauzeSeconden) || 120));
     nieuw.maxPerDag = Math.min(5000, Math.max(0, Math.round(Number(nieuw.maxPerDag) || 0)));
+    nieuw.maxPerWeek = Math.min(10000, Math.max(0, Math.round(Number(nieuw.maxPerWeek) || 0)));
     if (!['altijd', 'belangrijk', 'nooit'].includes(nieuw.webZoeken)) nieuw.webZoeken = 'belangrijk';
     const pt = nieuw.pauzeTot ? new Date(nieuw.pauzeTot) : null;
     nieuw.pauzeTot = pt && !Number.isNaN(pt.getTime()) && pt > new Date() ? pt.toISOString() : null;
@@ -178,17 +180,32 @@ function vandaag() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+// Datum van de maandag van deze kalenderweek (server-lokale tijd).
+function weekSleutel() {
+    const d = new Date();
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 async function telAiGebruik() {
     await pool.query(
-        `INSERT INTO app_instellingen (sleutel, waarde, bijgewerkt_op) VALUES ('ai_gebruik', jsonb_build_object('datum', $1::text, 'aantal', 1), now())
-         ON CONFLICT (sleutel) DO UPDATE SET bijgewerkt_op = now(), waarde = CASE
-             WHEN app_instellingen.waarde->>'datum' = $1 THEN jsonb_set(app_instellingen.waarde, '{aantal}', to_jsonb(COALESCE((app_instellingen.waarde->>'aantal')::int, 0) + 1))
-             ELSE jsonb_build_object('datum', $1::text, 'aantal', 1) END`, [vandaag()]);
+        `INSERT INTO app_instellingen (sleutel, waarde, bijgewerkt_op)
+         VALUES ('ai_gebruik', jsonb_build_object('datum', $1::text, 'aantal', 1, 'week', $2::text, 'week_aantal', 1), now())
+         ON CONFLICT (sleutel) DO UPDATE SET bijgewerkt_op = now(), waarde = jsonb_build_object(
+             'datum', $1::text,
+             'aantal', CASE WHEN app_instellingen.waarde->>'datum' = $1 THEN COALESCE((app_instellingen.waarde->>'aantal')::int, 0) + 1 ELSE 1 END,
+             'week', $2::text,
+             'week_aantal', CASE WHEN app_instellingen.waarde->>'week' = $2 THEN COALESCE((app_instellingen.waarde->>'week_aantal')::int, 0) + 1 ELSE 1 END
+         )`, [vandaag(), weekSleutel()]);
 }
 async function aiGebruikVandaag() {
     const { rows } = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'ai_gebruik'");
     const w = rows[0]?.waarde;
     return w && w.datum === vandaag() ? Number(w.aantal) || 0 : 0;
+}
+async function aiGebruikDezeWeek() {
+    const { rows } = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'ai_gebruik'");
+    const w = rows[0]?.waarde;
+    return w && w.week === weekSleutel() ? Number(w.week_aantal) || 0 : 0;
 }
 
 /** Aantallen per categorie × bekendheid (alleen actieve titels). */
@@ -253,6 +270,6 @@ module.exports = {
     AI_VERSIE, CATEGORIEEN, CATEGORIE_LABEL, MUZIEK_CATEGORIEEN, TIERS, TIER_LABEL,
     TIER_VERDELING, VASTZETBAAR, HEEFT_MP3, HEEFT_SPEELBAAR, TIER_RANG,
     GENRES_BEELD, GENRES_GAME, GENRES_MUZIEK, ALLE_GENRES, genresVoor, schoonGenres,
-    telAiGebruik, aiGebruikVandaag, telDag,
+    telAiGebruik, aiGebruikVandaag, aiGebruikDezeWeek, telDag,
     voorrangSql, typeVoorCategorie, isVast, norm, log, instellingen, bewaarInstellingen, tellingen, werkvoorraad,
 };
