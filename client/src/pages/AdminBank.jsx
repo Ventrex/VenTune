@@ -676,6 +676,12 @@ function Tempo({ instellingen, vandaag, onWijzig }) {
     return (
         <section className="ab-kaart">
             <p className="ab-label">Tempo <Hint tekst="Hoe zuiniger, hoe minder je ChatGPT-limiet opgaat. Het indelen, hints en vragen duren dan langer, maar lopen gewoon door. Eén AI-vraag = een lijst van 100 titels (beoordelen) of 30 titels (hints en vragen). Webzoeken kost het meest; bij Zuinig staat het uit." /></p>
+            <label className="ab-check ab-quiz-toggle">
+                <input type="checkbox" checked={instellingen.quizAan === true}
+                    onChange={(e) => patch({ quizAan: e.target.checked })} />
+                Ook hints en bonusvragen genereren (later)
+            </label>
+            <p className="dim ab-mini">Uit betekent: eerst iconische titels en de juiste MP3's verzamelen. Bestaande vragen en hints blijven bewaard.</p>
             <div className="ab-chips">
                 {TEMPOS.map(([id, naam, v]) => (
                     <button key={id} type="button" className={'ab-chip' + (huidig === id ? ' actief' : '')} onClick={() => patch(v)}>{naam}</button>
