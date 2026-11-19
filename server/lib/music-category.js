@@ -10,7 +10,7 @@ function genreNaam(waarde) {
     'hip-hop/rap':'Hiphop','hip hop/rap':'Hiphop','r&b/soul':'R&B',
     'electronic':'Dance','dance':'Dance','alternative':'Alternatief',
     'singer/songwriter':'Singer-songwriter','classical':'Klassiek',
-    'hard rock':'Rock','holiday':'Kerst','christmas':'Kerst',
+    'hard rock':'Rock','christmas':'Kerst',
     "children's music":'Kinderlied','nederlandstalig':'Nederpop',
     'nederlandse muziek':'Nederpop', 'hip-hop':'Hiphop',
   };
