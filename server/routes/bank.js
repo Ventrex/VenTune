@@ -192,6 +192,24 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         const filterNaam = FILTERS[tab][req.query.filter] ? req.query.filter : Object.keys(FILTERS[tab])[0];
         const condities = [FILTERS[tab][filterNaam]];
         const params = [];
+        if (tab === 'nummers' && filterNaam === 'alle') {
+            // Deluxe/Ultimate/Gold zijn geen extra games in de normale catalogus.
+            // Verberg alleen de bijzondere uitgave ALS de basisgame ook bestaat.
+            // Laat de records staan voor controle via 'Dubbelen' en bestaande spelhistorie.
+            const suffix = "([[:space:]]*[-:–—][[:space:]]*|[[:space:]]+)(digital[[:space:]]+)?(deluxe|ultimate|special|gold|premium|complete|definitive|standard|limited|collector'?s)[[:space:]]+edition[[:space:]]*$";
+            condities.push(`NOT (
+                COALESCE(t.categorie, t.type::text) = 'game'
+                AND t.naam ~* '${suffix}'
+                AND EXISTS (
+                    SELECT 1 FROM titels basis
+                     WHERE basis.id <> t.id
+                       AND basis.curatie_status <> 'uitgesloten'
+                       AND COALESCE(basis.categorie, basis.type::text) = 'game'
+                       AND lower(regexp_replace(regexp_replace(t.naam, '${suffix}', '', 'i'), '[^[:alnum:]]+', '', 'g'))
+                           = lower(regexp_replace(basis.naam, '[^[:alnum:]]+', '', 'g'))
+                )
+            )`);
+        }
         if (bank.CATEGORIEEN.includes(req.query.categorie)) {
             params.push(req.query.categorie);
             condities.push(`COALESCE(t.categorie, t.type::text) = $${params.length}`);
