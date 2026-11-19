@@ -21,6 +21,7 @@ const ytzoek = require('./ytzoek');
 const bank = require('./bank');
 const bankAi = require('./bank-ai');
 const bankMp3 = require('./bank-mp3');
+const { normaliseerSpelUitgave } = require('./game-title');
 const logger = require('./logger');
 
 const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'collecties', 'beoordelen', 'mp3', 'aanvullen', 'quiz', 'collecties', 'verbeteren'];
@@ -459,7 +460,7 @@ async function stapAanvullen(inst) {
          ORDER BY 1 LIMIT 2500`, params);
     const { rows: alleRows } = await pool.query(
         `SELECT t.naam FROM titels t WHERE COALESCE(t.categorie, t.type::text) = $1`, [categorie]);
-    const namen = new Set(alleRows.map((r) => bank.norm(r.naam)));
+    const namen = new Set(alleRows.map((r) => bank.norm(categorie === 'game' ? normaliseerSpelUitgave(r.naam) : r.naam)));
 
     const aantal = Math.min(BATCH.aanvullen, keuze.tekort);
     zet('aanvullen', `Lijst maken: ${aantal} ${bank.CATEGORIE_LABEL[categorie]} (${periode || 'alle jaren'}, ${bank.TIER_LABEL[tier]})`);
@@ -470,7 +471,8 @@ async function stapAanvullen(inst) {
     let passend = 0; // nieuwe titels van precies de gevraagde bekendheid
     const nieuweNamen = [];
     for (const it of res.items) {
-        const sleutel = bank.norm(it.naam);
+        const naam = categorie === 'game' ? normaliseerSpelUitgave(it.naam) : it.naam;
+        const sleutel = bank.norm(naam);
         if (!sleutel || namen.has(sleutel)) continue;
         namen.add(sleutel);
         // Alleen naam/jaar/inschatting opslaan; de beoordelingsronde
@@ -482,14 +484,14 @@ async function stapAanvullen(inst) {
                 `INSERT INTO titels (naam, type, taal, jaar, categorie, bekendheid_tier, nummer_naam, nummer_artiest,
                         ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres)
                  VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, $9, $9)`,
-                [it.naam, bank.typeVoorCategorie(categorie, categorie === 'anime' ? 'serie' : 'film'), it.jaar,
+                [naam, bank.typeVoorCategorie(categorie, categorie === 'anime' ? 'serie' : 'film'), it.jaar,
                     categorie, it.bekendheid || tier, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
                     `AI-curator: aangevuld (${bank.CATEGORIE_LABEL[categorie]}, ${periode || 'alle jaren'})`,
                     categorie === 'game' ? ['Videogames'] : categorie === 'kerst' ? ['Kerst'] : []],
             );
             toegevoegd++;
             if (!it.bekendheid || it.bekendheid === tier) passend++;
-            nieuweNamen.push(`${it.naam}${it.bekendheid ? ` (${bank.TIER_LABEL[it.bekendheid]})` : ''}`);
+            nieuweNamen.push(`${naam}${it.bekendheid ? ` (${bank.TIER_LABEL[it.bekendheid]})` : ''}`);
         } catch (err) {
             logger.waarschuwing('Aanvulling opslaan mislukt', { naam: it.naam, melding: err.message });
         }
