@@ -48,7 +48,7 @@ const FIXES = [
     ['uitgesloten', 'Uitgesloten', 'nummers', 'uitgesloten', 'uitgesloten'],
     ['dubbelen', 'Dubbelen', null, null, null],
 ];
-const CATS = [['film', 'Films'], ['serie', 'Series'], ['anime', 'Anime'], ['game', 'Videogames'], ['muziek', 'Muziek'], ['kerst', 'Kerst'], ['kinder', 'Kinder']];
+const CATS = [['film', 'Films'], ['serie', 'Series'], ['anime', 'Anime'], ['game', 'Videogames'], ['muziek', 'Muziek'], ['kerst', 'Kerst'], ['sinterklaas', 'Sinterklaas'], ['kinder', 'Kinder']];
 const CAT_LABEL = Object.fromEntries(CATS);
 const TIERS = [['iconisch', 'Iconisch'], ['algemeen_bekend', 'Algemeen bekend'], ['bekend', 'Bekend'], ['onbekend', 'Onbekend'], ['cult', 'Cult']];
 const TIER_LABEL = Object.fromEntries(TIERS);
