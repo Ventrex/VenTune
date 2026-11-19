@@ -815,6 +815,23 @@ export default function Setup() {
                         <section className="vt-options-panel">
                             <h2>Voor wie is het spel?</h2>
                             <p className="dim">Kies op basis van taal en wat mensen kennen, niet alleen op leeftijd. Je kunt dit per spel wijzigen.</p>
+                            <button type="button" className="knop knop-stil vt-generaties-mix"
+                                onClick={() => setFilters(f => ({
+                                    ...f,
+                                    categorie: 'beide',
+                                    categorieen: ['film','serie','sinterklaas','muziek'],
+                                    game_only: false,
+                                    collecties: [],
+                                    herkenningsprofiel: 'familie',
+                                    periode_start: 1950,
+                                    periode_eind: NU,
+                                    tiers: ['iconisch','algemeen_bekend','bekend'],
+                                    genre_keuze: [],
+                                    met_genres: [],
+                                }))}>
+                                Familieronde maken: Nederlandse klassiekers, Sinterklaas én bekende muziek
+                            </button>
+                            <p className="dim">Geschikt voor een groep met verschillende leeftijden. Ook iemand die weinig tv keek krijgt via de muziekcategorie kansen om mee te doen. Pas de samenstelling gerust zelf aan.</p>
                             <div className="vt-choice-grid">
                                 {[
                                     ['standaard', 'Iedereen', 'De normale mix van bekende titels'],
