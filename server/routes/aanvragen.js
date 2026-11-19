@@ -216,12 +216,12 @@ router.post('/api/aanvragen', async (req, res) => {
         const posterPad = poster && /image\.tmdb\.org\/t\/p\/\w+(\/.+)$/.test(poster) ? poster.match(/image\.tmdb\.org\/t\/p\/\w+(\/.+)$/)[1] : null;
         const { rows: [t] } = await pool.query(
             `INSERT INTO titels (naam, type, taal, jaar, categorie, tmdb_id, poster_pad, cover_url, nummer_naam, nummer_artiest,
-                    ai_status, curatie_status, toevoeg_reden, handmatig, genres, muziek_genres, ai_genres)
-             VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, $8, $9, 'nieuw', 'goedgekeurd', $10, ARRAY['categorie'], $11, $11, $12)
+                    ai_status, curatie_status, toevoeg_reden, handmatig, genres, muziek_genres, ai_genres, muziek_jaar)
+             VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, $8, $9, 'nieuw', 'goedgekeurd', $10, ARRAY['categorie'], $11, $11, $12, $13)
              RETURNING id`,
             [naam, bank.typeVoorCategorie(categorie, categorie === 'film' ? 'film' : 'serie'), jaar, categorie, tmdbId,
                 posterPad, MUZIEK.has(categorie) ? poster : null, MUZIEK.has(categorie) ? naam : null, artiest,
-                `Aanvraag van ${door}`, categorie === 'game' ? ['Videogames'] : [], genres]);
+                `Aanvraag van ${door}`, categorie === 'game' ? ['Videogames'] : genres, genres, MUZIEK.has(categorie) ? jaar : null]);
         await pool.query(
             `INSERT INTO aanvragen (titel_id, categorie, naam, jaar, artiest, bron, extern_id, aangevraagd_door, gebruiker_id)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
