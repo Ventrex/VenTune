@@ -673,7 +673,7 @@ function Overzicht({ status, onWijzig, ga }) {
 const TEMPOS = [
     ['zuinig', 'Zuinig', { maxPerDag: 10, maxPerWeek: 50, pauzeSeconden: 180, webZoeken: 'nooit' }],
     ['normaal', 'Normaal', { maxPerDag: 20, maxPerWeek: 90, pauzeSeconden: 120, webZoeken: 'belangrijk' }],
-    ['snel', 'Snel', { maxPerDag: 0, maxPerWeek: 0, pauzeSeconden: 30, webZoeken: 'belangrijk' }],
+    ['snel', 'Snel', { maxPerDag: 40, maxPerWeek: 150, pauzeSeconden: 90, webZoeken: 'belangrijk' }],
 ];
 function Tempo({ instellingen, vandaag, onWijzig }) {
     const [tot, setTot] = useState('');
