@@ -425,7 +425,7 @@ function kiesAanvulling(inst, telling) {
         if (tekort > 0) kandidaten.push({ categorie: c, doel, tekort, ratio: tekort / doel });
     }
     // Categorieën met voorrang eerst, daarna die met het grootste tekort.
-    const voorrang = inst.voorrang || [];
+    const voorrang = inst.voorrang?.length ? inst.voorrang : ['film', 'serie', 'game'];
     kandidaten.sort((a, b) => (voorrang.includes(b.categorie) - voorrang.includes(a.categorie)) || (b.ratio - a.ratio));
     for (const tier of bank.TIERS) {
         for (const k of kandidaten) {
