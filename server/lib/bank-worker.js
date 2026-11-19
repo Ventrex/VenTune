@@ -22,6 +22,7 @@ const bank = require('./bank');
 const bankAi = require('./bank-ai');
 const bankMp3 = require('./bank-mp3');
 const { normaliseerSpelUitgave } = require('./game-title');
+const { categoriseerMuziek } = require('./music-category');
 const logger = require('./logger');
 
 const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'collecties', 'beoordelen', 'mp3', 'aanvullen', 'quiz', 'collecties', 'verbeteren'];
@@ -38,6 +39,7 @@ const PERIODES = {
     game: ['1980-1994', '1995-2004', '2005-2014', '2015-nu'],
     muziek: ['1960-1979', '1980-1989', '1990-1999', '2000-2009', '2010-2019', '2020-nu'],
     kerst: [null],
+    sinterklaas: [null],
     kinder: [null],
 };
 
@@ -150,6 +152,9 @@ async function stapBeoordelen(inst) {
         const r = await pasBeoordelingToe(t, b);
         if (r.uitgesloten) uitgesloten.push(t.naam);
     }
+    // Koppel titel aan meerdere collecties zonder titel of MP3 te dupliceren.
+    await koppelAutomatischeCollecties([...res.items.keys()]).catch((err) =>
+        logger.waarschuwing('Collectie-tags uitgesteld', { melding: err.message }));
     status.tellers.beoordeeld += res.items.size;
     status.laatsteActie = `Lijst ${bank.CATEGORIE_LABEL[eerste.categorie] || eerste.categorie}: ${res.items.size} titels beoordeeld${uitgesloten.length ? `, ${uitgesloten.length} uitgesloten` : ''}`;
     await bank.log(null, 'beoordeling', status.laatsteActie
@@ -169,7 +174,7 @@ async function pasBeoordelingToe(oud, b) {
         await client.query('BEGIN');
         const { rows: [vers] } = await client.query(
             `SELECT handmatig, curatie_status, ai_uitgesloten, naam, nummer_naam, jaar, aliassen,
-                    type::text AS type, categorie, taal::text AS taal, nl_versie
+                    type::text AS type, categorie, taal::text AS taal, nl_versie, muziek_genres, muziek_jaar
                FROM titels WHERE id = $1 FOR UPDATE`, [oud.id]);
         if (!vers) { await client.query('ROLLBACK'); return { uitgesloten: false }; }
         const r = await pasBeoordelingToeIn(client, { ...oud, ...vers }, b);
@@ -196,6 +201,15 @@ async function pasBeoordelingToe(oud, b) {
 }
 
 async function pasBeoordelingToeIn(client, t, b) {
+    if (bank.MUZIEK_CATEGORIEEN.has(b.categorie)) {
+        const indeling = categoriseerMuziek({
+            naam: b.nummer_naam || b.naam, artiest: b.nummer_artiest,
+            categorie: b.categorie, genres: [...(b.genres || []), ...(b.muziek_genres || [])],
+        });
+        b.categorie = indeling.categorie;
+        b.genres = bank.schoonGenres([...indeling.genres, ...(b.genres || [])], b.categorie);
+        b.muziek_genres = bank.schoonGenres([...indeling.genres, ...(b.muziek_genres || [])], 'muziek');
+    }
     const vast = (v) => bank.isVast(t, v);
     const zetten = [];
     const waarden = [t.id];
@@ -248,7 +262,11 @@ async function pasBeoordelingToeIn(client, t, b) {
         set('nl_versie', b.nl_versie);
     }
     set('alleen_kids_nu', b.alleen_kids_nu);
-    if (!vast('genres') && b.genres.length) set('ai_genres', b.genres);
+    if (!vast('genres')) {
+        if (b.genres.length) set('ai_genres', b.genres);
+        if (b.muziek_genres?.length) set('muziek_genres', [...new Set([...(t.muziek_genres || []), ...b.muziek_genres])].slice(0, 8));
+        if (b.muziek_jaar) set('muziek_jaar', b.muziek_jaar);
+    }
     // Fabrikanten (Nintendo, PlayStation …) voor de fabrikantkeuze bij Videogames.
     if ((b.categorie || t.categorie) === 'game' && b.platformen?.length) {
         waarden.push(b.platformen);
