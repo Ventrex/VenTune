@@ -1222,6 +1222,11 @@ END$$;
 -- Beheer 2.0: nummers die de AI vindt wachten op een handmatige swipe van de
 -- beheerder voordat ze in het spel komen. Oudere tracks blijven speelbaar.
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS wacht_op_swipe BOOLEAN NOT NULL DEFAULT false;
+-- Twee beoordelingsrondes: blind luisteren, daarna indien nodig met titel.
+-- Bestaande MP3's en menselijke goedkeuringen blijven behouden.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_fase TEXT NOT NULL DEFAULT 'blind';
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_kwaliteit TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_tracks_swipe ON tracks (wacht_op_swipe, titel_id) WHERE wacht_op_swipe;
 DO $$
 BEGIN
