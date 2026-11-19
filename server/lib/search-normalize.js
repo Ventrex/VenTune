@@ -2,7 +2,7 @@
 // Eén zoekterm moet alle varianten herkennen, inclusief Assassins Creed.
 const APOSTROFS = /['’‘`´]/g;
 function normaliseerZoekterm(value) {
-    return String(value ?? '').normalize('NFKC').replace(APOSTROFS, '').trim().toLowerCase();
+    return String(value ?? '').replace(APOSTROFS, '').normalize('NFKC').trim().toLowerCase();
 }
 // Alleen interne, vaste veldnamen zijn toegestaan; waarden blijven SQL-parameters.
 function sqlZoekveld(veld) {
