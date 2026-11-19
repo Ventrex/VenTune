@@ -223,13 +223,13 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         const zoek = normaliseerZoekterm(req.query.zoek);
         if (zoek) {
             params.push(`%${zoek}%`);
-            condities.push(`(${sqlZoekveld('t.naam')} LIKE ${params.length}
-                OR ${sqlZoekveld('t.nummer_naam')} LIKE ${params.length}
-                OR ${sqlZoekveld('t.nummer_artiest')} LIKE ${params.length}
-                OR ${sqlZoekveld('t.franchise')} LIKE ${params.length}
+            condities.push(`(${sqlZoekveld('t.naam')} LIKE $${params.length}
+                OR ${sqlZoekveld('t.nummer_naam')} LIKE $${params.length}
+                OR ${sqlZoekveld('t.nummer_artiest')} LIKE $${params.length}
+                OR ${sqlZoekveld('t.franchise')} LIKE $${params.length}
                 OR EXISTS (
                     SELECT 1 FROM unnest(t.aliassen) AS a(naam)
-                    WHERE ${sqlZoekveld('a.naam')} LIKE ${params.length}
+                    WHERE ${sqlZoekveld('a.naam')} LIKE $${params.length}
                 ))`);
         }
         const where = `WHERE ${condities.join(' AND ')}`;
