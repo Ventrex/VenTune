@@ -13,12 +13,12 @@ const logger = require('./logger');
 // worden dan opnieuw door de AI bekeken (handmatige velden blijven staan).
 const AI_VERSIE = 5; // 3: bekendheid titel+nummer, anime binnen anime, eerdere: taal/land/eindjaar
 
-const CATEGORIEEN = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'kinder'];
+const CATEGORIEEN = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'sinterklaas', 'kinder'];
 const CATEGORIE_LABEL = {
     film: 'Films', serie: 'Series', anime: 'Anime', game: 'Videogames',
-    muziek: 'Muziek', kerst: 'Kerst', kinder: 'Kinder',
+    muziek: 'Muziek', kerst: 'Kerst', sinterklaas: 'Sinterklaas', kinder: 'Kinder',
 };
-const MUZIEK_CATEGORIEEN = new Set(['muziek', 'kerst', 'kinder']);
+const MUZIEK_CATEGORIEEN = new Set(['muziek', 'kerst', 'sinterklaas', 'kinder']);
 
 const TIERS = ['iconisch', 'algemeen_bekend', 'bekend', 'onbekend', 'cult'];
 const TIER_LABEL = {
@@ -42,11 +42,11 @@ const GENRES_GAME = ['Actie', 'Avontuur', 'Platform', 'RPG', 'Shooter', 'Race', 
     'Strategie', 'Simulatie', 'Horror', 'Party', 'Open wereld', 'Muziek', 'Indie'];
 const GENRES_MUZIEK = ['Pop', 'Rock', 'Metal', 'Punk', 'Alternatief', 'Indie', 'Hiphop', 'R&B', 'Soul', 'Funk',
     'Disco', 'Dance', 'Reggae', 'Latin', 'Country', 'Blues', 'Jazz', 'Klassiek', 'Schlager', 'Levenslied',
-    'Nederpop', 'Singer-songwriter', 'Soundtrack', 'Kinderlied', 'Kerst'];
+    'Nederpop', 'Singer-songwriter', 'Soundtrack', 'Kinderlied', 'Kerst', 'Sinterklaas'];
 const ALLE_GENRES = [...new Set([...GENRES_BEELD, ...GENRES_GAME, ...GENRES_MUZIEK])];
 function genresVoor(categorie) {
     if (categorie === 'game') return GENRES_GAME;
-    if (['muziek', 'kerst', 'kinder'].includes(categorie)) return GENRES_MUZIEK;
+    if (['muziek', 'kerst', 'sinterklaas', 'kinder'].includes(categorie)) return GENRES_MUZIEK;
     return GENRES_BEELD;
 }
 function schoonGenres(lijst, categorie) {
@@ -66,7 +66,7 @@ const STANDAARD_INSTELLINGEN = {
     webZoeken: 'nooit',
     pauzeTot: null,
     voorrang: ['film', 'serie', 'game'], // begin bij iconische films, series en originele videogames
-    doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, kinder: 100 },
+    doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, sinterklaas: 80, kinder: 100 },
 };
 
 /** Een speelbare lokale MP3 voor titel-alias `t`. */
