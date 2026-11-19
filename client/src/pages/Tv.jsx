@@ -82,13 +82,13 @@ export default function Tv() {
             }
         };
         el.addEventListener('loadedmetadata', positie);
-        if (geluidAan && !audio.pauze) {
+        if (geluidAanRef.current && !audio.pauze) {
             el.play().then(() => setAudioStarten(false)).catch(() => setAudioStarten(true));
         } else {
             setAudioStarten(true);
         }
         return () => { el.removeEventListener('loadedmetadata', positie); };
-    }, [audio, fase, geluidAan]);
+    }, [audio, fase]);
 
     async function speel() {
         const el = speler.current;
