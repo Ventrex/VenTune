@@ -51,6 +51,7 @@ export default function Host() {
     const [lobbyWijziging, setLobbyWijziging] = useState(null);
     const [startBezig, setStartBezig] = useState(false);
     const [audioStatus, setAudioStatus] = useState(null);
+    const [geluidViaTv, setGeluidViaTv] = useState(false);
 
     // Ontgrendel de speler tijdens de tik op 'Start spel', zodat ook latere
     // rondes vanzelf geluid geven (iOS staat afspelen alleen toe na een tik).
@@ -100,6 +101,7 @@ export default function Host() {
     if (!sessie) return null;
 
     const joinUrl = `${window.location.origin}/join/${sessie.code}`;
+    const tvUrl = `${window.location.origin}/tv/${sessie.code}`;
     const goedGeraden = resultaat?.status === 'goed';
     const titelVergrendeld = gokIngediend || goedGeraden;
     const bonusVergrendeld = bonusResultaat?.status === 'goed' || bonusResultaat?.status === 'opgegeven';
@@ -143,6 +145,7 @@ export default function Host() {
             <HostPlayer
                 ref={spelerRef}
                 audio={audio}
+                gedempt={geluidViaTv}
                 verborgen={fase !== 'raden'}
                 onStatus={setAudioStatus}
                 gepauzeerd={spel.gepauzeerd}
@@ -150,6 +153,12 @@ export default function Host() {
                 onHervat={spel.hervat}
                 onHerhaal={spel.herhaal}
             />
+            <div className="vt-tv-host-bediening">
+                <a href={tvUrl} target="_blank" rel="noreferrer" className="knop knop-stil">Open tv-scherm · {sessie.code}</a>
+                <label><input type="checkbox" checked={geluidViaTv} onChange={e => setGeluidViaTv(e.target.checked)} />
+                    Geluid via tv: hostapparaat dempen
+                </label>
+            </div>
             {fase === 'raden' && ronde && !audio && (
                 <p className="dim host-audio-status" role="status">Audio wordt klaargezet…</p>
             )}
@@ -336,6 +345,7 @@ export default function Host() {
                                     includeMargin
                                 />
                             </button>
+                            <p className="dim vt-tv-lobby-uitleg">Op Google TV of een andere browser: open <strong>{tvUrl}</strong>. De bediening blijft op dit apparaat.</p>
                             <div className="vt-lobby-share">
                                 <button type="button" className="knop knop-stil" onClick={() => {
                                     if (navigator.share) navigator.share({title:'Doe mee met VenTune',text:'Doe mee met onze quiz! Code: '+sessie.code,url:joinUrl}).catch(()=>{});
