@@ -449,7 +449,7 @@ class SpelBeheer {
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.franchise, t.categorie, t.bekendheid_tier, t.type, t.taal, t.jaar,
-                    t.eind_jaar, t.serie_lopend,
+                    t.eind_jaar, t.serie_lopend, t.muziek_jaar,
                     t.land, t.nl_versie, t.nl_bekend, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
                     t.hoofdrollen, t.ai_hints, t.ai_hints_status, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
@@ -481,9 +481,13 @@ class SpelBeheer {
             const tags = [...(t.genres || []), ...(t.muziek_genres || []), ...(t.themas || [])]
                 .map((x) => String(x).toLowerCase());
             if (v === 'film' || v === 'serie') return t.type === v;
+            if (v === 'nederlands' || v === '100nl') return t.taal === 'nl' || t.nl_versie === true;
+            if (v === 'sinterklaas') return t.categorie === 'sinterklaas' ||
+                tags.includes('sinterklaas');
             if (v === '80s' || v === '90s' || v === '20s') {
                 const decennium = { '80s': 1980, '90s': 1990, '20s': 2020 }[v];
-                return t.type === 'muziek' && t.jaar >= decennium && t.jaar <= decennium + 9;
+                const nummerJaar = Number(t.muziek_jaar ?? (t.type === 'muziek' ? t.jaar : 0));
+                return nummerJaar >= decennium && nummerJaar <= decennium + 9;
             }
             return tags.includes(v) || (v === 'disney' && /disney/i.test(t.studio || ''));
         };
