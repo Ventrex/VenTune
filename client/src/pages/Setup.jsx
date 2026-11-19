@@ -95,7 +95,7 @@ const GENRES = [
     'Actie', 'Avontuur', 'Animatie', 'Komedie', 'Misdaad', 'Documentaire',
     'Drama', 'Familie', 'Fantasy', 'Historisch', 'Horror', 'Musical',
     'Mysterie', 'Romantiek', 'Sciencefiction', 'Thriller', 'Oorlog',
-    'Western', 'Kerst', 'Superhelden', 'Sport', 'Realityshow',
+    'Western', 'Kerst', 'Sinterklaas', 'Superhelden', 'Sport', 'Realityshow',
 ];
 const MODI = [
     { waarde: 'snelste', label: 'Snelste', uitleg: 'Eerste goede antwoord wint de ronde' },
