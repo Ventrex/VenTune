@@ -8,6 +8,7 @@
 
 const { pool } = require('../db/pool');
 const { bouwFilter } = require('./filters');
+const { kiesFamilieMix } = require('./family-balance');
 const { vergelijk, franchiseSleutel } = require('../lib/match');
 const { titelPunten, bonusPunten, leeftijdsFactor, bekendheidFactor } = require('./scoring');
 const { genereerBonus } = require('./bonus');
@@ -449,7 +450,7 @@ class SpelBeheer {
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.franchise, t.categorie, t.bekendheid_tier, t.type, t.taal, t.jaar,
                     t.eind_jaar, t.serie_lopend,
-                    t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
+                    t.land, t.nl_versie, t.nl_bekend, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
                     t.hoofdrollen, t.ai_hints, t.ai_hints_status, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
@@ -524,10 +525,9 @@ class SpelBeheer {
         })).sort((a, b) => b.score - a.score).map(x => x.titel);
         const voorrang = alle.filter((t) => [...voorkeuren].some((v) => herken(t, v)));
         const aantalVoorrang = Math.min(voorrang.length, Math.ceil((gevraagd || alle.length) * 0.35));
-        const gekozen = voorrang.slice(0, aantalVoorrang);
-        const gekozenIds = new Set(gekozen.map((t) => t.id));
-        const pool_ = husselArray([...gekozen, ...alle.filter((t) => !gekozenIds.has(t.id))
-            .slice(0, Math.max(0, (gevraagd || alle.length) - gekozen.length))]);
+        const { gekozen } = kiesFamilieMix(alle, voorrang.slice(0, aantalVoorrang),
+            gevraagd || alle.length, spelInstellingen.herkenningsprofiel);
+        const pool_ = husselArray(gekozen);
         const totaal = gevraagd > 0 ? Math.min(gevraagd, pool_.length) : pool_.length;
 
         const aantalHulplijnen = lifelineAantal(spelInstellingen);
