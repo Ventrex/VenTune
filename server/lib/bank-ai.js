@@ -211,6 +211,7 @@ Geef een LIJST van ${aantal} nieuwe ${wat} die in Nederland bekend zijn en een h
 Denk aan wat volwassenen (25-60) van vroeger kennen; geen titels die alleen kinderen van nu kennen.
 Ze moeten bekendheid "${tier}" hebben${tier === 'iconisch' ? ' (alleen het allerbekendste: wat vrijwel iedereen in Nederland meteen herkent)' : ''}.
 Niets uit de lijst hieronder (ook geen andere schrijfwijze of een los deel van dezelfde reeks met hetzelfde nummer). Liever minder dan obscure of verzonnen titels.
+Bij videogames: geef uitsluitend de oorspronkelijke basistitel van het spel. Nooit losse versies of Deluxe, Ultimate, Special, Gold, Complete, GOTY of Collector's Editions als nieuwe titels. Platformvarianten zijn geen aparte spellen.
 Per item alleen: naam (zoals Nederlanders hem kennen), jaar (release; bij series het beginjaar), artiest (alleen bij muziek/kerst/kinder, anders leeg) en bekendheid (je eerlijke inschatting: iconisch, algemeen_bekend, bekend, onbekend of cult).
 
 ${GUARD}
