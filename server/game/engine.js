@@ -332,12 +332,12 @@ class SpelBeheer {
                 aanBeurtNaam: h.aanBeurtNaam || null,
                 herstel: true,
             });
-            if (h.aanBeurtSpelers && !h.aanBeurtSpelers.includes(socket.data.spelerId)) {
+            if (!socket.data.isTv && h.aanBeurtSpelers && !h.aanBeurtSpelers.includes(socket.data.spelerId)) {
                 socket.emit('ronde:toeschouwer', {
                     rondeId: h.rondeId, naam: h.titel.naam, jaar: h.titel.jaar,
                 });
             }
-            if (socket.data.isHost) {
+            if (socket.data.isHost || socket.data.isTv) {
                 socket.emit('ronde:audio', { ...audio, pauze: gepauzeerd });
             }
             if (gepauzeerd) socket.emit('ronde:pauze', { gepauzeerd: true });
@@ -941,13 +941,15 @@ class SpelBeheer {
                     }
                 }
                 // Host: krijgt de audio om af te spelen in de kamer.
-                this.io.to(hostKamer(state.code)).emit('ronde:audio', {
+                const tvAudio = {
                     rondeId: state.huidige.rondeId,
                     bron: track.bron,
                     url: track.preview_url,
                     startSeconde: startSecondeVoorTrack(track),
                     durationMs: state.rondeDuurMs,
-                });
+                };
+                this.io.to(hostKamer(state.code)).emit('ronde:audio', tvAudio);
+                this.io.to(`tv:${state.code}`).emit('ronde:audio', tvAudio);
 
                 // Bijhouden hoe vaak en wanneer deze track gespeeld is.
                 await pool.query(
@@ -1530,6 +1532,7 @@ class SpelBeheer {
 
         this.io.to(kamer(state.code)).emit('ronde:pauze', { gepauzeerd: true });
         this.io.to(hostKamer(state.code)).emit('ronde:audio-pauze', {});
+        this.io.to(`tv:${state.code}`).emit('ronde:audio-pauze', {});
     }
 
     /** Host hervat: klok weer laten lopen en de muziek verder spelen. */
@@ -1560,6 +1563,7 @@ class SpelBeheer {
             restMs: h.restMs,
         });
         this.io.to(hostKamer(state.code)).emit('ronde:audio-hervat', {});
+        this.io.to(`tv:${state.code}`).emit('ronde:audio-hervat', {});
     }
 
     /** Host klikt op 'Opnieuw afspelen': stuurt de audio nogmaals. */
@@ -1567,14 +1571,16 @@ class SpelBeheer {
         const state = this.spellen.get(socket.data.lobbyId);
         if (!state || !socket.data.isHost || !state.huidige) return;
         const { track, rondeId } = state.huidige;
-        this.io.to(hostKamer(state.code)).emit('ronde:audio', {
+        const audio = {
             rondeId,
             bron: track.bron,
             url: track.preview_url,
             startSeconde: startSecondeVoorTrack(track),
             durationMs: state.rondeDuurMs,
             herhaling: Date.now(), // maakt het event uniek
-        });
+        };
+        this.io.to(hostKamer(state.code)).emit('ronde:audio', audio);
+        this.io.to(`tv:${state.code}`).emit('ronde:audio', audio);
     }
 
     /** Beta Tester/admin-beoordeling: dezelfde herstelworkflow als in /admin. */
