@@ -12,7 +12,7 @@ const { CATEGORIEEN, TIERS, norm, ALLE_GENRES, GENRES_BEELD, GENRES_GAME, GENRES
 const NU = new Date().getFullYear();
 
 const CRITERIA = `
-DOELGROEP: VenTune is vooral een nostalgisch spel voor volwassenen (ongeveer 25-60 jaar) die terugdenken aan vroeger. Beoordeel bekendheid vanuit hen, niet vanuit kinderen van nu.
+DOELGROEP: VenTune is een quiz voor meerdere generaties, van kinderen tot ouderen van 80-90 jaar. Neem Nederlandse klassiekers uit 1950-1980 serieus (bioscoop, Nederlandstalige muziek, herkenbare films en series). Oudere spelers hebben soms weinig televisie gekeken en kunnen Engelse titelsongs of ondertitels lastig vinden. Markeer Nederlandse taal en herkenbare Nederlandse audioversies nauwkeurig, zonder te veronderstellen dat leeftijd vanzelf bekendheid betekent.
 - alleen_kids_nu=true voor kinderprogramma's/-series, kinderfilms of kidsmuziek die vooral bekend zijn bij kinderen van nu (ongeveer 6-14 jaar) en die volwassenen niet van vroeger kennen (bv. recente Nickelodeon-, Disney Channel-, Netflix Kids- of YouTube-kidstitels). Kinderseries die volwassenen van hun eigen jeugd kennen (Alfred J. Kwak, Maya de Bij, Teletubbies, Pokémon, Bassie & Adriaan, Sesamstraat) zijn juist wél goed: alleen_kids_nu=false.
 
 PRIORITEIT: het belangrijkste is (1) het JUISTE herkenningsnummer bij de titel en (2) hoe bekend dat nummer is. Besteed daar de meeste zorg aan.
@@ -214,7 +214,7 @@ async function vulAan({ categorie, aantal, periode, tier, bestaand }, signal) {
     const prompt = `Je vult de vragenbank van VenTune, een Nederlandse muziekquiz waarin spelers iets herkennen aan de muziek.
 
 Geef een LIJST van ${aantal} nieuwe ${wat} die in Nederland bekend zijn en een herkenbaar origineel nummer hebben. ${periodeRegel}
-Denk aan wat volwassenen (25-60) van vroeger kennen; geen titels die alleen kinderen van nu kennen.
+Denk aan iconische titels voor verschillende generaties, óók herkenbare Nederlandse films, series en muziek uit de jaren 1950-1980 voor ouderen. Geef de voorkeur aan Nederlandstalige originele muziek wanneer die bij het werk hoort. Geen titels die uitsluitend kinderen van nu kennen; ga niet uit van Engelse taalvaardigheid of kennis van ondertitels.
 Ze moeten bekendheid "${tier}" hebben${tier === 'iconisch' ? ' (alleen het allerbekendste: wat vrijwel iedereen in Nederland meteen herkent)' : ''}.
 Niets uit de lijst hieronder (ook geen andere schrijfwijze of een los deel van dezelfde reeks met hetzelfde nummer). Liever minder dan obscure of verzonnen titels.
 Bij videogames: geef uitsluitend de oorspronkelijke basistitel van het spel. Nooit losse versies of Deluxe, Ultimate, Special, Gold, Complete, GOTY of Collector's Editions als nieuwe titels. Platformvarianten zijn geen aparte spellen.
