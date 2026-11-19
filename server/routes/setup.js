@@ -398,6 +398,7 @@ router.post('/api/presets', async (req, res) => {
                     koth_modus: b.koth_modus === 'samen' || b.spelvorm === 'bergexpeditie' ? 'samen' : 'tegen',
                     koth_stappen: [5, 10, 15, 20].includes(Number(b.koth_stappen)) ? Number(b.koth_stappen) : 10,
                     team_modus: ['snelste','kenner','om_en_om'].includes(b.team_modus) ? b.team_modus : 'snelste',
+                    herkenningsprofiel: ['standaard','familie','nederlands'].includes(b.herkenningsprofiel) ? b.herkenningsprofiel : 'standaard',
                 }),
             ],
         );
