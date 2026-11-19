@@ -21,6 +21,7 @@ export default function Tv() {
     const [audioStarten, setAudioStarten] = useState(false);
     const [geluidAan, setGeluidAan] = useState(false);
     const speler = useRef(null);
+    const geluidAanRef = useRef(false);
     const joinUrl = useMemo(() => `${window.location.origin}/join/${code}`, [code]);
 
     useEffect(() => {
@@ -53,7 +54,7 @@ export default function Tv() {
         });
         socket.on('ronde:audio-pauze', () => speler.current?.pause());
         socket.on('ronde:audio-hervat', () => {
-            if (geluidAan) speler.current?.play().catch(() => setAudioStarten(true));
+            if (geluidAanRef.current) speler.current?.play().catch(() => setAudioStarten(true));
         });
         socket.on('ronde:pauze', (v) => { if (v?.gepauzeerd) speler.current?.pause(); });
         socket.on('ronde:onthul', (v) => {
@@ -67,7 +68,7 @@ export default function Tv() {
         socket.on('spel:voorbereiden', (v) => setMelding(v?.melding || 'Tracks voorbereiden…'));
         socket.on('spel:fout', (v) => setMelding(v?.melding || 'Er is een fout opgetreden.'));
         return () => socket.disconnect();
-    }, [code, geluidAan]);
+    }, [code]);
 
     useEffect(() => {
         const el = speler.current;
@@ -91,6 +92,7 @@ export default function Tv() {
 
     async function speel() {
         const el = speler.current;
+        geluidAanRef.current = true;
         setGeluidAan(true);
         if (!el || !audio?.url) return;
         try {
@@ -105,7 +107,7 @@ export default function Tv() {
 
     function volledigScherm() {
         const fn = document.documentElement.requestFullscreen;
-        if (fn) fn.call(document.documentElement).catch(() => {});
+        if (fn) Promise.resolve(fn.call(document.documentElement)).catch(() => {});
     }
 
     return (
