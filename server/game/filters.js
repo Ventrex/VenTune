@@ -32,7 +32,7 @@ function bouwFilter(f = {}) {
     // is (anime_breed_bekend, bv. Pokémon) mag ook in een film-/seriequiz.
     // Muziek omvat ook kerst- en kindermuziek, maar nooit gamemuziek.
     const CAT = "COALESCE(t.categorie, t.type::text)";
-    const toegestaan = ['film', 'serie', 'muziek', 'anime', 'game', 'kerst', 'kinder'];
+    const toegestaan = ['film', 'serie', 'muziek', 'anime', 'game', 'kerst', 'sinterklaas', 'kinder'];
     let gekozen = Array.isArray(f.categorieen)
         ? f.categorieen.filter((c) => toegestaan.includes(c))
         : [];
@@ -45,7 +45,7 @@ function bouwFilter(f = {}) {
         else gekozen = ['film', 'serie'];
     }
     const sqlCats = new Set(gekozen);
-    if (sqlCats.has('muziek')) { sqlCats.add('kerst'); sqlCats.add('kinder'); }
+    if (sqlCats.has('muziek')) { sqlCats.add('kerst'); sqlCats.add('sinterklaas'); sqlCats.add('kinder'); }
     // Een muziekcollectie (Rock, Sinterklaas) draait om het nummer: daar
     // horen ook films/series/games bij waarvan het nummer past, zoals Rocky
     // met Eye of the Tiger. Het nummer wordt hergebruikt, geen dubbele MP3.
