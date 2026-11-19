@@ -169,7 +169,7 @@ async function slaOp(t, video, { reden, handmatig = false }) {
             // en een vervangende video krijgt een eigen bestand. yt-dlp
             // overschrijft een bestaand bestand niet, dus anders bleef na
             // "verkeerd nummer" stilletjes de oude audio staan.
-            naam: `${t.naam} ${t.id}-${video.videoId}`, type: t.type, jaar: t.jaar, genres: t.genres, taal: t.taal, land: t.land,
+            naam: `${t.naam} ${t.id}-${video.videoId}`, type: t.type, categorie: t.categorie, jaar: t.jaar, genres: t.genres, taal: t.taal, land: t.land,
             talen: t.talen, media_map: '',
         }, false, { rateLimit: true });
     } catch (err) {
