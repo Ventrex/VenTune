@@ -444,8 +444,12 @@ function kiesAanvulling(inst, telling) {
         if (tekort > 0) kandidaten.push({ categorie: c, doel, tekort, ratio: tekort / doel });
     }
     // Categorieën met voorrang eerst, daarna die met het grootste tekort.
-    const voorrang = inst.voorrang?.length ? inst.voorrang : ['film', 'serie', 'game'];
-    kandidaten.sort((a, b) => (voorrang.includes(b.categorie) - voorrang.includes(a.categorie)) || (b.ratio - a.ratio));
+    const voorrang = inst.voorrang?.length ? inst.voorrang : ['film', 'serie', 'sinterklaas', 'game', 'kerst', 'muziek'];
+    kandidaten.sort((a, b) => {
+        // De eerste vier horen bij de eerste fase; de rest komt daarna.
+        const rang = (c) => { const n = voorrang.indexOf(c); return n < 0 ? 999 : n; };
+        return rang(a.categorie) - rang(b.categorie) || b.ratio - a.ratio;
+    });
     for (const tier of bank.TIERS) {
         for (const k of kandidaten) {
             const periodes = PERIODES[k.categorie];
