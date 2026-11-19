@@ -28,7 +28,7 @@ async function api(pad, opties = {}) {
 // Hoofdtabs met daaronder subtabs. Controles = alles bekijken en bewerken,
 // Fixes = alleen wat aandacht nodig heeft.
 // Alles van beheer staat hier: één pagina, één rij tabs met subtabs.
-const GROEPEN = [['overzicht', 'Overzicht'], ['swipen', 'Swipen'], ['collecties', 'Collecties'], ['controles', 'Controles'],
+const GROEPEN = [['overzicht', 'Overzicht'], ['ai', 'AI & kosten'], ['swipen', 'Goedkeuren'], ['collecties', 'Collecties'], ['controles', 'Controles'],
     ['fixes', 'Fixes'], ['spelers', 'Spelers'], ['log', 'Logs'], ['systeem', 'Systeem']];
 const SPELERS = [['meldingen', 'Meldingen'], ['vragen', 'Vraagsuggesties'], ['controle', 'Verdachte spellen'], ['users', 'Accounts']];
 const LOGS = [['ai', 'AI-log'], ['logs', 'Gebeurtenissen']];
@@ -108,6 +108,7 @@ function Bank() {
     const tab = GROEPEN.some(([t]) => t === params.get('tab')) ? params.get('tab') : 'overzicht';
     const sub = params.get('sub') || '';
     const [status, setStatus] = useState(null);
+    const [menuOpen, setMenuOpen] = useState(false);
     const [fout, setFout] = useState('');
 
     const laadStatus = useCallback(() => {
@@ -137,26 +138,76 @@ function Bank() {
     }
     const fix = FIXES.find(([id]) => id === sub) || FIXES[0];
     const v = status?.voorraad || {};
+    const fase = params.get('fase') === 'naam' ? 'naam' : 'blind';
+    const statistiek = Object.values(status?.tellingen || {});
 
     return (
-        <main className="ab">
-            <header className="ab-kop">
-                <Brand link compact />
-                <h1>Beheer</h1>
-                <button type="button" className="ab-linkknop ab-uitlog" onClick={uitloggen}>Uitloggen</button>
+        <main className="ab ab-shell">
+            <header className="ab-kop ab-topnav">
+                <Link className="ab-logo" to="/">VenTune<span aria-hidden="true"> ✦</span></Link>
+                <nav aria-label="Hoofdnavigatie">
+                    <Link to="/">Home</Link><Link to="/scores">Score</Link>
+                    <Link to="/aanvragen">Toevoegen</Link>
+                    <Link className="actief" to="/admin/bank">Beheer</Link>
+                    <Link to="/host/profile">Profiel</Link>
+                </nav>
+                <button type="button" className="ab-menu-knop" aria-expanded={menuOpen} aria-controls="ab-zijmenu" onClick={() => setMenuOpen((open) => !open)}>
+                    {menuOpen ? 'Menu sluiten' : '☰ Menu'}
+                </button>
             </header>
+            <div className="ab-hero">
+                <div><p className="ab-eyebrow">DE REGIE IS AAN JOU</p>
+                    <h1>Alles voor een goede spelavond.</h1>
+                    <p className="dim">AI doet het voorwerk. Jij houdt het overzicht.</p>
+                </div>
+                <button type="button" className="ab-linkknop ab-uitlog" onClick={uitloggen}>Uitloggen</button>
+            </div>
+            <div className="ab-werkruimte">
+                <aside className={'ab-sidebar' + (menuOpen ? ' open' : '')} id="ab-zijmenu" aria-label="Beheermenu">
+                    <nav className="ab-zijlinks" aria-label="Beheerpagina's">
+                        {[
+                            ['overzicht', '', '✦', 'Overzicht'],
+                            ['controles', 'nummers', '▦', 'Catalogus'],
+                            ['ai', '', '✧', 'AI & kosten'],
+                            ['swipen', '', '♫', 'Samen testen'],
+                            ['systeem', 'teksten', '✿', 'Stijl & teksten'],
+                            ['systeem', 'database', '⚙', 'Alle beheerfuncties'],
+                        ].map(([id, onderdeel, symbool, naam]) => (
+                            <button type="button" key={naam}
+                                className={'ab-zijlink' + (tab === id && (!onderdeel || (sub || (id === 'systeem' ? 'database' : '')) === onderdeel) ? ' actief' : '')}
+                                onClick={() => { ga(id, onderdeel ? { sub: onderdeel } : {}); setMenuOpen(false); }}>
+                                <span aria-hidden="true">{symbool}</span>{naam}
+                            </button>
+                        ))}
+                    </nav>
+                    <details className="ab-meer">
+                        <summary>Overige beheeronderdelen</summary>
+                        <nav className="ab-meer-links" aria-label="Overige beheerpagina's">
+                            {GROEPEN.filter(([id]) => !['overzicht', 'ai', 'swipen'].includes(id)).map(([id, naam]) => (
+                                <button key={id} type="button" className={tab === id ? 'actief' : ''}
+                                    onClick={() => { ga(id); setMenuOpen(false); }}>{naam}</button>
+                            ))}
+                        </nav>
+                    </details>
+                </aside>
+                <div className="ab-inhoud">
+                    {tab === 'overzicht' && <section className="ab-statistieken" aria-label="Catalogusstatistieken">
+                        <div className="ab-stat"><strong>{statistiek.reduce((n, t) => n + (Number(t.totaal) || 0), 0)}</strong><span>In je collectie</span></div>
+                        <div className="ab-stat"><strong>{v.te_beoordelen ?? '—'}</strong><span>Nog door AI te beoordelen</span></div>
+                        <div className="ab-stat"><strong>{v.te_swipen ?? '—'}</strong><span>Wacht op jouw controle</span></div>
+                        <div className="ab-stat"><strong>{statistiek.reduce((n, t) => n + (Number(t.speelbaar) || 0), 0)}</strong><span>Speelbaar</span></div>
+                    </section>}
             {fout && <p className="waarschuwing">{fout}</p>}
             <WorkerBalk status={status} onWijzig={laadStatus} />
-            <nav className="ab-tabs" aria-label="Onderdelen">
-                {GROEPEN.map(([id, naam]) => (
-                    <button key={id} type="button" className={'ab-tab' + (tab === id ? ' actief' : '')}
-                        onClick={() => ga(id)}>{naam}{tabTeller(id, status)}</button>
-                ))}
-            </nav>
-            {tab === 'swipen' && (
-                <SubTabs actief={sub} onKies={(id) => ga('swipen', id ? { sub: id } : {})}
+
+            {tab === 'swipen' && (<>
+                <nav className="ab-fase-keuze" aria-label="Muziek goedkeuren in twee stappen">
+                    <button type="button" className={fase === 'blind' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'blind' })}>1. Zonder titel luisteren</button>
+                    <button type="button" className={fase === 'naam' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'naam' })}>2. Met titel beoordelen</button>
+                </nav>
+                <SubTabs actief={sub} onKies={(id) => ga('swipen', { sub: id, fase })}
                     items={[['', 'Alles'], ...CATS]} teller={(id) => (id ? status?.swipe?.[id] : v.te_swipen)} />
-            )}
+            </>)}
             {tab === 'controles' && (
                 <SubTabs actief={controle} onKies={(id) => ga('controles', { sub: id })} items={CONTROLES} />
             )}
@@ -167,7 +218,7 @@ function Bank() {
             )}
 
             {tab === 'overzicht' && <Overzicht status={status} onWijzig={laadStatus} ga={ga} />}
-            {tab === 'swipen' && <Swipen key={sub} categorie={sub} onWijzig={laadStatus} />}
+            {tab === 'swipen' && <Swipen key={sub + '-' + fase} categorie={sub} fase={fase} onFaseNaam={() => ga('swipen', { sub, fase: 'naam' })} onWijzig={laadStatus} />}
             {tab === 'controles' && <Lijst key={`c-${controle}`} tab={controle} standaardFilter="alle" />}
             {tab === 'fixes' && fix[0] === 'dubbelen' && <Dubbelen />}
             {tab === 'fixes' && fix[0] !== 'dubbelen' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
@@ -178,7 +229,16 @@ function Bank() {
             {tab === 'log' && logSub === 'ai' && <Log />}
             {tab === 'log' && logSub !== 'ai' && <Admin ingebed sectie={logSub} />}
             {tab === 'spelers' && <Admin ingebed sectie={spelerSub} />}
+            {tab === 'ai' && <section className="ab-kaart ab-ai-pagina">
+                <h2>AI koppelen en verbruik beheren</h2>
+                <p className="dim">Eerst bekende en iconische films, series en videogames verzamelen. Nieuwe nummers komen in de goedkeuringswachtrij. De AI blijft binnen je dagbudget.</p>
+                <p><strong>ChatGPT:</strong> {status?.chatgpt?.gekoppeld ? 'Gekoppeld' : 'Nog niet gekoppeld'}</p>
+                {!status?.chatgpt?.gekoppeld && <ChatGptKoppeling onWijzig={laadStatus} />}
+                {status?.instellingen && <Tempo instellingen={status.instellingen} vandaag={status.worker?.vandaag ?? 0} onWijzig={laadStatus} />}
+            </section>}
             {tab === 'systeem' && <Admin ingebed sectie={systeemSub} />}
+                </div>
+            </div>
         </main>
     );
 }
