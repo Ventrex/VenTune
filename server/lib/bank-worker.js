@@ -906,7 +906,7 @@ async function lus() {
             achterstand = r.a;
         } catch { /* gewone cyclus */ }
         status.inhaalslag = achterstand;
-        const cyclus = achterstand ? INHAAL : CYCLUS;
+        const cyclus = achterstand ? INHAAL : (inst.quizAan ? CYCLUS : CYCLUS.filter((stap) => stap !== 'quiz'));
         const stap = cyclus[cyclusIndex++ % cyclus.length];
         let deedAi = false;
         try {
