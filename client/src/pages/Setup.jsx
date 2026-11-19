@@ -159,6 +159,7 @@ export default function Setup() {
         leeftijd_deelnemer_min: 4,
         leeftijd_deelnemer_max: 99,
         alleen_nl_tv: true,
+        herkenningsprofiel: 'standaard',
         alleen_gecontroleerd: false,
         leeftijdspunten_aan: false,
         leeftijdsfactoren: { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
@@ -215,6 +216,7 @@ export default function Setup() {
             met_genres: f.met_genres || [],
             studios: f.studios || [],
             taal: f.taal || 'beide',
+            herkenningsprofiel: f.herkenningsprofiel || 'standaard',
             periode_start: f.periode_start ?? 1930,
             periode_eind: f.periode_eind ?? NU,
             kindvriendelijk: f.kindvriendelijk === true,
@@ -259,7 +261,7 @@ export default function Setup() {
     const INHOUDSFILTERS = new Set([
         'game_only',
         'categorie', 'categorieen', 'collecties', 'met_genres', 'genre_keuze', 'studios',
-        'taal', 'periode_start', 'periode_eind', 'zonder_genres',
+        'taal', 'herkenningsprofiel', 'periode_start', 'periode_eind', 'zonder_genres',
         'kindvriendelijk', 'leeftijd_max',
     ]);
 
@@ -379,6 +381,7 @@ export default function Setup() {
             categorieen: p.categorieen || (p.categorie === 'films' ? ['film'] : p.categorie === 'series' ? ['serie'] : ['film', 'serie']),
             collecties: p.collecties || [],
             taal: p.taal,
+            herkenningsprofiel: p.extra_instellingen?.herkenningsprofiel || 'standaard',
             periode_start: p.periode_start,
             periode_eind: p.periode_eind,
             rondes: p.rondes,
@@ -810,6 +813,20 @@ export default function Setup() {
                             </div>
                         </section>
                         <section className="vt-options-panel">
+                            <h2>Voor wie is het spel?</h2>
+                            <p className="dim">Kies op basis van taal en wat mensen kennen, niet alleen op leeftijd. Je kunt dit per spel wijzigen.</p>
+                            <div className="vt-choice-grid">
+                                {[
+                                    ['standaard', 'Iedereen', 'De normale mix van bekende titels'],
+                                    ['familie', 'Alle generaties', 'Minstens ongeveer 1 op 3 herkenbare Nederlandstalige rondes, als er genoeg goedgekeurde nummers zijn'],
+                                    ['nederlands', 'Nederlands zonder ondertitels', 'Alleen Nederlandstalige audio of gecontroleerde Nederlandse versies; geschikt als Engels lastig is'],
+                                ].map(([id, naam, uitleg]) => <button key={id} type="button"
+                                    className={'vt-option-card' + (filters.herkenningsprofiel === id ? ' selected' : '')}
+                                    aria-pressed={filters.herkenningsprofiel === id}
+                                    onClick={() => zet('herkenningsprofiel', id)}>
+                                    <strong>{naam}</strong><small>{uitleg}</small>
+                                </button>)}
+                            </div>
                             <h2>Wie speelt?</h2>
                             <div className="vt-choice-grid">
                                 {[
