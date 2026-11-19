@@ -24,8 +24,14 @@ const muziek = bouwFilter({
 });
 // Muziekcollectie (Rock): ook films/series/games met een passend nummer (Rocky).
 assert(muziek.params[0].includes('film') && muziek.params[0].includes('muziek'), 'muziekcollectie kijkt naar het nummer');
-const muziekLos = bouwFilter({ categorie: 'muziek', periode_start: 1950, periode_eind: 2026 });
-assert.deepStrictEqual(muziekLos.params[0], ['muziek', 'kerst', 'kinder'], 'muziek omvat kerst en kinder, geen games');
+const muziekLos = bouwFilter({ categorie: 'muziek', periode_start: 1930, periode_eind: 2026 });
+assert.deepStrictEqual(muziekLos.params[0], ['muziek', 'kerst', 'sinterklaas', 'kinder'], 'muziek houdt gewone nummers en seizoensnummers bij elkaar');
+const muziek80 = bouwFilter({ categorie: 'muziek', periode_start: 1980, periode_eind: 1989 });
+assert(muziek80.params[0].includes('film') && muziek80.params[0].includes('game'), 'jaren-80-muziek mag films en games bevatten');
+assert(muziek80.where.includes('t.muziek_jaar'), 'gebruik releasejaar van de song, niet van film of serie');
+const muziekRock = bouwFilter({ categorie: 'muziek', genre_keuze: ['Rock'] });
+assert(muziekRock.params[0].includes('serie'), 'muziekgenre Rock moet ook series doorzoeken');
+assert(muziekRock.where.includes('t.muziek_genres &&'), 'film- en serie-soundtracks moeten op muziekgenre vindbaar zijn');
 assert(muziek.where.includes('c.sleutel = ANY($2::text[])'), 'enkele collectie ontbreekt');
 
 const standaard = bouwFilter({ categorie: 'beide', periode_start: 1950, periode_eind: 2026 });
