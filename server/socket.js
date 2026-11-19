@@ -46,6 +46,10 @@ function setupSockets(io) {
             try {
                 const gevonden = await lobby.haalLobby(veilig);
                 if (!gevonden) return socket.emit('tv:fout', { melding: 'Lobby bestaat niet of is afgelopen.' });
+                if (socket.data.isTv && socket.data.code && socket.data.code !== veilig) {
+                    socket.leave(kamerNaam(socket.data.code));
+                    socket.leave(`tv:${socket.data.code}`);
+                }
                 socket.data.isTv = true;
                 socket.data.isHost = false;
                 socket.data.code = veilig;
