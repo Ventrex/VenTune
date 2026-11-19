@@ -657,16 +657,21 @@ async function vulCollectie(c) {
             if (await koppel(bestaat.id, c)) { hergebruikt++; namen.push(`${bestaat.naam} (bestond al)`); }
             continue;
         }
-        const muziek = bank.MUZIEK_CATEGORIEEN.has(it.categorie);
+        const indeling = bank.MUZIEK_CATEGORIEEN.has(it.categorie)
+            ? categoriseerMuziek({ naam: it.naam, artiest: it.artiest, categorie: it.categorie })
+            : null;
+        const actueleCategorie = indeling?.categorie || it.categorie;
+        const muziek = bank.MUZIEK_CATEGORIEEN.has(actueleCategorie);
+        const songGenres = muziek ? indeling.genres : [];
         try {
             const { rows: [t] } = await pool.query(
                 `INSERT INTO titels (naam, type, taal, jaar, categorie, bekendheid_tier, nummer_naam, nummer_artiest,
-                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres)
-                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, '{}', '{}')
+                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres, ai_genres, muziek_jaar)
+                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, $9, $9, $9, $10)
                  RETURNING id`,
-                [it.naam, bank.typeVoorCategorie(it.categorie, it.categorie === 'anime' ? 'serie' : 'film'), it.jaar,
-                    it.categorie, it.bekendheid, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
-                    `AI-curator: aangevuld voor collectie ${c.naam}`]);
+                [it.naam, bank.typeVoorCategorie(actueleCategorie, actueleCategorie === 'anime' ? 'serie' : 'film'), it.jaar,
+                    actueleCategorie, it.bekendheid, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
+                    `AI-curator: aangevuld voor collectie ${c.naam}`, songGenres, muziek ? it.jaar : null]);
             await koppel(t.id, c);
             kandidaten.push({ id: t.id, naam: it.naam, nummer_naam: muziek ? it.naam : null, nummer_artiest: it.artiest, categorie: it.categorie });
             nieuw++;
