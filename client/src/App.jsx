@@ -4,6 +4,7 @@ import Home from './pages/Home.jsx';
 import Setup from './pages/Setup.jsx';
 import Join from './pages/Join.jsx';
 import Host from './pages/Host.jsx';
+import Tv from './pages/Tv.jsx';
 import Play from './pages/Play.jsx';
 import AdminBank from './pages/AdminBank.jsx';
 import Review from './pages/Review.jsx';
@@ -43,6 +44,7 @@ export default function App() {
                     <Route path="/host/profile" element={<HostProfile />} />
                     <Route path="/join/:code" element={<Join />} />
                     <Route path="/host" element={<Host />} />
+                    <Route path="/tv/:code" element={<Tv />} />
                     <Route path="/play" element={<Play />} />
                     <Route path="/admin" element={<Navigate to="/admin/bank?tab=systeem" replace />} />
                     <Route path="/admin/bank" element={<AdminBank />} />
