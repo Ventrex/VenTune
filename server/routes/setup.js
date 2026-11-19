@@ -82,14 +82,24 @@ router.get('/api/genres', async (req, res) => {
         const toegestaan = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'sinterklaas', 'kinder'];
         let cats = String(req.query.categorieen || '').split(',').filter((c) => toegestaan.includes(c));
         if (!cats.length) cats = ['film', 'serie'];
+        const muziek = cats.length === 1 && cats[0] === 'muziek';
         if (cats.includes('muziek')) cats = [...new Set([...cats, 'kerst', 'sinterklaas', 'kinder'])];
         const { rows } = await pool.query(`
-            SELECT g AS genre, count(*)::int AS aantal
-              FROM titels t, unnest(t.ai_genres) AS g
-             WHERE COALESCE(t.categorie, t.type::text) = ANY($1::text[])
+            SELECT g.genre AS genre, count(*)::int AS aantal
+              FROM titels t
+              CROSS JOIN LATERAL (
+                SELECT DISTINCT genre FROM unnest(
+                    CASE WHEN $2::boolean THEN
+                        COALESCE(t.muziek_genres, '{}'::text[]) ||
+                        CASE WHEN COALESCE(t.categorie, t.type::text) IN ('muziek','kerst','sinterklaas','kinder')
+                             THEN COALESCE(t.ai_genres, '{}'::text[]) ELSE '{}'::text[] END
+                    ELSE COALESCE(t.ai_genres, '{}'::text[]) END
+                ) AS genre
+              ) AS g
+             WHERE ($2::boolean OR COALESCE(t.categorie, t.type::text) = ANY($1::text[]))
                AND t.curatie_status <> 'uitgesloten' AND ${bank.HEEFT_SPEELBAAR}
-             GROUP BY g HAVING count(*) >= 3
-             ORDER BY count(*) DESC`, [cats]);
+             GROUP BY g.genre HAVING count(*) >= 3
+             ORDER BY count(*) DESC`, [cats, muziek]);
         res.json(rows);
     } catch (err) {
         logger.waarschuwing('Genres ophalen mislukt.', { melding: err.message });
