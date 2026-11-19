@@ -671,13 +671,13 @@ function Overzicht({ status, onWijzig, ga }) {
 
 // Tempo: hoe hard de AI het ChatGPT-abonnement gebruikt.
 const TEMPOS = [
-    ['zuinig', 'Zuinig', { maxPerDag: 20, pauzeSeconden: 180, webZoeken: 'nooit' }],
-    ['normaal', 'Normaal', { maxPerDag: 50, pauzeSeconden: 120, webZoeken: 'belangrijk' }],
-    ['snel', 'Snel', { maxPerDag: 0, pauzeSeconden: 30, webZoeken: 'belangrijk' }],
+    ['zuinig', 'Zuinig', { maxPerDag: 10, maxPerWeek: 50, pauzeSeconden: 180, webZoeken: 'nooit' }],
+    ['normaal', 'Normaal', { maxPerDag: 20, maxPerWeek: 90, pauzeSeconden: 120, webZoeken: 'belangrijk' }],
+    ['snel', 'Snel', { maxPerDag: 0, maxPerWeek: 0, pauzeSeconden: 30, webZoeken: 'belangrijk' }],
 ];
 function Tempo({ instellingen, vandaag, onWijzig }) {
     const [tot, setTot] = useState('');
-    const huidig = TEMPOS.find(([, , v]) => v.maxPerDag === instellingen.maxPerDag && v.pauzeSeconden === instellingen.pauzeSeconden && v.webZoeken === instellingen.webZoeken)?.[0];
+    const huidig = TEMPOS.find(([, , v]) => v.maxPerDag === instellingen.maxPerDag && v.maxPerWeek === instellingen.maxPerWeek && v.pauzeSeconden === instellingen.pauzeSeconden && v.webZoeken === instellingen.webZoeken)?.[0];
     const patch = async (body) => { await api('/api/admin/bank/instellingen', { method: 'PATCH', body }).catch((e) => alert(e.message)); onWijzig(); };
     const pauzeTot = instellingen.pauzeTot ? new Date(instellingen.pauzeTot) : null;
     return (
@@ -696,10 +696,11 @@ function Tempo({ instellingen, vandaag, onWijzig }) {
             </div>
             <div className="ab-velden">
                 <Tekst label="AI-vragen per dag (0 = onbeperkt)" type="number" waarde={instellingen.maxPerDag} onSave={(v) => patch({ maxPerDag: Number(v) })} />
+                <Tekst label="AI-vragen per week (0 = onbeperkt)" type="number" waarde={instellingen.maxPerWeek} onSave={(v) => patch({ maxPerWeek: Number(v) })} />
                 <Tekst label="Seconden tussen stappen" type="number" waarde={instellingen.pauzeSeconden} onSave={(v) => patch({ pauzeSeconden: Number(v) })} />
                 <Keuze label="Webzoeken" waarde={instellingen.webZoeken} opties={[['belangrijk', 'Alleen bij beoordelen'], ['altijd', 'Altijd'], ['nooit', 'Nooit']]} onSave={(v) => patch({ webZoeken: v })} />
             </div>
-            <p className="dim ab-mini">Vandaag {vandaag}{instellingen.maxPerDag ? ` van ${instellingen.maxPerDag}` : ''} AI-vragen gebruikt.</p>
+            <p className="dim ab-mini">Vandaag {vandaag}{instellingen.maxPerDag ? ` van ${instellingen.maxPerDag}` : ''}; deze week {instellingen.maxPerWeek ? `maximaal ${instellingen.maxPerWeek}` : 'onbeperkt'} AI-verzoeken.</p>
             <p className="ab-label" style={{ marginTop: '0.8rem' }}>Pauzeren tot <Hint tekst="Handig als je ChatGPT-limiet op is: de AI doet tot dat moment niets. Na een limiet zet hij dit zelf, als ChatGPT zegt wanneer het weer kan." /></p>
             {pauzeTot && pauzeTot > new Date()
                 ? <div className="ab-rij"><span>Gepauzeerd tot <strong>{pauzeTot.toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</strong></span>
