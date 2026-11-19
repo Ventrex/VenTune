@@ -11,7 +11,7 @@ const logger = require('./logger');
 
 // Ophogen wanneer de beoordelingsprompt inhoudelijk verandert: alle titels
 // worden dan opnieuw door de AI bekeken (handmatige velden blijven staan).
-const AI_VERSIE = 5; // 3: bekendheid titel+nummer, anime binnen anime, eerdere: taal/land/eindjaar
+const AI_VERSIE = 6; // 6: oorspronkelijke muziekjaar en overlapping van muziekgenres/collecties, ook voor films en games
 
 const CATEGORIEEN = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'sinterklaas', 'kinder'];
 const CATEGORIE_LABEL = {
