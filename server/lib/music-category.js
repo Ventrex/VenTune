@@ -36,9 +36,11 @@ function categoriseerMuziek({ naam, artiest, categorie = 'muziek', genres = [] }
   const allowed = ['Pop','Rock','Metal','Punk','Alternatief','Indie','Hiphop','R&B','Soul','Funk',
     'Disco','Dance','Reggae','Latin','Country','Blues','Jazz','Klassiek','Schlager','Levenslied',
     'Nederpop','Singer-songwriter','Soundtrack','Kinderlied','Kerst','Sinterklaas'];
-  const lijst = [...new Set([speciaal, ...aangegeven]
-    .filter(g => allowed.includes(g) && (soort === 'kerst' || g !== 'Kerst') &&
-      (soort === 'sinterklaas' || g !== 'Sinterklaas')))].slice(0, 3);
+  const extra = soort === 'sinterklaas' ? ['Kinderlied'] : [];
+  // Genre- en seizoenslabels zijn NIET exclusief. Een opname kan bijvoorbeeld
+  // zowel Kerst als Kinderlied, Pop en Rock zijn.
+  const lijst = [...new Set([speciaal, ...extra, ...aangegeven]
+    .filter(g => allowed.includes(g)))].slice(0, 6);
   return { categorie: soort, genres: lijst, collectie: soort === 'kerst' || soort === 'sinterklaas' ? soort : null };
 }
 module.exports = { categoriseerMuziek, genreNaam };
