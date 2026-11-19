@@ -853,6 +853,12 @@ function middernacht() {
     d.setHours(24, 0, 30, 0);
     return d.getTime();
 }
+function komendeMaandag() {
+    const d = new Date();
+    d.setDate(d.getDate() + (7 - ((d.getDay() + 6) % 7)));
+    d.setHours(0, 30, 0, 0);
+    return d.getTime();
+}
 
 async function lus() {
     let leeg = 0;
@@ -889,6 +895,15 @@ async function lus() {
             status.vandaag = gebruikt;
             if (gebruikt >= inst.maxPerDag) {
                 await alleenZonderAi(`Dagbudget op (${gebruikt}/${inst.maxPerDag} AI-vragen), morgen verder.`, middernacht());
+                continue;
+            }
+        }
+
+        if (inst.maxPerWeek > 0) {
+            const gebruikt = await bank.aiGebruikDezeWeek().catch(() => 0);
+            status.dezeWeek = gebruikt;
+            if (gebruikt >= inst.maxPerWeek) {
+                await alleenZonderAi(`Weekbudget op (${gebruikt}/${inst.maxPerWeek} AI-vragen); maandag verder.`, komendeMaandag());
                 continue;
             }
         }
