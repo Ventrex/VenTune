@@ -926,6 +926,7 @@ function TitelKop({ item, toonNummer = true }) {
             {toonNummer && (item.nummer_naam || item.nummer_artiest) && (
                 <span className="dim ab-mini">♪ {[item.nummer_naam, item.nummer_artiest].filter(Boolean).join(' – ')}</span>
             )}
+            {!!item.muziek_genres?.length && <span className="dim ab-mini">Muziekgenres: {item.muziek_genres.join(' · ')}{item.muziek_jaar ? ` · ${item.muziek_jaar}` : ''}</span>}
         </div>
     );
 }
@@ -947,6 +948,8 @@ function Rij({ tab, item, acties }) {
                 <div className="ab-cel"><Keuze label="Bekendheid" waarde={item.bekendheid_tier} leeg="—" opties={TIERS} onSave={(w) => p({ bekendheid_tier: w })} />{slot('tier')}</div>
                 <div className="ab-cel"><Tekst label="Nummer" waarde={item.nummer_naam} onSave={(w) => p({ nummer_naam: w })} />{slot('nummer')}</div>
                 <div className="ab-cel"><Tekst label="Artiest / componist" waarde={item.nummer_artiest} onSave={(w) => p({ nummer_artiest: w })} /></div>
+                <div className="ab-cel breed"><Tekst label="Muziekgenres (meerdere, met komma)" waarde={(item.muziek_genres || []).join(', ')} onSave={(w) => p({ muziek_genres: w })} />{slot('genres')}</div>
+                <div className="ab-cel"><Tekst label="Uitgavejaar nummer" type="number" waarde={item.muziek_jaar ?? ''} onSave={(w) => p({ muziek_jaar: w })} />{slot('muziek_jaar')}</div>
                 <div className="ab-cel ab-acties">
                     <label className="ab-check"><input type="checkbox" checked={item.curatie_status !== 'uitgesloten'}
                         onChange={(e) => p({ actief: e.target.checked, curatie_status: e.target.checked ? 'goedgekeurd' : 'uitgesloten' })} /> In het spel</label>
