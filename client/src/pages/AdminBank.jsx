@@ -214,11 +214,11 @@ function Bank() {
                     items={[['', 'Alles'], ...CATS]} teller={(id) => (id ? status?.swipe?.[id] : v.te_swipen)} />
             </>)}
             {tab === 'controles' && (
-                <SubTabs actief={controle} onKies={(id) => ga('controles', { sub: id })} items={CONTROLES} />
+                <SubTabs actief={controle} onKies={(id) => ga('controles', { sub: id })} items={status?.instellingen?.quizAan ? CONTROLES : CONTROLES.filter(([id]) => !['hints', 'vragen'].includes(id))} />
             )}
             {tab === 'fixes' && (
                 <SubTabs actief={fix[0]} onKies={(id) => ga('fixes', { sub: id })}
-                    items={FIXES.map(([id, naam]) => [id, naam])}
+                    items={FIXES.filter(([id]) => status?.instellingen?.quizAan || !['hints-leeg', 'vragen-leeg'].includes(id)).map(([id, naam]) => [id, naam])}
                     teller={(id) => v[FIXES.find((f) => f[0] === id)?.[4]]} />
             )}
 
@@ -582,13 +582,15 @@ function Overzicht({ status, onWijzig, ga }) {
         ['Nog door AI te beoordelen', voorraad.te_beoordelen, 'fixes', { sub: 'nog-bij-ai' }],
         ['Zonder MP3', voorraad.zonder_mp3, 'fixes', { sub: 'mp3-mist' }],
         ['MP3 opgegeven (jij kijken)', voorraad.mp3_opgegeven, 'fixes', { sub: 'mp3-opgegeven' }],
-        ['Zonder 3 hints', voorraad.zonder_hints, 'fixes', { sub: 'hints-leeg' }],
-        ['Zonder bonusvragen', voorraad.zonder_vragen, 'fixes', { sub: 'vragen-leeg' }],
+        ...(instellingen.quizAan ? [
+            ['Zonder 3 hints', voorraad.zonder_hints, 'fixes', { sub: 'hints-leeg' }],
+            ['Zonder bonusvragen', voorraad.zonder_vragen, 'fixes', { sub: 'vragen-leeg' }],
+        ] : []),
         ['NL: twijfel', voorraad.nl_twijfel, 'fixes', { sub: 'nl-twijfel' }],
         ['Uitgesloten', voorraad.uitgesloten, 'fixes', { sub: 'uitgesloten' }],
     ];
     async function allesOpnieuw() {
-        if (!window.confirm('Alles opnieuw? De AI beoordeelt alle titels opnieuw, zoekt alle ontbrekende MP3\'s (ook opgegeven) opnieuw en maakt ontbrekende hints en vragen. Wat je zelf hebt aangepast blijft staan.')) return;
+        if (!window.confirm('Alles opnieuw? De AI beoordeelt alle titels en zoekt alle ontbrekende MP3\'s opnieuw. Hints en vragen blijven uit zolang je ze niet inschakelt. Handmatige aanpassingen blijven staan.')) return;
         try { const r = await api('/api/admin/bank/alles-opnieuw', { method: 'POST' }); alert(r.tekst); }
         catch (e) { alert(e.message); }
         onWijzig();
@@ -680,7 +682,7 @@ function Tempo({ instellingen, vandaag, onWijzig }) {
     const pauzeTot = instellingen.pauzeTot ? new Date(instellingen.pauzeTot) : null;
     return (
         <section className="ab-kaart">
-            <p className="ab-label">Tempo <Hint tekst="Hoe zuiniger, hoe minder je ChatGPT-limiet opgaat. Het indelen, hints en vragen duren dan langer, maar lopen gewoon door. Eén AI-vraag = een lijst van 100 titels (beoordelen) of 30 titels (hints en vragen). Webzoeken kost het meest; bij Zuinig staat het uit." /></p>
+            <p className="ab-label">AI-budget <Hint tekst="Zuinig: maximaal 20 AI-verzoeken per dag met 3 minuten tussen stappen. Titels en de juiste muziek krijgen voorrang; hints en vragen staan standaard uit." /></p>
             <label className="ab-check ab-quiz-toggle">
                 <input type="checkbox" checked={instellingen.quizAan === true}
                     onChange={(e) => patch({ quizAan: e.target.checked })} />
