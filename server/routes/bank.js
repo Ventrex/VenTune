@@ -526,6 +526,9 @@ router.get('/api/admin/bank/swipe', vereisAdmin, async (req, res) => {
             "tr.wacht_op_swipe = true", "tr.werkt = true", "tr.download_status = 'available'",
             "t.curatie_status <> 'uitgesloten'",
         ];
+        const fase = req.query.fase === 'naam' ? 'naam' : 'blind';
+        params.push(fase);
+        condities.push(`COALESCE(tr.review_fase, 'blind') = ${params.length}`);
         if (bank.CATEGORIEEN.includes(req.query.categorie)) {
             params.push(req.query.categorie);
             condities.push(`COALESCE(t.categorie, t.type::text) = $${params.length}`);
@@ -556,13 +559,31 @@ router.get('/api/admin/bank/swipe', vereisAdmin, async (req, res) => {
 router.post('/api/admin/bank/swipe/:trackId', vereisAdmin, async (req, res) => {
     try {
         const keuze = req.body?.keuze;
-        if (!['goed', 'fout', 'uitsluiten'].includes(keuze)) return fout(res, new Error('Kies goed, fout of uitsluiten.'), 400);
+        if (!['goed', 'slecht', 'onherkenbaar', 'fout', 'uitsluiten'].includes(keuze))
+            return fout(res, new Error('Ongeldige beoordeling.'), 400);
         const { rows: [tr] } = await pool.query(
-            `SELECT tr.id, tr.titel_id, tr.wacht_op_swipe, t.naam FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+            `SELECT tr.id, tr.titel_id, tr.wacht_op_swipe, tr.review_fase, t.naam
+               FROM tracks tr JOIN titels t ON t.id = tr.titel_id
               WHERE tr.id = $1`, [req.params.trackId]);
         if (!tr) return fout(res, new Error('Nummer niet gevonden.'), 404);
-        // Dubbel tikken of een herhaalde aanvraag doet niets extra.
         if (!tr.wacht_op_swipe) return res.json({ ok: true, alGedaan: true });
+        if (keuze === 'onherkenbaar') {
+            if (tr.review_fase !== 'blind') return fout(res, new Error('Dit nummer zit al in de ronde met titel.'), 409);
+            await pool.query("UPDATE tracks SET review_fase = 'naam', review_reden = 'Blind niet herkend; met titel beoordelen' WHERE id = $1", [tr.id]);
+            await bank.log(tr.titel_id, 'mp3', `${tr.naam}: blind niet herkend, controle met titel nodig.`);
+            return res.json({ ok: true, fase: 'naam' });
+        }
+        if (keuze === 'slecht') {
+            // Een slechte opname hoeft niet het verkeerde nummer te zijn: behoud het bestand en de bron.
+            // Niet speelbaar tot er een betere kandidaat is gevonden of handmatig is vrijgegeven.
+            await pool.query(
+                `UPDATE tracks SET wacht_op_swipe = false, werkt = false, review_status = 'handmatig',
+                        review_kwaliteit = 'slecht', review_laatste_op = now(),
+                        review_reden = 'Slechte audiokwaliteit bij beoordeling' WHERE id = $1`, [tr.id]);
+            await bank.log(tr.titel_id, 'mp3', `${tr.naam}: slechte geluidskwaliteit; bestaande MP3 bewaard.`);
+            worker.porren();
+            return res.json({ ok: true, kwaliteit: 'slecht' });
+        }
         if (keuze === 'goed') {
             await pool.query(
                 `UPDATE tracks SET wacht_op_swipe = false, review_status = 'goedgekeurd', review_handmatig = true,
