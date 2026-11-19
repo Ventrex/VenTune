@@ -12,10 +12,16 @@ export default function HostAuth() {
     const [displayNaam, setDisplayNaam] = useState('');
     const [wachtwoord, setWachtwoord] = useState('');
     const [fout, setFout] = useState('');
+    const [siteTeksten, setSiteTeksten] = useState({});
+    const tekst = (sleutel, standaard) => siteTeksten[sleutel] || standaard;
     const [bezig, setBezig] = useState(false);
 
     const gewensteVervolg = params.get('return') || '/setup';
     const vervolg = gewensteVervolg.startsWith('/') && !gewensteVervolg.startsWith('//') ? gewensteVervolg : '/setup';
+
+    useEffect(() => {
+        fetch('/api/site-teksten').then((r) => r.ok ? r.json() : {}).then(setSiteTeksten).catch(() => {});
+    }, []);
 
     useEffect(() => {
         authSessie().then((s) => {
@@ -48,10 +54,9 @@ export default function HostAuth() {
     return (
         <main className="scherm auth-scherm">
             <Brand link={false} />
-            <h1>{modus === 'inloggen' ? 'Host inloggen' : 'Hostaccount maken'}</h1>
+            <h1>{modus === 'inloggen' ? tekst('host.login.titel', 'Host inloggen') : tekst('host.registratie.titel', 'Hostaccount maken')}</h1>
             <p className="ondertitel">
-                Een hostaccount is verplicht om een spel te starten. Spelers doen
-                gewoon mee zonder account.
+                {tekst('host.uitleg', 'Een hostaccount is verplicht om een spel te starten. Spelers doen gewoon mee zonder account.')}
             </p>
 
             {fout && <p className="waarschuwing">{fout}</p>}
