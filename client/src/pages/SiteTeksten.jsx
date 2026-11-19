@@ -50,7 +50,7 @@ export default function SiteTeksten(){
  }
  return <section className="kaart cw">
   <div className="cw-head"><div><h2>Teksten</h2><p className="dim">Bewerk teksten zonder code te wijzigen. Lege velden gebruiken de standaardtekst.</p></div>
-   <span className="cw-info" title="Voorlopig zijn de beginpagina en navigatie ondersteund. Meer schermen worden later toegevoegd." aria-label="Uitleg">i</span></div>
+   <span className="cw-info" title="Alle getoonde tekstvelden worden rechtstreeks gebruikt op de vermelde pagina. Andere vaste teksten kunnen later worden toegevoegd." aria-label="Uitleg">i</span></div>
   {fout&&<p className="waarschuwing">{fout}</p>}{melding&&<p className="feedback neutraal">{melding}</p>}
   <p className="dim">Alles staat per pagina ingeklapt. Open alleen de pagina waarvan je tekst wilt veranderen.</p>
   {PAGINAS.map(pagina=><details key={pagina.naam} className="cw-copy-group vt-tekst-groep">
