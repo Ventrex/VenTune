@@ -56,7 +56,7 @@ export default function HostAuth() {
 
             {fout && <p className="waarschuwing">{fout}</p>}
 
-            <form onSubmit={verstuur} className="stapel kaart auth-kaart">
+            <form onSubmit={verstuur} className="stapel kaart auth-kaart vt-auth-form">
                 <label className="kaart-label" htmlFor="host-gebruiker">Gebruikersnaam</label>
                 <input
                     id="host-gebruiker"
