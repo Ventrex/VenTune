@@ -48,7 +48,7 @@ const CATEGORIEEN = [
     { waarde: 'films', label: 'Films', logo: '/logos/films.svg', uitleg: 'Alleen films' },
     { waarde: 'series', label: 'Series', logo: '/logos/series.svg', uitleg: 'Alleen series' },
     { waarde: 'games', label: 'Videogames', logo: '/logos/music.svg', uitleg: 'Herken de muziek van bekende games op PC en consoles' },
-    { waarde: 'muziek', label: 'Muziek', logo: '/logos/music.svg', uitleg: 'Muziekedities later uitbreiden' },
+    { waarde: 'muziek', label: 'Muziek', logo: '/logos/music.svg', uitleg: 'Ook herkenbare songs uit films, series en games op genre of tijdvak' },
 ];
 const TALEN = [
     { waarde: 'nl', label: 'Nederlands', icoon: '🇳🇱' },
@@ -583,7 +583,7 @@ export default function Setup() {
                             <p>{hoofdgroep==='films'?'▱  Collectie':hoofdgroep==='muziek'?'Welk muziekgenre?':hoofdgroep==='games'?'Kies één of meerdere fabrikanten': 'Kies een thema'}</p>
                             <div className="vt-keuzerij">
                                 {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder'],...dbCollecties(['film','serie','beide','alles'])]
-                                :hoofdgroep==='muziek'?[['alles','🎧 Alles'],...dbCollecties(['muziek','alles'])]
+                                :hoofdgroep==='muziek'?[['alles','🎧 Alles'],['80s','🌇 Jaren 80'],['90s','📼 Jaren 90'],...dbCollecties(['muziek','alles'])]
                                 :hoofdgroep==='games'?[['alles','🎮 Alle games'],['nintendo','🕹️ Nintendo'],['sega','💫 Sega'],['playstation','🔵 PlayStation'],['xbox','🟢 Xbox'],['pc','💻 PC']]
                                 :[['alles','✨ Alle thema’s'],['kerst','🎄 Kerst']]).map(([id,label])=>
                                     <button type="button" key={id} className={'chip'+((hoofdgroep==='games'? (id==='alles'?!(filters.platformen||[]).length:(filters.platformen||[]).includes(id)) :subkeuze===id)?' gekozen':'')}
