@@ -31,7 +31,7 @@ const TIER_VERDELING = { iconisch: 0.2, algemeen_bekend: 0.25, bekend: 0.25, onb
 // Velden die de beheerder kan aanpassen. Na een aanpassing staat het veld
 // in titels.handmatig en blijft de AI eraf.
 const VASTZETBAAR = ['naam', 'categorie', 'tier', 'jaar', 'nl', 'taal', 'actief', 'franchise',
-    'aliassen', 'nummer', 'hints', 'vragen', 'mp3', 'genres'];
+    'aliassen', 'nummer', 'hints', 'vragen', 'mp3', 'genres', 'muziek_jaar'];
 
 // Vaste genrelijst, zodat je in Nieuw spel kunt kiezen voor bv. alleen
 // komedieseries of alleen actiegames. De AI kiest per titel 1-3 genres.
