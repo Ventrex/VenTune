@@ -51,7 +51,7 @@ function genresVoor(categorie) {
 }
 function schoonGenres(lijst, categorie) {
     const geldig = new Set(genresVoor(categorie));
-    return [...new Set((Array.isArray(lijst) ? lijst : []).filter((g) => geldig.has(g)))].slice(0, 3);
+    return [...new Set((Array.isArray(lijst) ? lijst : []).filter((g) => geldig.has(g)))].slice(0, 6);
 }
 
 const STANDAARD_INSTELLINGEN = {
