@@ -93,6 +93,8 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS themas TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS muziek_genres TEXT[] NOT NULL DEFAULT '{}';
 -- Originele uitgavejaar van HET NUMMER, los van het releasejaar van film/serie/game.
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS muziek_jaar INTEGER;
+-- Oudere genre-herstelqueries gebruiken categorie; zorg dat de kolom dan al bestaat.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS categorie TEXT;
 CREATE INDEX IF NOT EXISTS idx_titels_muziek_jaar ON titels (muziek_jaar);
 -- Curatie: waarom staat een titel in de database en is hij geschikt voor de
 -- standaardselectie "bekend van Nederlandse tv"?
