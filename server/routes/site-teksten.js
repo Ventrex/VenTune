@@ -2,6 +2,9 @@
 const SLEUTELS = [
   'home.titel','home.ondertitel','home.nieuw_spel','home.meedoen','home.doorgaan',
   'nav.spelen','nav.scores','nav.controleren','nav.beheer','nav.profielen','nav.inloggen',
+  'host.login.titel','host.registratie.titel','host.uitleg',
+  'beheer.overzicht.titel','beheer.overzicht.ondertitel','beheer.ai.titel',
+  'beheer.review.blind','beheer.review.met_titel','beheer.review.uitleg',
 ];
 async function lees(pool) {
   const {rows}=await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel='site_teksten' LIMIT 1");
