@@ -38,18 +38,18 @@ CATEGORIE:
 - anime: Japanse animeseries en -films die Nederlanders als ANIME kennen (Naruto, Death Note, Ghost in the Shell, Dragon Ball, One Piece, Attack on Titan, Pokémon, Sailor Moon, Studio Ghibli). Westerse animatie (Disney, Pixar, DreamWorks, The Simpsons) is géén anime maar film of serie. Zet anime_breed_bekend=true als ook mensen die niets met anime hebben het in Nederland kennen (bv. Pokémon, Dragon Ball Z, Sailor Moon, Spirited Away); anders false.
 - game: videogames; het nummer is gamemuziek.
 - muziek: een los nummer (single/hit) dat niet bij een film, serie of game hoort.
-- kerst: kerstmuziek. kinder: kinderliedjes.
+- kerst: kerstmuziek. sinterklaas: Sinterklaasliedjes. kinder: overige kinderliedjes. Een Sinterklaasliedje kan óók genre Kinderlied hebben; één titel kan meerdere muziekgenres en collecties hebben.
 
 TAAL VAN HET NUMMER: nl_versie=true als Nederlanders de titelsong vooral in een NEDERLANDSTALIGE versie kennen (nagesynchroniseerde series en films zoals Maya de Bij, Pokémon, Nils Holgersson, Alfred J. Kwak, Disney-liedjes in het Nederlands). Dan zijn nummer_naam en yt_zoekterm die van de Nederlandse versie (bv. "Maya de Bij intro Nederlands"). Anders false: dan geldt het origineel. Nooit een Duitse, Franse, Spaanse of andere anderstalige versie.
 
-HET NUMMER: het herkenningsnummer dat spelers moeten herkennen. Film/serie/anime: de titelsong, intro of het bekendste thema. Game: het bekendste originele gamethema. Muziek/kerst/kinder: het nummer zelf (nummer_naam = naam, nummer_artiest = de originele uitvoerende artiest). yt_zoekterm vindt de ORIGINELE versie op YouTube (of de Nederlandse versie bij nl_versie=true; geen cover, live of remix).
+HET NUMMER: het herkenningsnummer dat spelers moeten herkennen. Een enkel nummer kan bij een film én in Rock en Jaren 80 passen. Kies de iconischste hoofdassociatie, maar geef ALLE toepasselijke muziekgenres en het originele releasejaar van het nummer terug, ook bij films, series en games. Een kerstlied kan óók Pop of Rock zijn; een Sinterklaaslied kan óók Kinderlied zijn. Dupliceren is niet nodig. Film/serie/anime: de titelsong, intro of het bekendste thema. Game: het bekendste originele gamethema. Muziek/kerst/kinder: het nummer zelf (nummer_naam = naam, nummer_artiest = de originele uitvoerende artiest). yt_zoekterm vindt de ORIGINELE versie op YouTube (of de Nederlandse versie bij nl_versie=true; geen cover, live of remix).
 
 GEGEVENS KLOPPEN: jaar = jaar van de (eerste) release, bij een serie het beginjaar. eind_jaar = laatste jaar van een serie die is afgelopen (null bij films, games, muziek of een serie die nog loopt); serie_lopend = true als een serie nog loopt. taal = "nl" alleen voor Nederlandstalige producties/nummers (Flodder, Baantjer, Marco Borsato), anders "en" — The Office, Friends en Pokémon zijn dus "en". land = productieland als code (NL, BE, US, GB, JP, FR, DE, …).
 
-GENRES: 1 tot 3 genres die het best passen, alleen uit deze lijsten.
+GENRES: geef beeld-/game-genres van de titel apart van muziekgenres van het NUMMER. Tot vijf labels toegestaan. Gebruik alleen deze lijsten.
 - film/serie/anime: ${GENRES_BEELD.join(', ')}
 - game: ${GENRES_GAME.join(', ')}
-- muziek/kerst/kinder: ${GENRES_MUZIEK.join(', ')}
+- muziek/kerst/sinterklaas/kinder: ${GENRES_MUZIEK.join(', ')}. Muziekgenres zijn ook toegestaan bij film, serie, anime en game.
 
 ANTWOORD: spelers raden de naam (film, serie, game of nummertitel). franchise is de korte naam van de reeks die spelers ook goed mogen rekenen, versie-onafhankelijk (bv. "Terminator" voor Terminator 2, "Super Mario" voor Super Mario Bros. 3, "Harry Potter"). Leeg als er geen reeks is. aliassen: andere geldige namen (Nederlandse titel, originele titel, gangbare afkorting zoals "GTA"), maximaal 5, zonder de franchise te herhalen.
 
@@ -80,6 +80,8 @@ const BEOORDELING_PROPS = {
     yt_zoekterm: STR,
     nl_versie: S('boolean'),
     genres: S('array', { items: S('string', { enum: ALLE_GENRES }) }),
+    muziek_genres: S('array', { items: S('string', { enum: GENRES_MUZIEK }) }),
+    muziek_jaar: S(['integer', 'null']),
     alleen_kids_nu: S('boolean'),
     geschikt: S('boolean'),
     notitie: STR,
@@ -123,6 +125,8 @@ function schoonBeoordeling(b) {
         yt_zoekterm: schoonTekst(b.yt_zoekterm, 200),
         nl_versie: b.nl_versie === true,
         genres: schoonGenres(b.genres, CATEGORIEEN.includes(b.categorie) ? b.categorie : 'film'),
+        muziek_genres: schoonGenres(b.muziek_genres, 'muziek'),
+        muziek_jaar: Number.isInteger(b.muziek_jaar) && b.muziek_jaar >= 1900 && b.muziek_jaar <= NU + 1 ? b.muziek_jaar : null,
         alleen_kids_nu: b.alleen_kids_nu === true,
         geschikt: b.geschikt !== false,
         notitie: schoonTekst(b.notitie, 400),
@@ -152,11 +156,12 @@ ${GUARD}
 INVOER, één titel per regel: id|naam|type|jaar|land|huidige_categorie|huidige_taal|bekend_nummer
 
 UITVOER: precies één regel per titel in "regels", velden gescheiden door | (gebruik nooit | in een waarde, lijsten met ;), in deze volgorde:
-id|naam|categorie|anime_breed_bekend(0/1)|bekendheid|nl_bekend(ja/nee/twijfel)|nl_reden(kort)|jaar|eind_jaar|serie_lopend(0/1)|taal(nl/en)|land|franchise|aliassen(;)|nummer_naam|nummer_artiest|yt_zoekterm|nl_versie(0/1)|alleen_kids_nu(0/1)|genres(;)|geschikt(0/1)|platformen(;)|notitie(kort)
+id|naam|categorie|anime_breed_bekend(0/1)|bekendheid|nl_bekend(ja/nee/twijfel)|nl_reden(kort)|jaar|eind_jaar|serie_lopend(0/1)|taal(nl/en)|land|franchise|aliassen(;)|nummer_naam|nummer_artiest|yt_zoekterm|nl_versie(0/1)|alleen_kids_nu(0/1)|genres(;)|geschikt(0/1)|platformen(;)|notitie(kort)|muziek_genres(;)|muziek_jaar_van_originele_opname
+Muziekgenres zijn stijlen van HET NUMMER, ook als de hoofdtitel een film, serie of game is. Jaar van een film/serie verschilt vaak van de oorspronkelijke uitgave van de song; geef dat originele muziekjaar apart. Onzeker = leeg.
 platformen alleen bij games: de fabrikanten waarop het spel of een remake/remaster verscheen, uit nintendo, sega, playstation, xbox, pc. Anders leeg.
 Leeg laten mag (dan niets tussen de |). Voorbeelden:
-123|Rocky|film|0|iconisch|ja||1976||0|en|US|Rocky|Rocky Balboa|Gonna Fly Now|Bill Conti|Rocky theme Gonna Fly Now Bill Conti|0|0|Drama;Sport|1||
-456|Grand Theft Auto V|game|0|iconisch|ja||2013||0|en|GB|Grand Theft Auto|GTA V;GTA 5|Welcome to Los Santos|Oh No|GTA V theme Welcome to Los Santos|0|0|Actie;Open wereld|1|playstation;xbox;pc|
+123|Rocky|film|0|iconisch|ja||1976||0|en|US|Rocky|Rocky Balboa|Gonna Fly Now|Bill Conti|Rocky theme Gonna Fly Now Bill Conti|0|0|Drama;Sport|1||Herkenbare filmscore|Soundtrack|1976
+456|Grand Theft Auto V|game|0|iconisch|ja||2013||0|en|GB|Grand Theft Auto|GTA V;GTA 5|Welcome to Los Santos|Oh No|GTA V theme Welcome to Los Santos|0|0|Actie;Open wereld|1|playstation;xbox;pc|Herkenbaar thema|Soundtrack|2013
 
 Titels:
 ${invoer.join('\n')}`;
@@ -181,7 +186,8 @@ ${invoer.join('\n')}`;
             naam: v[1], categorie: v[2], anime_breed_bekend: bool(v[3]), bekendheid: v[4], nl_bekend: v[5], nl_reden: v[6],
             jaar: getal(v[7]), eind_jaar: getal(v[8]), serie_lopend: bool(v[9]), taal: v[10], land: v[11], franchise: v[12],
             aliassen: lijst(v[13]), nummer_naam: v[14], nummer_artiest: v[15], yt_zoekterm: v[16], nl_versie: bool(v[17]),
-            alleen_kids_nu: bool(v[18]), genres: lijst(v[19]), geschikt: v[20] === '' ? true : bool(v[20]), notitie: v.slice(22).join(' '),
+            alleen_kids_nu: bool(v[18]), genres: lijst(v[19]), geschikt: v[20] === '' ? true : bool(v[20]),
+            notitie: v[22], muziek_genres: lijst(v[23]), muziek_jaar: getal(v[24]),
         });
         if (b) {
             b.platformen = [...new Set(lijst(v[21]).map((x) => x.toLowerCase()).filter((x) => ['nintendo', 'sega', 'playstation', 'xbox', 'pc'].includes(x)))];
@@ -199,7 +205,7 @@ async function vulAan({ categorie, aantal, periode, tier, bestaand }, signal) {
     const wat = {
         film: 'films', serie: 'tv-series', anime: 'anime (Japanse animatieseries en -films)',
         game: 'videogames (met herkenbare originele gamemuziek)', muziek: 'losse muziekhits (geen film-, serie- of gamemuziek, geen kerst- of kinderliedjes)',
-        kerst: 'kerstnummers', kinder: 'kinderliedjes die Nederlandse kinderen kennen',
+        kerst: 'kerstnummers', sinterklaas: 'iconische Nederlandse Sinterklaasliedjes die ook Kinderlied als muziekgenre mogen krijgen', kinder: 'kinderliedjes (ook Sinterklaas waar die anders ontbreken) die Nederlandse kinderen kennen',
     }[categorie];
     const periodeRegel = periode ? `Uit de periode ${periode}.` : '';
     // Stap 1 van 3: alleen een lijst met namen. Bekendheid, NL-check,
@@ -212,7 +218,7 @@ Denk aan wat volwassenen (25-60) van vroeger kennen; geen titels die alleen kind
 Ze moeten bekendheid "${tier}" hebben${tier === 'iconisch' ? ' (alleen het allerbekendste: wat vrijwel iedereen in Nederland meteen herkent)' : ''}.
 Niets uit de lijst hieronder (ook geen andere schrijfwijze of een los deel van dezelfde reeks met hetzelfde nummer). Liever minder dan obscure of verzonnen titels.
 Bij videogames: geef uitsluitend de oorspronkelijke basistitel van het spel. Nooit losse versies of Deluxe, Ultimate, Special, Gold, Complete, GOTY of Collector's Editions als nieuwe titels. Platformvarianten zijn geen aparte spellen.
-Per item alleen: naam (zoals Nederlanders hem kennen), jaar (release; bij series het beginjaar), artiest (alleen bij muziek/kerst/kinder, anders leeg) en bekendheid (je eerlijke inschatting: iconisch, algemeen_bekend, bekend, onbekend of cult).
+Per item alleen: naam (zoals Nederlanders hem kennen), jaar (release; bij series het beginjaar), artiest (alleen bij muziek/kerst/sinterklaas/kinder, anders leeg) en bekendheid (je eerlijke inschatting: iconisch, algemeen_bekend, bekend, onbekend of cult).
 
 ${GUARD}
 
@@ -483,7 +489,7 @@ async function vulCollectieAan(c, { aantal, bestaand }, signal) {
 Wat hoort erin: ${c.ai_criteria || c.beschrijving || c.naam}. ${SOORT_UITLEG[c.standaard_type] || ''}
 
 Geef een LIJST van maximaal ${aantal} items die in Nederland bekend zijn en een herkenbaar nummer hebben. Begin met het allerbekendste.
-Per item: naam (zoals Nederlanders hem kennen; bij muziek de nummertitel), categorie (film, serie, anime, game, muziek, kerst of kinder — kinder voor kinderliedjes, ook Sinterklaasliedjes), jaar, artiest (alleen bij muziek/kerst/kinder) en bekendheid.
+Per item: naam (zoals Nederlanders hem kennen; bij muziek de nummertitel), categorie (film, serie, anime, game, muziek, kerst, sinterklaas of kinder — gebruik sinterklaas voor Sinterklaasliedjes, die óók genre Kinderlied krijgen), jaar, artiest (alleen bij muziek/kerst/sinterklaas/kinder) en bekendheid.
 Niets uit de lijst hieronder. Liever minder dan obscure of verzonnen items.
 
 ${GUARD}
