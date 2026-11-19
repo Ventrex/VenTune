@@ -34,6 +34,18 @@ assert(muziekRock.params[0].includes('serie'), 'muziekgenre Rock moet ook series
 assert(muziekRock.where.includes('t.muziek_genres &&'), 'film- en serie-soundtracks moeten op muziekgenre vindbaar zijn');
 assert(muziek.where.includes('c.sleutel = ANY($2::text[])'), 'enkele collectie ontbreekt');
 
+const seniorNederlands = bouwFilter({
+    categorie: 'beide', herkenningsprofiel: 'nederlands',
+    periode_start: 1950, periode_eind: 2026,
+});
+assert(seniorNederlands.where.includes("t.taal::text = 'nl' OR t.nl_versie = true"),
+    'Nederlands profiel mag geen ongedubde Engelse audiotitels kiezen');
+const familie = bouwFilter({
+    categorieen: ['film','serie','sinterklaas','muziek'],
+    herkenningsprofiel: 'familie', periode_start: 1950, periode_eind: 2026,
+});
+assert(familie.params[0].includes('sinterklaas') && familie.params[0].includes('muziek'),
+    'familieronde moet Nederlandse songs en Sinterklaas kunnen selecteren');
 const standaard = bouwFilter({ categorie: 'beide', periode_start: 1950, periode_eind: 2026 });
 assert.deepStrictEqual(standaard.params[0], ['film', 'serie'], 'standaardspel mag geen muziek bevatten');
 
