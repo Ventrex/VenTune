@@ -430,3 +430,62 @@ select.ab-in { padding-right: 0.3rem; }
 .ab-dubbel-kop .ab-titel { flex: 1 1 14rem; }
 .ab-dubbel-mp3 { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 .ab-dubbel-mp3 audio { height: 2.2rem; flex: 1 1 16rem; max-width: 26rem; }
+
+
+/* Beheerportaal: dezelfde rustige dashboardindeling op iedere pagina. */
+.ab-shell { max-width:none; min-height:100dvh; width:100%; padding:0 clamp(14px,2.8vw,38px) 50px; background:linear-gradient(125deg,#1d1b3c,#10152c 65%); color:#f6f7ff; }
+.ab-shell .ab-topnav { min-height:76px; display:flex; gap:22px; justify-content:space-between; align-items:center; flex-wrap:nowrap; }
+.ab-shell .ab-logo { font-weight:900; font-size:1.5rem; letter-spacing:-.05em; text-decoration:none; color:#fff; }
+.ab-shell .ab-logo span { color:#67dcc8; }
+.ab-shell .ab-topnav nav { display:flex; gap:clamp(8px,2vw,26px); align-items:center; }
+.ab-shell .ab-topnav nav a { color:#d0d7f5; text-decoration:none; padding:12px 13px; border-radius:22px; font-weight:600; font-size:.85rem; }
+.ab-shell .ab-topnav nav a.actief { color:#fff; background:#272b4a; }
+.ab-shell .ab-hero { display:flex; justify-content:space-between; align-items:center; gap:16px; margin:22px 0 26px; }
+.ab-shell .ab-hero h1 { margin:.35rem 0 .45rem; font-size:clamp(1.6rem,4.1vw,2.7rem); letter-spacing:-.045em; line-height:1.13; }
+.ab-shell .ab-hero p { margin:.3rem 0; }
+.ab-shell .ab-eyebrow { color:#5be8ca; font-size:.72rem; font-weight:800; letter-spacing:.13em; }
+.ab-shell .ab-werkruimte { display:grid; grid-template-columns:220px minmax(0,1fr); gap:clamp(16px,2.2vw,32px); align-items:start; }
+.ab-shell .ab-sidebar { position:sticky; top:15px; min-width:0; }
+.ab-shell .ab-zijlinks { display:grid; gap:10px; }
+.ab-shell .ab-zijlink { display:flex; align-items:center; gap:13px; border:0; border-radius:13px; background:transparent; color:#bdc5e5; padding:13px 15px; width:100%; text-align:left; cursor:pointer; font-size:.85rem; }
+.ab-shell .ab-zijlink > span { width:18px; font-size:1.1rem; text-align:center; }
+.ab-shell .ab-zijlink.actief, .ab-shell .ab-zijlink:hover { color:#fff; background:#343063; }
+.ab-shell .ab-meer { margin-top:18px; border-top:1px solid #414267; padding-top:14px; color:#aeb8d9; font-size:.78rem; }
+.ab-shell .ab-meer summary { cursor:pointer; padding:8px; }
+.ab-shell .ab-meer-links { display:grid; gap:4px; margin:10px 0; }
+.ab-shell .ab-meer-links button { background:transparent; color:#ced3ea; border:0; text-align:left; padding:9px 13px; cursor:pointer; border-radius:9px; }
+.ab-shell .ab-meer-links button:hover, .ab-shell .ab-meer-links button.actief { background:#343063; }
+.ab-shell .ab-inhoud { min-width:0; display:grid; align-content:start; gap:12px; }
+.ab-shell .ab-inhoud > .ab-balk { margin:0 0 6px; }
+.ab-shell .ab-inhoud .ab-kaart { border-radius:18px; border-color:#464c77; background:#20284b; }
+.ab-shell .ab-statistieken { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px; margin-bottom:5px; }
+.ab-shell .ab-stat { display:flex; min-height:116px; flex-direction:column; justify-content:center; gap:11px; border-radius:17px; padding:16px; color:#161835; background:#c8b5ff; }
+.ab-shell .ab-stat:nth-child(2) { background:#88e1d2; }
+.ab-shell .ab-stat:nth-child(3) { background:#ffb6bf; }
+.ab-shell .ab-stat:nth-child(4) { background:#ffe1a3; }
+.ab-shell .ab-stat strong { font-size:clamp(1.4rem,3vw,2rem); line-height:1; }
+.ab-shell .ab-stat span { font-size:.78rem; }
+.ab-shell .ab-ai-pagina { display:grid; gap:11px; }
+.ab-shell .ab-ai-pagina > h2, .ab-shell .ab-ai-pagina > p { margin:0; }
+.ab-shell .ab-fase-keuze { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:5px; }
+.ab-shell .ab-fase-keuze button { border-radius:12px; padding:11px 16px; color:#d6def7; background:#252d50; border:1px solid #485276; cursor:pointer; font-size:.85rem; }
+.ab-shell .ab-fase-keuze button.actief { background:#534b86; border-color:#b39efe; color:#fff; }
+.ab-shell .ab-menu-knop { display:none; background:#37365b; color:#fff; border:1px solid #505679; border-radius:12px; padding:10px 13px; cursor:pointer; }
+@media(max-width:950px) {
+  .ab-shell .ab-statistieken { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .ab-shell .ab-werkruimte { grid-template-columns:185px minmax(0,1fr); gap:16px; }
+}
+@media(max-width:720px) {
+  .ab-shell { padding-inline:14px; }
+  .ab-shell .ab-topnav { min-height:64px; }
+  .ab-shell .ab-topnav nav { display:none; }
+  .ab-shell .ab-menu-knop { display:block; }
+  .ab-shell .ab-hero { margin:12px 0 17px; }
+  .ab-shell .ab-hero h1 { font-size:clamp(1.5rem,6.2vw,2.2rem); }
+  .ab-shell .ab-werkruimte { grid-template-columns:minmax(0,1fr); }
+  .ab-shell .ab-sidebar { display:none; position:static; }
+  .ab-shell .ab-sidebar.open { display:block; border:1px solid #464c77; background:#1c2241; padding:12px; border-radius:17px; }
+  .ab-shell .ab-zijlinks { gap:3px; }
+  .ab-shell .ab-zijlink { padding:12px; }
+  .ab-shell .ab-stat { min-height:93px; padding:12px; }
+}
