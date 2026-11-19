@@ -32,6 +32,36 @@ function setupSockets(io) {
     io.on('connection', (socket) => {
         logger.debug('Socket verbonden', { id: socket.id });
 
+        // Publiek TV-scherm: uitsluitend meekijken. Geen gokken, hostacties,
+        // pauzeren of andere inkomende spelcommando's via deze verbinding.
+        socket.use((packet, next) => {
+            if (socket.data.isTv && packet[0] !== 'tv:kijken')
+                return next(new Error('TV-scherm heeft alleen kijkrechten.'));
+            next();
+        });
+        socket.on('tv:kijken', async ({ code } = {}) => {
+            const veilig = String(code || '').trim().toUpperCase();
+            if (!/^[A-HJ-NP-Z]{4}$/.test(veilig))
+                return socket.emit('tv:fout', { melding: 'Ongeldige lobbycode.' });
+            try {
+                const gevonden = await lobby.haalLobby(veilig);
+                if (!gevonden) return socket.emit('tv:fout', { melding: 'Lobby bestaat niet of is afgelopen.' });
+                socket.data.isTv = true;
+                socket.data.isHost = false;
+                socket.data.code = veilig;
+                socket.data.lobbyId = gevonden.id;
+                socket.data.spelerId = null;
+                socket.join(kamerNaam(veilig));
+                socket.join(`tv:${veilig}`);
+                socket.emit('tv:welkom', { code: veilig, status: gevonden.status });
+                socket.emit('lobby:spelers', await lobby.haalSpelers(gevonden.id));
+                await spel.herstelSocket(socket);
+            } catch (err) {
+                logger.waarschuwing('TV-scherm koppelen mislukt', { melding: err.message });
+                socket.emit('tv:fout', { melding: 'TV-scherm kon niet verbinden.' });
+            }
+        });
+
         // (Her)verbinden met een sessie-token.
         socket.on('lobby:hallo', async ({ token } = {}) => {
             try {
