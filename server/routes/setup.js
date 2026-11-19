@@ -79,10 +79,10 @@ router.get('/api/collecties', async (_req, res) => {
 // Genres voor de genrekeuze in Nieuw spel, met het aantal speelbare titels.
 router.get('/api/genres', async (req, res) => {
     try {
-        const toegestaan = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'kinder'];
+        const toegestaan = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'sinterklaas', 'kinder'];
         let cats = String(req.query.categorieen || '').split(',').filter((c) => toegestaan.includes(c));
         if (!cats.length) cats = ['film', 'serie'];
-        if (cats.includes('muziek')) cats = [...new Set([...cats, 'kerst', 'kinder'])];
+        if (cats.includes('muziek')) cats = [...new Set([...cats, 'kerst', 'sinterklaas', 'kinder'])];
         const { rows } = await pool.query(`
             SELECT g AS genre, count(*)::int AS aantal
               FROM titels t, unnest(t.ai_genres) AS g
@@ -469,7 +469,7 @@ router.get('/api/ranking', async (_req, res) => {
 // Scores per categorie: wie is de beste in videogames, films, series …
 // Telt alle rondes uit afgelopen spellen van spelers met een account.
 // Rangorde op percentage goed (minimaal 5 rondes), daarna punten per ronde.
-const SCORE_GROEP = `CASE WHEN COALESCE(t.categorie, t.type::text) IN ('kerst', 'kinder') THEN 'muziek'
+const SCORE_GROEP = `CASE WHEN COALESCE(t.categorie, t.type::text) IN ('kerst', 'sinterklaas', 'kinder') THEN 'muziek'
                          ELSE COALESCE(t.categorie, t.type::text) END`;
 router.get('/api/scores/categorieen', async (_req, res) => {
     try {
