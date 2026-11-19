@@ -65,7 +65,7 @@ const STANDAARD_INSTELLINGEN = {
     maxPerWeek: 70, // Naast het dagbudget: begrens ook de cumulatieve weekbelasting.
     webZoeken: 'nooit',
     pauzeTot: null,
-    voorrang: [], // categorieën die bij alles voorgaan, bv. ['game']
+    voorrang: ['film', 'serie', 'game'], // begin bij iconische films, series en originele videogames
     doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, kinder: 100 },
 };
 
