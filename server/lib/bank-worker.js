@@ -262,10 +262,11 @@ async function pasBeoordelingToeIn(client, t, b) {
         set('nl_versie', b.nl_versie);
     }
     set('alleen_kids_nu', b.alleen_kids_nu);
+    if (!vast('muziek_jaar') && b.muziek_jaar) set('muziek_jaar', b.muziek_jaar);
     if (!vast('genres')) {
         if (b.genres.length) set('ai_genres', b.genres);
         if (b.muziek_genres?.length) set('muziek_genres', [...new Set([...(t.muziek_genres || []), ...b.muziek_genres])].slice(0, 8));
-        if (b.muziek_jaar) set('muziek_jaar', b.muziek_jaar);
+
     }
     // Fabrikanten (Nintendo, PlayStation …) voor de fabrikantkeuze bij Videogames.
     if ((b.categorie || t.categorie) === 'game' && b.platformen?.length) {
@@ -1032,4 +1033,4 @@ function huidigeStatus() {
     return { ...status, tellers: { ...status.tellers }, mp3Bezig: bankMp3.bezigeIds().length };
 }
 
-module.exports = { start, porren, hervat, vergeetPauze, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties };
+module.exports = { start, porren, hervat, vergeetPauze, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties, koppelAutomatischeCollecties };
