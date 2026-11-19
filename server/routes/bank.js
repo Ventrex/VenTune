@@ -59,7 +59,7 @@ router.get('/api/admin/bank/status', vereisAdmin, async (_req, res) => {
                          GROUP BY 1`),
         ]);
         res.json({
-            worker: { ...worker.huidigeStatus(), vandaag: await bank.aiGebruikVandaag().catch(() => 0) },
+            worker: { ...worker.huidigeStatus(), vandaag: await bank.aiGebruikVandaag().catch(() => 0), dezeWeek: await bank.aiGebruikDezeWeek().catch(() => 0) },
             instellingen: inst,
             tellingen: telling,
             voorraad,
@@ -118,6 +118,7 @@ router.patch('/api/admin/bank/instellingen', vereisAdmin, async (req, res) => {
         if (req.body?.pauzeSeconden !== undefined) patch.pauzeSeconden = req.body.pauzeSeconden;
         if (Array.isArray(req.body?.voorrang)) patch.voorrang = req.body.voorrang;
         if (req.body?.maxPerDag !== undefined) patch.maxPerDag = req.body.maxPerDag;
+        if (req.body?.maxPerWeek !== undefined) patch.maxPerWeek = req.body.maxPerWeek;
         if (req.body?.quizAan !== undefined) patch.quizAan = req.body.quizAan === true;
         if (req.body?.webZoeken !== undefined) patch.webZoeken = req.body.webZoeken;
         if (req.body?.pauzeTot !== undefined) patch.pauzeTot = req.body.pauzeTot || null;
