@@ -65,7 +65,7 @@ const STANDAARD_INSTELLINGEN = {
     maxPerWeek: 70, // Naast het dagbudget: begrens ook de cumulatieve weekbelasting.
     webZoeken: 'nooit',
     pauzeTot: null,
-    voorrang: ['film', 'serie', 'game'], // begin bij iconische films, series en originele videogames
+    voorrang: ['film', 'serie', 'sinterklaas', 'game', 'kerst', 'muziek'], // eerste vier eerst; kerst/muziek pas daarna
     doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, sinterklaas: 80, kinder: 100 },
 };
 
@@ -92,7 +92,7 @@ function voorrangSql(param) {
     // de categorieën met voorrang.
     return `EXISTS (SELECT 1 FROM titel_collecties tcv JOIN collecties cv ON cv.id = tcv.collectie_id
                      WHERE tcv.titel_id = t.id AND cv.voorrang AND cv.actief) DESC,
-            (COALESCE(t.categorie, t.type::text) = ANY(${param}::text[])) DESC`;
+            COALESCE(array_position(${param}::text[], COALESCE(t.categorie, t.type::text)), 999) ASC`;
 }
 
 /** Welk inhoudstype (enum titel_type) past bij een categorie. */
