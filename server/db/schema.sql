@@ -1273,10 +1273,14 @@ ON CONFLICT (sleutel) DO UPDATE SET
     volgorde = EXCLUDED.volgorde, filter = EXCLUDED.filter
     WHERE quizzen.ingebouwd = true;
 
--- Videogames krijgen standaard voorrang (eerst alle iconische games),
--- tenzij de beheerder al zelf een voorrang heeft gekozen.
-UPDATE app_instellingen SET waarde = waarde || '{"voorrang":["game"]}'::jsonb
- WHERE sleutel = 'ai_curator' AND NOT (waarde ? 'voorrang');
+-- Hoofdprioriteit: Film / Serie / Sinterklaas / Videogames.
+-- Kerst en overige muziek komen later; handmatig ingestelde volgordes blijven behouden.
+UPDATE app_instellingen
+   SET waarde = jsonb_set(waarde, '{voorrang}',
+       '["film","serie","sinterklaas","game","kerst","muziek"]'::jsonb, true)
+ WHERE sleutel = 'ai_curator'
+   AND (NOT waarde ? 'voorrang'
+        OR waarde->'voorrang' IN ('["game"]'::jsonb, '["film","serie","game"]'::jsonb));
 
 -- Zuinige stand (eenmalig, als er nog geen dagbudget is): 60 AI-vragen per
 -- dag, 2 minuten tussen stappen, en pauze tot de weeklimiet van ChatGPT
