@@ -541,6 +541,28 @@ function pastInCollectie(c, categorie) {
     return !scope || scope.includes(categorie);
 }
 
+// Overlappende stijlen/collecties verwijzen naar hetzelfde titel-ID en dezelfde MP3.
+// Een beheerder die een koppeling bewust verwijdert blijft leidend.
+async function koppelAutomatischeCollecties(ids) {
+    if (!ids.length) return 0;
+    const { rowCount } = await pool.query(`
+        INSERT INTO titel_collecties (titel_id, collectie_id, bron)
+        SELECT t.id, c.id, 'metadata'
+          FROM titels t JOIN collecties c ON c.actief AND (
+            (c.sleutel = 'kerst' AND (t.categorie = 'kerst' OR 'Kerst' = ANY(t.muziek_genres)))
+            OR (c.sleutel = 'sinterklaas' AND (t.categorie = 'sinterklaas' OR 'Sinterklaas' = ANY(t.muziek_genres)))
+            OR (c.sleutel = 'kids' AND (t.categorie = 'kinder' OR 'Kinderlied' = ANY(t.muziek_genres)))
+            OR (c.sleutel = 'rock' AND 'Rock' = ANY(t.muziek_genres))
+            OR (c.sleutel = 'nl-pop' AND 'Nederpop' = ANY(t.muziek_genres))
+            OR (c.sleutel = 'smartlappen' AND 'Levenslied' = ANY(t.muziek_genres))
+          )
+         WHERE t.id = ANY($1::int[])
+           AND t.curatie_status <> 'uitgesloten'
+           AND NOT EXISTS (SELECT 1 FROM titel_collecties_uit u
+                            WHERE u.titel_id = t.id AND u.collectie_id = c.id)
+        ON CONFLICT DO NOTHING`, [ids]);
+    return rowCount;
+}
 async function koppel(titelId, c, bron = 'ai') {
     const { rowCount } = await pool.query(
         `INSERT INTO titel_collecties (titel_id, collectie_id, bron)
