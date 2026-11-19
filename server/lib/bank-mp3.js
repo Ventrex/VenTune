@@ -170,7 +170,7 @@ async function slaOp(t, video, { reden, handmatig = false }) {
             // overschrijft een bestaand bestand niet, dus anders bleef na
             // "verkeerd nummer" stilletjes de oude audio staan.
             naam: `${t.naam} ${t.id}-${video.videoId}`, type: t.type, categorie: t.categorie, jaar: t.jaar, genres: t.genres, taal: t.taal, land: t.land,
-            talen: t.talen, media_map: '',
+            talen: t.talen, media_map: handmatig ? '' : '_Tijdelijk',
         }, false, { rateLimit: true });
     } catch (err) {
         await pool.query("UPDATE tracks SET werkt = false, review_status = 'afgekeurd' WHERE id = $1", [trackId]);
