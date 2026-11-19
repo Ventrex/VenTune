@@ -51,7 +51,8 @@ router.get('/api/aanvragen/wie', async (req, res) => {
         tmdb: tmdb.beschikbaar(), igdb: igdb.beschikbaar(), discogs: discogs.beschikbaar(),
     } });
 });
-const MUZIEK = new Set(['muziek', 'kerst', 'kinder']);
+const MUZIEK = new Set(['muziek', 'kerst', 'sinterklaas', 'kinder']);
+const { categoriseerMuziek } = require('../lib/music-category');
 
 // Eenvoudige rem: maximaal 30 aanvragen per uur per IP-adres.
 const teller = new Map();
@@ -185,14 +186,20 @@ router.post('/api/aanvragen', async (req, res) => {
         if (!persoon) return res.status(401).json({ fout: 'Log in of registreer om iets toe te voegen.' });
         if (persoon.id && teVeel(`g${persoon.id}`)) return res.status(429).json({ fout: 'Even rustig aan: maximaal 30 per uur.' });
         const b = req.body || {};
-        const categorie = bank.CATEGORIEEN.includes(b.categorie) ? b.categorie : null;
+        let categorie = bank.CATEGORIEEN.includes(b.categorie) ? b.categorie : null;
         const ruw = String(b.naam || '').replace(/\s+/g, ' ').trim().slice(0, 200);
         const naam = MUZIEK.has(b.categorie) ? (discogs.schoonTitel(ruw) || ruw) : ruw;
         if (!categorie || naam.length < 2) return res.status(400).json({ fout: 'Kies een categorie en vul een naam in.' });
         const jaar = Number.isInteger(Number(b.jaar)) && Number(b.jaar) >= 1900 && Number(b.jaar) <= new Date().getFullYear() + 1 ? Number(b.jaar) : null;
         const artiest = MUZIEK.has(categorie) ? String(b.artiest || '').trim().slice(0, 200) || null : null;
         const door = String(persoon.naam || 'een speler').slice(0, 60);
-        const genres = bank.schoonGenres(b.genres, categorie);
+        // Nummers uit bv. Kinder of Muziek die duidelijk over Sinterklaas
+        // of Kerst gaan, krijgen vóór het opslaan de juiste categorie.
+        const indeling = MUZIEK.has(categorie)
+            ? categoriseerMuziek({ naam, artiest, categorie, genres: b.genres })
+            : null;
+        if (indeling) categorie = indeling.categorie;
+        const genres = bank.schoonGenres(indeling?.genres || b.genres, categorie);
 
         const item = { naam, artiest, bron: b.bron, extern_id: b.extern_id };
         const bestaat = (await alAanwezig(categorie, [item])).get(item);
