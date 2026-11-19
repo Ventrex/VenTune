@@ -443,24 +443,32 @@ function kiesAanvulling(inst, telling) {
         const tekort = doel - telling[c].totaal;
         if (tekort > 0) kandidaten.push({ categorie: c, doel, tekort, ratio: tekort / doel });
     }
-    // Categorieën met voorrang eerst, daarna die met het grootste tekort.
-    const voorrang = inst.voorrang?.length ? inst.voorrang : ['film', 'serie', 'sinterklaas', 'game', 'kerst', 'muziek'];
-    kandidaten.sort((a, b) => {
-        // De eerste vier horen bij de eerste fase; de rest komt daarna.
-        const rang = (c) => { const n = voorrang.indexOf(c); return n < 0 ? 999 : n; };
-        return rang(a.categorie) - rang(b.categorie) || b.ratio - a.ratio;
-    });
-    // Eerst categorie-prioriteit (Film, Serie, Sinterklaas, Games),
-    // dáárbinnen de bekendheid. Anders zou iconische Kerst vóór algemeen
-    // bekende films komen en de gevraagde volgorde doorbreken.
-    for (const k of kandidaten) {
+    // De eerste vier vormen één hoofdgroep, zodat films, series,
+    // Sinterklaas en videogames AFWISSELEND worden gevuld.
+    // Kerst en algemene muziek zijn fase 2. Andere categorieën blijven
+    // beschikbaar maar krijgen pas in fase 3 aandacht.
+    const voorrang = inst.voorrang?.length ? inst.voorrang :
+        ['film', 'serie', 'sinterklaas', 'game', 'kerst', 'muziek'];
+    const fases = [
+        voorrang.slice(0, 4),
+        voorrang.slice(4),
+        bank.CATEGORIEEN.filter((c) => !voorrang.includes(c)),
+    ];
+    for (const fase of fases) {
+        const inFase = kandidaten.filter((k) => fase.includes(k.categorie))
+            .sort((a, b) => b.ratio - a.ratio ||
+                fase.indexOf(a.categorie) - fase.indexOf(b.categorie));
+        // Binnen de HOGE fase eerst iconisch / algemeen bekend, daarna
+        // pas onbekend. Pas na geen werk meer in deze fase naar fase 2.
         for (const tier of bank.TIERS) {
-            const periodes = PERIODES[k.categorie];
-            for (let i = 0; i < periodes.length; i++) {
-                periodeIndex[k.categorie] = ((periodeIndex[k.categorie] || 0) + 1) % periodes.length;
-                const periode = periodes[periodeIndex[k.categorie]];
-                if ((uitgeput[`${k.categorie}|${periode}|${tier}`] || 0) < Date.now()) {
-                    return { ...k, tier, periode };
+            for (const k of inFase) {
+                const periodes = PERIODES[k.categorie];
+                for (let i = 0; i < periodes.length; i++) {
+                    periodeIndex[k.categorie] = ((periodeIndex[k.categorie] || 0) + 1) % periodes.length;
+                    const periode = periodes[periodeIndex[k.categorie]];
+                    if ((uitgeput[`${k.categorie}|${periode}|${tier}`] || 0) < Date.now()) {
+                        return { ...k, tier, periode };
+                    }
                 }
             }
         }
