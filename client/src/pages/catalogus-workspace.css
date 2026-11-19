@@ -90,3 +90,14 @@
 .cw-profile-row label small{font-size:.7rem;color:#aa98ca}
 .cw-profile-row .invoer{min-height:38px;width:100%;padding:7px 9px!important;font-size:.85rem}
 .cw-profile-row .knop{width:auto!important;min-height:38px;padding:8px 12px;font-size:.83rem}
+
+
+/* Tekstbeheer: elke pagina standaard dicht, duidelijk pad en compacte velden. */
+.vt-tekst-groep { border:1px solid #714b91; border-radius:12px; padding:0; overflow:hidden; }
+.vt-tekst-groep > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; padding:12px; background:#211632; font-size:.9rem; }
+.vt-tekst-groep > summary .dim { font-size:.75rem; overflow-wrap:anywhere; }
+.vt-tekst-groep[open] > summary { border-bottom:1px solid #714b91; }
+.vt-tekst-groep > p { padding:10px 12px 0; }
+.vt-tekst-groep > .cw-filters { margin:12px; }
+.vt-tekst-groep a { color:#f8a8dc; }
+@media(max-width:480px){ .vt-tekst-groep > summary { flex-wrap:wrap; } }

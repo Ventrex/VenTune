@@ -32,7 +32,7 @@ function bouwFilter(f = {}) {
     // is (anime_breed_bekend, bv. Pokémon) mag ook in een film-/seriequiz.
     // Muziek omvat ook kerst- en kindermuziek, maar nooit gamemuziek.
     const CAT = "COALESCE(t.categorie, t.type::text)";
-    const toegestaan = ['film', 'serie', 'muziek', 'anime', 'game', 'kerst', 'kinder'];
+    const toegestaan = ['film', 'serie', 'muziek', 'anime', 'game', 'kerst', 'sinterklaas', 'kinder'];
     let gekozen = Array.isArray(f.categorieen)
         ? f.categorieen.filter((c) => toegestaan.includes(c))
         : [];
@@ -44,8 +44,19 @@ function bouwFilter(f = {}) {
         else if (f.categorie === 'anime') gekozen = ['anime'];
         else gekozen = ['film', 'serie'];
     }
+    const muziekQuiz = gekozen.length === 1 && gekozen[0] === 'muziek';
+    // Genreselectie of een tijdvak kan ook een nummer uit een film/serie/game
+    // gebruiken: de hoofdcategorie verandert daardoor niet.
+    const muziekPeriode = Number(f.periode_start) > 1930 ||
+        (Number(f.periode_eind) > 0 && Number(f.periode_eind) < new Date().getFullYear());
+    const muziekBreed = muziekQuiz && (
+        (Array.isArray(f.genre_keuze) && f.genre_keuze.length > 0) ||
+        (Array.isArray(f.met_genres) && f.met_genres.length > 0) ||
+        muziekPeriode
+    );
     const sqlCats = new Set(gekozen);
-    if (sqlCats.has('muziek')) { sqlCats.add('kerst'); sqlCats.add('kinder'); }
+    if (sqlCats.has('muziek')) { sqlCats.add('kerst'); sqlCats.add('sinterklaas'); sqlCats.add('kinder'); }
+    if (muziekBreed) toegestaan.forEach((c) => sqlCats.add(c));
     // Een muziekcollectie (Rock, Sinterklaas) draait om het nummer: daar
     // horen ook films/series/games bij waarvan het nummer past, zoals Rocky
     // met Eye of the Tiger. Het nummer wordt hergebruikt, geen dubbele MP3.
@@ -114,6 +125,11 @@ function bouwFilter(f = {}) {
         );
     }
 
+    // Toegankelijk Nederlands profiel: geen Engelse opnames/ondertitels nodig.
+    // Leeftijd is hier geen inhoudsrating; het gaat om verstaanbare muziek.
+    if (f.herkenningsprofiel === 'nederlands') {
+        condities.push("(t.taal::text = 'nl' OR t.nl_versie = true)");
+    }
     // Taal: nl | en | us | beide. `us` gebruikt land, omdat Amerikaans
     // geen aparte gesproken-taalwaarde is in de catalogus.
     if (f.taal === 'nl') {
@@ -139,7 +155,12 @@ function bouwFilter(f = {}) {
     const iEind = params.length;
     const jaarStartParam = String.fromCharCode(36) + iStart;
     const jaarEindParam = String.fromCharCode(36) + iEind;
-    condities.push(`(t.jaar BETWEEN ${jaarStartParam}::integer AND ${jaarEindParam}::integer OR (t.jaar IS NULL AND ${jaarStartParam}::integer <= 1930 AND ${jaarEindParam}::integer >= EXTRACT(YEAR FROM CURRENT_DATE)))`);
+    // Een muziekquiz met een tijdvak filtert op het nummerjaar.
+    // CSI (2000) met 'Who Are You' (1978) hoort dus bij muziek uit de 70s,
+    // maar blijft bij de categorie Series als antwoord.
+    const nummerJaar = `COALESCE(t.muziek_jaar, CASE WHEN ${CAT} IN ('muziek','kerst','sinterklaas','kinder') THEN t.jaar ELSE NULL END)`;
+    const periodeJaar = muziekQuiz ? nummerJaar : 't.jaar';
+    condities.push(`(${periodeJaar} BETWEEN ${jaarStartParam}::integer AND ${jaarEindParam}::integer OR (${periodeJaar} IS NULL AND ${jaarStartParam}::integer <= 1930 AND ${jaarEindParam}::integer >= EXTRACT(YEAR FROM CURRENT_DATE)))`);
 
         // Bekendheid: alleen titels die genoeg mensen kennen. 'stemmen' uit TMDB
     // is hiervoor de betrouwbaarste maat. Titels zonder TMDB-gegevens (zoals
@@ -175,11 +196,17 @@ function bouwFilter(f = {}) {
     // Genrekeuze in Nieuw spel (vaste VenTune-genres: Komedie, Actie, Rock …).
     if (Array.isArray(f.genre_keuze) && f.genre_keuze.length > 0) {
         params.push(f.genre_keuze.map((g) => String(g).slice(0, 40)));
-        condities.push(`t.ai_genres && $${params.length}::text[]`);
+        condities.push(muziekQuiz
+            ? `(t.muziek_genres && $${params.length}::text[] OR
+                (${CAT} IN ('muziek','kerst','sinterklaas','kinder') AND t.ai_genres && $${params.length}::text[]))`
+            : `t.ai_genres && $${params.length}::text[]`);
     }
     if (Array.isArray(f.met_genres) && f.met_genres.length > 0) {
         params.push(f.met_genres);
-        condities.push(`t.genres && $${params.length}::text[]`);
+        condities.push(muziekQuiz
+            ? `(t.muziek_genres && $${params.length}::text[] OR
+                (${CAT} IN ('muziek','kerst','sinterklaas','kinder') AND t.genres && $${params.length}::text[]))`
+            : `t.genres && $${params.length}::text[]`);
     }
 
     // Studio's, voor een editie rond één maker (Disney, Pixar, Ghibli).

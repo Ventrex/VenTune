@@ -21,6 +21,8 @@ const ytzoek = require('./ytzoek');
 const bank = require('./bank');
 const bankAi = require('./bank-ai');
 const bankMp3 = require('./bank-mp3');
+const { normaliseerSpelUitgave } = require('./game-title');
+const { categoriseerMuziek } = require('./music-category');
 const logger = require('./logger');
 
 const CYCLUS = ['beoordelen', 'mp3', 'quiz', 'collecties', 'beoordelen', 'mp3', 'aanvullen', 'quiz', 'collecties', 'verbeteren'];
@@ -31,12 +33,13 @@ const INHAAL = ['beoordelen', 'mp3', 'beoordelen', 'mp3', 'beoordelen', 'verbete
 // Alles gaat in lijsten: één AI-vraag per lijst van dezelfde categorie.
 const BATCH = { beoordelen: 100, quiz: 30, mp3: 6, aanvullen: 40, collectieScan: 200, collectieAanvullen: 30 };
 const PERIODES = {
-    film: ['1970-1984', '1985-1994', '1995-2004', '2005-2014', '2015-nu'],
-    serie: ['1970-1989', '1990-1999', '2000-2009', '2010-2017', '2018-nu'],
+    film: ['1950-1969', '1970-1984', '1985-1994', '1995-2004', '2005-2014', '2015-nu'],
+    serie: ['1950-1969', '1970-1989', '1990-1999', '2000-2009', '2010-2017', '2018-nu'],
     anime: ['1980-1999', '2000-2012', '2013-nu'],
     game: ['1980-1994', '1995-2004', '2005-2014', '2015-nu'],
     muziek: ['1960-1979', '1980-1989', '1990-1999', '2000-2009', '2010-2019', '2020-nu'],
     kerst: [null],
+    sinterklaas: [null],
     kinder: [null],
 };
 
@@ -149,6 +152,9 @@ async function stapBeoordelen(inst) {
         const r = await pasBeoordelingToe(t, b);
         if (r.uitgesloten) uitgesloten.push(t.naam);
     }
+    // Koppel titel aan meerdere collecties zonder titel of MP3 te dupliceren.
+    await koppelAutomatischeCollecties([...res.items.keys()]).catch((err) =>
+        logger.waarschuwing('Collectie-tags uitgesteld', { melding: err.message }));
     status.tellers.beoordeeld += res.items.size;
     status.laatsteActie = `Lijst ${bank.CATEGORIE_LABEL[eerste.categorie] || eerste.categorie}: ${res.items.size} titels beoordeeld${uitgesloten.length ? `, ${uitgesloten.length} uitgesloten` : ''}`;
     await bank.log(null, 'beoordeling', status.laatsteActie
@@ -168,7 +174,7 @@ async function pasBeoordelingToe(oud, b) {
         await client.query('BEGIN');
         const { rows: [vers] } = await client.query(
             `SELECT handmatig, curatie_status, ai_uitgesloten, naam, nummer_naam, jaar, aliassen,
-                    type::text AS type, categorie, taal::text AS taal, nl_versie
+                    type::text AS type, categorie, taal::text AS taal, nl_versie, muziek_genres, muziek_jaar
                FROM titels WHERE id = $1 FOR UPDATE`, [oud.id]);
         if (!vers) { await client.query('ROLLBACK'); return { uitgesloten: false }; }
         const r = await pasBeoordelingToeIn(client, { ...oud, ...vers }, b);
@@ -195,6 +201,15 @@ async function pasBeoordelingToe(oud, b) {
 }
 
 async function pasBeoordelingToeIn(client, t, b) {
+    if (bank.MUZIEK_CATEGORIEEN.has(b.categorie)) {
+        const indeling = categoriseerMuziek({
+            naam: b.nummer_naam || b.naam, artiest: b.nummer_artiest,
+            categorie: b.categorie, genres: [...(b.genres || []), ...(b.muziek_genres || [])],
+        });
+        b.categorie = indeling.categorie;
+        b.genres = bank.schoonGenres([...indeling.genres, ...(b.genres || [])], b.categorie);
+        b.muziek_genres = bank.schoonGenres([...indeling.genres, ...(b.muziek_genres || [])], 'muziek');
+    }
     const vast = (v) => bank.isVast(t, v);
     const zetten = [];
     const waarden = [t.id];
@@ -247,7 +262,12 @@ async function pasBeoordelingToeIn(client, t, b) {
         set('nl_versie', b.nl_versie);
     }
     set('alleen_kids_nu', b.alleen_kids_nu);
-    if (!vast('genres') && b.genres.length) set('ai_genres', b.genres);
+    if (!vast('muziek_jaar') && b.muziek_jaar) set('muziek_jaar', b.muziek_jaar);
+    if (!vast('genres')) {
+        if (b.genres.length) set('ai_genres', b.genres);
+        if (b.muziek_genres?.length) set('muziek_genres', [...new Set([...(t.muziek_genres || []), ...b.muziek_genres])].slice(0, 8));
+
+    }
     // Fabrikanten (Nintendo, PlayStation …) voor de fabrikantkeuze bij Videogames.
     if ((b.categorie || t.categorie) === 'game' && b.platformen?.length) {
         waarden.push(b.platformen);
@@ -423,17 +443,32 @@ function kiesAanvulling(inst, telling) {
         const tekort = doel - telling[c].totaal;
         if (tekort > 0) kandidaten.push({ categorie: c, doel, tekort, ratio: tekort / doel });
     }
-    // Categorieën met voorrang eerst, daarna die met het grootste tekort.
-    const voorrang = inst.voorrang || [];
-    kandidaten.sort((a, b) => (voorrang.includes(b.categorie) - voorrang.includes(a.categorie)) || (b.ratio - a.ratio));
-    for (const tier of bank.TIERS) {
-        for (const k of kandidaten) {
-            const periodes = PERIODES[k.categorie];
-            for (let i = 0; i < periodes.length; i++) {
-                periodeIndex[k.categorie] = ((periodeIndex[k.categorie] || 0) + 1) % periodes.length;
-                const periode = periodes[periodeIndex[k.categorie]];
-                if ((uitgeput[`${k.categorie}|${periode}|${tier}`] || 0) < Date.now()) {
-                    return { ...k, tier, periode };
+    // De eerste vier vormen één hoofdgroep, zodat films, series,
+    // Sinterklaas en videogames AFWISSELEND worden gevuld.
+    // Kerst en algemene muziek zijn fase 2. Andere categorieën blijven
+    // beschikbaar maar krijgen pas in fase 3 aandacht.
+    const voorrang = inst.voorrang?.length ? inst.voorrang :
+        ['film', 'serie', 'sinterklaas', 'game', 'kerst', 'muziek'];
+    const fases = [
+        voorrang.slice(0, 4),
+        voorrang.slice(4),
+        bank.CATEGORIEEN.filter((c) => !voorrang.includes(c)),
+    ];
+    for (const fase of fases) {
+        const inFase = kandidaten.filter((k) => fase.includes(k.categorie))
+            .sort((a, b) => b.ratio - a.ratio ||
+                fase.indexOf(a.categorie) - fase.indexOf(b.categorie));
+        // Binnen de HOGE fase eerst iconisch / algemeen bekend, daarna
+        // pas onbekend. Pas na geen werk meer in deze fase naar fase 2.
+        for (const tier of bank.TIERS) {
+            for (const k of inFase) {
+                const periodes = PERIODES[k.categorie];
+                for (let i = 0; i < periodes.length; i++) {
+                    periodeIndex[k.categorie] = ((periodeIndex[k.categorie] || 0) + 1) % periodes.length;
+                    const periode = periodes[periodeIndex[k.categorie]];
+                    if ((uitgeput[`${k.categorie}|${periode}|${tier}`] || 0) < Date.now()) {
+                        return { ...k, tier, periode };
+                    }
                 }
             }
         }
@@ -459,7 +494,12 @@ async function stapAanvullen(inst) {
          ORDER BY 1 LIMIT 2500`, params);
     const { rows: alleRows } = await pool.query(
         `SELECT t.naam FROM titels t WHERE COALESCE(t.categorie, t.type::text) = $1`, [categorie]);
-    const namen = new Set(alleRows.map((r) => bank.norm(r.naam)));
+    const namen = new Set(alleRows.map((r) => bank.norm(categorie === 'game' ? normaliseerSpelUitgave(r.naam) : r.naam)));
+    // Een song die al herkenningsmuziek van een film, serie of game is,
+    // krijgt geen tweede titel/MP3 via de algemene muziekimport.
+    const { rows: reedsAlsSoundtrack } = bank.MUZIEK_CATEGORIEEN.has(categorie)
+        ? await pool.query("SELECT nummer_naam, nummer_artiest FROM titels WHERE curatie_status <> 'uitgesloten' AND NULLIF(nummer_naam, '') IS NOT NULL")
+        : { rows: [] };
 
     const aantal = Math.min(BATCH.aanvullen, keuze.tekort);
     zet('aanvullen', `Lijst maken: ${aantal} ${bank.CATEGORIE_LABEL[categorie]} (${periode || 'alle jaren'}, ${bank.TIER_LABEL[tier]})`);
@@ -470,26 +510,36 @@ async function stapAanvullen(inst) {
     let passend = 0; // nieuwe titels van precies de gevraagde bekendheid
     const nieuweNamen = [];
     for (const it of res.items) {
-        const sleutel = bank.norm(it.naam);
+        const indeling = bank.MUZIEK_CATEGORIEEN.has(categorie)
+            ? categoriseerMuziek({ naam: it.naam, artiest: it.artiest, categorie })
+            : null;
+        const actueleCategorie = indeling?.categorie || categorie;
+        const naam = categorie === 'game' ? normaliseerSpelUitgave(it.naam) : it.naam;
+        const sleutel = bank.norm(naam);
         if (!sleutel || namen.has(sleutel)) continue;
+        if (indeling && reedsAlsSoundtrack.some((song) =>
+            bank.norm(song.nummer_naam) === sleutel &&
+            (!it.artiest || !song.nummer_artiest || bank.norm(song.nummer_artiest) === bank.norm(it.artiest)))) continue;
         namen.add(sleutel);
         // Alleen naam/jaar/inschatting opslaan; de beoordelingsronde
         // controleert direct daarna (als lijst) NL-bekendheid, gegevens,
         // categorie en het herkenningsnummer.
-        const muziek = bank.MUZIEK_CATEGORIEEN.has(categorie);
+        const muziek = bank.MUZIEK_CATEGORIEEN.has(actueleCategorie);
+        const songGenres = muziek ? indeling.genres : [];
         try {
             await pool.query(
                 `INSERT INTO titels (naam, type, taal, jaar, categorie, bekendheid_tier, nummer_naam, nummer_artiest,
-                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres)
-                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, $9, $9)`,
-                [it.naam, bank.typeVoorCategorie(categorie, categorie === 'anime' ? 'serie' : 'film'), it.jaar,
-                    categorie, it.bekendheid || tier, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
-                    `AI-curator: aangevuld (${bank.CATEGORIE_LABEL[categorie]}, ${periode || 'alle jaren'})`,
-                    categorie === 'game' ? ['Videogames'] : categorie === 'kerst' ? ['Kerst'] : []],
+                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres, ai_genres, muziek_jaar)
+                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, $9, $10, $10, $11)`,
+                [naam, bank.typeVoorCategorie(actueleCategorie, actueleCategorie === 'anime' ? 'serie' : 'film'), it.jaar,
+                    actueleCategorie, it.bekendheid || tier, muziek ? naam : null, muziek ? (it.artiest || null) : null,
+                    `AI-curator: aangevuld (${bank.CATEGORIE_LABEL[actueleCategorie]}, ${periode || 'alle jaren'})`,
+                    actueleCategorie === 'game' ? ['Videogames'] : songGenres,
+                    songGenres, muziek ? it.jaar : null],
             );
             toegevoegd++;
             if (!it.bekendheid || it.bekendheid === tier) passend++;
-            nieuweNamen.push(`${it.naam}${it.bekendheid ? ` (${bank.TIER_LABEL[it.bekendheid]})` : ''}`);
+            nieuweNamen.push(`${naam}${it.bekendheid ? ` (${bank.TIER_LABEL[it.bekendheid]})` : ''}`);
         } catch (err) {
             logger.waarschuwing('Aanvulling opslaan mislukt', { naam: it.naam, melding: err.message });
         }
@@ -521,6 +571,28 @@ function pastInCollectie(c, categorie) {
     return !scope || scope.includes(categorie);
 }
 
+// Overlappende stijlen/collecties verwijzen naar hetzelfde titel-ID en dezelfde MP3.
+// Een beheerder die een koppeling bewust verwijdert blijft leidend.
+async function koppelAutomatischeCollecties(ids) {
+    if (!ids.length) return 0;
+    const { rowCount } = await pool.query(`
+        INSERT INTO titel_collecties (titel_id, collectie_id, bron)
+        SELECT t.id, c.id, 'metadata'
+          FROM titels t JOIN collecties c ON c.actief AND (
+            (c.sleutel = 'kerst' AND (t.categorie = 'kerst' OR 'Kerst' = ANY(t.muziek_genres)))
+            OR (c.sleutel = 'sinterklaas' AND (t.categorie = 'sinterklaas' OR 'Sinterklaas' = ANY(t.muziek_genres)))
+            OR (c.sleutel = 'kids' AND (t.categorie = 'kinder' OR 'Kinderlied' = ANY(t.muziek_genres)))
+            OR (c.sleutel = 'rock' AND 'Rock' = ANY(t.muziek_genres))
+            OR (c.sleutel = 'nl-pop' AND 'Nederpop' = ANY(t.muziek_genres))
+            OR (c.sleutel = 'smartlappen' AND 'Levenslied' = ANY(t.muziek_genres))
+          )
+         WHERE t.id = ANY($1::int[])
+           AND t.curatie_status <> 'uitgesloten'
+           AND NOT EXISTS (SELECT 1 FROM titel_collecties_uit u
+                            WHERE u.titel_id = t.id AND u.collectie_id = c.id)
+        ON CONFLICT DO NOTHING`, [ids]);
+    return rowCount;
+}
 async function koppel(titelId, c, bron = 'ai') {
     const { rowCount } = await pool.query(
         `INSERT INTO titel_collecties (titel_id, collectie_id, bron)
@@ -601,16 +673,21 @@ async function vulCollectie(c) {
             if (await koppel(bestaat.id, c)) { hergebruikt++; namen.push(`${bestaat.naam} (bestond al)`); }
             continue;
         }
-        const muziek = bank.MUZIEK_CATEGORIEEN.has(it.categorie);
+        const indeling = bank.MUZIEK_CATEGORIEEN.has(it.categorie)
+            ? categoriseerMuziek({ naam: it.naam, artiest: it.artiest, categorie: it.categorie })
+            : null;
+        const actueleCategorie = indeling?.categorie || it.categorie;
+        const muziek = bank.MUZIEK_CATEGORIEEN.has(actueleCategorie);
+        const songGenres = muziek ? indeling.genres : [];
         try {
             const { rows: [t] } = await pool.query(
                 `INSERT INTO titels (naam, type, taal, jaar, categorie, bekendheid_tier, nummer_naam, nummer_artiest,
-                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres)
-                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, '{}', '{}')
+                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres, ai_genres, muziek_jaar)
+                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, $9, $9, $9, $10)
                  RETURNING id`,
-                [it.naam, bank.typeVoorCategorie(it.categorie, it.categorie === 'anime' ? 'serie' : 'film'), it.jaar,
-                    it.categorie, it.bekendheid, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
-                    `AI-curator: aangevuld voor collectie ${c.naam}`]);
+                [it.naam, bank.typeVoorCategorie(actueleCategorie, actueleCategorie === 'anime' ? 'serie' : 'film'), it.jaar,
+                    actueleCategorie, it.bekendheid, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
+                    `AI-curator: aangevuld voor collectie ${c.naam}`, songGenres, muziek ? it.jaar : null]);
             await koppel(t.id, c);
             kandidaten.push({ id: t.id, naam: it.naam, nummer_naam: muziek ? it.naam : null, nummer_artiest: it.artiest, categorie: it.categorie });
             nieuw++;
@@ -851,6 +928,12 @@ function middernacht() {
     d.setHours(24, 0, 30, 0);
     return d.getTime();
 }
+function komendeMaandag() {
+    const d = new Date();
+    d.setDate(d.getDate() + (7 - ((d.getDay() + 6) % 7)));
+    d.setHours(0, 30, 0, 0);
+    return d.getTime();
+}
 
 async function lus() {
     let leeg = 0;
@@ -891,6 +974,15 @@ async function lus() {
             }
         }
 
+        if (inst.maxPerWeek > 0) {
+            const gebruikt = await bank.aiGebruikDezeWeek().catch(() => 0);
+            status.dezeWeek = gebruikt;
+            if (gebruikt >= inst.maxPerWeek) {
+                await alleenZonderAi(`Weekbudget op (${gebruikt}/${inst.maxPerWeek} AI-vragen); maandag verder.`, komendeMaandag());
+                continue;
+            }
+        }
+
         const login = await codex.loginStatus().catch(() => ({ loggedIn: false }));
         if (!login.loggedIn) {
             zet('wacht', 'ChatGPT is niet gekoppeld. Koppel ChatGPT in het overzicht.');
@@ -906,7 +998,7 @@ async function lus() {
             achterstand = r.a;
         } catch { /* gewone cyclus */ }
         status.inhaalslag = achterstand;
-        const cyclus = achterstand ? INHAAL : CYCLUS;
+        const cyclus = achterstand ? INHAAL : (inst.quizAan ? CYCLUS : CYCLUS.filter((stap) => stap !== 'quiz'));
         const stap = cyclus[cyclusIndex++ % cyclus.length];
         let deedAi = false;
         try {
@@ -956,4 +1048,4 @@ function huidigeStatus() {
     return { ...status, tellers: { ...status.tellers }, mp3Bezig: bankMp3.bezigeIds().length };
 }
 
-module.exports = { start, porren, hervat, vergeetPauze, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties };
+module.exports = { start, porren, hervat, vergeetPauze, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties, koppelAutomatischeCollecties };

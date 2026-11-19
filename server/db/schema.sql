@@ -91,6 +91,11 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS studio TEXT;
 -- Metadata voor toekomstige quizfilters (bestaande gegevens blijven behouden).
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS themas TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS muziek_genres TEXT[] NOT NULL DEFAULT '{}';
+-- Originele uitgavejaar van HET NUMMER, los van het releasejaar van film/serie/game.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS muziek_jaar INTEGER;
+-- Oudere genre-herstelqueries gebruiken categorie; zorg dat de kolom dan al bestaat.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS categorie TEXT;
+CREATE INDEX IF NOT EXISTS idx_titels_muziek_jaar ON titels (muziek_jaar);
 -- Curatie: waarom staat een titel in de database en is hij geschikt voor de
 -- standaardselectie "bekend van Nederlandse tv"?
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS toevoeg_reden TEXT NOT NULL
@@ -454,6 +459,7 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS alleen_kids_nu BOOLEAN NOT NULL DEFA
 -- Genres uit de vaste VenTune-lijst (AI of bron), voor de genrekeuze in Nieuw spel.
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_genres TEXT[] NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS idx_titels_ai_genres ON titels USING gin (ai_genres);
+CREATE INDEX IF NOT EXISTS idx_titels_muziek_genres ON titels USING gin (muziek_genres);
 -- Eenmalig: bestaande TMDB-genres omzetten, zodat de genrekeuze meteen werkt.
 -- De AI vult en verbetert ze daarna bij de volgende beoordeling.
 UPDATE titels t SET ai_genres = sub.g
@@ -1150,7 +1156,7 @@ DO $$
 BEGIN
     ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_categorie_check;
     ALTER TABLE titels ADD CONSTRAINT titels_categorie_check
-        CHECK (categorie IS NULL OR categorie IN ('film','serie','anime','game','muziek','kerst','kinder'));
+        CHECK (categorie IS NULL OR categorie IN ('film','serie','anime','game','muziek','kerst','sinterklaas','kinder'));
     ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_bekendheid_tier_check;
     ALTER TABLE titels ADD CONSTRAINT titels_bekendheid_tier_check
         CHECK (bekendheid_tier IS NULL OR bekendheid_tier IN ('iconisch','algemeen_bekend','bekend','onbekend','cult'));
@@ -1162,12 +1168,28 @@ END$$;
 -- Eerste indeling uit wat er al bekend is; de AI verfijnt daarna alles.
 UPDATE titels SET categorie = CASE
         WHEN 'Videogames' = ANY(genres) OR 'Videogames' = ANY(muziek_genres) OR 'games' = ANY(themas) THEN 'game'
+        WHEN type = 'muziek' AND ('sinterklaas' = ANY(themas) OR 'Sinterklaas' = ANY(genres)) THEN 'sinterklaas'
         WHEN type = 'muziek' AND ('kerst' = ANY(themas) OR 'Kerst' = ANY(genres)) THEN 'kerst'
         WHEN type = 'muziek' AND 'kinder' = ANY(themas) THEN 'kinder'
         WHEN type IN ('film','serie') AND upper(COALESCE(land,'')) IN ('JP','JPN','JAPAN')
              AND (genres && ARRAY['Animatie','Animation']) THEN 'anime'
         ELSE type::text END
  WHERE categorie IS NULL;
+
+-- Sinterklaasmuziek hoort niet langer standaard bij Kinder.
+-- Alleen zeer duidelijke Sinterklaas-signalen; expliciete beheerkeuzes blijven intact.
+UPDATE titels t SET categorie = 'sinterklaas',
+    ai_genres = ARRAY(SELECT DISTINCT g FROM unnest(
+      ARRAY['Sinterklaas']::text[] || COALESCE(t.ai_genres,'{}'::text[])
+    ) g LIMIT 3)
+ WHERE t.type = 'muziek'
+   AND COALESCE(t.categorie, 'muziek') IN ('muziek','kinder','kerst')
+   AND NOT ('categorie' = ANY(t.handmatig))
+   AND (
+      'sinterklaas' = ANY(COALESCE(t.themas,'{}'::text[]))
+      OR 'Sinterklaas' = ANY(COALESCE(t.genres,'{}'::text[]))
+      OR lower(t.naam) ~ '(sinterklaas|pakjesavond|pepernoten|stoomboot|zie ginds komt|hoor wie klopt|zie de maan schijnt|schoentje zetten|de zak van sinterklaas)'
+   );
 
 CREATE INDEX IF NOT EXISTS idx_titels_ai_werk ON titels (ai_status, ai_versie, id);
 CREATE INDEX IF NOT EXISTS idx_titels_categorie_tier ON titels (categorie, bekendheid_tier);
@@ -1189,7 +1211,7 @@ INSERT INTO app_instellingen (sleutel, waarde)
 VALUES ('ai_curator', '{
   "aan": true,
   "pauzeSeconden": 30,
-  "doelen": {"film": 500, "serie": 400, "anime": 100, "game": 500, "muziek": 500, "kerst": 150, "kinder": 100}
+  "doelen": {"film": 500, "serie": 400, "anime": 100, "game": 500, "muziek": 500, "kerst": 150, "sinterklaas": 80, "kinder": 100}
 }'::jsonb)
 ON CONFLICT (sleutel) DO NOTHING;
 
@@ -1222,6 +1244,11 @@ END$$;
 -- Beheer 2.0: nummers die de AI vindt wachten op een handmatige swipe van de
 -- beheerder voordat ze in het spel komen. Oudere tracks blijven speelbaar.
 ALTER TABLE tracks ADD COLUMN IF NOT EXISTS wacht_op_swipe BOOLEAN NOT NULL DEFAULT false;
+-- Twee beoordelingsrondes: blind luisteren, daarna indien nodig met titel.
+-- Bestaande MP3's en menselijke goedkeuringen blijven behouden.
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_fase TEXT NOT NULL DEFAULT 'blind';
+ALTER TABLE tracks ADD COLUMN IF NOT EXISTS review_kwaliteit TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_tracks_swipe ON tracks (wacht_op_swipe, titel_id) WHERE wacht_op_swipe;
 DO $$
 BEGIN
@@ -1246,10 +1273,14 @@ ON CONFLICT (sleutel) DO UPDATE SET
     volgorde = EXCLUDED.volgorde, filter = EXCLUDED.filter
     WHERE quizzen.ingebouwd = true;
 
--- Videogames krijgen standaard voorrang (eerst alle iconische games),
--- tenzij de beheerder al zelf een voorrang heeft gekozen.
-UPDATE app_instellingen SET waarde = waarde || '{"voorrang":["game"]}'::jsonb
- WHERE sleutel = 'ai_curator' AND NOT (waarde ? 'voorrang');
+-- Hoofdprioriteit: Film / Serie / Sinterklaas / Videogames.
+-- Kerst en overige muziek komen later; handmatig ingestelde volgordes blijven behouden.
+UPDATE app_instellingen
+   SET waarde = jsonb_set(waarde, '{voorrang}',
+       '["film","serie","sinterklaas","game","kerst","muziek"]'::jsonb, true)
+ WHERE sleutel = 'ai_curator'
+   AND (NOT waarde ? 'voorrang'
+        OR waarde->'voorrang' IN ('["game"]'::jsonb, '["film","serie","game"]'::jsonb));
 
 -- Zuinige stand (eenmalig, als er nog geen dagbudget is): 60 AI-vragen per
 -- dag, 2 minuten tussen stappen, en pauze tot de weeklimiet van ChatGPT

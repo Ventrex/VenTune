@@ -2335,3 +2335,65 @@ body {
     line-height: 1.35; text-align: left; text-transform: none; letter-spacing: normal; white-space: normal;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
+
+
+/* VenTune auth-form compact herstel (login en accountregistratie).
+   Een flex-basis op generieke .invoer mag nooit de VERTICALE hoogte bepalen. */
+.auth-scherm .vt-auth-form {
+  width: min(100%, 26rem);
+  max-width: 100%;
+  margin-inline: auto;
+  gap: .45rem;
+  align-items: stretch;
+  padding: clamp(.9rem, 3vw, 1.25rem);
+}
+.auth-scherm .vt-auth-form .invoer {
+  display: block;
+  flex: 0 0 44px !important;
+  width: 100%;
+  min-width: 0;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  padding: .55rem .8rem !important;
+  font-size: 16px !important; /* voorkomt automatische iPhone-zoom */
+  line-height: 1.25;
+}
+.auth-scherm .vt-auth-form .kaart-label {
+  margin: .35rem 0 -.2rem;
+  line-height: 1.25;
+  font-size: .78rem;
+}
+.auth-scherm .vt-auth-form .knop {
+  flex: 0 0 auto;
+  margin-top: .5rem;
+  min-height: 44px;
+}
+@media (max-width: 480px) {
+  .auth-scherm { max-width: min(100%, 29rem); padding-inline: 1rem; }
+  .auth-scherm h1 { font-size: clamp(1.75rem, 7vw, 2.35rem); }
+}
+
+/* Toegankelijk spelen: mobiel/tablet + bediening van gedeeld TV-scherm. */
+.vt-tv-host-bediening {display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:.6rem 0;}
+.vt-tv-host-bediening .knop {width:auto;white-space:normal}
+.vt-tv-host-bediening label {display:flex;align-items:center;gap:9px;font-size:.95rem;color:#e8eafa;cursor:pointer}
+.vt-tv-host-bediening input[type="checkbox"] {min-width:20px;min-height:20px;accent-color:#73dbc9}
+.vt-tv-lobby-uitleg {overflow-wrap:anywhere;word-break:break-word;font-size:.85rem}
+.vt-generaties-mix {display:block;width:100%;margin:12px 0;white-space:normal;text-align:center}
+.scherm .invoer:not(textarea) {min-height:44px;font-size:16px}
+.scherm .keuze, .scherm .knop, .scherm button.chip {touch-action:manipulation}
+@media (max-width:700px) {
+  .vt-tv-host-bediening {flex-direction:column;align-items:stretch}
+  .vt-tv-host-bediening .knop {width:100%}
+  .scherm .meerkeuze-antwoorden .keuze {min-height:56px}
+}
+
+
+/* Per speler grotere tekst, zonder de host/TV of anderen te veranderen. */
+.vt-speler-toegankelijk {display:flex;justify-content:flex-end;margin:0 0 .5rem}
+.vt-speler-toegankelijk .knop {min-height:44px;font-size:.92rem}
+.vt-grote-tekst {font-size:1.2rem;line-height:1.6}
+.vt-grote-tekst .keuze,.vt-grote-tekst .knop,.vt-grote-tekst input {font-size:1.15rem!important;line-height:1.4}
+.vt-grote-tekst .keuze {min-height:64px}
+.vt-grote-tekst .kaart-label,.vt-grote-tekst .dim {font-size:1.05rem}

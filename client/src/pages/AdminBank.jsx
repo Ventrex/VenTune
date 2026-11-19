@@ -28,7 +28,7 @@ async function api(pad, opties = {}) {
 // Hoofdtabs met daaronder subtabs. Controles = alles bekijken en bewerken,
 // Fixes = alleen wat aandacht nodig heeft.
 // Alles van beheer staat hier: één pagina, één rij tabs met subtabs.
-const GROEPEN = [['overzicht', 'Overzicht'], ['swipen', 'Swipen'], ['collecties', 'Collecties'], ['controles', 'Controles'],
+const GROEPEN = [['overzicht', 'Overzicht'], ['ai', 'AI & kosten'], ['swipen', 'Goedkeuren'], ['collecties', 'Collecties'], ['controles', 'Controles'],
     ['fixes', 'Fixes'], ['spelers', 'Spelers'], ['log', 'Logs'], ['systeem', 'Systeem']];
 const SPELERS = [['meldingen', 'Meldingen'], ['vragen', 'Vraagsuggesties'], ['controle', 'Verdachte spellen'], ['users', 'Accounts']];
 const LOGS = [['ai', 'AI-log'], ['logs', 'Gebeurtenissen']];
@@ -48,7 +48,7 @@ const FIXES = [
     ['uitgesloten', 'Uitgesloten', 'nummers', 'uitgesloten', 'uitgesloten'],
     ['dubbelen', 'Dubbelen', null, null, null],
 ];
-const CATS = [['film', 'Films'], ['serie', 'Series'], ['anime', 'Anime'], ['game', 'Videogames'], ['muziek', 'Muziek'], ['kerst', 'Kerst'], ['kinder', 'Kinder']];
+const CATS = [['film', 'Films'], ['serie', 'Series'], ['anime', 'Anime'], ['game', 'Videogames'], ['muziek', 'Muziek'], ['kerst', 'Kerst'], ['sinterklaas', 'Sinterklaas'], ['kinder', 'Kinder']];
 const CAT_LABEL = Object.fromEntries(CATS);
 const TIERS = [['iconisch', 'Iconisch'], ['algemeen_bekend', 'Algemeen bekend'], ['bekend', 'Bekend'], ['onbekend', 'Onbekend'], ['cult', 'Cult']];
 const TIER_LABEL = Object.fromEntries(TIERS);
@@ -108,10 +108,16 @@ function Bank() {
     const tab = GROEPEN.some(([t]) => t === params.get('tab')) ? params.get('tab') : 'overzicht';
     const sub = params.get('sub') || '';
     const [status, setStatus] = useState(null);
+    const [siteTeksten, setSiteTeksten] = useState({});
+    const tekst = (sleutel, standaard) => siteTeksten[sleutel] || standaard;
+    const [menuOpen, setMenuOpen] = useState(false);
     const [fout, setFout] = useState('');
 
     const laadStatus = useCallback(() => {
         api('/api/admin/bank/status').then((s) => { setStatus(s); setFout(''); }).catch((e) => setFout(e.message));
+    }, []);
+    useEffect(() => {
+        fetch('/api/site-teksten').then((r) => r.ok ? r.json() : {}).then(setSiteTeksten).catch(() => {});
     }, []);
     useEffect(() => {
         laadStatus();
@@ -137,37 +143,87 @@ function Bank() {
     }
     const fix = FIXES.find(([id]) => id === sub) || FIXES[0];
     const v = status?.voorraad || {};
+    const fase = params.get('fase') === 'naam' ? 'naam' : 'blind';
+    const statistiek = Object.values(status?.tellingen || {});
 
     return (
-        <main className="ab">
-            <header className="ab-kop">
-                <Brand link compact />
-                <h1>Beheer</h1>
-                <button type="button" className="ab-linkknop ab-uitlog" onClick={uitloggen}>Uitloggen</button>
+        <main className="ab ab-shell">
+            <header className="ab-kop ab-topnav">
+                <Link className="ab-logo" to="/">VenTune<span aria-hidden="true"> ✦</span></Link>
+                <nav aria-label="Hoofdnavigatie">
+                    <Link to="/">Home</Link><Link to="/scores">Score</Link>
+                    <Link to="/aanvragen">Toevoegen</Link>
+                    <Link className="actief" to="/admin/bank">Beheer</Link>
+                    <Link to="/host/profile">Profiel</Link>
+                </nav>
+                <button type="button" className="ab-menu-knop" aria-expanded={menuOpen} aria-controls="ab-zijmenu" onClick={() => setMenuOpen((open) => !open)}>
+                    {menuOpen ? 'Menu sluiten' : '☰ Menu'}
+                </button>
             </header>
+            <div className="ab-hero">
+                <div><p className="ab-eyebrow">DE REGIE IS AAN JOU</p>
+                    <h1>{tekst('beheer.overzicht.titel', 'Alles voor een goede spelavond.')}</h1>
+                    <p className="dim">{tekst('beheer.overzicht.ondertitel', 'AI doet het voorwerk. Jij houdt het overzicht.')}</p>
+                </div>
+                <button type="button" className="ab-linkknop ab-uitlog" onClick={uitloggen}>Uitloggen</button>
+            </div>
+            <div className="ab-werkruimte">
+                <aside className={'ab-sidebar' + (menuOpen ? ' open' : '')} id="ab-zijmenu" aria-label="Beheermenu">
+                    <nav className="ab-zijlinks" aria-label="Beheerpagina's">
+                        {[
+                            ['overzicht', '', '✦', 'Overzicht'],
+                            ['controles', 'nummers', '▦', 'Catalogus'],
+                            ['ai', '', '✧', 'AI & kosten'],
+                            ['swipen', '', '♫', 'Samen testen'],
+                            ['systeem', 'teksten', '✿', 'Stijl & teksten'],
+                            ['systeem', 'database', '⚙', 'Alle beheerfuncties'],
+                        ].map(([id, onderdeel, symbool, naam]) => (
+                            <button type="button" key={naam}
+                                className={'ab-zijlink' + (tab === id && (!onderdeel || (sub || (id === 'systeem' ? 'database' : '')) === onderdeel) ? ' actief' : '')}
+                                onClick={() => { ga(id, onderdeel ? { sub: onderdeel } : {}); setMenuOpen(false); }}>
+                                <span aria-hidden="true">{symbool}</span>{naam}
+                            </button>
+                        ))}
+                    </nav>
+                    <details className="ab-meer">
+                        <summary>Overige beheeronderdelen</summary>
+                        <nav className="ab-meer-links" aria-label="Overige beheerpagina's">
+                            {GROEPEN.filter(([id]) => !['overzicht', 'ai', 'swipen'].includes(id)).map(([id, naam]) => (
+                                <button key={id} type="button" className={tab === id ? 'actief' : ''}
+                                    onClick={() => { ga(id); setMenuOpen(false); }}>{naam}</button>
+                            ))}
+                        </nav>
+                    </details>
+                </aside>
+                <div className="ab-inhoud">
+                    {tab === 'overzicht' && <section className="ab-statistieken" aria-label="Catalogusstatistieken">
+                        <div className="ab-stat"><strong>{statistiek.reduce((n, t) => n + (Number(t.totaal) || 0), 0)}</strong><span>In je collectie</span></div>
+                        <div className="ab-stat"><strong>{v.te_beoordelen ?? '—'}</strong><span>Nog door AI te beoordelen</span></div>
+                        <div className="ab-stat"><strong>{v.te_swipen ?? '—'}</strong><span>Wacht op jouw controle</span></div>
+                        <div className="ab-stat"><strong>{statistiek.reduce((n, t) => n + (Number(t.speelbaar) || 0), 0)}</strong><span>Speelbaar</span></div>
+                    </section>}
             {fout && <p className="waarschuwing">{fout}</p>}
             <WorkerBalk status={status} onWijzig={laadStatus} />
-            <nav className="ab-tabs" aria-label="Onderdelen">
-                {GROEPEN.map(([id, naam]) => (
-                    <button key={id} type="button" className={'ab-tab' + (tab === id ? ' actief' : '')}
-                        onClick={() => ga(id)}>{naam}{tabTeller(id, status)}</button>
-                ))}
-            </nav>
-            {tab === 'swipen' && (
-                <SubTabs actief={sub} onKies={(id) => ga('swipen', id ? { sub: id } : {})}
+
+            {tab === 'swipen' && (<>
+                <nav className="ab-fase-keuze" aria-label="Muziek goedkeuren in twee stappen">
+                    <button type="button" className={fase === 'blind' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'blind' })}>{'1. ' + tekst('beheer.review.blind', 'Zonder titel luisteren')}</button>
+                    <button type="button" className={fase === 'naam' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'naam' })}>{'2. ' + tekst('beheer.review.met_titel', 'Met titel beoordelen')}</button>
+                </nav>
+                <SubTabs actief={sub} onKies={(id) => ga('swipen', { sub: id, fase })}
                     items={[['', 'Alles'], ...CATS]} teller={(id) => (id ? status?.swipe?.[id] : v.te_swipen)} />
-            )}
+            </>)}
             {tab === 'controles' && (
-                <SubTabs actief={controle} onKies={(id) => ga('controles', { sub: id })} items={CONTROLES} />
+                <SubTabs actief={controle} onKies={(id) => ga('controles', { sub: id })} items={status?.instellingen?.quizAan ? CONTROLES : CONTROLES.filter(([id]) => !['hints', 'vragen'].includes(id))} />
             )}
             {tab === 'fixes' && (
                 <SubTabs actief={fix[0]} onKies={(id) => ga('fixes', { sub: id })}
-                    items={FIXES.map(([id, naam]) => [id, naam])}
+                    items={FIXES.filter(([id]) => status?.instellingen?.quizAan || !['hints-leeg', 'vragen-leeg'].includes(id)).map(([id, naam]) => [id, naam])}
                     teller={(id) => v[FIXES.find((f) => f[0] === id)?.[4]]} />
             )}
 
             {tab === 'overzicht' && <Overzicht status={status} onWijzig={laadStatus} ga={ga} />}
-            {tab === 'swipen' && <Swipen key={sub} categorie={sub} onWijzig={laadStatus} />}
+            {tab === 'swipen' && <Swipen key={sub + '-' + fase} categorie={sub} fase={fase} uitleg={tekst('beheer.review.uitleg', 'Luister zonder namen of herkenningsinformatie. Onherkenbare nummers controleer je daarna met titel.')} onFaseNaam={() => ga('swipen', { sub, fase: 'naam' })} onWijzig={laadStatus} />}
             {tab === 'controles' && <Lijst key={`c-${controle}`} tab={controle} standaardFilter="alle" />}
             {tab === 'fixes' && fix[0] === 'dubbelen' && <Dubbelen />}
             {tab === 'fixes' && fix[0] !== 'dubbelen' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
@@ -178,7 +234,16 @@ function Bank() {
             {tab === 'log' && logSub === 'ai' && <Log />}
             {tab === 'log' && logSub !== 'ai' && <Admin ingebed sectie={logSub} />}
             {tab === 'spelers' && <Admin ingebed sectie={spelerSub} />}
+            {tab === 'ai' && <section className="ab-kaart ab-ai-pagina">
+                <h2>{tekst('beheer.ai.titel', 'AI koppelen en verbruik beheren')}</h2>
+                <p className="dim">Eerst bekende en iconische films, series en videogames verzamelen. Nieuwe nummers komen in de goedkeuringswachtrij. De AI blijft binnen je dagbudget.</p>
+                <p><strong>ChatGPT:</strong> {status?.chatgpt?.gekoppeld ? 'Gekoppeld' : 'Nog niet gekoppeld'}</p>
+                {!status?.chatgpt?.gekoppeld && <ChatGptKoppeling onWijzig={laadStatus} />}
+                {status?.instellingen && <Tempo instellingen={status.instellingen} vandaag={status.worker?.vandaag ?? 0} dezeWeek={status.worker?.dezeWeek ?? 0} onWijzig={laadStatus} />}
+            </section>}
             {tab === 'systeem' && <Admin ingebed sectie={systeemSub} />}
+                </div>
+            </div>
         </main>
     );
 }
@@ -212,7 +277,7 @@ function tabTeller(id, status) {
 
 const DREMPEL = 110; // zo ver slepen = beslissen
 
-function Swipen({ categorie, onWijzig }) {
+function Swipen({ categorie, fase = 'blind', uitleg, onFaseNaam, onWijzig }) {
     const [rij, setRij] = useState([]);
     const [klaar, setKlaar] = useState(false);
     const [melding, setMelding] = useState('');
@@ -223,7 +288,7 @@ function Swipen({ categorie, onWijzig }) {
         if (laden.current) return;
         laden.current = true;
         try {
-            const q = new URLSearchParams({ categorie, overslaan: [...behandeld.current].slice(-300).join(',') });
+            const q = new URLSearchParams({ categorie, fase, overslaan: [...behandeld.current].slice(-300).join(',') });
             const d = await api(`/api/admin/bank/swipe?${q}`);
             setRij((oud) => {
                 const al = new Set(oud.map((i) => i.track_id));
@@ -233,7 +298,7 @@ function Swipen({ categorie, onWijzig }) {
             setKlaar(d.items.length === 0);
         } catch (e) { setMelding(e.message); }
         finally { laden.current = false; }
-    }, [categorie]);
+    }, [categorie, fase]);
     useEffect(() => { laad(); }, [laad]);
     useEffect(() => { if (rij.length < 4 && !klaar) laad(); }, [rij.length, klaar, laad]);
 
@@ -248,25 +313,25 @@ function Swipen({ categorie, onWijzig }) {
         if (keuze === 'later') return;
         const item = huidig;
         api(`/api/admin/bank/swipe/${item.track_id}`, { method: 'POST', body: { keuze } })
-            .then(() => onWijzig())
+            .then(() => { onWijzig(); if (keuze === 'onherkenbaar') onFaseNaam?.(); })
             .catch((e) => {
                 // Niet opgeslagen: het nummer komt vooraan terug, zodat je opnieuw kunt kiezen.
                 behandeld.current.delete(item.track_id);
                 setRij((r) => (r.some((i) => i.track_id === item.track_id) ? r : [item, ...r]));
                 setMelding(`${item.naam} niet opgeslagen (${e.message}); kies opnieuw.`);
             });
-    }, [huidig, onWijzig]);
+    }, [huidig, onWijzig, onFaseNaam]);
 
     useEffect(() => {
         const toets = (e) => {
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
             if (e.key === 'ArrowRight') beslis('goed');
-            else if (e.key === 'ArrowLeft') beslis('fout');
+            else if (e.key === 'ArrowLeft') beslis(fase === 'blind' ? 'slecht' : 'fout');
             else if (e.key === 'ArrowDown') beslis('later');
         };
         window.addEventListener('keydown', toets);
         return () => window.removeEventListener('keydown', toets);
-    }, [beslis]);
+    }, [beslis, fase]);
 
     // Volgende MP3 alvast laden, zodat die meteen speelt.
     useEffect(() => {
@@ -288,18 +353,19 @@ function Swipen({ categorie, onWijzig }) {
     return (
         <div className="ab-swipe">
             {melding && <p className="ab-rood ab-mini">{melding}</p>}
-            <SwipeKaart key={huidig.track_id} item={huidig} onBeslis={beslis} />
-            <p className="dim ab-mini ab-swipe-uitleg">Sleep naar rechts = goed, naar links = fout. Toetsen: → goed, ← fout, ↓ later.</p>
+            <SwipeKaart key={huidig.track_id} item={huidig} fase={fase} onBeslis={beslis} />
+            <p className="dim ab-mini ab-swipe-uitleg">{fase === 'blind' ? uitleg : 'Controleer of de muziek daadwerkelijk bij de genoemde film, serie of game hoort. Slechte kwaliteit en een fout nummer zijn verschillende beoordelingen.'}</p>
         </div>
     );
 }
 
-function SwipeKaart({ item, onBeslis }) {
+function SwipeKaart({ item, fase, onBeslis }) {
     const [dx, setDx] = useState(0);
     const [weg, setWeg] = useState(0);
     const start = useRef(null);
 
     function down(e) {
+        if (fase === 'blind') return;
         if (e.target.closest('.ab-speler, button, a, input')) return;
         start.current = { x: e.clientX, id: e.pointerId };
         e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -315,7 +381,11 @@ function SwipeKaart({ item, onBeslis }) {
         else setDx(0);
     }
     function beslisMet(keuze) {
-        setWeg(keuze === 'goed' ? 1 : keuze === 'fout' ? -1 : 0);
+        if (fase === 'blind' || !['goed', 'fout'].includes(keuze)) {
+            onBeslis(keuze);
+            return;
+        }
+        setWeg(keuze === 'goed' ? 1 : -1);
         setTimeout(() => onBeslis(keuze), 160);
     }
 
@@ -327,7 +397,7 @@ function SwipeKaart({ item, onBeslis }) {
     return (
         <div className="ab-swipe-wrap">
             {/* Balk die volloopt naarmate je verder sleept */}
-            <div className="ab-swipe-meter" aria-hidden="true">
+            {fase === 'naam' && <div className="ab-swipe-meter" aria-hidden="true">
                 <span className="fout" style={{ width: dx < 0 ? `${ver * 50}%` : 0 }} />
                 <span className="goed" style={{ width: dx > 0 ? `${ver * 50}%` : 0 }} />
                 <em className={ver >= 1 ? 'vol' : ''}>
@@ -335,7 +405,7 @@ function SwipeKaart({ item, onBeslis }) {
                         ? (ver >= 1 ? `Loslaten = ${richting.toUpperCase()}` : `Verder slepen voor ${richting}…`)
                         : '← fout · sleep de kaart · goed →'}
                 </em>
-            </div>
+            </div>}
             <article className={'ab-swipe-kaart' + (start.current ? ' slepen' : '')}
                 style={{ transform, transition: start.current ? 'none' : 'transform 0.18s ease' }}
                 onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
@@ -343,23 +413,30 @@ function SwipeKaart({ item, onBeslis }) {
                 <span className="ab-stempel fout" style={{ opacity: dx < 0 ? ver : 0 }}>FOUT ✕</span>
                 <div className="ab-badges">
                     <span className={`ab-badge cat-${item.categorie}`}>{CAT_LABEL[item.categorie] || item.categorie}</span>
-                    {item.bekendheid_tier && <span className={`ab-badge tier-${item.bekendheid_tier}`}>{TIER_LABEL[item.bekendheid_tier]}</span>}
-                    {item.jaar && <span className="ab-badge">{jaarTekst(item)}</span>}
+                    {fase === 'naam' && item.bekendheid_tier && <span className={`ab-badge tier-${item.bekendheid_tier}`}>{TIER_LABEL[item.bekendheid_tier]}</span>}
+                    {fase === 'naam' && item.jaar && <span className="ab-badge">{jaarTekst(item)}</span>}
                 </div>
-                <h2 className="ab-swipe-titel">{item.naam}</h2>
-                <p className="ab-swipe-nummer">♪ {[item.nummer_naam, item.nummer_artiest].filter(Boolean).join(' – ') || 'Herkenningsnummer'}</p>
+                <h2 className="ab-swipe-titel">{fase === 'blind' ? 'Luister zonder titel' : item.naam}</h2>
+                {fase === 'naam' && <p className="ab-swipe-nummer">♪ {[item.nummer_naam, item.nummer_artiest].filter(Boolean).join(' – ') || 'Herkenningsnummer'}</p>}
                 <Speler src={item.mp3_url} />
-                <p className="dim ab-mini">YouTube: {item.youtube_titel || '—'}</p>
-                {item.verificatie_reden && <p className="dim ab-mini">{item.verificatie_reden}</p>}
+                {fase === 'naam' && <>
+                    <p className="dim ab-mini">YouTube: {item.youtube_titel || '—'}</p>
+                    {item.verificatie_reden && <p className="dim ab-mini">{item.verificatie_reden}</p>}
+                </>}}
             </article>
-            <div className="ab-swipe-knoppen">
-                <button type="button" className="ab-groot fout" onClick={() => beslisMet('fout')}>✕<span>Fout</span></button>
-                <button type="button" className="ab-groot later" onClick={() => onBeslis('later')}>↓<span>Later</span></button>
-                <button type="button" className="ab-groot goed" onClick={() => beslisMet('goed')}>✓<span>Goed</span></button>
+            <div className="ab-swipe-knoppen ab-review-keuzes">
+                <button type="button" className="ab-groot goed" onClick={() => beslisMet('goed')}>✓<span>Goedgekeurd</span></button>
+                <button type="button" className="ab-groot later" onClick={() => beslisMet('slecht')}>♪<span>Slechte kwaliteit</span></button>
+                {fase === 'blind'
+                    ? <button type="button" className="ab-groot fout" onClick={() => beslisMet('onherkenbaar')}>?<span>Onherkenbaar · met titel</span></button>
+                    : <>
+                        <button type="button" className="ab-groot fout" onClick={() => beslisMet('fout')}>✕<span>Fout nummer</span></button>
+                        <button type="button" className="ab-groot fout" onClick={() => {
+                            if (window.confirm(`${item.naam} uit het spel halen omdat het te onbekend of minder iconisch is?`)) beslisMet('uitsluiten');
+                        }}>−<span>Afwijzen</span></button>
+                    </>}
             </div>
-            <button type="button" className="ab-linkknop ab-mini dim" onClick={() => {
-                if (window.confirm(`${item.naam} helemaal uit het spel halen?`)) onBeslis('uitsluiten');
-            }}>Titel hoort niet in het spel</button>
+            <button type="button" className="ab-linkknop ab-mini dim" onClick={() => onBeslis('later')}>Later controleren</button>
         </div>
     );
 }
@@ -471,7 +548,7 @@ function WorkerBalk({ status, onWijzig }) {
                 )}
             </div>
             <div className="ab-balk-cijfers dim">
-                Vandaag {w.vandaag ?? 0}{max ? `/${max}` : ''} AI-vragen
+                Vandaag {w.vandaag ?? 0}{max ? `/${max}` : ''} · week {w.dezeWeek ?? 0}{status.instellingen.maxPerWeek ? `/${status.instellingen.maxPerWeek}` : ''} AI-vragen
                 <Hint tekst={`Sinds de herstart: ${w.tellers.beoordeeld} beoordeeld, ${w.tellers.mp3} MP3, ${w.tellers.quiz} quiz, ${w.tellers.toegevoegd} nieuw, ${w.tellers.verbeterd} verbeterd.`} />
             </div>
             <button type="button" className="ab-knop" onClick={() => zet(!aan)}>{aan ? 'Pauzeren' : 'Aanzetten'}</button>
@@ -505,13 +582,15 @@ function Overzicht({ status, onWijzig, ga }) {
         ['Nog door AI te beoordelen', voorraad.te_beoordelen, 'fixes', { sub: 'nog-bij-ai' }],
         ['Zonder MP3', voorraad.zonder_mp3, 'fixes', { sub: 'mp3-mist' }],
         ['MP3 opgegeven (jij kijken)', voorraad.mp3_opgegeven, 'fixes', { sub: 'mp3-opgegeven' }],
-        ['Zonder 3 hints', voorraad.zonder_hints, 'fixes', { sub: 'hints-leeg' }],
-        ['Zonder bonusvragen', voorraad.zonder_vragen, 'fixes', { sub: 'vragen-leeg' }],
+        ...(instellingen.quizAan ? [
+            ['Zonder 3 hints', voorraad.zonder_hints, 'fixes', { sub: 'hints-leeg' }],
+            ['Zonder bonusvragen', voorraad.zonder_vragen, 'fixes', { sub: 'vragen-leeg' }],
+        ] : []),
         ['NL: twijfel', voorraad.nl_twijfel, 'fixes', { sub: 'nl-twijfel' }],
         ['Uitgesloten', voorraad.uitgesloten, 'fixes', { sub: 'uitgesloten' }],
     ];
     async function allesOpnieuw() {
-        if (!window.confirm('Alles opnieuw? De AI beoordeelt alle titels opnieuw, zoekt alle ontbrekende MP3\'s (ook opgegeven) opnieuw en maakt ontbrekende hints en vragen. Wat je zelf hebt aangepast blijft staan.')) return;
+        if (!window.confirm('Alles opnieuw? De AI beoordeelt alle titels en zoekt alle ontbrekende MP3\'s opnieuw. Hints en vragen blijven uit zolang je ze niet inschakelt. Handmatige aanpassingen blijven staan.')) return;
         try { const r = await api('/api/admin/bank/alles-opnieuw', { method: 'POST' }); alert(r.tekst); }
         catch (e) { alert(e.message); }
         onWijzig();
@@ -585,25 +664,31 @@ function Overzicht({ status, onWijzig, ga }) {
                     </button>
                 ))}
             </section>
-            <Tempo instellingen={instellingen} vandaag={status.worker?.vandaag ?? 0} onWijzig={onWijzig} />
+            <Tempo instellingen={instellingen} vandaag={status.worker?.vandaag ?? 0} dezeWeek={status.worker?.dezeWeek ?? 0} onWijzig={onWijzig} />
         </div>
     );
 }
 
 // Tempo: hoe hard de AI het ChatGPT-abonnement gebruikt.
 const TEMPOS = [
-    ['zuinig', 'Zuinig', { maxPerDag: 20, pauzeSeconden: 180, webZoeken: 'nooit' }],
-    ['normaal', 'Normaal', { maxPerDag: 50, pauzeSeconden: 120, webZoeken: 'belangrijk' }],
-    ['snel', 'Snel', { maxPerDag: 0, pauzeSeconden: 30, webZoeken: 'belangrijk' }],
+    ['zuinig', 'Zuinig', { maxPerDag: 10, maxPerWeek: 50, pauzeSeconden: 180, webZoeken: 'nooit' }],
+    ['normaal', 'Normaal', { maxPerDag: 20, maxPerWeek: 90, pauzeSeconden: 120, webZoeken: 'belangrijk' }],
+    ['snel', 'Snel', { maxPerDag: 40, maxPerWeek: 150, pauzeSeconden: 90, webZoeken: 'belangrijk' }],
 ];
-function Tempo({ instellingen, vandaag, onWijzig }) {
+function Tempo({ instellingen, vandaag, dezeWeek = 0, onWijzig }) {
     const [tot, setTot] = useState('');
-    const huidig = TEMPOS.find(([, , v]) => v.maxPerDag === instellingen.maxPerDag && v.pauzeSeconden === instellingen.pauzeSeconden && v.webZoeken === instellingen.webZoeken)?.[0];
+    const huidig = TEMPOS.find(([, , v]) => v.maxPerDag === instellingen.maxPerDag && v.maxPerWeek === instellingen.maxPerWeek && v.pauzeSeconden === instellingen.pauzeSeconden && v.webZoeken === instellingen.webZoeken)?.[0];
     const patch = async (body) => { await api('/api/admin/bank/instellingen', { method: 'PATCH', body }).catch((e) => alert(e.message)); onWijzig(); };
     const pauzeTot = instellingen.pauzeTot ? new Date(instellingen.pauzeTot) : null;
     return (
         <section className="ab-kaart">
-            <p className="ab-label">Tempo <Hint tekst="Hoe zuiniger, hoe minder je ChatGPT-limiet opgaat. Het indelen, hints en vragen duren dan langer, maar lopen gewoon door. Eén AI-vraag = een lijst van 100 titels (beoordelen) of 30 titels (hints en vragen). Webzoeken kost het meest; bij Zuinig staat het uit." /></p>
+            <p className="ab-label">AI-budget <Hint tekst="Zuinig: maximaal 20 AI-verzoeken per dag met 3 minuten tussen stappen. Titels en de juiste muziek krijgen voorrang; hints en vragen staan standaard uit." /></p>
+            <label className="ab-check ab-quiz-toggle">
+                <input type="checkbox" checked={instellingen.quizAan === true}
+                    onChange={(e) => patch({ quizAan: e.target.checked })} />
+                Ook hints en bonusvragen genereren (later)
+            </label>
+            <p className="dim ab-mini">Uit betekent: eerst iconische titels en de juiste MP3's verzamelen. Bestaande vragen en hints blijven bewaard.</p>
             <div className="ab-chips">
                 {TEMPOS.map(([id, naam, v]) => (
                     <button key={id} type="button" className={'ab-chip' + (huidig === id ? ' actief' : '')} onClick={() => patch(v)}>{naam}</button>
@@ -611,10 +696,11 @@ function Tempo({ instellingen, vandaag, onWijzig }) {
             </div>
             <div className="ab-velden">
                 <Tekst label="AI-vragen per dag (0 = onbeperkt)" type="number" waarde={instellingen.maxPerDag} onSave={(v) => patch({ maxPerDag: Number(v) })} />
+                <Tekst label="AI-vragen per week (0 = onbeperkt)" type="number" waarde={instellingen.maxPerWeek} onSave={(v) => patch({ maxPerWeek: Number(v) })} />
                 <Tekst label="Seconden tussen stappen" type="number" waarde={instellingen.pauzeSeconden} onSave={(v) => patch({ pauzeSeconden: Number(v) })} />
                 <Keuze label="Webzoeken" waarde={instellingen.webZoeken} opties={[['belangrijk', 'Alleen bij beoordelen'], ['altijd', 'Altijd'], ['nooit', 'Nooit']]} onSave={(v) => patch({ webZoeken: v })} />
             </div>
-            <p className="dim ab-mini">Vandaag {vandaag}{instellingen.maxPerDag ? ` van ${instellingen.maxPerDag}` : ''} AI-vragen gebruikt.</p>
+            <p className="dim ab-mini">Vandaag {vandaag}{instellingen.maxPerDag ? ` van ${instellingen.maxPerDag}` : ''}; deze week {dezeWeek}{instellingen.maxPerWeek ? ` van ${instellingen.maxPerWeek}` : ' (onbeperkt)'} AI-verzoeken.</p>
             <p className="ab-label" style={{ marginTop: '0.8rem' }}>Pauzeren tot <Hint tekst="Handig als je ChatGPT-limiet op is: de AI doet tot dat moment niets. Na een limiet zet hij dit zelf, als ChatGPT zegt wanneer het weer kan." /></p>
             {pauzeTot && pauzeTot > new Date()
                 ? <div className="ab-rij"><span>Gepauzeerd tot <strong>{pauzeTot.toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</strong></span>
@@ -840,6 +926,7 @@ function TitelKop({ item, toonNummer = true }) {
             {toonNummer && (item.nummer_naam || item.nummer_artiest) && (
                 <span className="dim ab-mini">♪ {[item.nummer_naam, item.nummer_artiest].filter(Boolean).join(' – ')}</span>
             )}
+            {!!item.muziek_genres?.length && <span className="dim ab-mini">Muziekgenres: {item.muziek_genres.join(' · ')}{item.muziek_jaar ? ` · ${item.muziek_jaar}` : ''}</span>}
         </div>
     );
 }
@@ -861,6 +948,8 @@ function Rij({ tab, item, acties }) {
                 <div className="ab-cel"><Keuze label="Bekendheid" waarde={item.bekendheid_tier} leeg="—" opties={TIERS} onSave={(w) => p({ bekendheid_tier: w })} />{slot('tier')}</div>
                 <div className="ab-cel"><Tekst label="Nummer" waarde={item.nummer_naam} onSave={(w) => p({ nummer_naam: w })} />{slot('nummer')}</div>
                 <div className="ab-cel"><Tekst label="Artiest / componist" waarde={item.nummer_artiest} onSave={(w) => p({ nummer_artiest: w })} /></div>
+                <div className="ab-cel breed"><Tekst label="Muziekgenres (meerdere, met komma)" waarde={(item.muziek_genres || []).join(', ')} onSave={(w) => p({ muziek_genres: w })} />{slot('genres')}</div>
+                <div className="ab-cel"><Tekst label="Uitgavejaar nummer" type="number" waarde={item.muziek_jaar ?? ''} onSave={(w) => p({ muziek_jaar: w })} />{slot('muziek_jaar')}</div>
                 <div className="ab-cel ab-acties">
                     <label className="ab-check"><input type="checkbox" checked={item.curatie_status !== 'uitgesloten'}
                         onChange={(e) => p({ actief: e.target.checked, curatie_status: e.target.checked ? 'goedgekeurd' : 'uitgesloten' })} /> In het spel</label>

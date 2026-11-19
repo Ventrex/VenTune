@@ -8,6 +8,7 @@
 
 const { pool } = require('../db/pool');
 const { bouwFilter } = require('./filters');
+const { kiesFamilieMix } = require('./family-balance');
 const { vergelijk, franchiseSleutel } = require('../lib/match');
 const { titelPunten, bonusPunten, leeftijdsFactor, bekendheidFactor } = require('./scoring');
 const { genereerBonus } = require('./bonus');
@@ -331,12 +332,12 @@ class SpelBeheer {
                 aanBeurtNaam: h.aanBeurtNaam || null,
                 herstel: true,
             });
-            if (h.aanBeurtSpelers && !h.aanBeurtSpelers.includes(socket.data.spelerId)) {
+            if (!socket.data.isTv && h.aanBeurtSpelers && !h.aanBeurtSpelers.includes(socket.data.spelerId)) {
                 socket.emit('ronde:toeschouwer', {
                     rondeId: h.rondeId, naam: h.titel.naam, jaar: h.titel.jaar,
                 });
             }
-            if (socket.data.isHost) {
+            if (socket.data.isHost || socket.data.isTv) {
                 socket.emit('ronde:audio', { ...audio, pauze: gepauzeerd });
             }
             if (gepauzeerd) socket.emit('ronde:pauze', { gepauzeerd: true });
@@ -448,8 +449,8 @@ class SpelBeheer {
         const { where, params } = bouwFilter(spelInstellingen);
         const { rows: titels } = await pool.query(
             `SELECT t.id, t.naam, t.aliassen, t.franchise, t.categorie, t.bekendheid_tier, t.type, t.taal, t.jaar,
-                    t.eind_jaar, t.serie_lopend,
-                    t.land, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
+                    t.eind_jaar, t.serie_lopend, t.muziek_jaar,
+                    t.land, t.nl_versie, t.nl_bekend, t.genres, t.themas, t.muziek_genres, t.tmdb_id, t.poster_pad, t.cover_url, t.omschrijving,
                     t.hoofdrollen, t.ai_hints, t.ai_hints_status, t.speelplek, t.studio, t.leeftijdsgrens,
                     t.toevoeg_reden, t.nl_tv_bekend, t.curatie_status
                FROM titels t
@@ -480,9 +481,13 @@ class SpelBeheer {
             const tags = [...(t.genres || []), ...(t.muziek_genres || []), ...(t.themas || [])]
                 .map((x) => String(x).toLowerCase());
             if (v === 'film' || v === 'serie') return t.type === v;
+            if (v === 'nederlands' || v === '100nl') return t.taal === 'nl' || t.nl_versie === true;
+            if (v === 'sinterklaas') return t.categorie === 'sinterklaas' ||
+                tags.includes('sinterklaas');
             if (v === '80s' || v === '90s' || v === '20s') {
                 const decennium = { '80s': 1980, '90s': 1990, '20s': 2020 }[v];
-                return t.type === 'muziek' && t.jaar >= decennium && t.jaar <= decennium + 9;
+                const nummerJaar = Number(t.muziek_jaar ?? (t.type === 'muziek' ? t.jaar : 0));
+                return nummerJaar >= decennium && nummerJaar <= decennium + 9;
             }
             return tags.includes(v) || (v === 'disney' && /disney/i.test(t.studio || ''));
         };
@@ -524,10 +529,9 @@ class SpelBeheer {
         })).sort((a, b) => b.score - a.score).map(x => x.titel);
         const voorrang = alle.filter((t) => [...voorkeuren].some((v) => herken(t, v)));
         const aantalVoorrang = Math.min(voorrang.length, Math.ceil((gevraagd || alle.length) * 0.35));
-        const gekozen = voorrang.slice(0, aantalVoorrang);
-        const gekozenIds = new Set(gekozen.map((t) => t.id));
-        const pool_ = husselArray([...gekozen, ...alle.filter((t) => !gekozenIds.has(t.id))
-            .slice(0, Math.max(0, (gevraagd || alle.length) - gekozen.length))]);
+        const { gekozen } = kiesFamilieMix(alle, voorrang.slice(0, aantalVoorrang),
+            gevraagd || alle.length, spelInstellingen.herkenningsprofiel);
+        const pool_ = husselArray(gekozen);
         const totaal = gevraagd > 0 ? Math.min(gevraagd, pool_.length) : pool_.length;
 
         const aantalHulplijnen = lifelineAantal(spelInstellingen);
@@ -941,13 +945,15 @@ class SpelBeheer {
                     }
                 }
                 // Host: krijgt de audio om af te spelen in de kamer.
-                this.io.to(hostKamer(state.code)).emit('ronde:audio', {
+                const tvAudio = {
                     rondeId: state.huidige.rondeId,
                     bron: track.bron,
                     url: track.preview_url,
                     startSeconde: startSecondeVoorTrack(track),
                     durationMs: state.rondeDuurMs,
-                });
+                };
+                this.io.to(hostKamer(state.code)).emit('ronde:audio', tvAudio);
+                this.io.to(`tv:${state.code}`).emit('ronde:audio', tvAudio);
 
                 // Bijhouden hoe vaak en wanneer deze track gespeeld is.
                 await pool.query(
@@ -1530,6 +1536,7 @@ class SpelBeheer {
 
         this.io.to(kamer(state.code)).emit('ronde:pauze', { gepauzeerd: true });
         this.io.to(hostKamer(state.code)).emit('ronde:audio-pauze', {});
+        this.io.to(`tv:${state.code}`).emit('ronde:audio-pauze', {});
     }
 
     /** Host hervat: klok weer laten lopen en de muziek verder spelen. */
@@ -1560,6 +1567,7 @@ class SpelBeheer {
             restMs: h.restMs,
         });
         this.io.to(hostKamer(state.code)).emit('ronde:audio-hervat', {});
+        this.io.to(`tv:${state.code}`).emit('ronde:audio-hervat', {});
     }
 
     /** Host klikt op 'Opnieuw afspelen': stuurt de audio nogmaals. */
@@ -1567,14 +1575,16 @@ class SpelBeheer {
         const state = this.spellen.get(socket.data.lobbyId);
         if (!state || !socket.data.isHost || !state.huidige) return;
         const { track, rondeId } = state.huidige;
-        this.io.to(hostKamer(state.code)).emit('ronde:audio', {
+        const audio = {
             rondeId,
             bron: track.bron,
             url: track.preview_url,
             startSeconde: startSecondeVoorTrack(track),
             durationMs: state.rondeDuurMs,
             herhaling: Date.now(), // maakt het event uniek
-        });
+        };
+        this.io.to(hostKamer(state.code)).emit('ronde:audio', audio);
+        this.io.to(`tv:${state.code}`).emit('ronde:audio', audio);
     }
 
     /** Beta Tester/admin-beoordeling: dezelfde herstelworkflow als in /admin. */

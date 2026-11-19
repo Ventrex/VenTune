@@ -30,7 +30,7 @@ function formatTijd(seconden) {
 }
 
 /** Wacht totdat de browser metadata heeft en start daarna pas de audio. */
-async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
+async function laadEnSpeelAudio(element, url, startSeconde, isActief, gedempt = false) {
     element.pause();
     element.src = audioBron(url);
     element.load();
@@ -65,7 +65,7 @@ async function laadEnSpeelAudio(element, url, startSeconde, isActief) {
     // Zorg dat er écht geluid komt: het element mag niet gedempt staan (bijv.
     // na de stille ontgrendel-play). Anders speelt het wel af, maar hoor je
     // niets. Het volume blijft ongemoeid — dat regelt de host met de schuif.
-    element.muted = false;
+    element.muted = gedempt;
     element.currentTime = Number(startSeconde) || 0;
     await metTimeout(
         element.play(),
@@ -90,8 +90,11 @@ const HostPlayer = forwardRef(function HostPlayer({
     onPauze,
     onHervat,
     onHerhaal,
+    gedempt = false,
 }, ref) {
     const audioRef = useRef(null);
+    const gedemptRef = useRef(gedempt);
+    useEffect(() => { gedemptRef.current = gedempt; if (audioRef.current) audioRef.current.muted = gedempt; }, [gedempt]);
     const ontgrendeldRef = useRef(false);
     const speelTokenRef = useRef(0);
     const [moetTikken, setMoetTikken] = useState(false);
@@ -164,7 +167,7 @@ const HostPlayer = forwardRef(function HostPlayer({
         let laatsteFout = null;
         for (let poging = 0; poging < 3; poging++) {
             try {
-                await laadEnSpeelAudio(el, audio.url, audio.startSeconde, isActief);
+                await laadEnSpeelAudio(el, audio.url, audio.startSeconde, isActief, gedemptRef.current);
                 if (isActief()) {
                     setMoetTikken(false);
                     setFoutmelding('');

@@ -2,6 +2,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
+const { normaliseerZoekterm, sqlZoekveld } = require('../lib/search-normalize');
 const multer = require('multer');
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.env.MEDIA_DIR || '/media','uploads');
 const upload = multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024}});
@@ -77,8 +78,11 @@ function waar(filters) {
   const f = leesFilters(filters);
   const cond = [], args = [];
   function voeg(clause,value){args.push(value);cond.push(clause.replace('?', '$'+args.length))}
-  if(f.zoek) voeg('(naam ILIKE ? OR artiest ILIKE ?)', '%'+f.zoek+'%'); // speciale behandeling hieronder
-  if(f.zoek){cond.pop();args.pop();args.push('%'+f.zoek+'%');cond.push('(naam ILIKE $'+args.length+' OR artiest ILIKE $'+args.length+')')}
+  if(f.zoek) {
+    args.push('%'+normaliseerZoekterm(f.zoek)+'%');
+    cond.push('('+sqlZoekveld('naam')+' LIKE $'+args.length+
+      ' OR '+sqlZoekveld('artiest')+' LIKE $'+args.length+')');
+  }
   if(f.type==='film-serie') cond.push("type IN ('film','serie')");
   else if(f.type!=='alles') voeg('type = ?',f.type);
   if(f.studio) voeg('studio ILIKE ?','%'+f.studio+'%');

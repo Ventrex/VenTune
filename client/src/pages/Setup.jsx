@@ -48,7 +48,7 @@ const CATEGORIEEN = [
     { waarde: 'films', label: 'Films', logo: '/logos/films.svg', uitleg: 'Alleen films' },
     { waarde: 'series', label: 'Series', logo: '/logos/series.svg', uitleg: 'Alleen series' },
     { waarde: 'games', label: 'Videogames', logo: '/logos/music.svg', uitleg: 'Herken de muziek van bekende games op PC en consoles' },
-    { waarde: 'muziek', label: 'Muziek', logo: '/logos/music.svg', uitleg: 'Muziekedities later uitbreiden' },
+    { waarde: 'muziek', label: 'Muziek', logo: '/logos/music.svg', uitleg: 'Ook herkenbare songs uit films, series en games op genre of tijdvak' },
 ];
 const TALEN = [
     { waarde: 'nl', label: 'Nederlands', icoon: '🇳🇱' },
@@ -95,7 +95,7 @@ const GENRES = [
     'Actie', 'Avontuur', 'Animatie', 'Komedie', 'Misdaad', 'Documentaire',
     'Drama', 'Familie', 'Fantasy', 'Historisch', 'Horror', 'Musical',
     'Mysterie', 'Romantiek', 'Sciencefiction', 'Thriller', 'Oorlog',
-    'Western', 'Kerst', 'Superhelden', 'Sport', 'Realityshow',
+    'Western', 'Kerst', 'Sinterklaas', 'Superhelden', 'Sport', 'Realityshow',
 ];
 const MODI = [
     { waarde: 'snelste', label: 'Snelste', uitleg: 'Eerste goede antwoord wint de ronde' },
@@ -159,6 +159,7 @@ export default function Setup() {
         leeftijd_deelnemer_min: 4,
         leeftijd_deelnemer_max: 99,
         alleen_nl_tv: true,
+        herkenningsprofiel: 'standaard',
         alleen_gecontroleerd: false,
         leeftijdspunten_aan: false,
         leeftijdsfactoren: { 6: 2, 9: 1.75, 12: 1.5, 16: 1.25, 18: 1 },
@@ -215,6 +216,7 @@ export default function Setup() {
             met_genres: f.met_genres || [],
             studios: f.studios || [],
             taal: f.taal || 'beide',
+            herkenningsprofiel: f.herkenningsprofiel || 'standaard',
             periode_start: f.periode_start ?? 1930,
             periode_eind: f.periode_eind ?? NU,
             kindvriendelijk: f.kindvriendelijk === true,
@@ -259,7 +261,7 @@ export default function Setup() {
     const INHOUDSFILTERS = new Set([
         'game_only',
         'categorie', 'categorieen', 'collecties', 'met_genres', 'genre_keuze', 'studios',
-        'taal', 'periode_start', 'periode_eind', 'zonder_genres',
+        'taal', 'herkenningsprofiel', 'periode_start', 'periode_eind', 'zonder_genres',
         'kindvriendelijk', 'leeftijd_max',
     ]);
 
@@ -379,6 +381,7 @@ export default function Setup() {
             categorieen: p.categorieen || (p.categorie === 'films' ? ['film'] : p.categorie === 'series' ? ['serie'] : ['film', 'serie']),
             collecties: p.collecties || [],
             taal: p.taal,
+            herkenningsprofiel: p.extra_instellingen?.herkenningsprofiel || 'standaard',
             periode_start: p.periode_start,
             periode_eind: p.periode_eind,
             rondes: p.rondes,
@@ -583,7 +586,7 @@ export default function Setup() {
                             <p>{hoofdgroep==='films'?'▱  Collectie':hoofdgroep==='muziek'?'Welk muziekgenre?':hoofdgroep==='games'?'Kies één of meerdere fabrikanten': 'Kies een thema'}</p>
                             <div className="vt-keuzerij">
                                 {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder'],...dbCollecties(['film','serie','beide','alles'])]
-                                :hoofdgroep==='muziek'?[['alles','🎧 Alles'],...dbCollecties(['muziek','alles'])]
+                                :hoofdgroep==='muziek'?[['alles','🎧 Alles'],['80s','🌇 Jaren 80'],['90s','📼 Jaren 90'],...dbCollecties(['muziek','alles'])]
                                 :hoofdgroep==='games'?[['alles','🎮 Alle games'],['nintendo','🕹️ Nintendo'],['sega','💫 Sega'],['playstation','🔵 PlayStation'],['xbox','🟢 Xbox'],['pc','💻 PC']]
                                 :[['alles','✨ Alle thema’s'],['kerst','🎄 Kerst']]).map(([id,label])=>
                                     <button type="button" key={id} className={'chip'+((hoofdgroep==='games'? (id==='alles'?!(filters.platformen||[]).length:(filters.platformen||[]).includes(id)) :subkeuze===id)?' gekozen':'')}
@@ -810,6 +813,37 @@ export default function Setup() {
                             </div>
                         </section>
                         <section className="vt-options-panel">
+                            <h2>Voor wie is het spel?</h2>
+                            <p className="dim">Kies op basis van taal en wat mensen kennen, niet alleen op leeftijd. Je kunt dit per spel wijzigen.</p>
+                            <button type="button" className="knop knop-stil vt-generaties-mix"
+                                onClick={() => setFilters(f => ({
+                                    ...f,
+                                    categorie: 'beide',
+                                    categorieen: ['film','serie','sinterklaas','muziek'],
+                                    game_only: false,
+                                    collecties: [],
+                                    herkenningsprofiel: 'familie',
+                                    periode_start: 1950,
+                                    periode_eind: NU,
+                                    tiers: ['iconisch','algemeen_bekend','bekend'],
+                                    genre_keuze: [],
+                                    met_genres: [],
+                                }))}>
+                                Familieronde maken: Nederlandse klassiekers, Sinterklaas én bekende muziek
+                            </button>
+                            <p className="dim">Geschikt voor een groep met verschillende leeftijden. Ook iemand die weinig tv keek krijgt via de muziekcategorie kansen om mee te doen. Pas de samenstelling gerust zelf aan.</p>
+                            <div className="vt-choice-grid">
+                                {[
+                                    ['standaard', 'Iedereen', 'De normale mix van bekende titels'],
+                                    ['familie', 'Alle generaties', 'Minstens ongeveer 1 op 3 herkenbare Nederlandstalige rondes, als er genoeg goedgekeurde nummers zijn'],
+                                    ['nederlands', 'Nederlands zonder ondertitels', 'Alleen Nederlandstalige audio of gecontroleerde Nederlandse versies; geschikt als Engels lastig is'],
+                                ].map(([id, naam, uitleg]) => <button key={id} type="button"
+                                    className={'vt-option-card' + (filters.herkenningsprofiel === id ? ' selected' : '')}
+                                    aria-pressed={filters.herkenningsprofiel === id}
+                                    onClick={() => zet('herkenningsprofiel', id)}>
+                                    <strong>{naam}</strong><small>{uitleg}</small>
+                                </button>)}
+                            </div>
                             <h2>Wie speelt?</h2>
                             <div className="vt-choice-grid">
                                 {[

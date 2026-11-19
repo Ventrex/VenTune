@@ -11,14 +11,14 @@ const logger = require('./logger');
 
 // Ophogen wanneer de beoordelingsprompt inhoudelijk verandert: alle titels
 // worden dan opnieuw door de AI bekeken (handmatige velden blijven staan).
-const AI_VERSIE = 5; // 3: bekendheid titel+nummer, anime binnen anime, eerdere: taal/land/eindjaar
+const AI_VERSIE = 6; // 6: oorspronkelijke muziekjaar en overlapping van muziekgenres/collecties, ook voor films en games
 
-const CATEGORIEEN = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'kinder'];
+const CATEGORIEEN = ['film', 'serie', 'anime', 'game', 'muziek', 'kerst', 'sinterklaas', 'kinder'];
 const CATEGORIE_LABEL = {
     film: 'Films', serie: 'Series', anime: 'Anime', game: 'Videogames',
-    muziek: 'Muziek', kerst: 'Kerst', kinder: 'Kinder',
+    muziek: 'Muziek', kerst: 'Kerst', sinterklaas: 'Sinterklaas', kinder: 'Kinder',
 };
-const MUZIEK_CATEGORIEEN = new Set(['muziek', 'kerst', 'kinder']);
+const MUZIEK_CATEGORIEEN = new Set(['muziek', 'kerst', 'sinterklaas', 'kinder']);
 
 const TIERS = ['iconisch', 'algemeen_bekend', 'bekend', 'onbekend', 'cult'];
 const TIER_LABEL = {
@@ -31,7 +31,7 @@ const TIER_VERDELING = { iconisch: 0.2, algemeen_bekend: 0.25, bekend: 0.25, onb
 // Velden die de beheerder kan aanpassen. Na een aanpassing staat het veld
 // in titels.handmatig en blijft de AI eraf.
 const VASTZETBAAR = ['naam', 'categorie', 'tier', 'jaar', 'nl', 'taal', 'actief', 'franchise',
-    'aliassen', 'nummer', 'hints', 'vragen', 'mp3', 'genres'];
+    'aliassen', 'nummer', 'hints', 'vragen', 'mp3', 'genres', 'muziek_jaar'];
 
 // Vaste genrelijst, zodat je in Nieuw spel kunt kiezen voor bv. alleen
 // komedieseries of alleen actiegames. De AI kiest per titel 1-3 genres.
@@ -42,29 +42,31 @@ const GENRES_GAME = ['Actie', 'Avontuur', 'Platform', 'RPG', 'Shooter', 'Race', 
     'Strategie', 'Simulatie', 'Horror', 'Party', 'Open wereld', 'Muziek', 'Indie'];
 const GENRES_MUZIEK = ['Pop', 'Rock', 'Metal', 'Punk', 'Alternatief', 'Indie', 'Hiphop', 'R&B', 'Soul', 'Funk',
     'Disco', 'Dance', 'Reggae', 'Latin', 'Country', 'Blues', 'Jazz', 'Klassiek', 'Schlager', 'Levenslied',
-    'Nederpop', 'Singer-songwriter', 'Soundtrack', 'Kinderlied', 'Kerst'];
+    'Nederpop', 'Singer-songwriter', 'Soundtrack', 'Kinderlied', 'Kerst', 'Sinterklaas'];
 const ALLE_GENRES = [...new Set([...GENRES_BEELD, ...GENRES_GAME, ...GENRES_MUZIEK])];
 function genresVoor(categorie) {
     if (categorie === 'game') return GENRES_GAME;
-    if (['muziek', 'kerst', 'kinder'].includes(categorie)) return GENRES_MUZIEK;
+    if (['muziek', 'kerst', 'sinterklaas', 'kinder'].includes(categorie)) return GENRES_MUZIEK;
     return GENRES_BEELD;
 }
 function schoonGenres(lijst, categorie) {
     const geldig = new Set(genresVoor(categorie));
-    return [...new Set((Array.isArray(lijst) ? lijst : []).filter((g) => geldig.has(g)))].slice(0, 3);
+    return [...new Set((Array.isArray(lijst) ? lijst : []).filter((g) => geldig.has(g)))].slice(0, 6);
 }
 
 const STANDAARD_INSTELLINGEN = {
     aan: true,
+    quizAan: false, // Eerst de database en MP3's vullen; hints en vragen later expliciet inschakelen.
     pauzeSeconden: 120,
     // Zuinig met het ChatGPT-abonnement: maximaal zoveel AI-vragen per dag
     // (0 = onbeperkt), webzoeken alleen bij beoordelen, en een vaste pauze
     // tot een tijdstip (na een limiet of zelf ingesteld).
     maxPerDag: 20,
+    maxPerWeek: 70, // Naast het dagbudget: begrens ook de cumulatieve weekbelasting.
     webZoeken: 'nooit',
     pauzeTot: null,
-    voorrang: [], // categorieën die bij alles voorgaan, bv. ['game']
-    doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, kinder: 100 },
+    voorrang: ['film', 'serie', 'sinterklaas', 'game', 'kerst', 'muziek'], // eerste vier eerst; kerst/muziek pas daarna
+    doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, sinterklaas: 80, kinder: 100 },
 };
 
 /** Een speelbare lokale MP3 voor titel-alias `t`. */
@@ -90,7 +92,7 @@ function voorrangSql(param) {
     // de categorieën met voorrang.
     return `EXISTS (SELECT 1 FROM titel_collecties tcv JOIN collecties cv ON cv.id = tcv.collectie_id
                      WHERE tcv.titel_id = t.id AND cv.voorrang AND cv.actief) DESC,
-            (COALESCE(t.categorie, t.type::text) = ANY(${param}::text[])) DESC`;
+            COALESCE(array_position(${param}::text[], COALESCE(t.categorie, t.type::text)), 999) ASC`;
 }
 
 /** Welk inhoudstype (enum titel_type) past bij een categorie. */
@@ -135,6 +137,7 @@ async function bewaarInstellingen(patch) {
     const nieuw = { ...huidig, ...patch, doelen: { ...huidig.doelen, ...(patch.doelen || {}) } };
     nieuw.pauzeSeconden = Math.min(1800, Math.max(5, Number(nieuw.pauzeSeconden) || 120));
     nieuw.maxPerDag = Math.min(5000, Math.max(0, Math.round(Number(nieuw.maxPerDag) || 0)));
+    nieuw.maxPerWeek = Math.min(10000, Math.max(0, Math.round(Number(nieuw.maxPerWeek) || 0)));
     if (!['altijd', 'belangrijk', 'nooit'].includes(nieuw.webZoeken)) nieuw.webZoeken = 'belangrijk';
     const pt = nieuw.pauzeTot ? new Date(nieuw.pauzeTot) : null;
     nieuw.pauzeTot = pt && !Number.isNaN(pt.getTime()) && pt > new Date() ? pt.toISOString() : null;
@@ -177,17 +180,32 @@ function vandaag() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+// Datum van de maandag van deze kalenderweek (server-lokale tijd).
+function weekSleutel() {
+    const d = new Date();
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 async function telAiGebruik() {
     await pool.query(
-        `INSERT INTO app_instellingen (sleutel, waarde, bijgewerkt_op) VALUES ('ai_gebruik', jsonb_build_object('datum', $1::text, 'aantal', 1), now())
-         ON CONFLICT (sleutel) DO UPDATE SET bijgewerkt_op = now(), waarde = CASE
-             WHEN app_instellingen.waarde->>'datum' = $1 THEN jsonb_set(app_instellingen.waarde, '{aantal}', to_jsonb(COALESCE((app_instellingen.waarde->>'aantal')::int, 0) + 1))
-             ELSE jsonb_build_object('datum', $1::text, 'aantal', 1) END`, [vandaag()]);
+        `INSERT INTO app_instellingen (sleutel, waarde, bijgewerkt_op)
+         VALUES ('ai_gebruik', jsonb_build_object('datum', $1::text, 'aantal', 1, 'week', $2::text, 'week_aantal', 1), now())
+         ON CONFLICT (sleutel) DO UPDATE SET bijgewerkt_op = now(), waarde = jsonb_build_object(
+             'datum', $1::text,
+             'aantal', CASE WHEN app_instellingen.waarde->>'datum' = $1 THEN COALESCE((app_instellingen.waarde->>'aantal')::int, 0) + 1 ELSE 1 END,
+             'week', $2::text,
+             'week_aantal', CASE WHEN app_instellingen.waarde->>'week' = $2 THEN COALESCE((app_instellingen.waarde->>'week_aantal')::int, 0) + 1 ELSE 1 END
+         )`, [vandaag(), weekSleutel()]);
 }
 async function aiGebruikVandaag() {
     const { rows } = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'ai_gebruik'");
     const w = rows[0]?.waarde;
     return w && w.datum === vandaag() ? Number(w.aantal) || 0 : 0;
+}
+async function aiGebruikDezeWeek() {
+    const { rows } = await pool.query("SELECT waarde FROM app_instellingen WHERE sleutel = 'ai_gebruik'");
+    const w = rows[0]?.waarde;
+    return w && w.week === weekSleutel() ? Number(w.week_aantal) || 0 : 0;
 }
 
 /** Aantallen per categorie × bekendheid (alleen actieve titels). */
@@ -252,6 +270,6 @@ module.exports = {
     AI_VERSIE, CATEGORIEEN, CATEGORIE_LABEL, MUZIEK_CATEGORIEEN, TIERS, TIER_LABEL,
     TIER_VERDELING, VASTZETBAAR, HEEFT_MP3, HEEFT_SPEELBAAR, TIER_RANG,
     GENRES_BEELD, GENRES_GAME, GENRES_MUZIEK, ALLE_GENRES, genresVoor, schoonGenres,
-    telAiGebruik, aiGebruikVandaag, telDag,
+    telAiGebruik, aiGebruikVandaag, aiGebruikDezeWeek, telDag,
     voorrangSql, typeVoorCategorie, isVast, norm, log, instellingen, bewaarInstellingen, tellingen, werkvoorraad,
 };

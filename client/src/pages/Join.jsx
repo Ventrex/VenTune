@@ -13,6 +13,7 @@ export default function Join() {
     const [status, setStatus] = useState('controleren'); // controleren | ok | weg
     const [naam, setNaam] = useState('');
     const [specialiteit, setSpecialiteit] = useState('');
+    const [leeftijd, setLeeftijd] = useState('');
     const [bezig, setBezig] = useState(false);
     const [fout, setFout] = useState('');
     const [account,setAccount]=useState(null);
@@ -51,7 +52,7 @@ export default function Join() {
         setBezig(true);
         setFout('');
         try {
-            const res = await joinLobby(bovenCode, naam.trim(), null, specialiteit);
+            const res = await joinLobby(bovenCode, naam.trim(), leeftijd ? Number(leeftijd) : null, specialiteit);
             bewaarSessie({
                 token: res.token,
                 code: res.code,
@@ -96,10 +97,16 @@ export default function Join() {
                         autoFocus
                         readOnly={Boolean(account)}
                     />
+                    <label className="dim">Leeftijd (optioneel)
+                        <input className="invoer" type="number" min="4" max="120" inputMode="numeric"
+                            value={leeftijd} onChange={(e) => setLeeftijd(e.target.value)}
+                            placeholder="Bijvoorbeeld 83" aria-label="Leeftijd voor een eerlijkere muziekkeuze" />
+                        <small>Helpt VenTune kiezen voor meerdere generaties. Geen geboortedatum nodig.</small>
+                    </label>
                     <label className="dim">Jouw specialiteit (optioneel)
                         <select className="invoer" value={specialiteit} onChange={(e) => setSpecialiteit(e.target.value)}>
                             <option value="">Geen voorkeur</option>
-                            {[['film','Films'],['serie','Series'],['disney','Disney'],['kerst','Kerst'],['rock','Rock'],['80s','80s'],['90s','90s'],['20s','20s'],['kinder','Kinder'],['100nl','100% NL']].map(([k,n]) => <option key={k} value={k}>{n}</option>)}
+                            {[['film','Films'],['serie','Series'],['disney','Disney'],['kerst','Kerst'],['rock','Rock'],['80s','80s'],['90s','90s'],['20s','20s'],['kinder','Kinder'],['sinterklaas','Sinterklaas'],['nederlands','Nederlandstalige muziek'],['100nl','100% NL']].map(([k,n]) => <option key={k} value={k}>{n}</option>)}
                         </select>
                     </label>
                     <button className="knop" type="submit" disabled={bezig}>

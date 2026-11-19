@@ -46,7 +46,16 @@ function veiligeNaam(waarde, fallback = 'onbekend') {
 }
 
 function typeMap(titel) {
-    return titel?.type === 'serie' ? 'Serie' : 'Film';
+    // Nieuwe nummers op categorie bewaren. De paden van bestaande MP3's
+    // worden niet gemigreerd of hernoemd.
+    const categorie = normaliseer(titel?.categorie || '');
+    const mappen = {
+        film: 'Film', serie: 'Serie', game: 'Videogames',
+        videogames: 'Videogames', muziek: 'Muziek', kerst: 'Kerst',
+        sinterklaas: 'Sinterklaas', kinder: 'Kinder',
+        anime: 'Manga', manga: 'Manga',
+    };
+    return mappen[categorie] || mappen[normaliseer(titel?.type)] || 'Film';
 }
 
 function taalCode(titel) {

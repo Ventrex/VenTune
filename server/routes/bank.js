@@ -38,7 +38,9 @@ const codex = require('../lib/codex');
 const bank = require('../lib/bank');
 const bankMp3 = require('../lib/bank-mp3');
 const worker = require('../lib/bank-worker');
+const { publiceerMp3, herstelPublicatie } = require('../lib/publish-reviewed-media');
 const { vereisAdmin } = require('./admin');
+const { normaliseerZoekterm, sqlZoekveld } = require('../lib/search-normalize');
 
 const router = express.Router();
 const PER_PAGINA = 50;
@@ -57,7 +59,7 @@ router.get('/api/admin/bank/status', vereisAdmin, async (_req, res) => {
                          GROUP BY 1`),
         ]);
         res.json({
-            worker: { ...worker.huidigeStatus(), vandaag: await bank.aiGebruikVandaag().catch(() => 0) },
+            worker: { ...worker.huidigeStatus(), vandaag: await bank.aiGebruikVandaag().catch(() => 0), dezeWeek: await bank.aiGebruikDezeWeek().catch(() => 0) },
             instellingen: inst,
             tellingen: telling,
             voorraad,
@@ -95,14 +97,15 @@ router.post('/api/admin/bank/alles-opnieuw', vereisAdmin, async (_req, res) => {
             UPDATE titels t SET zoek_status = 'nieuw', zoek_pogingen = 0, volgende_poging = NULL,
                    zoek_melding = 'Staat in de wachtrij om opnieuw te zoeken.'
              WHERE t.curatie_status <> 'uitgesloten' AND NOT 'mp3' = ANY(t.handmatig) AND NOT ${bank.HEEFT_MP3}`);
-        const q = await pool.query(`
+        const quizAan = (await bank.instellingen()).quizAan === true;
+        const q = quizAan ? await pool.query(`
             UPDATE titels t SET ai_quiz_op = NULL
              WHERE t.curatie_status <> 'uitgesloten'
                AND (COALESCE(array_length(t.ai_hints, 1), 0) < 3
-                    OR (SELECT count(*) FROM vragen v WHERE v.titel_id = t.id AND v.ai_review_status <> 'afgekeurd') < 3)`);
+                    OR (SELECT count(*) FROM vragen v WHERE v.titel_id = t.id AND v.ai_review_status <> 'afgekeurd') < 3)`) : { rowCount: 0 };
         await bank.bewaarInstellingen({ aan: true });
         worker.hervat({ vergeet: true });
-        const tekst = `Alles opnieuw: ${b.rowCount} titels opnieuw beoordelen, ${m.rowCount} MP3's opnieuw zoeken, ${q.rowCount} titels nieuwe hints/vragen.`;
+        const tekst = `Alles opnieuw: ${b.rowCount} titels opnieuw beoordelen, ${m.rowCount} MP3's opnieuw zoeken${quizAan ? `, ${q.rowCount} hints/vragen opnieuw opbouwen` : '; hints en vragen blijven uit'}.`;
         await bank.log(null, 'systeem', tekst);
         res.json({ ok: true, beoordelen: b.rowCount, mp3: m.rowCount, quiz: q.rowCount, tekst });
     } catch (err) { fout(res, err); }
@@ -115,6 +118,8 @@ router.patch('/api/admin/bank/instellingen', vereisAdmin, async (req, res) => {
         if (req.body?.pauzeSeconden !== undefined) patch.pauzeSeconden = req.body.pauzeSeconden;
         if (Array.isArray(req.body?.voorrang)) patch.voorrang = req.body.voorrang;
         if (req.body?.maxPerDag !== undefined) patch.maxPerDag = req.body.maxPerDag;
+        if (req.body?.maxPerWeek !== undefined) patch.maxPerWeek = req.body.maxPerWeek;
+        if (req.body?.quizAan !== undefined) patch.quizAan = req.body.quizAan === true;
         if (req.body?.webZoeken !== undefined) patch.webZoeken = req.body.webZoeken;
         if (req.body?.pauzeTot !== undefined) patch.pauzeTot = req.body.pauzeTot || null;
         res.json(await bank.bewaarInstellingen(patch));
@@ -187,6 +192,24 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         const filterNaam = FILTERS[tab][req.query.filter] ? req.query.filter : Object.keys(FILTERS[tab])[0];
         const condities = [FILTERS[tab][filterNaam]];
         const params = [];
+        if (tab === 'nummers' && filterNaam === 'alle') {
+            // Deluxe/Ultimate/Gold zijn geen extra games in de normale catalogus.
+            // Verberg alleen de bijzondere uitgave ALS de basisgame ook bestaat.
+            // Laat de records staan voor controle via 'Dubbelen' en bestaande spelhistorie.
+            const suffix = "([[:space:]]*[-:–—][[:space:]]*|[[:space:]]+)(digital[[:space:]]+)?(deluxe|ultimate|special|gold|premium|complete|definitive|standard|limited|collector[[:punct:]]?s)[[:space:]]+edition[[:space:]]*$";
+            condities.push(`NOT (
+                COALESCE(t.categorie, t.type::text) = 'game'
+                AND t.naam ~* '${suffix}'
+                AND EXISTS (
+                    SELECT 1 FROM titels basis
+                     WHERE basis.id <> t.id
+                       AND basis.curatie_status <> 'uitgesloten'
+                       AND COALESCE(basis.categorie, basis.type::text) = 'game'
+                       AND lower(regexp_replace(regexp_replace(t.naam, '${suffix}', '', 'i'), '[^[:alnum:]]+', '', 'g'))
+                           = lower(regexp_replace(basis.naam, '[^[:alnum:]]+', '', 'g'))
+                )
+            )`);
+        }
         if (bank.CATEGORIEEN.includes(req.query.categorie)) {
             params.push(req.query.categorie);
             condities.push(`COALESCE(t.categorie, t.type::text) = $${params.length}`);
@@ -197,11 +220,17 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         } else if (req.query.tier === 'geen') {
             condities.push('t.bekendheid_tier IS NULL');
         }
-        const zoek = String(req.query.zoek || '').trim();
+        const zoek = normaliseerZoekterm(req.query.zoek);
         if (zoek) {
             params.push(`%${zoek}%`);
-            condities.push(`(t.naam ILIKE $${params.length} OR t.nummer_naam ILIKE $${params.length}
-                OR t.nummer_artiest ILIKE $${params.length} OR t.franchise ILIKE $${params.length})`);
+            condities.push(`(${sqlZoekveld('t.naam')} LIKE $${params.length}
+                OR ${sqlZoekveld('t.nummer_naam')} LIKE $${params.length}
+                OR ${sqlZoekveld('t.nummer_artiest')} LIKE $${params.length}
+                OR ${sqlZoekveld('t.franchise')} LIKE $${params.length}
+                OR EXISTS (
+                    SELECT 1 FROM unnest(t.aliassen) AS a(naam)
+                    WHERE ${sqlZoekveld('a.naam')} LIKE $${params.length}
+                ))`);
         }
         const where = `WHERE ${condities.join(' AND ')}`;
         const pagina = Math.max(1, parseInt(req.query.pagina, 10) || 1);
@@ -213,7 +242,7 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         params.push(PER_PAGINA, (pagina - 1) * PER_PAGINA);
         const { rows } = await pool.query(`
             SELECT t.id, t.naam, t.type::text AS type, COALESCE(t.categorie, t.type::text) AS categorie,
-                   t.bekendheid_tier, t.jaar, t.eind_jaar, t.serie_lopend, t.taal::text AS taal, t.land,
+                   t.bekendheid_tier, t.jaar, t.eind_jaar, t.muziek_jaar, t.muziek_genres, t.serie_lopend, t.taal::text AS taal, t.land,
                    t.nl_bekend, t.nl_reden, t.franchise, t.aliassen,
                    t.anime_breed_bekend, t.nummer_naam, t.nummer_artiest, t.yt_zoekterm,
                    t.ai_status, t.ai_notitie, t.handmatig, t.curatie_status, t.ai_uitgesloten,
@@ -317,6 +346,16 @@ router.patch('/api/admin/bank/items/:id', vereisAdmin, async (req, res) => {
             }
             set('jaar', jaar); vast.push('jaar');
         }
+        if (b.muziek_jaar !== undefined) {
+            const jaar = b.muziek_jaar === '' || b.muziek_jaar === null ? null : parseInt(b.muziek_jaar, 10);
+            if (jaar !== null && !(jaar >= 1900 && jaar <= new Date().getFullYear() + 1))
+                return fout(res, new Error('Ongeldig uitgavejaar van het nummer.'), 400);
+            set('muziek_jaar', jaar); vast.push('muziek_jaar');
+        }
+        if (b.muziek_genres !== undefined) {
+            set('muziek_genres', bank.schoonGenres(lijst(b.muziek_genres), 'muziek'));
+            vast.push('genres');
+        }
         if (b.eind_jaar !== undefined) {
             const eind = b.eind_jaar === '' || b.eind_jaar === null ? null : parseInt(b.eind_jaar, 10);
             if (eind !== null && !(eind >= 1900 && eind <= new Date().getFullYear() + 1)) {
@@ -372,6 +411,8 @@ router.patch('/api/admin/bank/items/:id', vereisAdmin, async (req, res) => {
         waarden.push(vast);
         zetten.push(`handmatig = (SELECT ARRAY(SELECT DISTINCT unnest(handmatig || $${waarden.length}::text[])))`);
         await pool.query(`UPDATE titels SET ${zetten.join(', ')} WHERE id = $1`, waarden);
+        if (b.muziek_genres !== undefined || b.categorie !== undefined)
+            await worker.koppelAutomatischeCollecties([id]);
         res.json({ ok: true, vast });
     } catch (err) {
         if (/unique|duplicate/i.test(err.message)) return fout(res, new Error('Die naam bestaat al.'), 409);
@@ -519,6 +560,9 @@ router.get('/api/admin/bank/swipe', vereisAdmin, async (req, res) => {
             "tr.wacht_op_swipe = true", "tr.werkt = true", "tr.download_status = 'available'",
             "t.curatie_status <> 'uitgesloten'",
         ];
+        const fase = req.query.fase === 'naam' ? 'naam' : 'blind';
+        params.push(fase);
+        condities.push(`COALESCE(tr.review_fase, 'blind') = ${params.length}`);
         if (bank.CATEGORIEEN.includes(req.query.categorie)) {
             params.push(req.query.categorie);
             condities.push(`COALESCE(t.categorie, t.type::text) = $${params.length}`);
@@ -549,18 +593,56 @@ router.get('/api/admin/bank/swipe', vereisAdmin, async (req, res) => {
 router.post('/api/admin/bank/swipe/:trackId', vereisAdmin, async (req, res) => {
     try {
         const keuze = req.body?.keuze;
-        if (!['goed', 'fout', 'uitsluiten'].includes(keuze)) return fout(res, new Error('Kies goed, fout of uitsluiten.'), 400);
+        if (!['goed', 'slecht', 'onherkenbaar', 'fout', 'uitsluiten'].includes(keuze))
+            return fout(res, new Error('Ongeldige beoordeling.'), 400);
         const { rows: [tr] } = await pool.query(
-            `SELECT tr.id, tr.titel_id, tr.wacht_op_swipe, t.naam FROM tracks tr JOIN titels t ON t.id = tr.titel_id
+            `SELECT tr.id, tr.titel_id, tr.wacht_op_swipe, tr.review_fase,
+                    tr.preview_url, tr.bestand_pad, tr.bron_url, t.naam
+               FROM tracks tr JOIN titels t ON t.id = tr.titel_id
               WHERE tr.id = $1`, [req.params.trackId]);
         if (!tr) return fout(res, new Error('Nummer niet gevonden.'), 404);
-        // Dubbel tikken of een herhaalde aanvraag doet niets extra.
         if (!tr.wacht_op_swipe) return res.json({ ok: true, alGedaan: true });
-        if (keuze === 'goed') {
+        if (keuze === 'onherkenbaar') {
+            if (tr.review_fase !== 'blind') return fout(res, new Error('Dit nummer zit al in de ronde met titel.'), 409);
+            await pool.query("UPDATE tracks SET review_fase = 'naam', review_reden = 'Blind niet herkend; met titel beoordelen' WHERE id = $1", [tr.id]);
+            await bank.log(tr.titel_id, 'mp3', `${tr.naam}: blind niet herkend, controle met titel nodig.`);
+            return res.json({ ok: true, fase: 'naam' });
+        }
+        if (keuze === 'slecht') {
+            // Een slechte opname hoeft niet het verkeerde nummer te zijn: behoud het bestand en de bron.
+            // Niet speelbaar tot er een betere kandidaat is gevonden of handmatig is vrijgegeven.
             await pool.query(
-                `UPDATE tracks SET wacht_op_swipe = false, review_status = 'goedgekeurd', review_handmatig = true,
-                        gecontroleerd = true, bevestigd = true, review_laatste_op = now(),
-                        review_reden = 'Goedgekeurd bij swipen' WHERE id = $1`, [tr.id]);
+                `UPDATE tracks SET wacht_op_swipe = false, werkt = false, review_status = 'handmatig',
+                        review_kwaliteit = 'slecht', review_laatste_op = now(),
+                        review_reden = 'Slechte audiokwaliteit bij beoordeling' WHERE id = $1`, [tr.id]);
+            const videoId = bankMp3.videoIdUit(tr.bron_url);
+            await pool.query(
+                `UPDATE titels SET zoek_status = 'nieuw', zoek_pogingen = 0, volgende_poging = NULL,
+                        mp3_afgekeurd = CASE WHEN $2::text IS NOT NULL AND NOT ($2::text = ANY(mp3_afgekeurd))
+                           THEN array_append(mp3_afgekeurd, $2::text) ELSE mp3_afgekeurd END,
+                        zoek_melding = 'Slechte geluidskwaliteit; betere bron zoeken'
+                  WHERE id = $1`, [tr.titel_id, videoId || null]);
+            await bank.log(tr.titel_id, 'mp3', `${tr.naam}: slechte geluidskwaliteit; bron bewaard en nieuwe kandidaat in wachtrij.`);
+            worker.porren();
+            return res.json({ ok: true, kwaliteit: 'slecht' });
+        }
+        if (keuze === 'goed') {
+            // Nieuwe AI-downloads staan tijdelijk. Pas na goedkeuren verplaatsen;
+            // bij een databasefout proberen we de bestandsverplaatsing terug te draaien.
+            const verplaatst = await publiceerMp3(tr.bestand_pad || tr.preview_url);
+            try {
+                await pool.query(
+                    `UPDATE tracks SET wacht_op_swipe = false, review_status = 'goedgekeurd',
+                            review_handmatig = true, gecontroleerd = true, bevestigd = true,
+                            review_laatste_op = now(), review_kwaliteit = 'goed',
+                            review_reden = 'Goedgekeurd bij swipen',
+                            preview_url = COALESCE($2, preview_url),
+                            bestand_pad = COALESCE($2, bestand_pad) WHERE id = $1`,
+                    [tr.id, verplaatst?.url || null]);
+            } catch (err) {
+                if (verplaatst) await herstelPublicatie(verplaatst).catch(() => {});
+                throw err;
+            }
             await bank.log(tr.titel_id, 'mp3', `${tr.naam}: nummer goedgekeurd bij swipen.`);
             // Nieuw speelbaar (had nog geen andere goedgekeurde MP3)? Dan telt hij als toegevoegd.
             const { rows: [ander] } = await pool.query(
