@@ -272,7 +272,7 @@ function tabTeller(id, status) {
 
 const DREMPEL = 110; // zo ver slepen = beslissen
 
-function Swipen({ categorie, onWijzig }) {
+function Swipen({ categorie, fase = 'blind', onFaseNaam, onWijzig }) {
     const [rij, setRij] = useState([]);
     const [klaar, setKlaar] = useState(false);
     const [melding, setMelding] = useState('');
@@ -283,7 +283,7 @@ function Swipen({ categorie, onWijzig }) {
         if (laden.current) return;
         laden.current = true;
         try {
-            const q = new URLSearchParams({ categorie, overslaan: [...behandeld.current].slice(-300).join(',') });
+            const q = new URLSearchParams({ categorie, fase, overslaan: [...behandeld.current].slice(-300).join(',') });
             const d = await api(`/api/admin/bank/swipe?${q}`);
             setRij((oud) => {
                 const al = new Set(oud.map((i) => i.track_id));
@@ -293,7 +293,7 @@ function Swipen({ categorie, onWijzig }) {
             setKlaar(d.items.length === 0);
         } catch (e) { setMelding(e.message); }
         finally { laden.current = false; }
-    }, [categorie]);
+    }, [categorie, fase]);
     useEffect(() => { laad(); }, [laad]);
     useEffect(() => { if (rij.length < 4 && !klaar) laad(); }, [rij.length, klaar, laad]);
 
@@ -308,25 +308,25 @@ function Swipen({ categorie, onWijzig }) {
         if (keuze === 'later') return;
         const item = huidig;
         api(`/api/admin/bank/swipe/${item.track_id}`, { method: 'POST', body: { keuze } })
-            .then(() => onWijzig())
+            .then(() => { onWijzig(); if (keuze === 'onherkenbaar') onFaseNaam?.(); })
             .catch((e) => {
                 // Niet opgeslagen: het nummer komt vooraan terug, zodat je opnieuw kunt kiezen.
                 behandeld.current.delete(item.track_id);
                 setRij((r) => (r.some((i) => i.track_id === item.track_id) ? r : [item, ...r]));
                 setMelding(`${item.naam} niet opgeslagen (${e.message}); kies opnieuw.`);
             });
-    }, [huidig, onWijzig]);
+    }, [huidig, onWijzig, onFaseNaam]);
 
     useEffect(() => {
         const toets = (e) => {
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
             if (e.key === 'ArrowRight') beslis('goed');
-            else if (e.key === 'ArrowLeft') beslis('fout');
+            else if (e.key === 'ArrowLeft') beslis(fase === 'blind' ? 'slecht' : 'fout');
             else if (e.key === 'ArrowDown') beslis('later');
         };
         window.addEventListener('keydown', toets);
         return () => window.removeEventListener('keydown', toets);
-    }, [beslis]);
+    }, [beslis, fase]);
 
     // Volgende MP3 alvast laden, zodat die meteen speelt.
     useEffect(() => {
@@ -348,18 +348,19 @@ function Swipen({ categorie, onWijzig }) {
     return (
         <div className="ab-swipe">
             {melding && <p className="ab-rood ab-mini">{melding}</p>}
-            <SwipeKaart key={huidig.track_id} item={huidig} onBeslis={beslis} />
-            <p className="dim ab-mini ab-swipe-uitleg">Sleep naar rechts = goed, naar links = fout. Toetsen: → goed, ← fout, ↓ later.</p>
+            <SwipeKaart key={huidig.track_id} item={huidig} fase={fase} onBeslis={beslis} />
+            <p className="dim ab-mini ab-swipe-uitleg">{fase === 'blind' ? 'Luister zonder namen of herkenningsinformatie. Onherkenbare nummers controleer je daarna met titel.' : 'Controleer of de muziek daadwerkelijk bij de genoemde film, serie of game hoort. Slechte kwaliteit en een fout nummer zijn verschillende beoordelingen.'}</p>
         </div>
     );
 }
 
-function SwipeKaart({ item, onBeslis }) {
+function SwipeKaart({ item, fase, onBeslis }) {
     const [dx, setDx] = useState(0);
     const [weg, setWeg] = useState(0);
     const start = useRef(null);
 
     function down(e) {
+        if (fase === 'blind') return;
         if (e.target.closest('.ab-speler, button, a, input')) return;
         start.current = { x: e.clientX, id: e.pointerId };
         e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -375,7 +376,11 @@ function SwipeKaart({ item, onBeslis }) {
         else setDx(0);
     }
     function beslisMet(keuze) {
-        setWeg(keuze === 'goed' ? 1 : keuze === 'fout' ? -1 : 0);
+        if (fase === 'blind' || !['goed', 'fout'].includes(keuze)) {
+            onBeslis(keuze);
+            return;
+        }
+        setWeg(keuze === 'goed' ? 1 : -1);
         setTimeout(() => onBeslis(keuze), 160);
     }
 
@@ -387,7 +392,7 @@ function SwipeKaart({ item, onBeslis }) {
     return (
         <div className="ab-swipe-wrap">
             {/* Balk die volloopt naarmate je verder sleept */}
-            <div className="ab-swipe-meter" aria-hidden="true">
+            {fase === 'naam' && <div className="ab-swipe-meter" aria-hidden="true">
                 <span className="fout" style={{ width: dx < 0 ? `${ver * 50}%` : 0 }} />
                 <span className="goed" style={{ width: dx > 0 ? `${ver * 50}%` : 0 }} />
                 <em className={ver >= 1 ? 'vol' : ''}>
@@ -395,7 +400,7 @@ function SwipeKaart({ item, onBeslis }) {
                         ? (ver >= 1 ? `Loslaten = ${richting.toUpperCase()}` : `Verder slepen voor ${richting}…`)
                         : '← fout · sleep de kaart · goed →'}
                 </em>
-            </div>
+            </div>}
             <article className={'ab-swipe-kaart' + (start.current ? ' slepen' : '')}
                 style={{ transform, transition: start.current ? 'none' : 'transform 0.18s ease' }}
                 onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
@@ -403,23 +408,30 @@ function SwipeKaart({ item, onBeslis }) {
                 <span className="ab-stempel fout" style={{ opacity: dx < 0 ? ver : 0 }}>FOUT ✕</span>
                 <div className="ab-badges">
                     <span className={`ab-badge cat-${item.categorie}`}>{CAT_LABEL[item.categorie] || item.categorie}</span>
-                    {item.bekendheid_tier && <span className={`ab-badge tier-${item.bekendheid_tier}`}>{TIER_LABEL[item.bekendheid_tier]}</span>}
-                    {item.jaar && <span className="ab-badge">{jaarTekst(item)}</span>}
+                    {fase === 'naam' && item.bekendheid_tier && <span className={`ab-badge tier-${item.bekendheid_tier}`}>{TIER_LABEL[item.bekendheid_tier]}</span>}
+                    {fase === 'naam' && item.jaar && <span className="ab-badge">{jaarTekst(item)}</span>}
                 </div>
-                <h2 className="ab-swipe-titel">{item.naam}</h2>
-                <p className="ab-swipe-nummer">♪ {[item.nummer_naam, item.nummer_artiest].filter(Boolean).join(' – ') || 'Herkenningsnummer'}</p>
+                <h2 className="ab-swipe-titel">{fase === 'blind' ? 'Luister zonder titel' : item.naam}</h2>
+                {fase === 'naam' && <p className="ab-swipe-nummer">♪ {[item.nummer_naam, item.nummer_artiest].filter(Boolean).join(' – ') || 'Herkenningsnummer'}</p>}
                 <Speler src={item.mp3_url} />
-                <p className="dim ab-mini">YouTube: {item.youtube_titel || '—'}</p>
-                {item.verificatie_reden && <p className="dim ab-mini">{item.verificatie_reden}</p>}
+                {fase === 'naam' && <>
+                    <p className="dim ab-mini">YouTube: {item.youtube_titel || '—'}</p>
+                    {item.verificatie_reden && <p className="dim ab-mini">{item.verificatie_reden}</p>}
+                </>}}
             </article>
-            <div className="ab-swipe-knoppen">
-                <button type="button" className="ab-groot fout" onClick={() => beslisMet('fout')}>✕<span>Fout</span></button>
-                <button type="button" className="ab-groot later" onClick={() => onBeslis('later')}>↓<span>Later</span></button>
-                <button type="button" className="ab-groot goed" onClick={() => beslisMet('goed')}>✓<span>Goed</span></button>
+            <div className="ab-swipe-knoppen ab-review-keuzes">
+                <button type="button" className="ab-groot goed" onClick={() => beslisMet('goed')}>✓<span>Goedgekeurd</span></button>
+                <button type="button" className="ab-groot later" onClick={() => beslisMet('slecht')}>♪<span>Slechte kwaliteit</span></button>
+                {fase === 'blind'
+                    ? <button type="button" className="ab-groot fout" onClick={() => beslisMet('onherkenbaar')}>?<span>Onherkenbaar · met titel</span></button>
+                    : <>
+                        <button type="button" className="ab-groot fout" onClick={() => beslisMet('fout')}>✕<span>Fout nummer</span></button>
+                        <button type="button" className="ab-groot fout" onClick={() => {
+                            if (window.confirm(`${item.naam} uit het spel halen omdat het te onbekend of minder iconisch is?`)) beslisMet('uitsluiten');
+                        }}>−<span>Afwijzen</span></button>
+                    </>}
             </div>
-            <button type="button" className="ab-linkknop ab-mini dim" onClick={() => {
-                if (window.confirm(`${item.naam} helemaal uit het spel halen?`)) onBeslis('uitsluiten');
-            }}>Titel hoort niet in het spel</button>
+            <button type="button" className="ab-linkknop ab-mini dim" onClick={() => onBeslis('later')}>Later controleren</button>
         </div>
     );
 }
