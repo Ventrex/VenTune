@@ -91,6 +91,9 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS studio TEXT;
 -- Metadata voor toekomstige quizfilters (bestaande gegevens blijven behouden).
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS themas TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS muziek_genres TEXT[] NOT NULL DEFAULT '{}';
+-- Originele uitgavejaar van HET NUMMER, los van het releasejaar van film/serie/game.
+ALTER TABLE titels ADD COLUMN IF NOT EXISTS muziek_jaar INTEGER;
+CREATE INDEX IF NOT EXISTS idx_titels_muziek_jaar ON titels (muziek_jaar);
 -- Curatie: waarom staat een titel in de database en is hij geschikt voor de
 -- standaardselectie "bekend van Nederlandse tv"?
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS toevoeg_reden TEXT NOT NULL
@@ -454,6 +457,7 @@ ALTER TABLE titels ADD COLUMN IF NOT EXISTS alleen_kids_nu BOOLEAN NOT NULL DEFA
 -- Genres uit de vaste VenTune-lijst (AI of bron), voor de genrekeuze in Nieuw spel.
 ALTER TABLE titels ADD COLUMN IF NOT EXISTS ai_genres TEXT[] NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS idx_titels_ai_genres ON titels USING gin (ai_genres);
+CREATE INDEX IF NOT EXISTS idx_titels_muziek_genres ON titels USING gin (muziek_genres);
 -- Eenmalig: bestaande TMDB-genres omzetten, zodat de genrekeuze meteen werkt.
 -- De AI vult en verbetert ze daarna bij de volgende beoordeling.
 UPDATE titels t SET ai_genres = sub.g
