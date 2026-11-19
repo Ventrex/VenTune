@@ -37,6 +37,15 @@ export default function Play() {
         herstelBezig,
     } = spel;
     const [gok, setGok] = useState('');
+    const [groteLetters, setGroteLetters] = useState(() => {
+        try { return localStorage.getItem('vt_grote_letters') === '1'; }
+        catch { return false; }
+    });
+    const wisselLetters = () => setGroteLetters(v => {
+        try { localStorage.setItem('vt_grote_letters', v ? '0' : '1'); }
+        catch { /* private browse */ }
+        return !v;
+    });
     const [gokIngediend, setGokIngediend] = useState(false);
     const [bonusKeuze, setBonusKeuze] = useState(null);
     const [herkenbaarheidStem, setHerkenbaarheidStem] = useState(null);
@@ -117,7 +126,11 @@ export default function Play() {
     }
 
     return (
-        <main className="scherm">
+        <main className={'scherm' + (groteLetters ? ' vt-grote-tekst' : '')}>
+            <div className="vt-speler-toegankelijk">
+                <button type="button" className="knop knop-stil" aria-pressed={groteLetters}
+                    onClick={wisselLetters}>{groteLetters ? 'Aa Normale letters' : 'Aa Grotere letters'}</button>
+            </div>
             {spel.fout && <p className="waarschuwing">{spel.fout}</p>}
             {((!verbonden && fase !== 'wachten') || herstelNodig) && (
                 <div className="herstelkaart" role="status">
