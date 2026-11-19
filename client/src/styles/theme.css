@@ -2373,3 +2373,18 @@ body {
   .auth-scherm { max-width: min(100%, 29rem); padding-inline: 1rem; }
   .auth-scherm h1 { font-size: clamp(1.75rem, 7vw, 2.35rem); }
 }
+
+/* Toegankelijk spelen: mobiel/tablet + bediening van gedeeld TV-scherm. */
+.vt-tv-host-bediening {display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:.6rem 0;}
+.vt-tv-host-bediening .knop {width:auto;white-space:normal}
+.vt-tv-host-bediening label {display:flex;align-items:center;gap:9px;font-size:.95rem;color:#e8eafa;cursor:pointer}
+.vt-tv-host-bediening input[type="checkbox"] {min-width:20px;min-height:20px;accent-color:#73dbc9}
+.vt-tv-lobby-uitleg {overflow-wrap:anywhere;word-break:break-word;font-size:.85rem}
+.vt-generaties-mix {display:block;width:100%;margin:12px 0;white-space:normal;text-align:center}
+.scherm .invoer:not(textarea) {min-height:44px;font-size:16px}
+.scherm .keuze, .scherm .knop, .scherm button.chip {touch-action:manipulation}
+@media (max-width:700px) {
+  .vt-tv-host-bediening {flex-direction:column;align-items:stretch}
+  .vt-tv-host-bediening .knop {width:100%}
+  .scherm .meerkeuze-antwoorden .keuze {min-height:56px}
+}
