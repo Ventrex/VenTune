@@ -39,6 +39,7 @@ const bank = require('../lib/bank');
 const bankMp3 = require('../lib/bank-mp3');
 const worker = require('../lib/bank-worker');
 const { vereisAdmin } = require('./admin');
+const { normaliseerZoekterm, sqlZoekveld } = require('../lib/search-normalize');
 
 const router = express.Router();
 const PER_PAGINA = 50;
@@ -197,11 +198,17 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         } else if (req.query.tier === 'geen') {
             condities.push('t.bekendheid_tier IS NULL');
         }
-        const zoek = String(req.query.zoek || '').trim();
+        const zoek = normaliseerZoekterm(req.query.zoek);
         if (zoek) {
             params.push(`%${zoek}%`);
-            condities.push(`(t.naam ILIKE $${params.length} OR t.nummer_naam ILIKE $${params.length}
-                OR t.nummer_artiest ILIKE $${params.length} OR t.franchise ILIKE $${params.length})`);
+            condities.push(`(${sqlZoekveld('t.naam')} LIKE ${params.length}
+                OR ${sqlZoekveld('t.nummer_naam')} LIKE ${params.length}
+                OR ${sqlZoekveld('t.nummer_artiest')} LIKE ${params.length}
+                OR ${sqlZoekveld('t.franchise')} LIKE ${params.length}
+                OR EXISTS (
+                    SELECT 1 FROM unnest(t.aliassen) AS a(naam)
+                    WHERE ${sqlZoekveld('a.naam')} LIKE ${params.length}
+                ))`);
         }
         const where = `WHERE ${condities.join(' AND ')}`;
         const pagina = Math.max(1, parseInt(req.query.pagina, 10) || 1);
