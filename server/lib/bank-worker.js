@@ -33,8 +33,8 @@ const INHAAL = ['beoordelen', 'mp3', 'beoordelen', 'mp3', 'beoordelen', 'verbete
 // Alles gaat in lijsten: één AI-vraag per lijst van dezelfde categorie.
 const BATCH = { beoordelen: 100, quiz: 30, mp3: 6, aanvullen: 40, collectieScan: 200, collectieAanvullen: 30 };
 const PERIODES = {
-    film: ['1970-1984', '1985-1994', '1995-2004', '2005-2014', '2015-nu'],
-    serie: ['1970-1989', '1990-1999', '2000-2009', '2010-2017', '2018-nu'],
+    film: ['1950-1969', '1970-1984', '1985-1994', '1995-2004', '2005-2014', '2015-nu'],
+    serie: ['1950-1969', '1970-1989', '1990-1999', '2000-2009', '2010-2017', '2018-nu'],
     anime: ['1980-1999', '2000-2012', '2013-nu'],
     game: ['1980-1994', '1995-2004', '2005-2014', '2015-nu'],
     muziek: ['1960-1979', '1980-1989', '1990-1999', '2000-2009', '2010-2019', '2020-nu'],
@@ -450,8 +450,11 @@ function kiesAanvulling(inst, telling) {
         const rang = (c) => { const n = voorrang.indexOf(c); return n < 0 ? 999 : n; };
         return rang(a.categorie) - rang(b.categorie) || b.ratio - a.ratio;
     });
-    for (const tier of bank.TIERS) {
-        for (const k of kandidaten) {
+    // Eerst categorie-prioriteit (Film, Serie, Sinterklaas, Games),
+    // dáárbinnen de bekendheid. Anders zou iconische Kerst vóór algemeen
+    // bekende films komen en de gevraagde volgorde doorbreken.
+    for (const k of kandidaten) {
+        for (const tier of bank.TIERS) {
             const periodes = PERIODES[k.categorie];
             for (let i = 0; i < periodes.length; i++) {
                 periodeIndex[k.categorie] = ((periodeIndex[k.categorie] || 0) + 1) % periodes.length;
