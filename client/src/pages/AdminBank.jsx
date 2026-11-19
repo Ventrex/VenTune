@@ -239,7 +239,7 @@ function Bank() {
                 <p className="dim">Eerst bekende en iconische films, series en videogames verzamelen. Nieuwe nummers komen in de goedkeuringswachtrij. De AI blijft binnen je dagbudget.</p>
                 <p><strong>ChatGPT:</strong> {status?.chatgpt?.gekoppeld ? 'Gekoppeld' : 'Nog niet gekoppeld'}</p>
                 {!status?.chatgpt?.gekoppeld && <ChatGptKoppeling onWijzig={laadStatus} />}
-                {status?.instellingen && <Tempo instellingen={status.instellingen} vandaag={status.worker?.vandaag ?? 0} onWijzig={laadStatus} />}
+                {status?.instellingen && <Tempo instellingen={status.instellingen} vandaag={status.worker?.vandaag ?? 0} dezeWeek={status.worker?.dezeWeek ?? 0} onWijzig={laadStatus} />}
             </section>}
             {tab === 'systeem' && <Admin ingebed sectie={systeemSub} />}
                 </div>
@@ -548,7 +548,7 @@ function WorkerBalk({ status, onWijzig }) {
                 )}
             </div>
             <div className="ab-balk-cijfers dim">
-                Vandaag {w.vandaag ?? 0}{max ? `/${max}` : ''} AI-vragen
+                Vandaag {w.vandaag ?? 0}{max ? `/${max}` : ''} · week {w.dezeWeek ?? 0}{status.instellingen.maxPerWeek ? `/${status.instellingen.maxPerWeek}` : ''} AI-vragen
                 <Hint tekst={`Sinds de herstart: ${w.tellers.beoordeeld} beoordeeld, ${w.tellers.mp3} MP3, ${w.tellers.quiz} quiz, ${w.tellers.toegevoegd} nieuw, ${w.tellers.verbeterd} verbeterd.`} />
             </div>
             <button type="button" className="ab-knop" onClick={() => zet(!aan)}>{aan ? 'Pauzeren' : 'Aanzetten'}</button>
@@ -664,7 +664,7 @@ function Overzicht({ status, onWijzig, ga }) {
                     </button>
                 ))}
             </section>
-            <Tempo instellingen={instellingen} vandaag={status.worker?.vandaag ?? 0} onWijzig={onWijzig} />
+            <Tempo instellingen={instellingen} vandaag={status.worker?.vandaag ?? 0} dezeWeek={status.worker?.dezeWeek ?? 0} onWijzig={onWijzig} />
         </div>
     );
 }
@@ -675,7 +675,7 @@ const TEMPOS = [
     ['normaal', 'Normaal', { maxPerDag: 20, maxPerWeek: 90, pauzeSeconden: 120, webZoeken: 'belangrijk' }],
     ['snel', 'Snel', { maxPerDag: 40, maxPerWeek: 150, pauzeSeconden: 90, webZoeken: 'belangrijk' }],
 ];
-function Tempo({ instellingen, vandaag, onWijzig }) {
+function Tempo({ instellingen, vandaag, dezeWeek = 0, onWijzig }) {
     const [tot, setTot] = useState('');
     const huidig = TEMPOS.find(([, , v]) => v.maxPerDag === instellingen.maxPerDag && v.maxPerWeek === instellingen.maxPerWeek && v.pauzeSeconden === instellingen.pauzeSeconden && v.webZoeken === instellingen.webZoeken)?.[0];
     const patch = async (body) => { await api('/api/admin/bank/instellingen', { method: 'PATCH', body }).catch((e) => alert(e.message)); onWijzig(); };
@@ -700,7 +700,7 @@ function Tempo({ instellingen, vandaag, onWijzig }) {
                 <Tekst label="Seconden tussen stappen" type="number" waarde={instellingen.pauzeSeconden} onSave={(v) => patch({ pauzeSeconden: Number(v) })} />
                 <Keuze label="Webzoeken" waarde={instellingen.webZoeken} opties={[['belangrijk', 'Alleen bij beoordelen'], ['altijd', 'Altijd'], ['nooit', 'Nooit']]} onSave={(v) => patch({ webZoeken: v })} />
             </div>
-            <p className="dim ab-mini">Vandaag {vandaag}{instellingen.maxPerDag ? ` van ${instellingen.maxPerDag}` : ''}; deze week {instellingen.maxPerWeek ? `maximaal ${instellingen.maxPerWeek}` : 'onbeperkt'} AI-verzoeken.</p>
+            <p className="dim ab-mini">Vandaag {vandaag}{instellingen.maxPerDag ? ` van ${instellingen.maxPerDag}` : ''}; deze week {dezeWeek}{instellingen.maxPerWeek ? ` van ${instellingen.maxPerWeek}` : ' (onbeperkt)'} AI-verzoeken.</p>
             <p className="ab-label" style={{ marginTop: '0.8rem' }}>Pauzeren tot <Hint tekst="Handig als je ChatGPT-limiet op is: de AI doet tot dat moment niets. Na een limiet zet hij dit zelf, als ChatGPT zegt wanneer het weer kan." /></p>
             {pauzeTot && pauzeTot > new Date()
                 ? <div className="ab-rij"><span>Gepauzeerd tot <strong>{pauzeTot.toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</strong></span>
