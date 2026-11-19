@@ -125,6 +125,11 @@ function bouwFilter(f = {}) {
         );
     }
 
+    // Toegankelijk Nederlands profiel: geen Engelse opnames/ondertitels nodig.
+    // Leeftijd is hier geen inhoudsrating; het gaat om verstaanbare muziek.
+    if (f.herkenningsprofiel === 'nederlands') {
+        condities.push("(t.taal::text = 'nl' OR t.nl_versie = true)");
+    }
     // Taal: nl | en | us | beide. `us` gebruikt land, omdat Amerikaans
     // geen aparte gesproken-taalwaarde is in de catalogus.
     if (f.taal === 'nl') {
