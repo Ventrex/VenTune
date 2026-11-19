@@ -22,6 +22,9 @@ function kiesFamilieMix(titels, voorkeursTitels, gevraagd, profiel) {
     voeg(titels.filter(nl), vasteNl);
     // Alle spelers krijgen waar mogelijk hun eigen specialiteiten.
     voeg(voorkeursTitels, Math.max(0, Math.ceil(aantal * 0.35) - gepakt.length));
+    // Vul in de familiemix waar mogelijk eerst aan met de andere talen.
+    // Zo houdt het spel een echte mix; niet 7 van 12 NL als 4 bedoeld zijn.
+    if (profiel === 'familie') voeg(titels.filter(t => !nl(t)), aantal - gepakt.length);
     voeg(titels, aantal - gepakt.length);
     return { gekozen: gepakt, nederlandsMinimaal: vasteNl };
 }
