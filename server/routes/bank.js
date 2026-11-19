@@ -242,7 +242,7 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         params.push(PER_PAGINA, (pagina - 1) * PER_PAGINA);
         const { rows } = await pool.query(`
             SELECT t.id, t.naam, t.type::text AS type, COALESCE(t.categorie, t.type::text) AS categorie,
-                   t.bekendheid_tier, t.jaar, t.eind_jaar, t.serie_lopend, t.taal::text AS taal, t.land,
+                   t.bekendheid_tier, t.jaar, t.eind_jaar, t.muziek_jaar, t.muziek_genres, t.serie_lopend, t.taal::text AS taal, t.land,
                    t.nl_bekend, t.nl_reden, t.franchise, t.aliassen,
                    t.anime_breed_bekend, t.nummer_naam, t.nummer_artiest, t.yt_zoekterm,
                    t.ai_status, t.ai_notitie, t.handmatig, t.curatie_status, t.ai_uitgesloten,
@@ -346,6 +346,16 @@ router.patch('/api/admin/bank/items/:id', vereisAdmin, async (req, res) => {
             }
             set('jaar', jaar); vast.push('jaar');
         }
+        if (b.muziek_jaar !== undefined) {
+            const jaar = b.muziek_jaar === '' || b.muziek_jaar === null ? null : parseInt(b.muziek_jaar, 10);
+            if (jaar !== null && !(jaar >= 1900 && jaar <= new Date().getFullYear() + 1))
+                return fout(res, new Error('Ongeldig uitgavejaar van het nummer.'), 400);
+            set('muziek_jaar', jaar); vast.push('muziek_jaar');
+        }
+        if (b.muziek_genres !== undefined) {
+            set('muziek_genres', bank.schoonGenres(lijst(b.muziek_genres), 'muziek'));
+            vast.push('genres');
+        }
         if (b.eind_jaar !== undefined) {
             const eind = b.eind_jaar === '' || b.eind_jaar === null ? null : parseInt(b.eind_jaar, 10);
             if (eind !== null && !(eind >= 1900 && eind <= new Date().getFullYear() + 1)) {
@@ -401,6 +411,8 @@ router.patch('/api/admin/bank/items/:id', vereisAdmin, async (req, res) => {
         waarden.push(vast);
         zetten.push(`handmatig = (SELECT ARRAY(SELECT DISTINCT unnest(handmatig || $${waarden.length}::text[])))`);
         await pool.query(`UPDATE titels SET ${zetten.join(', ')} WHERE id = $1`, waarden);
+        if (b.muziek_genres !== undefined || b.categorie !== undefined)
+            await worker.koppelAutomatischeCollecties([id]);
         res.json({ ok: true, vast });
     } catch (err) {
         if (/unique|duplicate/i.test(err.message)) return fout(res, new Error('Die naam bestaat al.'), 409);
