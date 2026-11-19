@@ -196,7 +196,7 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
             // Deluxe/Ultimate/Gold zijn geen extra games in de normale catalogus.
             // Verberg alleen de bijzondere uitgave ALS de basisgame ook bestaat.
             // Laat de records staan voor controle via 'Dubbelen' en bestaande spelhistorie.
-            const suffix = "([[:space:]]*[-:–—][[:space:]]*|[[:space:]]+)(digital[[:space:]]+)?(deluxe|ultimate|special|gold|premium|complete|definitive|standard|limited|collector'?s)[[:space:]]+edition[[:space:]]*$";
+            const suffix = "([[:space:]]*[-:–—][[:space:]]*|[[:space:]]+)(digital[[:space:]]+)?(deluxe|ultimate|special|gold|premium|complete|definitive|standard|limited|collector[[:punct:]]?s)[[:space:]]+edition[[:space:]]*$";
             condities.push(`NOT (
                 COALESCE(t.categorie, t.type::text) = 'game'
                 AND t.naam ~* '${suffix}'
