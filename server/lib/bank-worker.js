@@ -479,6 +479,11 @@ async function stapAanvullen(inst) {
     const { rows: alleRows } = await pool.query(
         `SELECT t.naam FROM titels t WHERE COALESCE(t.categorie, t.type::text) = $1`, [categorie]);
     const namen = new Set(alleRows.map((r) => bank.norm(categorie === 'game' ? normaliseerSpelUitgave(r.naam) : r.naam)));
+    // Een song die al herkenningsmuziek van een film, serie of game is,
+    // krijgt geen tweede titel/MP3 via de algemene muziekimport.
+    const { rows: reedsAlsSoundtrack } = bank.MUZIEK_CATEGORIEEN.has(categorie)
+        ? await pool.query("SELECT nummer_naam, nummer_artiest FROM titels WHERE curatie_status <> 'uitgesloten' AND NULLIF(nummer_naam, '') IS NOT NULL")
+        : { rows: [] };
 
     const aantal = Math.min(BATCH.aanvullen, keuze.tekort);
     zet('aanvullen', `Lijst maken: ${aantal} ${bank.CATEGORIE_LABEL[categorie]} (${periode || 'alle jaren'}, ${bank.TIER_LABEL[tier]})`);
@@ -489,23 +494,32 @@ async function stapAanvullen(inst) {
     let passend = 0; // nieuwe titels van precies de gevraagde bekendheid
     const nieuweNamen = [];
     for (const it of res.items) {
+        const indeling = bank.MUZIEK_CATEGORIEEN.has(categorie)
+            ? categoriseerMuziek({ naam: it.naam, artiest: it.artiest, categorie })
+            : null;
+        const actueleCategorie = indeling?.categorie || categorie;
         const naam = categorie === 'game' ? normaliseerSpelUitgave(it.naam) : it.naam;
         const sleutel = bank.norm(naam);
         if (!sleutel || namen.has(sleutel)) continue;
+        if (indeling && reedsAlsSoundtrack.some((song) =>
+            bank.norm(song.nummer_naam) === sleutel &&
+            (!it.artiest || !song.nummer_artiest || bank.norm(song.nummer_artiest) === bank.norm(it.artiest)))) continue;
         namen.add(sleutel);
         // Alleen naam/jaar/inschatting opslaan; de beoordelingsronde
         // controleert direct daarna (als lijst) NL-bekendheid, gegevens,
         // categorie en het herkenningsnummer.
-        const muziek = bank.MUZIEK_CATEGORIEEN.has(categorie);
+        const muziek = bank.MUZIEK_CATEGORIEEN.has(actueleCategorie);
+        const songGenres = muziek ? indeling.genres : [];
         try {
             await pool.query(
                 `INSERT INTO titels (naam, type, taal, jaar, categorie, bekendheid_tier, nummer_naam, nummer_artiest,
-                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres)
-                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, $9, $9)`,
-                [naam, bank.typeVoorCategorie(categorie, categorie === 'anime' ? 'serie' : 'film'), it.jaar,
-                    categorie, it.bekendheid || tier, muziek ? it.naam : null, muziek ? (it.artiest || null) : null,
-                    `AI-curator: aangevuld (${bank.CATEGORIE_LABEL[categorie]}, ${periode || 'alle jaren'})`,
-                    categorie === 'game' ? ['Videogames'] : categorie === 'kerst' ? ['Kerst'] : []],
+                        ai_status, ai_versie, curatie_status, toevoeg_reden, genres, muziek_genres, ai_genres, muziek_jaar)
+                 VALUES ($1, $2::titel_type, 'en', $3, $4, $5, $6, $7, 'nieuw', 0, 'goedgekeurd', $8, $9, $10, $10, $11)`,
+                [naam, bank.typeVoorCategorie(actueleCategorie, actueleCategorie === 'anime' ? 'serie' : 'film'), it.jaar,
+                    actueleCategorie, it.bekendheid || tier, muziek ? naam : null, muziek ? (it.artiest || null) : null,
+                    `AI-curator: aangevuld (${bank.CATEGORIE_LABEL[actueleCategorie]}, ${periode || 'alle jaren'})`,
+                    actueleCategorie === 'game' ? ['Videogames'] : songGenres,
+                    songGenres, muziek ? it.jaar : null],
             );
             toegevoegd++;
             if (!it.bekendheid || it.bekendheid === tier) passend++;
