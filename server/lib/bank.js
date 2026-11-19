@@ -56,6 +56,7 @@ function schoonGenres(lijst, categorie) {
 
 const STANDAARD_INSTELLINGEN = {
     aan: true,
+    quizAan: false, // Eerst de database en MP3's vullen; hints en vragen later expliciet inschakelen.
     pauzeSeconden: 120,
     // Zuinig met het ChatGPT-abonnement: maximaal zoveel AI-vragen per dag
     // (0 = onbeperkt), webzoeken alleen bij beoordelen, en een vaste pauze
