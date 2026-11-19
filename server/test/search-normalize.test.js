@@ -8,6 +8,6 @@ test('Assassins Creed matches every apostrophe variant', () => {
   }
 });
 test('SQL field identifiers cannot contain values or SQL snippets', () => {
-  assert.match(sqlZoekveld('t.naam'), /^translate\\(lower/);
+  assert.match(sqlZoekveld('t.naam'), /^translate\(lower/);
   assert.throws(() => sqlZoekveld('t.naam; DELETE FROM titels'));
 });
