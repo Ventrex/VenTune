@@ -303,9 +303,9 @@ router.get('/api/admin/titels', vereisAdmin, async (req, res) => {
     const voorwaarden = [];
     if (zoek) {
         params.push(`%${normaliseerZoekterm(zoek)}%`);
-        voorwaarden.push(`(${sqlZoekveld('t.naam')} LIKE ${params.length}
+        voorwaarden.push(`(${sqlZoekveld('t.naam')} LIKE $${params.length}
           OR EXISTS (SELECT 1 FROM unnest(t.aliassen) AS a(naam)
-                     WHERE ${sqlZoekveld('a.naam')} LIKE ${params.length}))`);
+                     WHERE ${sqlZoekveld('a.naam')} LIKE $${params.length}))`);
     }
     if (filter === 'zonder-track') {
         voorwaarden.push(`NOT EXISTS (
