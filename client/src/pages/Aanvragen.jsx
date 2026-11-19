@@ -12,9 +12,9 @@ import Hint from '../components/Hint.jsx';
 
 const CATS = [
     ['film', '🎬 Film'], ['serie', '📺 Serie'], ['anime', '🌸 Anime'], ['game', '🎮 Videogame'],
-    ['muziek', '🎵 Muziek'], ['kerst', '🎄 Kerst'], ['kinder', '🧸 Kinderlied'],
+    ['muziek', '🎵 Muziek'], ['kerst', '🎄 Kerst'], ['sinterklaas', '🎁 Sinterklaas'], ['kinder', '🧸 Kinderlied'],
 ];
-const MUZIEK = new Set(['muziek', 'kerst', 'kinder']);
+const MUZIEK = new Set(['muziek', 'kerst', 'sinterklaas', 'kinder']);
 
 async function json(r) { try { return await r.json(); } catch { return null; } }
 
