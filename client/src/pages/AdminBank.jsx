@@ -108,11 +108,16 @@ function Bank() {
     const tab = GROEPEN.some(([t]) => t === params.get('tab')) ? params.get('tab') : 'overzicht';
     const sub = params.get('sub') || '';
     const [status, setStatus] = useState(null);
+    const [siteTeksten, setSiteTeksten] = useState({});
+    const tekst = (sleutel, standaard) => siteTeksten[sleutel] || standaard;
     const [menuOpen, setMenuOpen] = useState(false);
     const [fout, setFout] = useState('');
 
     const laadStatus = useCallback(() => {
         api('/api/admin/bank/status').then((s) => { setStatus(s); setFout(''); }).catch((e) => setFout(e.message));
+    }, []);
+    useEffect(() => {
+        fetch('/api/site-teksten').then((r) => r.ok ? r.json() : {}).then(setSiteTeksten).catch(() => {});
     }, []);
     useEffect(() => {
         laadStatus();
@@ -157,8 +162,8 @@ function Bank() {
             </header>
             <div className="ab-hero">
                 <div><p className="ab-eyebrow">DE REGIE IS AAN JOU</p>
-                    <h1>Alles voor een goede spelavond.</h1>
-                    <p className="dim">AI doet het voorwerk. Jij houdt het overzicht.</p>
+                    <h1>{tekst('beheer.overzicht.titel', 'Alles voor een goede spelavond.')}</h1>
+                    <p className="dim">{tekst('beheer.overzicht.ondertitel', 'AI doet het voorwerk. Jij houdt het overzicht.')}</p>
                 </div>
                 <button type="button" className="ab-linkknop ab-uitlog" onClick={uitloggen}>Uitloggen</button>
             </div>
@@ -202,8 +207,8 @@ function Bank() {
 
             {tab === 'swipen' && (<>
                 <nav className="ab-fase-keuze" aria-label="Muziek goedkeuren in twee stappen">
-                    <button type="button" className={fase === 'blind' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'blind' })}>1. Zonder titel luisteren</button>
-                    <button type="button" className={fase === 'naam' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'naam' })}>2. Met titel beoordelen</button>
+                    <button type="button" className={fase === 'blind' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'blind' })}>{'1. ' + tekst('beheer.review.blind', 'Zonder titel luisteren')}</button>
+                    <button type="button" className={fase === 'naam' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'naam' })}>{'2. ' + tekst('beheer.review.met_titel', 'Met titel beoordelen')}</button>
                 </nav>
                 <SubTabs actief={sub} onKies={(id) => ga('swipen', { sub: id, fase })}
                     items={[['', 'Alles'], ...CATS]} teller={(id) => (id ? status?.swipe?.[id] : v.te_swipen)} />
@@ -218,7 +223,7 @@ function Bank() {
             )}
 
             {tab === 'overzicht' && <Overzicht status={status} onWijzig={laadStatus} ga={ga} />}
-            {tab === 'swipen' && <Swipen key={sub + '-' + fase} categorie={sub} fase={fase} onFaseNaam={() => ga('swipen', { sub, fase: 'naam' })} onWijzig={laadStatus} />}
+            {tab === 'swipen' && <Swipen key={sub + '-' + fase} categorie={sub} fase={fase} uitleg={tekst('beheer.review.uitleg', 'Luister zonder namen of herkenningsinformatie. Onherkenbare nummers controleer je daarna met titel.')} onFaseNaam={() => ga('swipen', { sub, fase: 'naam' })} onWijzig={laadStatus} />}
             {tab === 'controles' && <Lijst key={`c-${controle}`} tab={controle} standaardFilter="alle" />}
             {tab === 'fixes' && fix[0] === 'dubbelen' && <Dubbelen />}
             {tab === 'fixes' && fix[0] !== 'dubbelen' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
@@ -230,7 +235,7 @@ function Bank() {
             {tab === 'log' && logSub !== 'ai' && <Admin ingebed sectie={logSub} />}
             {tab === 'spelers' && <Admin ingebed sectie={spelerSub} />}
             {tab === 'ai' && <section className="ab-kaart ab-ai-pagina">
-                <h2>AI koppelen en verbruik beheren</h2>
+                <h2>{tekst('beheer.ai.titel', 'AI koppelen en verbruik beheren')}</h2>
                 <p className="dim">Eerst bekende en iconische films, series en videogames verzamelen. Nieuwe nummers komen in de goedkeuringswachtrij. De AI blijft binnen je dagbudget.</p>
                 <p><strong>ChatGPT:</strong> {status?.chatgpt?.gekoppeld ? 'Gekoppeld' : 'Nog niet gekoppeld'}</p>
                 {!status?.chatgpt?.gekoppeld && <ChatGptKoppeling onWijzig={laadStatus} />}
@@ -272,7 +277,7 @@ function tabTeller(id, status) {
 
 const DREMPEL = 110; // zo ver slepen = beslissen
 
-function Swipen({ categorie, fase = 'blind', onFaseNaam, onWijzig }) {
+function Swipen({ categorie, fase = 'blind', uitleg, onFaseNaam, onWijzig }) {
     const [rij, setRij] = useState([]);
     const [klaar, setKlaar] = useState(false);
     const [melding, setMelding] = useState('');
@@ -349,7 +354,7 @@ function Swipen({ categorie, fase = 'blind', onFaseNaam, onWijzig }) {
         <div className="ab-swipe">
             {melding && <p className="ab-rood ab-mini">{melding}</p>}
             <SwipeKaart key={huidig.track_id} item={huidig} fase={fase} onBeslis={beslis} />
-            <p className="dim ab-mini ab-swipe-uitleg">{fase === 'blind' ? 'Luister zonder namen of herkenningsinformatie. Onherkenbare nummers controleer je daarna met titel.' : 'Controleer of de muziek daadwerkelijk bij de genoemde film, serie of game hoort. Slechte kwaliteit en een fout nummer zijn verschillende beoordelingen.'}</p>
+            <p className="dim ab-mini ab-swipe-uitleg">{fase === 'blind' ? uitleg : 'Controleer of de muziek daadwerkelijk bij de genoemde film, serie of game hoort. Slechte kwaliteit en een fout nummer zijn verschillende beoordelingen.'}</p>
         </div>
     );
 }
