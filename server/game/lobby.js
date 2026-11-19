@@ -119,7 +119,7 @@ async function doeMee({ code, naam, leeftijd = null, specialiteit = null, gebrui
         throw new Error('Dit spel is al begonnen.');
     }
 
-    const toegestaan = ['film', 'serie', 'disney', 'kerst', 'rock', '80s', '90s', '20s', 'kinder', '100nl'];
+    const toegestaan = ['film', 'serie', 'disney', 'kerst', 'sinterklaas', 'nederlands', 'rock', '80s', '90s', '20s', 'kinder', '100nl'];
     const keuze = toegestaan.includes(specialiteit) ? specialiteit : null;
     if (gebruikerId) {
         const bestaand=await pool.query(
