@@ -3,6 +3,10 @@ import './catalogus-workspace.css';
 const PAGINAS = [
   { naam: 'Beginpagina', url: '/', uitleg: 'De teksten op de startpagina. Je ziet wijzigingen nadat de pagina opnieuw is geladen.' },
   { naam: 'Navigatie', url: 'Alle pagina’s', uitleg: 'De knoppen in het gedeelde navigatiemenu. Dit is geen aparte URL.' },
+  { naam: 'Host inloggen', url: '/host/login', uitleg: 'Inloggen en aanmelden voor hosts, ook op mobiel.' },
+  { naam: 'Beheer · Overzicht', url: '/admin/bank?tab=overzicht', uitleg: 'Het introductieblok boven het beheerdashboard.' },
+  { naam: 'Beheer · AI & kosten', url: '/admin/bank?tab=ai', uitleg: 'De koptekst op het scherm voor AI-koppeling en limieten.' },
+  { naam: 'Beheer · Samen testen', url: '/admin/bank?tab=swipen', uitleg: 'De twee fasen en de uitleg bij de muziekgoedkeuring.' },
 ];
 const LIJST=[
  ['home.titel','Beginpagina','Koptekst','Kies je volgende quiz'],
@@ -15,6 +19,16 @@ const LIJST=[
  ['nav.beheer','Navigatie','Beheer','Beheer'],
  ['nav.profielen','Navigatie','Profielen','Profielen'],
  ['nav.inloggen','Navigatie','Inloggen','Inloggen'],
+
+ ['host.login.titel','Host inloggen','Titel inloggen','Host inloggen'],
+ ['host.registratie.titel','Host inloggen','Titel account maken','Hostaccount maken'],
+ ['host.uitleg','Host inloggen','Uitleg','Een hostaccount is verplicht om een spel te starten. Spelers doen gewoon mee zonder account.'],
+ ['beheer.overzicht.titel','Beheer · Overzicht','Hoofdtitel','Alles voor een goede spelavond.'],
+ ['beheer.overzicht.ondertitel','Beheer · Overzicht','Ondertitel','AI doet het voorwerk. Jij houdt het overzicht.'],
+ ['beheer.ai.titel','Beheer · AI & kosten','Titel','AI koppelen en verbruik beheren'],
+ ['beheer.review.blind','Beheer · Samen testen','Fase 1','Zonder titel luisteren'],
+ ['beheer.review.met_titel','Beheer · Samen testen','Fase 2','Met titel beoordelen'],
+ ['beheer.review.uitleg','Beheer · Samen testen','Uitleg blind luisteren','Luister zonder namen of herkenningsinformatie. Onherkenbare nummers controleer je daarna met titel.'],
 ];
 export default function SiteTeksten(){
  const [waarden,setWaarden]=useState({});
