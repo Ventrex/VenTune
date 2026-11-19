@@ -2388,3 +2388,12 @@ body {
   .vt-tv-host-bediening .knop {width:100%}
   .scherm .meerkeuze-antwoorden .keuze {min-height:56px}
 }
+
+
+/* Per speler grotere tekst, zonder de host/TV of anderen te veranderen. */
+.vt-speler-toegankelijk {display:flex;justify-content:flex-end;margin:0 0 .5rem}
+.vt-speler-toegankelijk .knop {min-height:44px;font-size:.92rem}
+.vt-grote-tekst {font-size:1.2rem;line-height:1.6}
+.vt-grote-tekst .keuze,.vt-grote-tekst .knop,.vt-grote-tekst input {font-size:1.15rem!important;line-height:1.4}
+.vt-grote-tekst .keuze {min-height:64px}
+.vt-grote-tekst .kaart-label,.vt-grote-tekst .dim {font-size:1.05rem}
