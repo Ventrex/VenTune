@@ -38,6 +38,7 @@ const codex = require('../lib/codex');
 const bank = require('../lib/bank');
 const bankMp3 = require('../lib/bank-mp3');
 const worker = require('../lib/bank-worker');
+const { publiceerMp3, herstelPublicatie } = require('../lib/publish-reviewed-media');
 const { vereisAdmin } = require('./admin');
 const { normaliseerZoekterm, sqlZoekveld } = require('../lib/search-normalize');
 
@@ -563,7 +564,8 @@ router.post('/api/admin/bank/swipe/:trackId', vereisAdmin, async (req, res) => {
         if (!['goed', 'slecht', 'onherkenbaar', 'fout', 'uitsluiten'].includes(keuze))
             return fout(res, new Error('Ongeldige beoordeling.'), 400);
         const { rows: [tr] } = await pool.query(
-            `SELECT tr.id, tr.titel_id, tr.wacht_op_swipe, tr.review_fase, t.naam
+            `SELECT tr.id, tr.titel_id, tr.wacht_op_swipe, tr.review_fase,
+                    tr.preview_url, tr.bestand_pad, tr.bron_url, t.naam
                FROM tracks tr JOIN titels t ON t.id = tr.titel_id
               WHERE tr.id = $1`, [req.params.trackId]);
         if (!tr) return fout(res, new Error('Nummer niet gevonden.'), 404);
@@ -581,15 +583,34 @@ router.post('/api/admin/bank/swipe/:trackId', vereisAdmin, async (req, res) => {
                 `UPDATE tracks SET wacht_op_swipe = false, werkt = false, review_status = 'handmatig',
                         review_kwaliteit = 'slecht', review_laatste_op = now(),
                         review_reden = 'Slechte audiokwaliteit bij beoordeling' WHERE id = $1`, [tr.id]);
-            await bank.log(tr.titel_id, 'mp3', `${tr.naam}: slechte geluidskwaliteit; bestaande MP3 bewaard.`);
+            const videoId = bankMp3.videoIdUit(tr.bron_url);
+            await pool.query(
+                `UPDATE titels SET zoek_status = 'nieuw', zoek_pogingen = 0, volgende_poging = NULL,
+                        mp3_afgekeurd = CASE WHEN $2::text IS NOT NULL AND NOT ($2::text = ANY(mp3_afgekeurd))
+                           THEN array_append(mp3_afgekeurd, $2::text) ELSE mp3_afgekeurd END,
+                        zoek_melding = 'Slechte geluidskwaliteit; betere bron zoeken'
+                  WHERE id = $1`, [tr.titel_id, videoId || null]);
+            await bank.log(tr.titel_id, 'mp3', `${tr.naam}: slechte geluidskwaliteit; bron bewaard en nieuwe kandidaat in wachtrij.`);
             worker.porren();
             return res.json({ ok: true, kwaliteit: 'slecht' });
         }
         if (keuze === 'goed') {
-            await pool.query(
-                `UPDATE tracks SET wacht_op_swipe = false, review_status = 'goedgekeurd', review_handmatig = true,
-                        gecontroleerd = true, bevestigd = true, review_laatste_op = now(),
-                        review_reden = 'Goedgekeurd bij swipen' WHERE id = $1`, [tr.id]);
+            // Nieuwe AI-downloads staan tijdelijk. Pas na goedkeuren verplaatsen;
+            // bij een databasefout proberen we de bestandsverplaatsing terug te draaien.
+            const verplaatst = await publiceerMp3(tr.bestand_pad || tr.preview_url);
+            try {
+                await pool.query(
+                    `UPDATE tracks SET wacht_op_swipe = false, review_status = 'goedgekeurd',
+                            review_handmatig = true, gecontroleerd = true, bevestigd = true,
+                            review_laatste_op = now(), review_kwaliteit = 'goed',
+                            review_reden = 'Goedgekeurd bij swipen',
+                            preview_url = COALESCE($2, preview_url),
+                            bestand_pad = COALESCE($2, bestand_pad) WHERE id = $1`,
+                    [tr.id, verplaatst?.url || null]);
+            } catch (err) {
+                if (verplaatst) await herstelPublicatie(verplaatst).catch(() => {});
+                throw err;
+            }
             await bank.log(tr.titel_id, 'mp3', `${tr.naam}: nummer goedgekeurd bij swipen.`);
             // Nieuw speelbaar (had nog geen andere goedgekeurde MP3)? Dan telt hij als toegevoegd.
             const { rows: [ander] } = await pool.query(
