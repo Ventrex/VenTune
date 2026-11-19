@@ -1150,7 +1150,7 @@ DO $$
 BEGIN
     ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_categorie_check;
     ALTER TABLE titels ADD CONSTRAINT titels_categorie_check
-        CHECK (categorie IS NULL OR categorie IN ('film','serie','anime','game','muziek','kerst','kinder'));
+        CHECK (categorie IS NULL OR categorie IN ('film','serie','anime','game','muziek','kerst','sinterklaas','kinder'));
     ALTER TABLE titels DROP CONSTRAINT IF EXISTS titels_bekendheid_tier_check;
     ALTER TABLE titels ADD CONSTRAINT titels_bekendheid_tier_check
         CHECK (bekendheid_tier IS NULL OR bekendheid_tier IN ('iconisch','algemeen_bekend','bekend','onbekend','cult'));
@@ -1162,12 +1162,28 @@ END$$;
 -- Eerste indeling uit wat er al bekend is; de AI verfijnt daarna alles.
 UPDATE titels SET categorie = CASE
         WHEN 'Videogames' = ANY(genres) OR 'Videogames' = ANY(muziek_genres) OR 'games' = ANY(themas) THEN 'game'
+        WHEN type = 'muziek' AND ('sinterklaas' = ANY(themas) OR 'Sinterklaas' = ANY(genres)) THEN 'sinterklaas'
         WHEN type = 'muziek' AND ('kerst' = ANY(themas) OR 'Kerst' = ANY(genres)) THEN 'kerst'
         WHEN type = 'muziek' AND 'kinder' = ANY(themas) THEN 'kinder'
         WHEN type IN ('film','serie') AND upper(COALESCE(land,'')) IN ('JP','JPN','JAPAN')
              AND (genres && ARRAY['Animatie','Animation']) THEN 'anime'
         ELSE type::text END
  WHERE categorie IS NULL;
+
+-- Sinterklaasmuziek hoort niet langer standaard bij Kinder.
+-- Alleen zeer duidelijke Sinterklaas-signalen; expliciete beheerkeuzes blijven intact.
+UPDATE titels t SET categorie = 'sinterklaas',
+    ai_genres = ARRAY(SELECT DISTINCT g FROM unnest(
+      ARRAY['Sinterklaas']::text[] || COALESCE(t.ai_genres,'{}'::text[])
+    ) g LIMIT 3)
+ WHERE t.type = 'muziek'
+   AND COALESCE(t.categorie, 'muziek') IN ('muziek','kinder','kerst')
+   AND NOT ('categorie' = ANY(t.handmatig))
+   AND (
+      'sinterklaas' = ANY(COALESCE(t.themas,'{}'::text[]))
+      OR 'Sinterklaas' = ANY(COALESCE(t.genres,'{}'::text[]))
+      OR lower(t.naam) ~ '(sinterklaas|pakjesavond|pepernoten|stoomboot|zie ginds komt|hoor wie klopt|zie de maan schijnt|schoentje zetten|de zak van sinterklaas)'
+   );
 
 CREATE INDEX IF NOT EXISTS idx_titels_ai_werk ON titels (ai_status, ai_versie, id);
 CREATE INDEX IF NOT EXISTS idx_titels_categorie_tier ON titels (categorie, bekendheid_tier);
@@ -1189,7 +1205,7 @@ INSERT INTO app_instellingen (sleutel, waarde)
 VALUES ('ai_curator', '{
   "aan": true,
   "pauzeSeconden": 30,
-  "doelen": {"film": 500, "serie": 400, "anime": 100, "game": 500, "muziek": 500, "kerst": 150, "kinder": 100}
+  "doelen": {"film": 500, "serie": 400, "anime": 100, "game": 500, "muziek": 500, "kerst": 150, "sinterklaas": 80, "kinder": 100}
 }'::jsonb)
 ON CONFLICT (sleutel) DO NOTHING;
 
