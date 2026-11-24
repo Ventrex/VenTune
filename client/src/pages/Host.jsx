@@ -90,20 +90,30 @@ export default function Host() {
             gepauzeerd={spel.gepauzeerd} onPauze={spel.pauzeer} onHervat={spel.hervat} onHerhaal={spel.herhaal} />
     );
 
-    if (fase !== 'wachten') {
-        return (
-            <>
-                {speler}
+    // De speler staat in beide fases op dezelfde plek, zodat React hem niet
+    // opnieuw aanmaakt: het bij Start ontgrendelde audio-element blijft zo
+    // behouden (iOS wil anders opnieuw een tik).
+    return (
+        <>
+            {speler}
+            {fase !== 'wachten' ? (
                 <Speelbord spel={spel} onVerlaten={() => navigate('/')}
                     hostBalk={<HostBalk spel={spel} geluidViaTv={geluidViaTv} onGeluid={zetGeluidViaTv} tvUrl={tvUrl} />} />
-            </>
-        );
-    }
+            ) : (
+                <HostLobby spel={spel} sessie={sessie} spelers={spelers} teams={teams} lobbyInstellingen={lobbyInstellingen}
+                    voorbereiding={voorbereiding} startBezig={startBezig} start={start} zet={zet}
+                    qrGroot={qrGroot} setQrGroot={setQrGroot} joinUrl={joinUrl} tvUrl={tvUrl}
+                    geluidViaTv={geluidViaTv} zetGeluidViaTv={zetGeluidViaTv} navigate={navigate} />
+            )}
+        </>
+    );
+}
 
+function HostLobby({ spel, sessie, spelers, teams, lobbyInstellingen, voorbereiding, startBezig, start, zet,
+    qrGroot, setQrGroot, joinUrl, tvUrl, geluidViaTv, zetGeluidViaTv, navigate }) {
     const zonderTeam = spelers.filter((s) => !s.team_naam);
     return (
         <main className="kz kz-hostlobby">
-            {speler}
             <header className="kz-kop">
                 <span className="kz-teller">Lobby</span>
                 <span className="kz-kop-midden"><b className="kz-code">{sessie.code}</b></span>

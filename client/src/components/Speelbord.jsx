@@ -85,7 +85,7 @@ export function AntwoordKaart({ antwoord, uitslag = null }) {
 
 function BonusVraagInsturen({ titelId }) {
     const [vraag, setVraag] = useState('');
-    const [opties, setOpties] = useState(['', '', '', '']);
+    const [opties, setOpties] = useState(['', '', '', '', '', '']);
     const [juist, setJuist] = useState(0);
     const [status, setStatus] = useState('');
     if (!titelId) return null;
@@ -96,7 +96,7 @@ function BonusVraagInsturen({ titelId }) {
             await dienBonusVraagIn(titelId, { vraag, opties, correct_index: juist });
             setStatus('Bedankt! De beheerder bekijkt je vraag.');
             setVraag('');
-            setOpties(['', '', '', '']);
+            setOpties(['', '', '', '', '', '']);
         } catch (err) { setStatus(err.message); }
     }
     return (
@@ -221,7 +221,11 @@ export default function Speelbord({ spel, hostBalk = null, onVerlaten }) {
     const goed = resultaat?.status === 'goed';
     const aanBeurt = !ronde?.aanBeurtSpelers || ronde.aanBeurtSpelers.includes(mijnId);
     const vergrendeld = ingediend || goed || !aanBeurt || spel.gepauzeerd;
-    const hintsAan = lobbyInstellingen?.hints_aan !== false && ronde?.hintsAan !== false;
+    // De live lobby-instelling is leidend (de host kan hints midden in een ronde
+    // aan- of uitzetten); alleen als die ontbreekt telt de waarde uit de ronde.
+    const hintsAan = typeof lobbyInstellingen?.hints_aan === 'boolean'
+        ? lobbyInstellingen.hints_aan
+        : ronde?.hintsAan !== false;
 
     function kies(i, optie) {
         if (vergrendeld) return;
