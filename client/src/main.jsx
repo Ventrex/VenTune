@@ -10,9 +10,15 @@ import '@fontsource/orbitron/700.css';
 import '@fontsource/orbitron/900.css';
 import '@fontsource/fraunces/500.css';
 import '@fontsource/fraunces/700.css';
+import '@fontsource/fraunces/700-italic.css';
+import '@fontsource/space-mono/400.css';
+import '@fontsource/space-mono/700.css';
 import App from './App.jsx';
 import { pasToegepastThemaToe } from './lib/looks.js';
 import './styles/theme.css';
+import './styles/spel.css';
+import './styles/start-beheer.css';
+import './styles/themes.css';
 
 // Zet het gekozen thema vóór render, zodat er geen flits is.
 pasToegepastThemaToe();

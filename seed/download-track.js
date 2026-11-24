@@ -18,6 +18,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const { pool } = require('../server/db/pool');
 const { bestandGezondheid } = require('../server/lib/media-health');
+const mediaOpslag = require('../server/lib/media-opslag');
 const { mediaWebpad } = require('../server/lib/media-naming');
 
 const args = process.argv.slice(2);
@@ -248,7 +249,7 @@ async function lokaalBestandBeschikbaar(track) {
         ? path.join(MEDIA_DIR, pad.slice(prefix.length))
         : pad;
     try {
-        const info = await fs.stat(absoluut);
+        const info = await fs.stat((await mediaOpslag.vindBestand(absoluut)) || absoluut);
         return info.isFile() && info.size > 0;
     } catch {
         return false;
@@ -315,6 +316,11 @@ async function begrensAudioOpVijfMinuten(bestand) {
 
 /** Controleer alle lokale tracks en synchroniseer status/hash met de disk. */
 async function controleerLokaleBestanden({ onProgress = null, isGeannuleerd = () => false } = {}) {
+    // Is de NAS even weg, dan NIETS als ontbrekend markeren.
+    mediaOpslag.vergeet();
+    if (!(await mediaOpslag.beschikbaar())) {
+        throw new Error('Mediamap (NAS) is niet bereikbaar; bestandscontrole overgeslagen. Er is niets aangepast.');
+    }
     const { rows } = await pool.query(
         `SELECT tr.id, tr.bron, tr.preview_url, tr.bestand_pad, tr.audio_sha256,
                 tr.download_status, tr.itunes_track_id, tr.bron_url, t.naam
@@ -378,6 +384,9 @@ async function controleerLokaleBestanden({ onProgress = null, isGeannuleerd = ()
  * afspelen.
  */
 async function downloadYoutubeTrack(track, droog = false, { rateLimit = true } = {}) {
+    if (!droog && !(await mediaOpslag.beschikbaar())) {
+        throw new Error('Mediamap (NAS) is niet bereikbaar; download uitgesteld.');
+    }
     const bronUrl = youtubeUrl(track);
     if (!bronUrl) {
         const fout = 'Track heeft geen geldig YouTube-video-id of bron-URL.';

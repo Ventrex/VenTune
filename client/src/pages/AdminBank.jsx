@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Brand from '../components/Brand.jsx';
 import Admin from './Admin.jsx';
 import Hint from '../components/Hint.jsx';
+import BeheerDatabase, { Doelen, MediaStatus } from './BeheerDatabase.jsx';
 import './admin-bank.css';
 
 // =====================================================================
@@ -28,8 +29,10 @@ async function api(pad, opties = {}) {
 // Hoofdtabs met daaronder subtabs. Controles = alles bekijken en bewerken,
 // Fixes = alleen wat aandacht nodig heeft.
 // Alles van beheer staat hier: één pagina, één rij tabs met subtabs.
-const GROEPEN = [['overzicht', 'Overzicht'], ['ai', 'AI & kosten'], ['swipen', 'Goedkeuren'], ['collecties', 'Collecties'], ['controles', 'Controles'],
-    ['fixes', 'Fixes'], ['spelers', 'Spelers'], ['log', 'Logs'], ['systeem', 'Systeem']];
+const GROEPEN = [['overzicht', 'Overzicht'], ['database', 'Database'], ['swipen', 'Goedkeuren'], ['ai', 'AI'], ['collecties', 'Collecties'],
+    ['fixes', 'Fixes'], ['spelers', 'Spelers'], ['log', 'Logs'], ['systeem', 'Systeem'], ['controles', 'Controles']];
+// Tabs in de balk; 'controles' blijft bereikbaar via links maar staat niet in de balk.
+const ZICHTBARE_TABS = GROEPEN.filter(([id]) => id !== 'controles');
 const SPELERS = [['meldingen', 'Meldingen'], ['vragen', 'Vraagsuggesties'], ['controle', 'Verdachte spellen'], ['users', 'Accounts']];
 const LOGS = [['ai', 'AI-log'], ['logs', 'Gebeurtenissen']];
 const SYSTEEM = [['database', 'Database'], ['uiterlijk', 'Uiterlijk'], ['teksten', 'Teksten']];
@@ -81,7 +84,7 @@ export default function AdminBank() {
     return <Bank />;
 }
 
-function Login({ onOk }) {
+export function Login({ onOk }) {
     const [ww, setWw] = useState('');
     const [fout, setFout] = useState('');
     async function login(e) {
@@ -103,7 +106,7 @@ function Login({ onOk }) {
     );
 }
 
-function Bank() {
+export function Bank({ ingebed = false }) {
     const [params, setParams] = useSearchParams();
     const tab = GROEPEN.some(([t]) => t === params.get('tab')) ? params.get('tab') : 'overzicht';
     const sub = params.get('sub') || '';
@@ -145,6 +148,66 @@ function Bank() {
     const v = status?.voorraad || {};
     const fase = params.get('fase') === 'naam' ? 'naam' : 'blind';
     const statistiek = Object.values(status?.tellingen || {});
+
+    const inhoud = (
+        <>
+            {fout && <p className="waarschuwing">{fout}</p>}
+            <WorkerBalk status={status} onWijzig={laadStatus} />
+            {tab === 'overzicht' && <MediaStatus status={status} />}
+            {tab === 'overzicht' && <Doelen status={status} onWijzig={laadStatus} />}
+            {tab === 'database' && <BeheerDatabase />}
+            {tab === 'swipen' && (<>
+                <nav className="ab-fase-keuze" aria-label="Muziek goedkeuren in twee stappen">
+                    <button type="button" className={fase === 'blind' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'blind' })}>{'1. ' + tekst('beheer.review.blind', 'Zonder titel luisteren')}</button>
+                    <button type="button" className={fase === 'naam' ? 'actief' : ''} onClick={() => ga('swipen', { sub, fase: 'naam' })}>{'2. ' + tekst('beheer.review.met_titel', 'Met titel beoordelen')}</button>
+                </nav>
+                <SubTabs actief={sub} onKies={(id) => ga('swipen', { sub: id, fase })}
+                    items={[['', 'Alles'], ...CATS]} teller={(id) => (id ? status?.swipe?.[id] : v.te_swipen)} />
+            </>)}
+            {tab === 'controles' && (
+                <SubTabs actief={controle} onKies={(id) => ga('controles', { sub: id })} items={status?.instellingen?.quizAan ? CONTROLES : CONTROLES.filter(([id]) => !['hints', 'vragen'].includes(id))} />
+            )}
+            {tab === 'fixes' && (
+                <SubTabs actief={fix[0]} onKies={(id) => ga('fixes', { sub: id })}
+                    items={FIXES.filter(([id]) => status?.instellingen?.quizAan || !['hints-leeg', 'vragen-leeg'].includes(id)).map(([id, naam]) => [id, naam])}
+                    teller={(id) => v[FIXES.find((f) => f[0] === id)?.[4]]} />
+            )}
+            {tab === 'overzicht' && <Overzicht status={status} onWijzig={laadStatus} ga={ga} />}
+            {tab === 'swipen' && <Swipen key={sub + '-' + fase} categorie={sub} fase={fase} uitleg={tekst('beheer.review.uitleg', 'Luister zonder namen of herkenningsinformatie. Onherkenbare nummers controleer je daarna met titel.')} onFaseNaam={() => ga('swipen', { sub, fase: 'naam' })} onWijzig={laadStatus} />}
+            {tab === 'controles' && <Lijst key={`c-${controle}`} tab={controle} standaardFilter="alle" />}
+            {tab === 'fixes' && fix[0] === 'dubbelen' && <Dubbelen />}
+            {tab === 'fixes' && fix[0] !== 'dubbelen' && <Lijst key={`f-${fix[0]}`} tab={fix[2]} standaardFilter={fix[3]} vasteFilter />}
+            {tab === 'collecties' && <Collecties key={sub} gekozen={sub} onKies={(id) => ga('collecties', id ? { sub: String(id) } : {})} />}
+            {tab === 'spelers' && <SubTabs actief={spelerSub} onKies={(id) => ga('spelers', { sub: id })} items={SPELERS} />}
+            {tab === 'log' && <SubTabs actief={logSub} onKies={(id) => ga('log', { sub: id })} items={LOGS} />}
+            {tab === 'systeem' && <SubTabs actief={systeemSub} onKies={(id) => ga('systeem', { sub: id })} items={SYSTEEM} />}
+            {tab === 'log' && logSub === 'ai' && <Log />}
+            {tab === 'log' && logSub !== 'ai' && <Admin ingebed sectie={logSub} />}
+            {tab === 'spelers' && <Admin ingebed sectie={spelerSub} />}
+            {tab === 'ai' && <section className="ab-kaart ab-ai-pagina">
+                <p><strong>ChatGPT:</strong> {status?.chatgpt?.gekoppeld ? 'gekoppeld' : 'nog niet gekoppeld'}</p>
+                {!status?.chatgpt?.gekoppeld && <ChatGptKoppeling onWijzig={laadStatus} />}
+                {status?.instellingen && <Tempo instellingen={status.instellingen} vandaag={status.worker?.vandaag ?? 0} dezeWeek={status.worker?.dezeWeek ?? 0} onWijzig={laadStatus} />}
+            </section>}
+            {tab === 'systeem' && <Admin ingebed sectie={systeemSub} />}
+        </>
+    );
+
+    if (ingebed) {
+        return (
+            <div className="ab ab-ingebed">
+                <nav className="ab-tabbalk" aria-label="Beheer">
+                    {ZICHTBARE_TABS.map(([id, naam]) => (
+                        <button key={id} type="button" className={'ab-tab' + (tab === id ? ' actief' : '')} onClick={() => ga(id)}>
+                            {naam}{tabTeller(id, status)}
+                        </button>
+                    ))}
+                    <button type="button" className="ab-tab ab-uitlog" onClick={uitloggen}>Uitloggen</button>
+                </nav>
+                {inhoud}
+            </div>
+        );
+    }
 
     return (
         <main className="ab ab-shell">
@@ -617,7 +680,7 @@ function Overzicht({ status, onWijzig, ga }) {
                     <ChatGptKoppeling onWijzig={onWijzig} />
                 </section>
             )}
-            <section className="ab-kaart">
+            {instellingen.doorvullen && <section className="ab-kaart">
                 <p className="ab-label">Per categorie en bekendheid <Hint tekst="Onder het doel vult de AI aan met titels die in Nederland bekend zijn: eerst iconisch, dan algemeen bekend, bekend, onbekend en cult. Speelbaar = MP3 die jij bij Swipen hebt goedgekeurd." /></p>
                 <div className="ab-scroll">
                     <table className="ab-matrix">
@@ -656,7 +719,7 @@ function Overzicht({ status, onWijzig, ga }) {
                         })}</tbody>
                     </table>
                 </div>
-            </section>
+            </section>}
             <section className="ab-tegels">
                 {tegels.map(([naam, n, t, extra]) => (
                     <button key={naam} type="button" className="ab-tegel" onClick={() => ga(t, extra)}>

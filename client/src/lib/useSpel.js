@@ -240,6 +240,8 @@ export function useSpel() {
     const volgende = useCallback(() => haalSocket().emit('ronde:volgende'), []);
     const herhaal = useCallback(() => haalSocket().emit('ronde:herhaal'), []);
     const pauzeer = useCallback(() => haalSocket().emit('ronde:pauzeer'), []);
+    const schakel = useCallback((patch) => haalSocket().emit('spel:schakel', patch), []);
+    const verdeelTeams = useCallback((aantal) => haalSocket().emit('lobby:teams-verdelen', { aantal }), []);
     const hervat = useCallback(() => haalSocket().emit('ronde:hervat'), []);
     const pauzeVoorMelding = useCallback(() => haalSocket().emit('ronde:melding-pauze'), []);
     const meldFout = useCallback(
@@ -319,6 +321,8 @@ export function useSpel() {
         herhaal,
         pauzeer,
         hervat,
+        schakel,
+        verdeelTeams,
         meldFout,
         pauzeVoorMelding,
         beoordeelTrack,

@@ -67,7 +67,16 @@ const STANDAARD_INSTELLINGEN = {
     pauzeTot: null,
     voorrang: ['film', 'serie', 'sinterklaas', 'game', 'kerst', 'muziek'], // eerste vier eerst; kerst/muziek pas daarna
     doelen: { film: 500, serie: 400, anime: 100, game: 500, muziek: 500, kerst: 150, sinterklaas: 80, kinder: 100 },
+    // Hoofddoel per categorie (muziek: per decennium): zoveel ECHT iconische
+    // en algemeen bekende titels. Pas als alles vol is mag de AI verder met
+    // minder bekende titels, en alleen als doorvullen aan staat.
+    tierDoelen: { iconisch: 100, algemeen_bekend: 150 },
+    doorvullen: false,
 };
+
+/** Muziek wordt per decennium gevuld. */
+const MUZIEK_DECENNIA = [1960, 1970, 1980, 1990, 2000, 2010, 2020];
+const DOEL_TIERS = ['iconisch', 'algemeen_bekend'];
 
 /** Een speelbare lokale MP3 voor titel-alias `t`. */
 const HEEFT_MP3 = `EXISTS (SELECT 1 FROM tracks mp
@@ -129,12 +138,17 @@ async function instellingen() {
         ...STANDAARD_INSTELLINGEN,
         ...w,
         doelen: { ...STANDAARD_INSTELLINGEN.doelen, ...(w.doelen || {}) },
+        tierDoelen: { ...STANDAARD_INSTELLINGEN.tierDoelen, ...(w.tierDoelen || {}) },
     };
 }
 
 async function bewaarInstellingen(patch) {
     const huidig = await instellingen();
-    const nieuw = { ...huidig, ...patch, doelen: { ...huidig.doelen, ...(patch.doelen || {}) } };
+    const nieuw = { ...huidig, ...patch, doelen: { ...huidig.doelen, ...(patch.doelen || {}) },
+        tierDoelen: { ...huidig.tierDoelen, ...(patch.tierDoelen || {}) } };
+    for (const t of DOEL_TIERS) nieuw.tierDoelen[t] = Math.min(2000, Math.max(0, Math.round(Number(nieuw.tierDoelen[t]) || 0)));
+    for (const t of Object.keys(nieuw.tierDoelen)) if (!DOEL_TIERS.includes(t)) delete nieuw.tierDoelen[t];
+    nieuw.doorvullen = nieuw.doorvullen === true;
     nieuw.pauzeSeconden = Math.min(1800, Math.max(5, Number(nieuw.pauzeSeconden) || 120));
     nieuw.maxPerDag = Math.min(5000, Math.max(0, Math.round(Number(nieuw.maxPerDag) || 0)));
     nieuw.maxPerWeek = Math.min(10000, Math.max(0, Math.round(Number(nieuw.maxPerWeek) || 0)));
@@ -229,6 +243,43 @@ async function tellingen() {
     return uit;
 }
 
+/**
+ * Voortgang naar de hoofddoelen: per categorie het aantal iconische en
+ * algemeen bekende titels; muziek per decennium. Telt actieve titels.
+ */
+async function tierVoortgang(inst = null) {
+    const doelen = (inst || await instellingen()).tierDoelen || STANDAARD_INSTELLINGEN.tierDoelen;
+    const { rows } = await pool.query(`
+        SELECT COALESCE(t.categorie, t.type::text) AS categorie, t.bekendheid_tier AS tier,
+               CASE WHEN COALESCE(t.categorie, t.type::text) = 'muziek'
+                    THEN (floor(COALESCE(t.muziek_jaar, t.jaar) / 10.0) * 10)::int END AS decennium,
+               count(*)::int AS totaal,
+               count(*) FILTER (WHERE ${HEEFT_SPEELBAAR})::int AS speelbaar
+          FROM titels t
+         WHERE t.curatie_status <> 'uitgesloten' AND t.bekendheid_tier = ANY($1::text[])
+         GROUP BY 1, 2, 3`, [DOEL_TIERS]);
+    const leeg = () => Object.fromEntries(DOEL_TIERS.map((t) => [t, { totaal: 0, speelbaar: 0, doel: Number(doelen[t]) || 0 }]));
+    const uit = {};
+    for (const c of CATEGORIEEN) {
+        uit[c] = c === 'muziek'
+            ? { decennia: Object.fromEntries(MUZIEK_DECENNIA.map((d) => [d, leeg()])) }
+            : leeg();
+    }
+    for (const r of rows) {
+        if (!uit[r.categorie]) continue;
+        let doel = uit[r.categorie];
+        if (r.categorie === 'muziek') {
+            const d = MUZIEK_DECENNIA.includes(r.decennium) ? r.decennium
+                : r.decennium < 1960 ? 1960 : r.decennium > 2020 ? 2020 : null;
+            if (!d) continue;
+            doel = uit.muziek.decennia[d];
+        }
+        doel[r.tier].totaal += r.totaal;
+        doel[r.tier].speelbaar += r.speelbaar;
+    }
+    return uit;
+}
+
 /** Hoeveel werk er nog ligt; voor het overzicht en de worker. */
 async function werkvoorraad() {
     const { rows } = await pool.query(`
@@ -272,4 +323,5 @@ module.exports = {
     GENRES_BEELD, GENRES_GAME, GENRES_MUZIEK, ALLE_GENRES, genresVoor, schoonGenres,
     telAiGebruik, aiGebruikVandaag, aiGebruikDezeWeek, telDag,
     voorrangSql, typeVoorCategorie, isVast, norm, log, instellingen, bewaarInstellingen, tellingen, werkvoorraad,
+    tierVoortgang, MUZIEK_DECENNIA, DOEL_TIERS,
 };

@@ -9,6 +9,7 @@
 const { pool } = require('../db/pool');
 const { bouwFilter } = require('./filters');
 const { kiesFamilieMix } = require('./family-balance');
+const { wegingsVolgorde } = require('./leeftijd-weging');
 const { vergelijk, franchiseSleutel } = require('../lib/match');
 const { titelPunten, bonusPunten, leeftijdsFactor, bekendheidFactor } = require('./scoring');
 const { genereerBonus } = require('./bonus');
@@ -110,6 +111,19 @@ function kothStatus(k) {
         spelers: Object.keys(k.posities).map((id) => ({ id, naam: k.namen[id], positie: k.posities[id] }))
             .sort((a, b) => b.positie - a.positie || String(a.naam).localeCompare(String(b.naam))),
     };
+}
+
+/** De vraag die spelers boven de antwoordopties zien (Kahoot-stijl). */
+function rondeVraag(titel = {}) {
+    const cat = titel.categorie || titel.type;
+    if (cat === 'film') return 'Uit welke film komt deze muziek?';
+    if (cat === 'serie') return 'Van welke serie is deze tune?';
+    if (cat === 'anime') return 'Van welke anime is deze muziek?';
+    if (cat === 'game') return 'Uit welke game komt deze muziek?';
+    if (cat === 'kerst') return 'Welk kerstnummer is dit?';
+    if (cat === 'sinterklaas') return 'Welk Sinterklaasliedje is dit?';
+    if (cat === 'kinder') return 'Welk kinderliedje is dit?';
+    return 'Hoe heet dit nummer?';
 }
 
 /** Alleen een solo-speler krijgt een tweede titelgok. */
@@ -328,6 +342,8 @@ class SpelBeheer {
                 modus: state.modus,
                 antwoordModus: state.antwoordModus,
                 opties: h.antwoordOpties?.opties || null,
+                vraag: rondeVraag(h.titel),
+                hintsAan: state.instellingen?.hints_aan !== false,
                 aanBeurtSpelers: h.aanBeurtSpelers || null,
                 aanBeurtNaam: h.aanBeurtNaam || null,
                 herstel: true,
@@ -523,10 +539,13 @@ class SpelBeheer {
             }
         }
         // Weighted random sort: onbekende titels kunnen altijd nog verschijnen.
-        const alle = titels.map(t => ({
-            titel: t,
-            score: Math.pow(Math.random(), 1 / (1 - (afwaardering.get(t.id) || 0))),
-        })).sort((a, b) => b.score - a.score).map(x => x.titel);
+        // Plus: titels uit de jeugd van de spelers krijgen iets meer kans;
+        // kinderen en senioren tellen daarbij zwaarder mee.
+        const alle = wegingsVolgorde(
+            titels,
+            spelInstellingen.leeftijd_weging === false ? [] : leeftijden,
+            (t) => 1 - (afwaardering.get(t.id) || 0),
+        );
         const voorrang = alle.filter((t) => [...voorkeuren].some((v) => herken(t, v)));
         const aantalVoorrang = Math.min(voorrang.length, Math.ceil((gevraagd || alle.length) * 0.35));
         const { gekozen } = kiesFamilieMix(alle, voorrang.slice(0, aantalVoorrang),
@@ -928,6 +947,8 @@ class SpelBeheer {
                     modus: state.modus,
                     antwoordModus: state.antwoordModus,
                     opties: state.huidige.antwoordOpties?.opties || null,
+                    vraag: rondeVraag(titel),
+                    hintsAan: state.instellingen?.hints_aan !== false,
                     aanBeurtSpelers,
                     aanBeurtNaam,
                 });
@@ -1138,6 +1159,10 @@ class SpelBeheer {
         if (!state || state.fase !== 'raden' || !state.huidige?.antwoordOpties) return;
         const spelerId = socket.data.spelerId;
         if (!spelerId || state.huidige.klaar.has(spelerId)) return;
+        if (state.instellingen?.hints_aan === false) {
+            this.io.to(spelerKamer(spelerId)).emit('ronde:verwijder3', { fout: 'Hulplijnen staan even uit.' });
+            return;
+        }
 
         const voorraad = state.verwijder3Voorraad.get(spelerId) || 0;
         if (voorraad <= 0) {
@@ -1518,6 +1543,28 @@ class SpelBeheer {
         if (state.fase === 'scorebord') return this.volgendeRonde(state);
     }
 
+    /**
+     * Host zet tijdens het spel hints en/of bonusvragen tijdelijk aan of uit.
+     * Geldt direct vanaf de volgende actie; de lobby onthoudt de keuze.
+     */
+    async schakel(socket, patch = {}) {
+        const state = this.spellen.get(socket.data?.lobbyId);
+        if (!socket.data?.isHost) return null;
+        const wijziging = {};
+        if (typeof patch.hints === 'boolean') wijziging.hints_aan = patch.hints;
+        if (typeof patch.vragen === 'boolean') wijziging.bonusvragen_aan = patch.vragen;
+        if (!Object.keys(wijziging).length) return null;
+        const { rows } = await pool.query(
+            `UPDATE lobbies SET instellingen = COALESCE(instellingen, '{}'::jsonb) || $2::jsonb, bijgewerkt_op = now()
+              WHERE id = $1 RETURNING instellingen`,
+            [socket.data.lobbyId, JSON.stringify(wijziging)],
+        );
+        if (state) state.instellingen = { ...state.instellingen, ...wijziging };
+        const nieuw = rows[0]?.instellingen || { ...(state?.instellingen || {}), ...wijziging };
+        this.io.to(kamer(socket.data.code)).emit('lobby:instellingen', { instellingen: nieuw, teams: nieuw.teams || [] });
+        return nieuw;
+    }
+
     /** Host pauzeert: klok stilzetten en de muziek stoppen. */
     pauzeer(socket, voorMelding = false) {
         const state = this.spellen.get(socket.data.lobbyId);
@@ -1832,4 +1879,5 @@ module.exports = {
     bouwHinten,
     bouwMeerkeuzeOpties,
     lifelineAantal,
+    rondeVraag,
 };

@@ -1,5 +1,17 @@
 # VenTune changelog
 
+## [0.8.0] - 2026-11-24
+
+- Nieuw: spelen zoals **Kahoot**. Je telefoon toont de vraag en daaronder grote gekleurde antwoorden. Het scherm past altijd precies, je hoeft nooit te scrollen.
+- Nieuw: het **tv-scherm** toont de vraag en de antwoorden groot. De host kiest of de muziek op zijn eigen apparaat of via de tv speelt.
+- De host kan het spel **pauzeren** en tijdens het spel **hints en bonusvragen** even uit- of aanzetten.
+- **Teams eerlijk verdelen** met één tik (2, 3 of 4 teams). Kinderen en senioren worden over de teams verspreid, en sterke spelers komen niet samen in één team.
+- Vragen passen zich aan de **leeftijden** aan: kinderen en senioren krijgen iets vaker een nummer uit hun eigen tijd.
+- Nieuwe categorieën **Kerst** en **Sinterklaas**. Muziek kies je nu per decennium (jaren 60 t/m 10).
+- Acht **thema's** die er echt anders uitzien: Studio, Bioscoop, Krant, Arcade, Disco '70, Neon, Kerst en Sinterklaas.
+- Rustiger uiterlijk: geen neon-gloed en paarse verlopen meer, behalve in het thema Neon.
+- Na elke vraag zie je duidelijk het juiste antwoord en of jij hem had.
+
 ## [0.7.0] - 2026-11-09
 
 - Nieuw: **Scores** als eigen pagina, met per categorie wie de beste is in films, series, anime, videogames en muziek.

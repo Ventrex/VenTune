@@ -1,89 +1,102 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import Brand from '../components/Brand.jsx';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import TopNav from '../components/TopNav.jsx';
+import ThemaKiezer from '../components/ThemaKiezer.jsx';
+import { Bank, Login } from './AdminBank.jsx';
 import { leesSessie, wisSessie, bewaarSessie, leesOpgeslagenSpellen, verwijderOpgeslagenSpel } from '../lib/sessie.js';
-import './setup-categorie.css';
-import { ThemaContext } from '../lib/thema.js';
 
-// Startscherm: nieuw spel maken (host) of meedoen met een code.
+// Startpagina én beheer in één: zonder ?tab= is het de speelpagina, met
+// ?tab=… (alleen voor de beheerder) het beheer met tabs.
 export default function Home() {
     const navigate = useNavigate();
-    const thema = useContext(ThemaContext);
+    const [params] = useSearchParams();
+    const beheer = params.has('tab');
+    const [admin, setAdmin] = useState(null);
     const [code, setCode] = useState('');
-    const [vorigeSessie, setVorigeSessie] = useState(leesSessie);
-    const [opgeslagenSpellen, setOpgeslagenSpellen] = useState(leesOpgeslagenSpellen);
+    const [vorige, setVorige] = useState(leesSessie);
+    const [spellen, setSpellen] = useState(leesOpgeslagenSpellen);
     const [fout, setFout] = useState('');
-    const [siteTeksten,setSiteTeksten]=useState({});
-    const kop=(sleutel,standaard)=>siteTeksten[sleutel]||standaard;
-    useEffect(()=>{
-        fetch('/api/site-teksten').then(r=>r.ok?r.json():{}).then(setSiteTeksten).catch(()=>{});
-    },[]);
+    const [themaOpen, setThemaOpen] = useState(false);
+    const [teksten, setTeksten] = useState({});
+    const kop = (k, std) => teksten[k] || std;
 
-
-
-    function nieuwSpel() {
-        // Een host moet eerst een account hebben; het account-scherm stuurt
-        // ingelogde hosts direct door naar het filtermenu.
-        navigate('/host/login?return=/setup/new');
-    }
+    useEffect(() => {
+        fetch('/api/admin/sessie', { credentials: 'include' }).then((r) => (r.ok ? r.json() : {}))
+            .then((d) => setAdmin(d.ingelogd === true)).catch(() => setAdmin(false));
+        fetch('/api/site-teksten').then((r) => (r.ok ? r.json() : {})).then(setTeksten).catch(() => {});
+    }, []);
 
     function meedoen(e) {
         e.preventDefault();
         const schoon = code.trim().toUpperCase();
-        if (schoon.length !== 4) {
-            setFout('Een lobbycode bestaat uit 4 letters.');
-            return;
-        }
+        if (schoon.length !== 4) { setFout('Een code heeft 4 letters.'); return; }
         navigate(`/join/${schoon}`);
     }
 
     return (
-        <main className="scherm ventune-home">
-            <TopNav actief="home" teksten={siteTeksten} />
-            <header className="vt-home-hero">
-                <h1>{kop("home.titel","Kies je volgende quiz")}</h1>
-                <p>{kop("home.ondertitel","Start een nieuw spel, doe mee met vrienden of ga verder waar je was gebleven.")}</p>
-                <p><Link className="vt-aanvraag-link" to="/aanvragen">➕ Mis je iets? Voeg zelf een film, serie, game of nummer toe</Link></p>
-            </header>
-            {fout && <p className="waarschuwing">{fout}</p>}
-            <div className="vt-home-actions">
-                <button type="button" className="vt-home-action vt-home-new" onClick={nieuwSpel}>
-                    <img src="/category/approved-films.svg?v=hd840-20261101" alt="" />
-                    <span><strong>{kop("home.nieuw_spel","Nieuw spel")}</strong><small>Stel je quiz samen</small></span>
-                </button>
-                <form onSubmit={meedoen} className="vt-home-action vt-home-join">
-                    <div className="vt-home-action-heading"><span className="vt-option-art">📱</span><strong>{kop("home.meedoen","Spel joinen")}</strong><small>Voer de lobbycode in</small></div>
-                    <div className="zoekbalk">
-                        <input className="invoer code-invoer" value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
-                            placeholder="ABCD" maxLength={4} autoCapitalize="characters" aria-label="Lobbycode"/>
-                        <button className="knop" type="submit">Joinen</button>
-                    </div>
-                </form>
-                <div className="vt-home-action vt-home-continue">
-                    <div className="vt-home-action-heading"><span className="vt-option-art">↻</span><strong>{kop("home.doorgaan","Doorgaan vorig spel")}</strong>
-                        <small>{opgeslagenSpellen.length ? 'Kies een eerder spel op dit apparaat':'Geen onderbroken spel op dit apparaat'}</small></div>
-                    <div className="vt-saved-games">
-                        {opgeslagenSpellen.map(opgeslagen=><div key={opgeslagen.code} className="vt-saved-game">
-                            <button type="button" className="vt-saved-resume" onClick={()=>{
-                                bewaarSessie(opgeslagen);
-                                navigate(opgeslagen.is_host?'/host':'/play');
-                            }}><strong>Lobby {opgeslagen.code}</strong><small>{opgeslagen.is_host?'Host':'Speler'} · opnieuw verbinden</small></button>
-                            <button type="button" className="vt-saved-remove" aria-label={'Verwijder lobby '+opgeslagen.code} onClick={()=>{
-                                verwijderOpgeslagenSpel(opgeslagen.code);
-                                setOpgeslagenSpellen(leesOpgeslagenSpellen());
-                                if(vorigeSessie?.code===opgeslagen.code){wisSessie();setVorigeSessie(null)}
-                            }}>×</button>
-                        </div>)}
-                    </div>
+        <main className={'vt-start' + (beheer ? ' vt-start-beheer' : '')}>
+            <TopNav actief={beheer ? 'beheer' : 'home'} teksten={teksten} />
+            {admin && (
+                <nav className="vt-start-wissel" aria-label="Spelen of beheren">
+                    <Link className={!beheer ? 'aan' : ''} to="/">Spelen</Link>
+                    <Link className={beheer ? 'aan' : ''} to="/?tab=overzicht">Beheer</Link>
+                </nav>
+            )}
+
+            {beheer ? (
+                admin === null ? <p className="dim">Laden…</p>
+                    : admin ? <Bank ingebed />
+                        : <Login onOk={() => setAdmin(true)} />
+            ) : (
+                <div className="vt-start-spelen">
+                    <header className="vt-start-kop">
+                        <h1>{kop('home.titel', 'Herken jij de muziek?')}</h1>
+                        <p>{kop('home.ondertitel', 'Films, series, games en hits. Speel samen op je telefoon.')}</p>
+                    </header>
+
+                    <button type="button" className="vt-start-nieuw" onClick={() => navigate('/host/login?return=/setup/new')}>
+                        <strong>{kop('home.nieuw_spel', 'Nieuw spel')}</strong>
+                        <span>Kies wat je wilt horen en nodig iedereen uit</span>
+                    </button>
+
+                    <form className="vt-start-mee" onSubmit={meedoen}>
+                        <label htmlFor="vt-code">{kop('home.meedoen', 'Meedoen met code')}</label>
+                        <div>
+                            <input id="vt-code" className="invoer" value={code} maxLength={4} placeholder="ABCD"
+                                autoCapitalize="characters" autoComplete="off" onChange={(e) => { setCode(e.target.value.toUpperCase()); setFout(''); }} />
+                            <button className="knop" type="submit">Doe mee</button>
+                        </div>
+                        {fout && <small className="vt-start-fout">{fout}</small>}
+                    </form>
+
+                    {spellen.length > 0 && (
+                        <div className="vt-start-verder">
+                            <span className="kz-label">Verder spelen</span>
+                            <div>
+                                {spellen.slice(0, 3).map((s) => (
+                                    <span key={s.code} className="vt-start-spel">
+                                        <button type="button" onClick={() => { bewaarSessie(s); navigate(s.is_host ? '/host' : '/play'); }}>
+                                            {s.code} <small>{s.is_host ? 'host' : 'speler'}</small>
+                                        </button>
+                                        <button type="button" aria-label={'Vergeet ' + s.code} onClick={() => {
+                                            verwijderOpgeslagenSpel(s.code);
+                                            setSpellen(leesOpgeslagenSpellen());
+                                            if (vorige?.code === s.code) { wisSessie(); setVorige(null); }
+                                        }}>×</button>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <footer className="vt-start-voet">
+                        <Link to="/aanvragen">Iets missen? Voeg toe</Link>
+                        <button type="button" onClick={() => setThemaOpen((o) => !o)} aria-expanded={themaOpen}>Thema</button>
+                        <Link to="/changelog">Wat is nieuw</Link>
+                    </footer>
+                    {themaOpen && <div className="vt-start-themas"><ThemaKiezer /></div>}
                 </div>
-            </div>
-
-            <p style={{ marginTop: '1rem', display: 'flex', gap: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <Link className="terug" to="/changelog">Changelog →</Link>
-            </p>
-
+            )}
         </main>
     );
 }
-

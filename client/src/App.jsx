@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Home from './pages/Home.jsx';
 import Setup from './pages/Setup.jsx';
 import Join from './pages/Join.jsx';
 import Host from './pages/Host.jsx';
 import Tv from './pages/Tv.jsx';
 import Play from './pages/Play.jsx';
-import AdminBank from './pages/AdminBank.jsx';
 import Review from './pages/Review.jsx';
 import Changelog from './pages/Changelog.jsx';
 import Aanvragen from './pages/Aanvragen.jsx';
@@ -15,6 +14,14 @@ import HostAuth from './pages/HostAuth.jsx';
 import HostProfile from './pages/HostProfile.jsx';
 import { haalAppInstellingen } from './lib/api.js';
 import { ThemaContext } from './lib/thema.js';
+
+// Oude beheerlinks (/admin/bank?tab=…) gaan naar het beheer op de startpagina.
+function NaarBeheer({ tab = 'overzicht' }) {
+    const { search } = useLocation();
+    const q = new URLSearchParams(search);
+    if (!q.has('tab')) q.set('tab', tab);
+    return <Navigate to={`/?${q}`} replace />;
+}
 
 // Routing voor VenTune.
 export default function App() {
@@ -46,10 +53,10 @@ export default function App() {
                     <Route path="/host" element={<Host />} />
                     <Route path="/tv/:code" element={<Tv />} />
                     <Route path="/play" element={<Play />} />
-                    <Route path="/admin" element={<Navigate to="/admin/bank?tab=systeem" replace />} />
-                    <Route path="/admin/bank" element={<AdminBank />} />
-                    <Route path="/admin/ai" element={<Navigate to="/admin/bank" replace />} />
-                    <Route path="/admin/swipe" element={<Navigate to="/admin/bank?tab=swipen" replace />} />
+                    <Route path="/admin" element={<NaarBeheer tab="systeem" />} />
+                    <Route path="/admin/bank" element={<NaarBeheer />} />
+                    <Route path="/admin/ai" element={<NaarBeheer tab="ai" />} />
+                    <Route path="/admin/swipe" element={<NaarBeheer tab="swipen" />} />
                     <Route path="/review" element={<Review />} />
                     <Route path="/changelog" element={<Changelog />} />
                     <Route path="/aanvragen" element={<Aanvragen />} />

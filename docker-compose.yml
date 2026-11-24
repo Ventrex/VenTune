@@ -65,6 +65,9 @@ services:
       DOWNLOAD_DIR: ${DOWNLOAD_DIR:-/media/downloads}
       UPLOAD_DIR: ${UPLOAD_DIR:-/media/uploads}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      MEDIA_FALLBACK_DIR: /media-lokaal
+      MEDIA_PAD: ${MEDIA_PAD:-./media}
+      MEDIA_OP_NAS: ${MEDIA_OP_NAS:-false}
       # ChatGPT via Codex CLI (aanbevelingen) — geen API-key.
       CHATGPT_ENABLED: ${CHATGPT_ENABLED:-true}
       CODEX_BIN: ${CODEX_BIN:-codex}
@@ -76,9 +79,11 @@ services:
     # zonder rebuild) en aanpassingen aan titels.json direct meekomen.
     volumes:
       - ./seed:/app/seed:ro
-      # Permanente audio-opslag. De server schrijft echte bestanden in
-      # ./media/downloads en ./media/uploads; opnieuw bouwen wist ze niet.
-      - ./media:/media
+      # Permanente audio-opslag. MEDIA_PAD in .env bepaalt waar de MP3's
+      # staan (standaard ./media, of een NAS-map). De oude lokale map blijft
+      # als reserve meegekoppeld (alleen lezen). Opnieuw bouwen wist niets.
+      - ${MEDIA_PAD:-./media}:/media
+      - ./media:/media-lokaal:ro
       # ChatGPT-login (codex auth.json). Blijft bestaan na een rebuild,
       # zodat je maar één keer hoeft in te loggen.
       - codexdata:/data/codex
@@ -97,7 +102,9 @@ services:
     depends_on:
       - server
     volumes:
-      - ./media:/usr/share/nginx/html/media:ro
+      # nginx speelt eerst van MEDIA_PAD (NAS), anders van de lokale reserve.
+      - ${MEDIA_PAD:-./media}:/srv/nas/media:ro
+      - ./media:/srv/lokaal/media:ro
     ports:
       - "8091:80"
 
