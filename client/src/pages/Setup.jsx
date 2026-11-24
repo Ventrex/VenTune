@@ -43,6 +43,8 @@ const TIER_KEUZES = [
     { id: 'rest', label: 'Onbekend & cult', tiers: ['onbekend', 'cult'], factor: '×4–5' },
 ];
 
+const DECENNIA = { '60s': 1960, '70s': 1970, '80s': 1980, '90s': 1990, '00s': 2000, '10s': 2010 };
+
 const CATEGORIEEN = [
     { waarde: 'beide', label: 'Films & Series', logo: '/logos/films-series.svg', uitleg: 'Hitster voor intro’s, themes en soundtracks' },
     { waarde: 'films', label: 'Films', logo: '/logos/films.svg', uitleg: 'Alleen films' },
@@ -559,6 +561,8 @@ export default function Setup() {
                             {id:'muziek',naam:'Muziek',icon:'/category/icon-music.svg',kleur:'#17daf3',beeld:categorieBeelden.muziek || '/category/approved-music.svg?v=hd840-20261101'},
                             {id:'games',naam:'Videogames',icon:'/category/icon-game.svg',kleur:'#7e66ff',beeld:categorieBeelden.games || '/category/approved-games.svg?v=hd840-20261101'},
                             {id:'anime',naam:'Anime',icon:'/category/icon-film.svg',kleur:'#ff8a3d',beeld:categorieBeelden.anime || '/category/approved-anime.svg?v=1'},
+                            {id:'kerst',naam:'Kerst',icon:'/category/icon-music.svg',kleur:'#2a9d63',beeld:categorieBeelden.kerst || '/category/collection-christmas.svg'},
+                            {id:'sinterklaas',naam:'Sinterklaas',icon:'/category/icon-music.svg',kleur:'#c41230',beeld:categorieBeelden.sinterklaas || ''},
                         ].map(g=><button key={g.id} type="button" className={'vt-hoofdkaart'+(hoofdgroep===g.id?' actief':'')}
                             style={{'--kaartkleur':g.kleur}} onClick={()=>{
                                 setHoofdgroep(g.id);setSubkeuze('alles');setFilters(f=>({...f,speciale_keuze:'',platformen:[],met_genres:[],genre_keuze:[],kindvriendelijk:false}));
@@ -566,14 +570,15 @@ export default function Setup() {
                                 if(g.id==='muziek')setFilters(f=>({...f,categorie:'muziek',categorieen:['muziek'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='games')setFilters(f=>({...f,categorie:'games',categorieen:['game'],game_only:true,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='anime')setFilters(f=>({...f,categorie:'anime',categorieen:['anime'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
+                                if(g.id==='kerst'||g.id==='sinterklaas')setFilters(f=>({...f,categorie:'muziek',categorieen:[g.id],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                                 if(g.id==='thema')setFilters(f=>({...f,categorie:'beide',categorieen:['film','serie'],game_only:false,collecties:[],periode_start:1930,periode_eind:NU}));
                             }}>
-                            <img className="vt-hoofdkaart-illustratie" src={g.beeld} alt="" loading="eager" />
+                            {g.beeld && <img className="vt-hoofdkaart-illustratie" src={g.beeld} alt="" loading="eager" />}
                             <span className="vt-hoofdkaart-titel"><img src={g.icon} alt="" />{g.naam}</span>
                         </button>)}
                     </div>
                     <div className={"vt-categorie-paneel vt-categorie-"+hoofdgroep}>
-                        <h2><img className="vt-panel-film-icon" src={"/category/icon-"+(hoofdgroep==="muziek"?"music":hoofdgroep==="games"?"game":hoofdgroep==="thema"?"theme":"film")+".svg"} alt="" /> {({films:'Films & Series',muziek:'Muziek',games:'Videogames',thema:'Thema'})[hoofdgroep]}</h2>
+                        <h2><img className="vt-panel-film-icon" src={"/category/icon-"+(hoofdgroep==="muziek"?"music":hoofdgroep==="games"?"game":hoofdgroep==="thema"?"theme":"film")+".svg"} alt="" /> {({films:'Films & Series',muziek:'Muziek',games:'Videogames',thema:'Thema',anime:'Anime',kerst:'Kerst',sinterklaas:'Sinterklaas'})[hoofdgroep]}</h2>
                         {hoofdgroep==='films'&&<div className="vt-subkeuzes">
                             <p>▱ &nbsp; Type</p>
                             <div className="vt-keuzerij">
@@ -586,7 +591,7 @@ export default function Setup() {
                             <p>{hoofdgroep==='films'?'▱  Collectie':hoofdgroep==='muziek'?'Welk muziekgenre?':hoofdgroep==='games'?'Kies één of meerdere fabrikanten': 'Kies een thema'}</p>
                             <div className="vt-keuzerij">
                                 {(hoofdgroep==='films'?[['alles','✨ Alles'],['80s','🌇 80’s'],['90s','📼 90’s'],['animatie','🎨 Animatie'],['kinder','🧸 Kinder'],...dbCollecties(['film','serie','beide','alles'])]
-                                :hoofdgroep==='muziek'?[['alles','🎧 Alles'],['80s','🌇 Jaren 80'],['90s','📼 Jaren 90'],...dbCollecties(['muziek','alles'])]
+                                :hoofdgroep==='muziek'?[['alles','Alles'],['60s','Jaren 60'],['70s','Jaren 70'],['80s','Jaren 80'],['90s','Jaren 90'],['00s','Jaren 00'],['10s','Jaren 10'],...dbCollecties(['muziek','alles'])]
                                 :hoofdgroep==='games'?[['alles','🎮 Alle games'],['nintendo','🕹️ Nintendo'],['sega','💫 Sega'],['playstation','🔵 PlayStation'],['xbox','🟢 Xbox'],['pc','💻 PC']]
                                 :[['alles','✨ Alle thema’s'],['kerst','🎄 Kerst']]).map(([id,label])=>
                                     <button type="button" key={id} className={'chip'+((hoofdgroep==='games'? (id==='alles'?!(filters.platformen||[]).length:(filters.platformen||[]).includes(id)) :subkeuze===id)?' gekozen':'')}
@@ -596,10 +601,10 @@ export default function Setup() {
                                             setFilters(f=>({...f,
                                                 speciale_keuze:id==='alles'?'':id,
                                                 platformen:hoofdgroep==='games'?(id==='alles'?[]:(f.platformen||[]).includes(id)?(f.platformen||[]).filter(x=>x!==id):[...(f.platformen||[]),id]):[],
-                                                periode_start:id==='80s'?1980:id==='90s'?1990:1930,
-                                                periode_eind:id==='80s'?1989:id==='90s'?1999:NU,
+                                                periode_start:DECENNIA[id]||1930,
+                                                periode_eind:DECENNIA[id]?Math.min(NU,DECENNIA[id]+9):NU,
                                                 kindvriendelijk:id==='kinder',
-                                                collecties:hoofdgroep==='games'?[]:id==='alles'||id==='80s'||id==='90s'||id==='kinder'||id==='animatie'?[]:[id],
+                                                collecties:hoofdgroep==='games'?[]:id==='alles'||DECENNIA[id]||id==='kinder'||id==='animatie'?[]:[id],
                                                 met_genres:id==='animatie'?['Animatie','Animation']:[],
                                                 zonder_genres:[]}));
                                         }}>{hoofdgroep === 'games'
@@ -644,7 +649,7 @@ export default function Setup() {
                             </div>
                         </div>
                         <button className="vt-preset-link vt-preset-inline" type="button" onClick={()=>setStap(0)}>Of kies een kant-en-klare quiz</button>
-                        <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema",anime:"Anime"})[hoofdgroep]} · {hoofdgroep==="games"?"Games":hoofdgroep==="anime"?"Anime":filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
+                        <div className="vt-selection-summary"><span>Geselecteerd: <strong>{({films:"Films & Series",muziek:"Muziek",games:"Videogames",thema:"Thema",anime:"Anime",kerst:"Kerst",sinterklaas:"Sinterklaas"})[hoofdgroep]} · {hoofdgroep==="games"?"Games":hoofdgroep==="anime"?"Anime":hoofdgroep==="kerst"?"Kerstmuziek":hoofdgroep==="sinterklaas"?"Sinterklaasliedjes":filters.categorie==="films"?"Alleen Films":filters.categorie==="series"?"Alleen Series":"Film & Serie"} · {subkeuze==="alles"?"Alles":subkeuze}</strong></span><span className="vt-mix-toggle">⤨ &nbsp; Willekeurig mixen <input type="checkbox" checked={filters.willekeurig_mixen !== false} onChange={e=>zet("willekeurig_mixen",e.target.checked)} /></span></div>
                         <button className="knop vt-startknop" type="button" onClick={()=>setStap(4)}><span className="vt-play-text"><img src="/category/icon-play.svg" alt="" />Start de quiz</span></button>
                     </div>
                     </div></div>

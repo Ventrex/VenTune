@@ -143,6 +143,27 @@ function setupSockets(io) {
             }
         });
 
+        // Host: alle spelers eerlijk over teams verdelen.
+        socket.on('lobby:teams-verdelen', async ({ aantal } = {}) => {
+            try {
+                if (!socket.data.isHost) return;
+                const nieuw = await lobby.verdeelTeams({ lobbyId: socket.data.lobbyId, aantal });
+                io.to(kamerNaam(socket.data.code)).emit('lobby:instellingen', { instellingen: nieuw, teams: nieuw.teams || [] });
+                await stuurSpelers(io, socket.data.lobbyId, socket.data.code);
+            } catch (err) {
+                socket.emit('lobby:fout', { melding: err.message });
+            }
+        });
+
+        // Host: hints en/of bonusvragen tijdelijk aan of uit (ook midden in het spel).
+        socket.on('spel:schakel', async (patch = {}) => {
+            try {
+                await spel.schakel(socket, patch);
+            } catch (err) {
+                socket.emit('spel:fout', { melding: `Wijzigen lukte niet: ${err.message}` });
+            }
+        });
+
         // Handmatig herstel zonder de pagina te vernieuwen. Dit is vooral
         // nuttig als een overgang naar de volgende ronde tijdelijk faalde.
         socket.on('spel:herstel', async () => {

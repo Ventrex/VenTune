@@ -1,0 +1,157 @@
+/* =====================================================================
+   Startpagina (spelen) + beheer op dezelfde pagina + database-lijst.
+   Rustig en vlak: kleuren, vormen en letters uit het thema.
+   ===================================================================== */
+
+.vt-start {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--text);
+}
+.vt-start-wissel {
+    display: flex; gap: .3rem; justify-content: center;
+    padding: .4rem; margin: .5rem auto 0;
+    border-radius: var(--rond-klein); background: var(--surface); border: var(--rand) solid var(--border);
+}
+.vt-start-wissel a {
+    padding: .45rem 1.2rem; border-radius: calc(var(--rond-klein) - 2px);
+    color: var(--text-dim); text-decoration: none; font-weight: 700; font-size: .92rem;
+}
+.vt-start-wissel a.aan { background: var(--accent); color: var(--op-accent); }
+
+/* ---- Spelen: past op één telefoonscherm ---- */
+.vt-start-spelen {
+    flex: 1;
+    width: min(560px, 100%);
+    margin: 0 auto;
+    padding: clamp(.75rem, 3vh, 2rem) 1rem max(1rem, env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: clamp(.7rem, 2.2vh, 1.2rem);
+}
+.vt-start-kop h1 {
+    margin: 0; font-family: var(--kop-font), var(--app-font), sans-serif;
+    font-size: clamp(1.8rem, 5.5vh, 3rem); line-height: 1.05;
+    text-transform: var(--kop-hoofdletters); letter-spacing: var(--kop-spatie);
+}
+.vt-start-kop p { margin: .45rem 0 0; color: var(--text-dim); }
+.vt-start-nieuw {
+    display: grid; gap: .2rem; text-align: left;
+    padding: clamp(1rem, 3.5vh, 1.6rem) 1.2rem;
+    border: var(--tegel-rand) solid var(--tegel-randkleur, transparent);
+    border-radius: var(--rond);
+    background: var(--accent); color: var(--op-accent);
+    box-shadow: var(--tegel-schaduw);
+    font: inherit; cursor: pointer;
+}
+.vt-start-nieuw strong { font-family: var(--kop-font), var(--app-font), sans-serif; font-size: clamp(1.4rem, 4vh, 2rem); text-transform: var(--kop-hoofdletters); }
+.vt-start-nieuw span { opacity: .85; font-size: .92rem; }
+.vt-start-mee {
+    display: grid; gap: .45rem;
+    padding: 1rem; border-radius: var(--rond);
+    background: var(--surface); border: var(--rand) solid var(--border);
+}
+.vt-start-mee label { font-weight: 700; }
+.vt-start-mee > div { display: flex; gap: .5rem; }
+.vt-start-mee .invoer { flex: 1; min-width: 0; text-align: center; letter-spacing: .3em; font-size: 1.35rem; font-weight: 800; text-transform: uppercase; }
+.vt-start-fout { color: var(--fout); }
+.vt-start-verder { display: grid; gap: .4rem; }
+.vt-start-verder > div { display: flex; flex-wrap: wrap; gap: .4rem; }
+.vt-start-spel { display: inline-flex; border-radius: var(--rond-pil); border: var(--rand) solid var(--border); background: var(--surface); overflow: hidden; }
+.vt-start-spel button { border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 800; padding: .4rem .75rem; cursor: pointer; letter-spacing: .08em; }
+.vt-start-spel button small { color: var(--text-dim); font-weight: 600; letter-spacing: 0; margin-left: .2rem; }
+.vt-start-spel button + button { border-left: var(--rand) solid var(--border); color: var(--text-dim); letter-spacing: 0; }
+.vt-start-voet { margin-top: auto; display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; font-size: .88rem; }
+.vt-start-voet a, .vt-start-voet button { color: var(--text-dim); background: none; border: 0; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: .3rem 0; }
+.vt-start-themas { padding-bottom: .5rem; }
+
+/* Bovenbalk rustiger en altijd op één regel */
+.vt-start .vt-category-topnav { background: var(--bg) !important; border-bottom: var(--rand) solid var(--border); box-shadow: none !important; }
+
+/* ---- Beheer op de startpagina ---- */
+.ab-ingebed { width: 100%; max-width: 1280px; padding-top: .6rem; }
+.ab-tabbalk {
+    display: flex; gap: .3rem; overflow-x: auto; scrollbar-width: none;
+    padding: .3rem; margin-bottom: .7rem;
+    border-radius: var(--rond-klein); background: var(--surface); border: var(--rand) solid var(--border);
+    position: sticky; top: 0; z-index: 6;
+}
+.ab-tabbalk::-webkit-scrollbar { display: none; }
+.ab-tabbalk .ab-tab { border: 0; background: transparent; border-radius: calc(var(--rond-klein) - 2px); min-height: 38px; color: var(--text-dim); font-weight: 700; }
+.ab-tabbalk .ab-tab.actief { background: var(--accent); color: var(--op-accent); }
+.ab-tabbalk .ab-uitlog { margin-left: auto; }
+.ab-ingebed .ab-kaart { border-radius: var(--rond) !important; background: var(--surface) !important; border: var(--rand) solid var(--border) !important; }
+.ab-ingebed .ab-balk { border-radius: var(--rond); border-width: var(--rand); top: 3.6rem; }
+
+/* ---- Database: één regel per titel ---- */
+.db { display: grid; gap: .6rem; }
+.db-filters { display: flex; flex-wrap: wrap; gap: .4rem; }
+.db-filters .invoer { min-height: 2.4rem; padding: .35rem .6rem; font-size: .9rem; width: auto; }
+.db-zoek { flex: 1 1 14rem; }
+.db-tabs { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.db-tabs button {
+    border: var(--rand) solid var(--border); background: var(--surface); color: var(--text-dim);
+    border-radius: var(--rond-pil); padding: .3rem .8rem; font: inherit; font-size: .85rem; font-weight: 700; cursor: pointer;
+}
+.db-tabs button.aan { background: var(--accent); color: var(--op-accent); border-color: var(--accent); }
+.db-totaal { margin-left: auto; color: var(--text-dim); font-size: .85rem; }
+.db-legenda { display: flex; flex-wrap: wrap; gap: .8rem; font-size: .75rem; color: var(--text-dim); }
+.db-legenda span { display: inline-flex; align-items: center; gap: .3rem; }
+.db-lijst { list-style: none; margin: 0; padding: 0; border: var(--rand) solid var(--border); border-radius: var(--rond-klein); overflow: hidden; }
+.db-regel {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) 6.5rem 7.5rem 3.6rem 9.5rem 1.8rem;
+    align-items: center; gap: .5rem;
+    min-height: 2.6rem; padding: .2rem .5rem;
+    background: var(--surface); font-size: .88rem;
+}
+.db-regel + .db-regel { border-top: 1px solid var(--border); }
+.db-regel:nth-child(even) { background: color-mix(in srgb, var(--surface) 88%, var(--text) 3%); }
+.db-regel.bezig { opacity: .55; }
+.db-regel.uit { opacity: .5; }
+.db-regel.uit .db-titel b { text-decoration: line-through; }
+.db-speel, .db-uit {
+    width: 1.8rem; height: 1.8rem; border-radius: 50%; border: var(--rand) solid var(--border);
+    background: transparent; color: var(--text); cursor: pointer; font-size: .7rem; padding: 0;
+}
+.db-speel.aan { background: var(--accent); color: var(--op-accent); border-color: var(--accent); }
+.db-speel:disabled { opacity: .25; cursor: default; }
+.db-uit { color: var(--text-dim); font-size: .95rem; border-color: transparent; }
+.db-titel { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-titel small { color: var(--text-dim); }
+.db-regel select {
+    min-width: 0; height: 1.9rem; padding: 0 .3rem; font: inherit; font-size: .8rem;
+    border-radius: var(--rond-klein); border: var(--rand) solid var(--border); background: var(--bg); color: var(--text);
+}
+.db-tier.tier-iconisch { border-color: var(--goud); }
+.db-tier.tier-algemeen_bekend { border-color: var(--k2); }
+.db-jaar { color: var(--text-dim); font-variant-numeric: tabular-nums; text-align: right; }
+.db-checks { display: flex; align-items: center; gap: .45rem; justify-content: flex-end; }
+.db-getal { font-size: .72rem; font-weight: 800; color: var(--text-dim); min-width: 1.6rem; text-align: center; padding: .05rem .25rem; border-radius: 4px; border: 1px solid var(--border); }
+.db-getal.ok { color: var(--goed); border-color: color-mix(in srgb, var(--goed) 50%, transparent); }
+.db-stip { width: .7rem; height: .7rem; border-radius: 50%; display: inline-block; background: var(--border); flex: 0 0 auto; }
+.db-stip.ok { background: var(--goed); }
+.db-stip.wacht { background: var(--goud); }
+.db-stip.bezig { background: var(--k2); }
+.db-stip.fout { background: var(--fout); }
+.db-meer { justify-self: center; }
+@media (max-width: 720px) {
+    .db-regel { grid-template-columns: 1.8rem minmax(0, 1fr) 5.6rem .8rem 1.3rem; gap: .35rem; font-size: .84rem; padding: .2rem .35rem; }
+    .db-regel select { font-size: .72rem; padding: 0 .15rem; }
+    .db-cat, .db-jaar { display: none; }
+    .db-checks .db-getal, .db-checks .db-stip:nth-of-type(n+2) { display: none; }
+}
+
+/* ---- Doelen ---- */
+.db-doelen-kop { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: .6rem; }
+.db-doelen-kop label { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; color: var(--text-dim); }
+.db-doelen-kop input[type=number] { width: 4.5rem; height: 2rem; border-radius: var(--rond-klein); border: var(--rand) solid var(--border); background: var(--bg); color: var(--text); padding: 0 .4rem; font: inherit; }
+.db-doorvullen { margin-left: auto; }
+.db-doelen-lijst { display: grid; grid-template-columns: 7.5rem 1fr 1fr; gap: .3rem .6rem; align-items: center; }
+.db-doelen-th { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+.db-doelen-naam { font-size: .85rem; font-weight: 700; white-space: nowrap; }
+.db-balk { position: relative; height: 1.25rem; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+.db-balk i { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.db-balk i.speel { background: var(--accent); }
+.db-balk em { position: relative; font-style: normal; font-size: .72rem; font-weight: 800; padding-left: .5rem; line-height: 1.2rem; }
+.db-media.fout { border-color: var(--fout) !important; }

@@ -1,0 +1,336 @@
+/* =====================================================================
+   VenTune spelschermen (Kahoot-stijl): speler, host en tv.
+   Altijd precies één scherm hoog, nooit scrollen. Kleuren, vormen en
+   lettertypes komen uit het actieve thema (themes.css).
+   ===================================================================== */
+
+.kz {
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(.4rem, 1.4vh, .9rem);
+    padding: max(.6rem, env(safe-area-inset-top)) max(.75rem, env(safe-area-inset-right))
+        max(.6rem, env(safe-area-inset-bottom)) max(.75rem, env(safe-area-inset-left));
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--app-font), system-ui, sans-serif;
+    font-size: calc(1rem * var(--font-scale, 1));
+}
+.kz > * { flex-shrink: 0; }
+.kz-verborgen, .kz-audio audio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ---- Kopregel ---- */
+.kz-kop {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: .5rem;
+    min-height: 2.6rem;
+}
+.kz-teller { font-family: var(--kop-font, var(--app-font)); font-weight: 800; font-size: 1.05rem; letter-spacing: var(--kop-spatie, 0); }
+.kz-teller small { opacity: .55; font-weight: 600; margin-left: .1rem; }
+.kz-kop-midden { justify-self: center; min-width: 0; }
+.kz-kop > :last-child { justify-self: end; }
+.kz-kop-titel { display: block; max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); font-size: .85rem; }
+.kz-klok {
+    display: inline-grid; place-items: center;
+    min-width: 2.8rem; height: 2.8rem; padding: 0 .5rem;
+    border-radius: var(--rond-klok, 999px);
+    background: var(--accent); color: var(--op-accent, #fff);
+    font-weight: 800; font-size: 1.15rem; font-variant-numeric: tabular-nums;
+}
+.kz-klok .timer-cijfer { font: inherit; color: inherit; }
+.kz-icoon {
+    width: 2.6rem; height: 2.6rem;
+    border-radius: var(--rond-klein, 10px);
+    border: var(--rand, 1px) solid var(--border);
+    background: var(--surface); color: var(--text);
+    font-size: 1.3rem; line-height: 1; cursor: pointer;
+}
+.kz-code { font-family: var(--kop-font, var(--app-font)); letter-spacing: .14em; font-weight: 800; }
+
+/* ---- Vraag ---- */
+.kz-vraag { text-align: center; padding: 0 .25rem; min-height: 0; }
+.kz-vraag h1 {
+    margin: 0;
+    font-family: var(--kop-font, var(--app-font));
+    font-weight: var(--kop-gewicht, 800);
+    font-size: clamp(1.25rem, 3.6vh, 2.4rem);
+    line-height: 1.15;
+    letter-spacing: var(--kop-spatie, -0.01em);
+    text-transform: var(--kop-hoofdletters, none);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.kz-sub { color: var(--text-dim); margin: .35rem 0 0; font-size: .92rem; }
+.kz-label { color: var(--text-dim); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin: 0; }
+.kz-hints { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: .35rem; padding: 0; margin: .5rem 0 0; }
+.kz-hints li {
+    padding: .25rem .65rem; border-radius: var(--rond-klein, 10px);
+    background: var(--surface); border: var(--rand, 1px) solid var(--border);
+    font-size: .85rem; max-width: 100%;
+}
+
+/* ---- Antwoordtegels ---- */
+.kz-antwoorden { flex: 1 1 auto !important; min-height: 0; display: flex; flex-direction: column; }
+.kz-tegels {
+    flex: 1; min-height: 0;
+    display: grid; gap: clamp(.4rem, 1.2vh, .8rem);
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr;
+}
+@media (min-aspect-ratio: 5/4) {
+    .kz-tegels-6, .kz-tegels-3 { grid-template-columns: repeat(3, 1fr); }
+}
+.kz-tegel {
+    position: relative;
+    display: flex; align-items: center; gap: .6rem;
+    min-height: 0; padding: .5rem .8rem;
+    border: var(--tegel-rand, 0) solid var(--tegel-randkleur, transparent);
+    border-radius: var(--rond, 14px);
+    background: var(--k);
+    color: var(--op-k, #fff);
+    font: inherit; font-weight: 700; text-align: left;
+    font-size: clamp(.9rem, min(2.5vh, 4.4vw), 1.55rem);
+    line-height: 1.15;
+    box-shadow: var(--tegel-schaduw, 0 4px 0 rgba(0, 0, 0, .28));
+    cursor: pointer;
+    transition: transform .08s ease, opacity .2s ease, filter .2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.kz-tegel:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.kz-tegel:disabled { cursor: default; }
+.kz-vorm { flex: 0 0 auto; font-size: 1.25em; opacity: .9; width: 1.3em; text-align: center; }
+.kz-tekst { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow-wrap: break-word; hyphens: auto; }
+.kz-k1 { --k: var(--k1); } .kz-k2 { --k: var(--k2); } .kz-k3 { --k: var(--k3); }
+.kz-k4 { --k: var(--k4); } .kz-k5 { --k: var(--k5); } .kz-k6 { --k: var(--k6); }
+.kz-k3 { color: var(--op-k3, var(--op-k, #fff)); }
+.kz-tegels:has(.gekozen) .kz-tegel:not(.gekozen):not(.juist) { opacity: .38; filter: saturate(.6); }
+.kz-tegel.gekozen { outline: 4px solid var(--text); outline-offset: 2px; }
+.kz-tegel.fout { opacity: .35; filter: grayscale(.8); text-decoration: line-through; }
+.kz-tegel.juist { outline: 5px solid var(--goed, #2fbf71); outline-offset: 2px; opacity: 1 !important; filter: none !important; }
+.kz-tegel.weg { opacity: .15; }
+
+.kz-typen { margin: auto 0; display: flex; flex-direction: column; gap: .6rem; }
+.kz-typen .invoer { font-size: 1.3rem; padding: 1rem; text-align: center; }
+
+/* ---- Grote melding (goed, beurt, wachten) ---- */
+.kz-melding-groot {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .4rem; text-align: center;
+    border-radius: var(--rond, 14px);
+    background: var(--surface);
+    border: var(--rand, 1px) solid var(--border);
+    padding: 1rem;
+}
+.kz-melding-groot strong { font-family: var(--kop-font, var(--app-font)); font-size: clamp(1.6rem, 6vh, 3.4rem); line-height: 1.05; }
+.kz-melding-groot small { color: var(--text-dim); }
+.kz-goed { background: var(--goed, #2fbf71); color: #fff; border-color: transparent; }
+.kz-goed span { font-size: clamp(1.4rem, 5vh, 2.6rem); font-weight: 800; }
+
+/* ---- Voet ---- */
+.kz-voet { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2.6rem; }
+.kz-hulp { display: flex; gap: .4rem; margin-left: auto; }
+.kz-pil {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 2.4rem; padding: .3rem .9rem;
+    border-radius: var(--rond-pil, 999px);
+    border: var(--rand, 1px) solid var(--border);
+    background: var(--surface); color: var(--text);
+    font: inherit; font-size: .88rem; font-weight: 700;
+    text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.kz-pil.aan { background: var(--accent); color: var(--op-accent, #fff); border-color: var(--accent); }
+.kz-pil.klein { min-height: 2rem; padding: .2rem .7rem; }
+.kz-pil:disabled { opacity: .45; }
+.kz-feedback { font-weight: 700; font-size: .92rem; color: var(--text-dim); }
+.kz-feedback.fout, .kz-feedback.nogmaals, .kz-feedback.wachten { color: var(--fout, #e5484d); }
+.kz-feedback.bijna, .kz-feedback.goed { color: var(--goed, #2fbf71); }
+.kz-rij { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+
+/* ---- Hostbalk ---- */
+.kz-hostbalk {
+    display: flex; gap: .35rem; overflow-x: auto; scrollbar-width: none;
+    padding: .3rem; border-radius: var(--rond, 14px);
+    background: var(--surface); border: var(--rand, 1px) solid var(--border);
+    position: relative; z-index: 6;
+}
+.kz-hostbalk::-webkit-scrollbar { display: none; }
+.kz-hb {
+    flex: 1 0 auto; min-width: 3.6rem;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .05rem;
+    padding: .3rem .5rem; border: 0; border-radius: var(--rond-klein, 10px);
+    background: transparent; color: var(--text-dim); font: inherit; cursor: pointer;
+}
+.kz-hb b { font-size: 1.05rem; color: var(--text); line-height: 1.1; }
+.kz-hb span { font-size: .68rem; font-weight: 700; white-space: nowrap; }
+.kz-hb.aan { color: var(--text); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.kz-hb-volgende { background: var(--accent); color: var(--op-accent, #fff); }
+.kz-hb-volgende b { color: var(--op-accent, #fff); }
+
+/* ---- Pauze / meldingen ---- */
+.kz-pauze {
+    position: fixed; inset: 0; z-index: 5; pointer-events: none;
+    display: grid; place-items: center;
+    background: color-mix(in srgb, var(--bg) 55%, transparent);
+    backdrop-filter: blur(3px);
+}
+.kz-pauze span {
+    font-family: var(--kop-font, var(--app-font)); font-size: clamp(2.2rem, 9vh, 5rem); font-weight: 800;
+    padding: .3em .8em; border-radius: var(--rond, 14px); background: var(--surface); border: var(--rand, 1px) solid var(--border);
+}
+.kz-balk-melding {
+    display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    padding: .45rem .7rem; border-radius: var(--rond-klein, 10px);
+    background: var(--surface); border: var(--rand, 1px) solid var(--border); font-size: .9rem; margin: 0;
+}
+.kz-balk-melding.fout { border-color: var(--fout, #e5484d); color: var(--fout, #e5484d); }
+.kz-tik {
+    position: fixed; left: 50%; bottom: 5.5rem; transform: translateX(-50%); z-index: 20;
+    padding: 1rem 1.6rem; border: 0; border-radius: var(--rond-pil, 999px);
+    background: var(--accent); color: var(--op-accent, #fff); font: inherit; font-weight: 800; font-size: 1.15rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+}
+
+/* ---- Onthulling ---- */
+.kz-onthul {
+    flex: 1 1 auto !important; min-height: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: .45rem;
+}
+.kz-onthul h1 { margin: 0; font-family: var(--kop-font, var(--app-font)); font-size: clamp(1.6rem, 5.5vh, 3.2rem); line-height: 1.08; text-transform: var(--kop-hoofdletters, none); }
+.kz-poster { max-height: 34vh; max-width: 60vw; object-fit: contain; border-radius: var(--rond-klein, 10px); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
+.kz-uitslag { margin: .4rem 0 0; padding: .45rem 1rem; border-radius: var(--rond-pil, 999px); font-weight: 800; }
+.kz-uitslag.goed { background: var(--goed, #2fbf71); color: #fff; }
+.kz-uitslag.fout { background: var(--surface); color: var(--text-dim); border: var(--rand, 1px) solid var(--border); }
+
+/* ---- Stand ---- */
+.kz-score { flex: 1 1 auto !important; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden; }
+.kz-score h2 { text-align: center; font-family: var(--kop-font, var(--app-font)); margin: 0 0 .6rem; font-size: clamp(1.4rem, 4vh, 2.4rem); }
+.kz-stand { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
+.kz-stand li {
+    display: grid; grid-template-columns: 2.2rem 1fr auto; align-items: center; gap: .6rem;
+    padding: clamp(.4rem, 1.2vh, .75rem) .8rem; border-radius: var(--rond-klein, 10px);
+    background: var(--surface); border: var(--rand, 1px) solid var(--border);
+    font-size: clamp(.95rem, 2.3vh, 1.35rem);
+}
+.kz-stand li.ik { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+.kz-plek { font-weight: 800; color: var(--text-dim); text-align: center; }
+.kz-naam { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.kz-naam small { color: var(--text-dim); font-weight: 600; }
+.kz-punten { font-weight: 800; font-variant-numeric: tabular-nums; }
+.kz-stand.eind li.plek-1 { background: var(--goud, #e8b931); color: #1a1300; border-color: transparent; font-size: clamp(1.1rem, 3vh, 1.7rem); }
+.kz-stand.eind li.plek-2 { background: #c9ced6; color: #15181c; border-color: transparent; }
+.kz-stand.eind li.plek-3 { background: #d39a63; color: #1d1006; border-color: transparent; }
+.kz-stand.eind li[class*='plek-'] .kz-plek, .kz-stand.eind li[class*='plek-'] .kz-naam small { color: inherit; }
+.kz-score .koth { max-height: 100%; overflow: hidden; }
+
+/* ---- Lobby (speler) ---- */
+.kz-lobby .kz-vraag { margin-top: 8vh; }
+.kz-spelers { display: flex; flex-wrap: wrap; gap: .4rem; align-content: flex-start; justify-content: center; }
+.kz-lobby .kz-spelers { flex: 1 1 auto !important; min-height: 0; overflow-y: auto; }
+.kz-speler {
+    display: inline-flex; align-items: baseline; gap: .35rem;
+    padding: .4rem .8rem; border-radius: var(--rond-pil, 999px);
+    background: var(--surface); border: var(--rand, 1px) solid var(--border); font-weight: 700; font-size: .95rem;
+}
+.kz-speler small { color: var(--text-dim); font-weight: 600; font-size: .75rem; }
+.kz-speler.ik { border-color: var(--accent); }
+.kz-speler.weg { opacity: .45; }
+.kz-team-keuze { text-align: center; display: grid; gap: .4rem; justify-items: center; }
+
+/* ---- Lobby (host) ---- */
+.kz-lobby-raster {
+    flex: 1 1 auto !important; min-height: 0;
+    display: grid; gap: .7rem;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+@media (min-aspect-ratio: 1/1) {
+    .kz-lobby-raster { grid-template-columns: minmax(220px, .8fr) 1.2fr; grid-template-rows: minmax(0, 1fr) auto; }
+    .kz-lobby-qr { grid-row: 1 / span 2; }
+}
+.kz-lobby-raster > section {
+    min-height: 0; border-radius: var(--rond, 14px);
+    background: var(--surface); border: var(--rand, 1px) solid var(--border); padding: .7rem;
+}
+.kz-lobby-qr { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5rem; text-align: center; }
+@media (max-aspect-ratio: 1/1) {
+    .kz-lobby-qr { flex-direction: row; justify-content: flex-start; text-align: left; flex-wrap: wrap; }
+    .kz-lobby-qr .kz-qr svg { width: 92px; height: 92px; }
+    .kz-lobby-qr .kz-sub { flex: 1; min-width: 9rem; margin: 0; }
+}
+.kz-qr { border: 0; padding: 0; background: #fff; border-radius: var(--rond-klein, 10px); line-height: 0; cursor: zoom-in; }
+.kz-qr svg { width: min(30vh, 220px); height: auto; }
+.kz-lobby-spelers { display: flex; flex-direction: column; gap: .5rem; }
+.kz-lobby-kop { display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.kz-spelers-lijst { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: .5rem; align-content: start; }
+.kz-spelers-lijst .kz-spelers { justify-content: flex-start; }
+.kz-teamvak { display: grid; gap: .3rem; }
+.kz-teamvak > div { display: flex; flex-wrap: wrap; gap: .3rem; }
+.kz-teamvak strong { font-size: .85rem; }
+.kz-lobby-instellingen { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem .8rem; }
+.kz-instelling { display: grid; gap: .25rem; }
+.kz-segment { display: flex; border-radius: var(--rond-klein, 10px); overflow: hidden; border: var(--rand, 1px) solid var(--border); }
+.kz-segment button {
+    flex: 1; min-height: 2.1rem; border: 0; background: transparent; color: var(--text-dim);
+    font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; padding: 0 .3rem;
+}
+.kz-segment button + button { border-left: var(--rand, 1px) solid var(--border); }
+.kz-segment button.aan { background: var(--accent); color: var(--op-accent, #fff); }
+.kz-start { justify-content: flex-end; }
+.kz-startknop { min-width: 10rem; font-size: 1.2rem; }
+
+/* ---- Paneel achter ⋯ ---- */
+.kz-paneel-achter {
+    position: fixed; inset: 0; z-index: 30;
+    display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(0, 0, 0, .55);
+}
+.kz-paneel {
+    width: min(560px, 100%); max-height: 85dvh; overflow-y: auto;
+    background: var(--bg); color: var(--text);
+    border-radius: var(--rond, 14px) var(--rond, 14px) 0 0;
+    border: var(--rand, 1px) solid var(--border);
+    padding: .8rem 1rem calc(1rem + env(safe-area-inset-bottom));
+}
+.kz-paneel-kop { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
+.kz-paneel-blok { display: grid; gap: .45rem; padding: .6rem 0; border-top: 1px solid var(--border); }
+.kz-paneel-blok h3 { margin: 0; font-size: 1rem; }
+.kz-optie-invoer { display: flex; align-items: center; gap: .5rem; }
+.kz-qr-groot { background: #fff; color: #111; padding: 1.2rem; border-radius: var(--rond, 14px); text-align: center; margin: auto; }
+.kz-qr-groot .kz-code { font-size: 2rem; margin: .4rem 0 0; }
+
+/* ---- Tv / groot scherm ---- */
+.kz-tv { padding: 2.5vh 3vw; gap: 2.2vh; font-size: clamp(1rem, 1.6vw, 1.6rem); }
+.kz-tv .kz-kop { min-height: 4rem; }
+.kz-tv .kz-vraag h1 { font-size: clamp(2rem, 6vh, 4.4rem); }
+.kz-tv .kz-tegel { font-size: clamp(1.2rem, 3.6vh, 2.6rem); padding: 1rem 1.4rem; }
+.kz-tv .kz-klok { min-width: 4.6rem; height: 4.6rem; font-size: 2rem; }
+.kz-tv-lobby { flex: 1 1 auto !important; display: flex; align-items: center; justify-content: center; gap: 5vw; flex-wrap: wrap; }
+.kz-tv-lobby .kz-qr svg { width: min(40vh, 360px); }
+.kz-code-groot { font-family: var(--kop-font, var(--app-font)); font-size: clamp(3rem, 14vh, 9rem); letter-spacing: .12em; margin: 0; line-height: 1; }
+.kz-tv .kz-spelers { justify-content: flex-start; margin-top: 2vh; max-width: 50vw; }
+
+/* ---- Grotere letters ---- */
+.kz-groot { --font-scale: 1.18; }
+.kz-groot .kz-tegel { font-size: clamp(1.1rem, 3vh, 1.8rem); }
+.kz-groot .kz-vraag h1 { font-size: clamp(1.45rem, 4.2vh, 2.7rem); }
+
+@media (prefers-reduced-motion: reduce) { .kz-tegel { transition: none; } }
+
+/* ---- Antwoordkaart (na de ronde) ---- */
+.kz-antwoord-kaart {
+    display: flex; align-items: center; gap: .8rem;
+    padding: .7rem .9rem; border-radius: var(--rond);
+    background: var(--surface); border: var(--rand) solid var(--border);
+}
+.kz-antwoord-kaart img { width: auto; height: clamp(3.5rem, 11vh, 7rem); border-radius: var(--rond-klein); object-fit: cover; }
+.kz-antwoord-kaart > div { display: grid; gap: .1rem; min-width: 0; flex: 1; }
+.kz-antwoord-kaart strong { font-family: var(--kop-font, var(--app-font)); font-size: clamp(1.3rem, 4vh, 2.4rem); line-height: 1.1; text-transform: var(--kop-hoofdletters, none); }
+.kz-antwoord-kaart small { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kz-antwoord-kaart .kz-uitslag { margin: 0; font-size: 1.1rem; }
+.kz-score h2 { margin-top: .2rem; }
+.kz-tv .kz-antwoord-kaart { margin-bottom: 2vh; }
+.kz-tv .kz-teller { font-size: clamp(1.1rem, 3.2vh, 2rem); }

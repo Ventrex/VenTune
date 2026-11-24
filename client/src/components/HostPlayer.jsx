@@ -91,6 +91,7 @@ const HostPlayer = forwardRef(function HostPlayer({
     onHervat,
     onHerhaal,
     gedempt = false,
+    compact = false,
 }, ref) {
     const audioRef = useRef(null);
     const gedemptRef = useRef(gedempt);
@@ -264,6 +265,38 @@ const HostPlayer = forwardRef(function HostPlayer({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [audio, start, onStatus]);
 
+    const audioElement = (
+        <audio
+            ref={audioRef}
+            preload="auto"
+            playsInline
+            onLoadedMetadata={(event) => setDuur(event.currentTarget.duration || 0)}
+            onDurationChange={(event) => setDuur(event.currentTarget.duration || 0)}
+            onTimeUpdate={(event) => setSpeeltijd(event.currentTarget.currentTime || 0)}
+            onPlay={() => setSpeelt(true)}
+            onPause={() => setSpeelt(false)}
+            onEnded={() => setSpeelt(false)}
+        />
+    );
+
+    // Compact (Kahoot-scherm): alleen het audio-element, plus een grote
+    // tikknop als de browser eerst een tik wil voordat er geluid mag.
+    if (compact) {
+        return (
+            <div className="kz-audio">
+                {moetTikken && !gedempt && (
+                    <button type="button" className="kz-tik" onClick={() => {
+                        setMoetTikken(false);
+                        setFoutmelding('');
+                        ontgrendeldRef.current = true;
+                        start();
+                    }}>▶ Tik voor geluid</button>
+                )}
+                {audioElement}
+            </div>
+        );
+    }
+
     return (
         <div className={'host-speler' + (verborgen ? ' host-speler-verborgen' : '')}>
             <div className="host-speler-visual">
@@ -342,17 +375,7 @@ const HostPlayer = forwardRef(function HostPlayer({
                     </div>
                 </div>
             )}
-            <audio
-                ref={audioRef}
-                preload="auto"
-                playsInline
-                onLoadedMetadata={(event) => setDuur(event.currentTarget.duration || 0)}
-                onDurationChange={(event) => setDuur(event.currentTarget.duration || 0)}
-                onTimeUpdate={(event) => setSpeeltijd(event.currentTarget.currentTime || 0)}
-                onPlay={() => setSpeelt(true)}
-                onPause={() => setSpeelt(false)}
-                onEnded={() => setSpeelt(false)}
-            />
+            {audioElement}
         </div>
     );
 });

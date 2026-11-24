@@ -7,6 +7,7 @@
 // =====================================================================
 
 const crypto = require('crypto');
+const { verdeelEerlijk } = require('./teams');
 const { pool } = require('../db/pool');
 const { leeftijdUitGeboortedatum } = require('../lib/auth');
 
@@ -188,6 +189,12 @@ async function bewaarInstellingen(lobbyId, instellingen) {
         veilig.teams = [...new Set(veilig.teams.map((t) => String(t).trim().slice(0, 24)).filter(Boolean))].slice(0, 12);
     }
     await pool.query(`UPDATE lobbies SET instellingen = $2::jsonb, bijgewerkt_op = now() WHERE id = $1`, [lobbyId, JSON.stringify(veilig)]);
+    if (Array.isArray(veilig.teams)) {
+        // Spelers in een team dat niet meer bestaat, staan weer los.
+        await pool.query(
+            `UPDATE spelers SET team_naam = NULL WHERE lobby_id = $1 AND team_naam IS NOT NULL AND NOT (team_naam = ANY($2::text[]))`,
+            [lobbyId, veilig.teams]);
+    }
     return veilig;
 }
 
@@ -206,7 +213,47 @@ async function zetTeam({ lobbyId, spelerId, teamNaam }) {
     return naam;
 }
 
+/**
+ * Host: verdeel alle spelers eerlijk over `aantal` teams. Sterkte komt uit
+ * eerdere spellen van hetzelfde account (gemiddelde eindscore).
+ */
+async function verdeelTeams({ lobbyId, aantal }) {
+    const lobby = await haalLobbyViaId(lobbyId);
+    if (!lobby || lobby.status !== 'wachten') throw new Error('Teams kunnen alleen in de lobby worden verdeeld.');
+    const { rows: spelers } = await pool.query(
+        `SELECT s.id, s.naam, s.leeftijd,
+                (SELECT avg(o.score)::float FROM spelers o
+                  WHERE s.gebruiker_id IS NOT NULL AND o.gebruiker_id = s.gebruiker_id
+                    AND o.lobby_id <> s.lobby_id AND o.score > 0) AS sterkte
+           FROM spelers s WHERE s.lobby_id = $1`,
+        [lobbyId],
+    );
+    if (spelers.length < 2) throw new Error('Minimaal twee spelers nodig om teams te maken.');
+    const huidig = Array.isArray(lobby.instellingen?.teams) ? lobby.instellingen.teams : [];
+    const { teams, indeling } = verdeelEerlijk(spelers, aantal, huidig);
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        for (const [id, team] of Object.entries(indeling)) {
+            await client.query('UPDATE spelers SET team_naam = $3 WHERE id = $1 AND lobby_id = $2', [id, lobbyId, team]);
+        }
+        const oud = lobby.instellingen || {};
+        const spelvorm = !oud.spelvorm || oud.spelvorm === 'tegen_elkaar' ? 'teams' : oud.spelvorm;
+        const instellingen = { ...oud, teams, spelvorm };
+        await client.query('UPDATE lobbies SET instellingen = $2::jsonb, bijgewerkt_op = now() WHERE id = $1',
+            [lobbyId, JSON.stringify(instellingen)]);
+        await client.query('COMMIT');
+        return instellingen;
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
 module.exports = {
+    verdeelTeams,
     maakLobby,
     haalLobby,
     doeMee,

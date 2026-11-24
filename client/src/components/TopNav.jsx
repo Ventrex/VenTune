@@ -23,11 +23,10 @@ export default function TopNav({ actief = 'home', teksten = {} }) {
                 {link('home', '/', 'icon-home', kop('nav.home', 'Home'))}
                 {link('scores', '/scores', 'icon-trophy', kop('nav.scores', 'Scores'))}
                 {link('toevoegen', '/aanvragen', 'icon-add-music', kop('nav.aanvragen', 'Toevoegen'))}
-                {(isAdmin || account?.rol === 'beoordelaar') && link('controleren', isAdmin ? '/admin/bank?tab=swipen' : '/review', 'icon-check', kop('nav.controleren', 'Controleren'))}
-                {isAdmin && link('beheer', '/admin/bank', 'icon-settings', kop('nav.beheer', 'Beheer'))}
+                {!isAdmin && account?.rol === 'beoordelaar' && link('controleren', '/review', 'icon-check', kop('nav.controleren', 'Controleren'))}
                 {(isAdmin || (account && account.rol !== 'beoordelaar')) && link('profielen', account ? '/host/profile' : '/host/login?return=/host/profile', 'icon-users', kop('nav.profielen', 'Profielen'))}
             </div>
-            <Link className="vt-top-user" to={account ? '/host/profile' : isAdmin ? '/admin/bank' : '/host/login?return=/host/profile'}>
+            <Link className="vt-top-user" to={account ? '/host/profile' : isAdmin ? '/?tab=overzicht' : '/host/login?return=/host/profile'}>
                 <span className="vt-avatar-ring">{account?.avatar_url
                     ? <img src={account.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                     : account?.display_naam?.slice(0, 1).toUpperCase() || '♫'}</span>

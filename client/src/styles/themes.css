@@ -1,0 +1,302 @@
+/* =====================================================================
+   VenTune thema's. Elk thema verandert niet alleen kleuren, maar ook
+   lettertype, vormen (hoeken, randen, schaduwen) en de antwoordtegels.
+   Gekozen via data-thema op <html> (zie lib/looks.js).
+
+   studio       Studio — rustig donker, één warme accentkleur (standaard)
+   noir         Bioscoop — OLED-zwart met donkerrood, strak en scherp
+   papier       Krant — licht papier, schreeflettertype, harde zwarte randen
+   arcade       Arcade — pixel/retro: zwart, felle kleuren, monospace
+   disco        Disco '70 — bruin, oranje en mosterd, ronde pillen
+   neon         Neon — paars met neon (de oude look)
+   kerst        Kerst — dennengroen, rood en goud
+   sinterklaas  Sinterklaas — mijterrood met goud
+   ===================================================================== */
+
+:root {
+    --op-accent: #fff;
+    --op-k: #fff;
+    --op-k3: #1b1400;
+    --goed: #2fbf71;
+    --fout: #e5484d;
+    --goud: #e8b931;
+    --rond: 12px;
+    --rond-klein: 8px;
+    --rond-pil: 999px;
+    --rand: 1px;
+    --tegel-rand: 0px;
+    --tegel-schaduw: 0 4px 0 rgba(0, 0, 0, .28);
+    --kop-font: var(--app-font);
+    --kop-gewicht: 800;
+    --kop-hoofdletters: none;
+    --kop-spatie: -0.01em;
+}
+
+/* ---- Studio (standaard) ---- */
+:root, :root[data-thema='studio'] {
+    --bg: #121212; --surface: #1c1c1c; --border: #2e2e2e;
+    --text: #f2f0eb; --text-dim: #9b978f;
+    --accent: #ff5a36; --accent-2: #ff5a36;
+    --red: #d9472b; --red-hot: #ff5a36; --red-glow: transparent;
+    --k1: #e2483d; --k2: #2f6fde; --k3: #e8b931; --k4: #2a9d63; --k5: #8e5bd8; --k6: #e07b28;
+    --app-font: 'Inter'; --merk-font: 'Inter'; --kop-font: 'Inter';
+    color-scheme: dark;
+}
+
+/* ---- Bioscoop / OLED Noir ---- */
+:root[data-thema='noir'] {
+    --bg: #000; --surface: #0a0a0a; --border: #222;
+    --text: #f5f5f5; --text-dim: #8a8a8a;
+    --accent: #c41230; --accent-2: #c41230;
+    --red: #8b0f1d; --red-hot: #c41230; --red-glow: transparent;
+    --k1: #c41230; --k2: #e8e8e8; --k3: #8b0f1d; --k4: #9a9a9a; --k5: #ff4d5e; --k6: #5c5c5c;
+    --rond: 2px; --rond-klein: 2px; --rond-pil: 2px;
+    --tegel-schaduw: none;
+    --app-font: 'Inter'; --merk-font: 'Inter'; --kop-font: 'Inter';
+    --kop-hoofdletters: uppercase; --kop-spatie: .06em; --kop-gewicht: 800;
+    color-scheme: dark;
+}
+:root[data-thema='noir'] .kz-tegel {
+    background: #070707; color: #f5f5f5;
+    border: 1px solid #1f1f1f; border-left: 6px solid var(--k);
+    text-transform: uppercase; letter-spacing: .03em; font-size: clamp(.85rem, 2.2vh, 1.35rem);
+}
+:root[data-thema='noir'] .kz-vorm { color: var(--k); }
+
+/* ---- Krant / papier (licht) ---- */
+:root[data-thema='papier'] {
+    --bg: #f1ece1; --surface: #fffdf7; --border: #1a1a1a;
+    --text: #1a1a1a; --text-dim: #5d574c;
+    --accent: #1a1a1a; --accent-2: #d1432a; --op-accent: #fffdf7;
+    --red: #d1432a; --red-hot: #d1432a; --red-glow: transparent;
+    --k1: #ff8a7a; --k2: #8bb8ff; --k3: #ffd65c; --k4: #84d8a8; --k5: #c9a7ff; --k6: #ffb46e;
+    --op-k: #1a1a1a; --op-k3: #1a1a1a;
+    --rond: 6px; --rond-klein: 4px; --rond-pil: 6px;
+    --rand: 2px; --tegel-rand: 2px; --tegel-randkleur: #1a1a1a;
+    --tegel-schaduw: 4px 4px 0 #1a1a1a;
+    --goed: #1f8a4c;
+    --app-font: 'Inter'; --merk-font: 'Fraunces'; --kop-font: 'Fraunces'; --kop-gewicht: 700; --kop-spatie: -0.02em;
+    color-scheme: light;
+}
+:root[data-thema='papier'] .kz-tegel.gekozen { outline-color: #1a1a1a; }
+:root[data-thema='papier'] .kz-klok { border: 2px solid #1a1a1a; }
+
+/* ---- Arcade ---- */
+:root[data-thema='arcade'] {
+    --bg: #050505; --surface: #0f0f0f; --border: #f4f4f4;
+    --text: #f4f4f4; --text-dim: #b5b5b5;
+    --accent: #ffe600; --accent-2: #ff2e4d; --op-accent: #000;
+    --red: #ff2e4d; --red-hot: #ffe600; --red-glow: transparent;
+    --k1: #ff2e4d; --k2: #2e8bff; --k3: #ffe600; --k4: #23d160; --k5: #b14dff; --k6: #ff8a00;
+    --op-k3: #000;
+    --rond: 0; --rond-klein: 0; --rond-pil: 0;
+    --rand: 3px; --tegel-rand: 3px; --tegel-randkleur: #050505;
+    --tegel-schaduw: 6px 6px 0 #f4f4f4;
+    --app-font: 'Space Mono'; --merk-font: 'Space Mono'; --kop-font: 'Space Mono';
+    --kop-hoofdletters: uppercase; --kop-spatie: .02em; --kop-gewicht: 700;
+    color-scheme: dark;
+}
+:root[data-thema='arcade'] body,
+:root[data-thema='arcade'] .kz {
+    background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 3px);
+}
+:root[data-thema='arcade'] .kz-tegel { text-transform: uppercase; font-size: clamp(.85rem, 2.2vh, 1.3rem); }
+
+/* ---- Disco '70 ---- */
+:root[data-thema='disco'] {
+    --bg: #2a1810; --surface: #3a2216; --border: #6b3d22;
+    --text: #fbe9d0; --text-dim: #d1a77c;
+    --accent: #f4a024; --accent-2: #d9482b; --op-accent: #2a1810;
+    --red: #d9482b; --red-hot: #f4a024; --red-glow: transparent;
+    --k1: #d9482b; --k2: #e0892c; --k3: #f2c13a; --k4: #6e8b3d; --k5: #a0522d; --k6: #c2185b;
+    --op-k3: #2a1810;
+    --rond: 26px; --rond-klein: 18px; --rond-pil: 999px;
+    --tegel-schaduw: inset 0 -5px 0 rgba(0, 0, 0, .25);
+    --app-font: 'Inter'; --merk-font: 'Fraunces'; --kop-font: 'Fraunces'; --kop-gewicht: 700;
+    color-scheme: dark;
+}
+:root[data-thema='disco'] .kz-vraag h1, :root[data-thema='disco'] .kz-onthul h1 { font-style: italic; }
+
+/* ---- Neon (oude look) ---- */
+:root[data-thema='neon'] {
+    --bg: #0a0618; --surface: #160c33; --border: #2d1c5c;
+    --text: #ecebff; --text-dim: #948fce;
+    --accent: #ff2d95; --accent-2: #00e5ff;
+    --red: #b0228a; --red-hot: #ff2d95; --red-glow: rgba(255, 45, 149, .45);
+    --k1: #ff2d95; --k2: #00b8e6; --k3: #ffd23f; --k4: #19d38a; --k5: #9b5cff; --k6: #ff7a3d;
+    --app-font: 'Inter'; --merk-font: 'Orbitron'; --kop-font: 'Orbitron'; --kop-gewicht: 700;
+    --tegel-schaduw: 0 0 18px color-mix(in srgb, var(--k) 45%, transparent);
+    color-scheme: dark;
+}
+
+/* ---- Kerst ---- */
+:root[data-thema='kerst'] {
+    --bg: #0b231b; --surface: #10342a; --border: #22543f;
+    --text: #f6efe0; --text-dim: #a8c2b1;
+    --accent: #e24b3b; --accent-2: #f0c969;
+    --red: #c9a24a; --red-hot: #e24b3b; --red-glow: transparent;
+    --k1: #d63a2f; --k2: #2e6d9e; --k3: #f0c969; --k4: #3c9a5f; --k5: #8c3b6e; --k6: #e0782f;
+    --op-k3: #2b1d00;
+    --rond: 16px; --rond-klein: 12px;
+    --app-font: 'Inter'; --merk-font: 'Fraunces'; --kop-font: 'Fraunces'; --kop-gewicht: 700;
+    color-scheme: dark;
+}
+:root[data-thema='kerst'] body,
+:root[data-thema='kerst'] .kz {
+    background-image:
+        radial-gradient(2px 2px at 20% 30%, rgba(255, 255, 255, .5), transparent 60%),
+        radial-gradient(2px 2px at 70% 15%, rgba(255, 255, 255, .4), transparent 60%),
+        radial-gradient(1.5px 1.5px at 45% 70%, rgba(255, 255, 255, .35), transparent 60%),
+        radial-gradient(2px 2px at 85% 60%, rgba(255, 255, 255, .4), transparent 60%);
+    background-size: 280px 280px;
+}
+
+/* ---- Sinterklaas ---- */
+:root[data-thema='sinterklaas'] {
+    --bg: #5a0c13; --surface: #6d1119; --border: #a3343c;
+    --text: #fff4dc; --text-dim: #f0c99a;
+    --accent: #f5c542; --accent-2: #f5c542; --op-accent: #3a0a0e;
+    --red: #f5c542; --red-hot: #f5c542; --red-glow: transparent;
+    --k1: #e23b3b; --k2: #1f4fa3; --k3: #f5c542; --k4: #2e7d32; --k5: #6a1b9a; --k6: #ef6c00;
+    --op-k3: #3a0a0e;
+    --rond: 10px; --rond-klein: 8px;
+    --tegel-rand: 2px; --tegel-randkleur: rgba(245, 197, 66, .55);
+    --app-font: 'Inter'; --merk-font: 'Fraunces'; --kop-font: 'Fraunces'; --kop-gewicht: 700;
+    color-scheme: dark;
+}
+
+/* =====================================================================
+   Minder "AI-look" op alle bestaande schermen: geen gloed, geen
+   paarse verlopen, gewoon vlakke kleuren uit het thema.
+   ===================================================================== */
+:root:not([data-thema='neon']) body { background-color: var(--bg); }
+:root:not([data-thema='neon']) .merk-logo,
+:root:not([data-thema='neon']) .knop,
+:root:not([data-thema='neon']) .kaart,
+:root:not([data-thema='neon']) .chip,
+:root:not([data-thema='neon']) .keuze { box-shadow: none !important; text-shadow: none !important; }
+:root:not([data-thema='neon']) h1,
+:root:not([data-thema='neon']) h2,
+:root:not([data-thema='neon']) .merk-naam { text-shadow: none !important; }
+.knop { border-radius: var(--rond-klein); font-family: var(--app-font), system-ui, sans-serif; }
+:root:not([data-thema='neon']) .knop:not(.knop-stil) { background: var(--accent) !important; color: var(--op-accent) !important; border-color: var(--accent) !important; }
+:root:not([data-thema='neon']) .knop-stil { background: var(--surface) !important; color: var(--text) !important; border: var(--rand) solid var(--border) !important; }
+.kaart { border-radius: var(--rond); border-width: var(--rand); }
+.invoer { border-radius: var(--rond-klein); border-width: var(--rand); }
+:root[data-thema='papier'] .invoer { background: #fffdf7; color: #1a1a1a; border-color: #1a1a1a; }
+h1, h2, .merk-naam { font-family: var(--kop-font), var(--app-font), system-ui, sans-serif; }
+:root:not([data-thema='neon']) .setup-scherm,
+:root:not([data-thema='neon']) .setup-scherm:has(.vt-categorie-scherm),
+:root:not([data-thema='neon']) .ventune-home { background: var(--bg) !important; background-image: none !important; }
+
+/* ---- Themakiezer ---- */
+.vt-themas { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: .5rem; }
+.vt-thema-tegel {
+    display: grid; gap: .35rem; justify-items: start; padding: .45rem;
+    border-radius: var(--rond-klein); border: var(--rand) solid var(--border);
+    background: var(--surface); color: var(--text); font: inherit; font-size: .85rem; font-weight: 700; cursor: pointer;
+}
+.vt-thema-tegel.actief { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.vt-thema-staal { width: 100%; height: 38px; border-radius: 6px; display: flex; align-items: flex-end; gap: 4px; padding: 6px; border: 1px solid rgba(127,127,127,.35); }
+.vt-thema-staal i { width: 14px; height: 14px; border-radius: 50%; display: block; }
+
+/* ---- Bovenbalk: vlak en in themakleuren ---- */
+:root:not([data-thema='neon']) .vt-category-topnav {
+    background: var(--bg) !important; background-image: none !important;
+    border-bottom: var(--rand) solid var(--border) !important; box-shadow: none !important;
+    min-height: 56px !important;
+}
+:root:not([data-thema='neon']) .vt-top-brand { color: var(--text) !important; font-family: var(--merk-font), var(--app-font), sans-serif !important; letter-spacing: -0.03em !important; font-size: clamp(1.25rem, 2vw, 1.7rem) !important; }
+:root:not([data-thema='neon']) .vt-top-brand strong { font-family: inherit !important; }
+:root:not([data-thema='neon']) .vt-top-brand strong span { color: var(--accent) !important; }
+:root[data-thema='papier'] .vt-top-brand strong span, :root[data-thema='noir'] .vt-top-brand strong span { color: var(--red-hot) !important; }
+:root:not([data-thema='neon']) .vt-top-brand .vt-top-equalizer { display: none !important; }
+:root:not([data-thema='neon']) .vt-top-links a { color: var(--text-dim) !important; border-radius: var(--rond-pil) !important; }
+:root:not([data-thema='neon']) .vt-top-links a img { display: none !important; }
+:root:not([data-thema='neon']) .vt-top-links .vt-top-active {
+    background: var(--surface) !important; color: var(--text) !important;
+    border: var(--rand) solid var(--border) !important; box-shadow: none !important; padding: 6px 14px !important;
+}
+:root:not([data-thema='neon']) .vt-avatar-ring { border: var(--rand) solid var(--border) !important; color: var(--text) !important; background: var(--surface) !important; box-shadow: none !important; }
+:root:not([data-thema='neon']) .vt-top-user { color: var(--text) !important; }
+
+/* ---- Quiz samenstellen: vlakke tegels, geen neon-illustraties ---- */
+:root:not([data-thema='neon']) .vt-categorie-scherm > h1::before,
+:root:not([data-thema='neon']) .vt-categorie-scherm > h1::after { display: none !important; }
+:root:not([data-thema='neon']) .vt-categorie-scherm h1 { color: var(--text) !important; text-shadow: none !important; }
+:root:not([data-thema='neon']) .vt-hoofdkaarten { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+:root:not([data-thema='neon']) .vt-hoofdkaart {
+    min-height: clamp(76px, 12vh, 120px) !important;
+    background: var(--surface) !important; color: var(--text) !important;
+    border: var(--rand) solid var(--border) !important; border-radius: var(--rond) !important;
+    box-shadow: none !important; transform: none !important;
+}
+:root:not([data-thema='neon']) .vt-hoofdkaart:nth-child(1) { --k: var(--k1); }
+:root:not([data-thema='neon']) .vt-hoofdkaart:nth-child(2) { --k: var(--k2); }
+:root:not([data-thema='neon']) .vt-hoofdkaart:nth-child(3) { --k: var(--k5); }
+:root:not([data-thema='neon']) .vt-hoofdkaart:nth-child(4) { --k: var(--k6); }
+:root:not([data-thema='neon']) .vt-hoofdkaart:nth-child(5) { --k: var(--k4); }
+:root:not([data-thema='neon']) .vt-hoofdkaart:nth-child(6) { --k: var(--k1); }
+:root:not([data-thema='neon']) .vt-hoofdkaart { box-shadow: inset 0 -5px 0 var(--k) !important; }
+:root:not([data-thema='neon']) .vt-hoofdkaart.actief { background: var(--k) !important; color: var(--op-k) !important; border-color: var(--k) !important; box-shadow: var(--tegel-schaduw) !important; }
+:root:not([data-thema='neon']) .vt-hoofdkaart:nth-child(3n+0).actief { color: var(--op-k) !important; }
+:root:not([data-thema='neon']) .vt-hoofdkaart::after,
+:root:not([data-thema='neon']) .vt-hoofdkaart-illustratie,
+:root:not([data-thema='neon']) .vt-hoofdkaart-titel img { display: none !important; }
+:root:not([data-thema='neon']) .vt-hoofdkaart-titel {
+    position: static !important; display: grid !important; place-items: center; height: 100%;
+    font-family: var(--kop-font), var(--app-font), sans-serif !important; text-transform: var(--kop-hoofdletters);
+    font-size: clamp(1rem, 2.2vw, 1.5rem) !important; text-shadow: none !important; color: inherit !important;
+}
+:root:not([data-thema='neon']) .vt-categorie-paneel,
+:root:not([data-thema='neon']) .vt-subkeuzes,
+:root:not([data-thema='neon']) .vt-selection-summary {
+    background: var(--surface) !important; background-image: none !important;
+    border: var(--rand) solid var(--border) !important; border-radius: var(--rond) !important; box-shadow: none !important;
+}
+:root:not([data-thema='neon']) .vt-categorie-paneel h2 img,
+:root:not([data-thema='neon']) .vt-collectie-pictogram,
+:root:not([data-thema='neon']) .vt-type-art { display: none !important; }
+:root:not([data-thema='neon']) .vt-keuzerij { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important; }
+:root:not([data-thema='neon']) .vt-keuzerij .chip,
+:root:not([data-thema='neon']) .vt-subkeuzes .chip {
+    min-height: 44px !important; height: auto !important; aspect-ratio: auto !important;
+    background: var(--bg) !important; background-image: none !important; color: var(--text) !important;
+    border: var(--rand) solid var(--border) !important; border-radius: var(--rond-klein) !important; box-shadow: none !important;
+}
+:root:not([data-thema='neon']) .vt-keuzerij .chip.gekozen,
+:root:not([data-thema='neon']) .vt-subkeuzes .chip.gekozen { background: var(--accent) !important; color: var(--op-accent) !important; border-color: var(--accent) !important; }
+:root:not([data-thema='neon']) .vt-collectie-label, :root:not([data-thema='neon']) .vt-option-label {
+    position: static !important; text-shadow: none !important; color: inherit !important; font-weight: 700;
+}
+:root:not([data-thema='neon']) .vt-startknop { box-shadow: var(--tegel-schaduw) !important; border-radius: var(--rond) !important; }
+:root:not([data-thema='neon']) .vt-category-workspace .vt-hoofdkaart .vt-hoofdkaart-titel { display: grid !important; position: static !important; white-space: normal !important; }
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel,
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel > .vt-subkeuzes,
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel:has(> .vt-subkeuzes + .vt-subkeuzes) > .vt-subkeuzes {
+    background: var(--surface) !important; background-image: none !important;
+    border: var(--rand) solid var(--border) !important; box-shadow: none !important;
+}
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel > .vt-subkeuzes { background: var(--bg) !important; }
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel .vt-subkeuzes .chip,
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel > .vt-subkeuzes:nth-of-type(n) .chip:nth-child(n) {
+    background: var(--surface) !important; background-image: none !important; box-shadow: none !important;
+    min-height: 44px !important; height: auto !important; color: var(--text) !important;
+    border: var(--rand) solid var(--border) !important; border-radius: var(--rond-klein) !important;
+}
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel .vt-subkeuzes .chip.gekozen,
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel > .vt-subkeuzes:nth-of-type(n) .chip.gekozen:nth-child(n) {
+    background: var(--accent) !important; color: var(--op-accent) !important; border-color: var(--accent) !important;
+}
+:root:not([data-thema='neon']) .vt-category-workspace .vt-subkeuzes .chip::before,
+:root:not([data-thema='neon']) .vt-category-workspace .vt-subkeuzes .chip::after { display: none !important; }
+:root:not([data-thema='neon']) .vt-category-workspace .vt-collectie-pictogram { display: none !important; }
+:root:not([data-thema='neon']) .vt-subkeuzes > p { color: var(--text-dim) !important; text-transform: uppercase; letter-spacing: .06em; font-size: .78rem !important; font-weight: 800; }
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel > .vt-subkeuzes:nth-of-type(n) .chip:nth-child(n) .vt-collectie-pictogram,
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel > .vt-subkeuzes:nth-of-type(n) .chip:nth-child(n) img { display: none !important; }
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel > .vt-subkeuzes:nth-of-type(n) .chip:nth-child(n) .vt-collectie-label { position: static !important; inset: auto !important; }
+:root:not([data-thema='neon']) .vt-selection-summary { color: var(--text) !important; }
+:root:not([data-thema='neon']) .vt-category-workspace .vt-categorie-paneel .vt-selection-summary,
+:root:not([data-thema='neon']) .vt-categorie-scherm .vt-selection-summary { background: var(--bg) !important; background-image: none !important; color: var(--text) !important; }
+:root:not([data-thema='neon']) .vt-mix-toggle input { background: var(--border) !important; border-color: var(--border) !important; }
+:root:not([data-thema='neon']) .vt-mix-toggle input:checked { background: var(--accent) !important; }

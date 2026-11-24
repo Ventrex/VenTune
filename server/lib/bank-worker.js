@@ -417,6 +417,10 @@ async function stapMp3(inst) {
          LIMIT $1`, [BATCH.mp3, bezig, inst?.voorrang || []]);
     if (!rows.length) return false;
     zet('mp3', `MP3 zoeken: ${rows.map((r) => r.naam).join(', ')}`);
+    if (!(await require('./media-opslag').beschikbaar())) {
+        status.laatsteActie = 'Mediamap (NAS) niet bereikbaar; MP3-zoeken wacht';
+        return false;
+    }
     const r = await bankMp3.verwerkBatch(rows);
     if (r.fout) controleerAi({ ok: false, error: r.fout });
     status.tellers.mp3 += r.gevonden;
@@ -476,9 +480,39 @@ function kiesAanvulling(inst, telling) {
     return null;
 }
 
+/**
+ * Hoofddoel: per categorie eerst 100 echt iconische, daarna 150 algemeen
+ * bekende titels (muziek: per decennium). Iconisch gaat overal voor.
+ */
+function kiesDoelAanvulling(inst, voortgang) {
+    const voorrang = inst.voorrang?.length ? inst.voorrang : ['film', 'serie', 'sinterklaas', 'game', 'kerst', 'muziek'];
+    const volgorde = [...voorrang, ...bank.CATEGORIEEN.filter((c) => !voorrang.includes(c))];
+    for (const tier of bank.DOEL_TIERS) {
+        for (const c of volgorde) {
+            if (!voortgang[c]) continue;
+            if (c === 'muziek') {
+                for (const d of bank.MUZIEK_DECENNIA) {
+                    const v = voortgang.muziek.decennia[d][tier];
+                    const periode = `${d}-${d === 2020 ? 'nu' : d + 9}`;
+                    if (v.totaal < v.doel && (uitgeput[`muziek|${periode}|${tier}`] || 0) < Date.now()) {
+                        return { categorie: 'muziek', tier, periode, doel: v.doel, tekort: v.doel - v.totaal };
+                    }
+                }
+                continue;
+            }
+            const v = voortgang[c][tier];
+            if (v.totaal < v.doel && (uitgeput[`${c}|null|${tier}`] || 0) < Date.now()) {
+                return { categorie: c, tier, periode: null, doel: v.doel, tekort: v.doel - v.totaal };
+            }
+        }
+    }
+    return null;
+}
+
 async function stapAanvullen(inst) {
     const telling = await bank.tellingen();
-    const keuze = kiesAanvulling(inst, telling);
+    const voortgang = await bank.tierVoortgang(inst);
+    const keuze = kiesDoelAanvulling(inst, voortgang) || (inst.doorvullen ? kiesAanvulling(inst, telling) : null);
     if (!keuze) return false;
     const { categorie, tier, periode } = keuze;
 
@@ -1048,4 +1082,5 @@ function huidigeStatus() {
     return { ...status, tellers: { ...status.tellers }, mp3Bezig: bankMp3.bezigeIds().length };
 }
 
-module.exports = { start, porren, hervat, vergeetPauze, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties, koppelAutomatischeCollecties };
+module.exports = {
+    kiesDoelAanvulling, start, porren, hervat, vergeetPauze, huidigeStatus, pasBeoordelingToe, bewaarQuiz, stapCollecties, koppelAutomatischeCollecties };

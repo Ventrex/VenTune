@@ -201,6 +201,11 @@ ${invoer.join('\n')}`;
  * Laat de AI nieuwe titels aandragen voor een categorie.
  * @returns {Promise<{ok:true, items:Array<object>}|{ok:false,error:string}>}
  */
+const TIER_UITLEG = {
+    iconisch: ' — ECHT iconisch: vrijwel iedere Nederlander (ook wie er niet mee opgroeide) herkent het nummer binnen een paar seconden, zoals de Titanic-, Friends- of Super Mario-muziek. Twijfel je, dan is het algemeen_bekend en hoort het NIET in deze lijst',
+    algemeen_bekend: ' — algemeen bekend: de meeste Nederlanders van die generatie kennen het meteen, maar het is net geen wereldklassieker',
+};
+
 async function vulAan({ categorie, aantal, periode, tier, bestaand }, signal) {
     const wat = {
         film: 'films', serie: 'tv-series', anime: 'anime (Japanse animatieseries en -films)',
@@ -215,7 +220,7 @@ async function vulAan({ categorie, aantal, periode, tier, bestaand }, signal) {
 
 Geef een LIJST van ${aantal} nieuwe ${wat} die in Nederland bekend zijn en een herkenbaar origineel nummer hebben. ${periodeRegel}
 Denk aan iconische titels voor verschillende generaties, óók herkenbare Nederlandse films, series en muziek uit de jaren 1950-1980 voor ouderen. Geef de voorkeur aan Nederlandstalige originele muziek wanneer die bij het werk hoort. Geen titels die uitsluitend kinderen van nu kennen; ga niet uit van Engelse taalvaardigheid of kennis van ondertitels.
-Ze moeten bekendheid "${tier}" hebben${tier === 'iconisch' ? ' (alleen het allerbekendste: wat vrijwel iedereen in Nederland meteen herkent)' : ''}.
+Ze moeten bekendheid "${tier}" hebben${TIER_UITLEG[tier] || ''}.
 Niets uit de lijst hieronder (ook geen andere schrijfwijze of een los deel van dezelfde reeks met hetzelfde nummer). Liever minder dan obscure of verzonnen titels.
 Bij videogames: geef uitsluitend de oorspronkelijke basistitel van het spel. Nooit losse versies of Deluxe, Ultimate, Special, Gold, Complete, GOTY of Collector's Editions als nieuwe titels. Platformvarianten zijn geen aparte spellen.
 Per item alleen: naam (zoals Nederlanders hem kennen), jaar (release; bij series het beginjaar), artiest (alleen bij muziek/kerst/sinterklaas/kinder, anders leeg) en bekendheid (je eerlijke inschatting: iconisch, algemeen_bekend, bekend, onbekend of cult).

@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
+const { vindBestand } = require('./media-opslag');
 
 function absoluutPad(mediaPad, mediaDir = process.env.MEDIA_DIR || '/media') {
     const waarde = String(mediaPad || '');
@@ -14,8 +15,10 @@ function absoluutPad(mediaPad, mediaDir = process.env.MEDIA_DIR || '/media') {
 }
 
 async function bestandGezondheid(track, opties = {}) {
-    const pad = absoluutPad(track?.bestand_pad || track?.preview_url, opties.mediaDir);
-    if (!pad) return { aanwezig: false, fout: 'Geen lokaal bestandspad.' };
+    const primair = absoluutPad(track?.bestand_pad || track?.preview_url, opties.mediaDir);
+    if (!primair) return { aanwezig: false, fout: 'Geen lokaal bestandspad.' };
+    // NAS eerst, anders de oude lokale map (MEDIA_FALLBACK_DIR).
+    const pad = opties.mediaDir ? primair : (await vindBestand(primair)) || primair;
     try {
         const info = await fs.stat(pad);
         if (!info.isFile() || info.size <= 0) {

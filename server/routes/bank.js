@@ -67,6 +67,8 @@ router.get('/api/admin/bank/status', vereisAdmin, async (_req, res) => {
             chatgpt: { gekoppeld: !!login.loggedIn, tekst: login.text || '' },
             categorieen: bank.CATEGORIEEN.map((c) => ({ id: c, naam: bank.CATEGORIE_LABEL[c] })),
             tiers: bank.TIERS.map((t) => ({ id: t, naam: bank.TIER_LABEL[t] })),
+            voortgang: await bank.tierVoortgang(inst).catch(() => null),
+            media: await require('../lib/media-opslag').status().catch(() => null),
         });
     } catch (err) { fout(res, err); }
 });
@@ -146,6 +148,16 @@ router.post('/api/admin/bank/doel/:categorie', vereisAdmin, async (req, res) => 
 // ------------------------------------------------------------------
 
 const FILTERS = {
+    // Database: één regel per titel met alles erop.
+    database: {
+        alle: "t.curatie_status <> 'uitgesloten'",
+        speelbaar: `t.curatie_status <> 'uitgesloten' AND ${bank.HEEFT_SPEELBAAR}`,
+        problemen: `t.curatie_status <> 'uitgesloten' AND (NOT ${bank.HEEFT_MP3}
+            OR t.nl_bekend = 'twijfel' OR t.ai_status <> 'klaar' OR t.bekendheid_tier IS NULL)`,
+        wacht: `t.curatie_status <> 'uitgesloten' AND EXISTS (SELECT 1 FROM tracks ws WHERE ws.titel_id = t.id
+            AND ws.wacht_op_swipe AND ws.werkt AND ws.download_status = 'available')`,
+        uitgesloten: "t.curatie_status = 'uitgesloten'",
+    },
     nummers: {
         alle: "t.curatie_status <> 'uitgesloten'",
         te_beoordelen: "t.curatie_status <> 'uitgesloten' AND (t.ai_status <> 'klaar' OR t.ai_versie < " + bank.AI_VERSIE + ')',
@@ -220,6 +232,11 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
         } else if (req.query.tier === 'geen') {
             condities.push('t.bekendheid_tier IS NULL');
         }
+        const decennium = parseInt(req.query.decennium, 10);
+        if (decennium >= 1900 && decennium <= 2100 && decennium % 10 === 0) {
+            params.push(decennium);
+            condities.push(`COALESCE(t.muziek_jaar, t.jaar) BETWEEN $${params.length} AND $${params.length} + 9`);
+        }
         const zoek = normaliseerZoekterm(req.query.zoek);
         if (zoek) {
             params.push(`%${zoek}%`);
@@ -249,7 +266,8 @@ router.get('/api/admin/bank/items', vereisAdmin, async (req, res) => {
                    t.uitsluit_reden, t.zoek_status, t.zoek_melding, t.zoek_pogingen, t.volgende_poging,
                    t.ai_hints, t.ai_quiz_op,
                    mp.id AS track_id, mp.preview_url AS mp3_url, mp.youtube_titel, mp.bron_url,
-                   mp.verificatie_reden, mp.wacht_op_swipe
+                   mp.verificatie_reden, mp.wacht_op_swipe,
+                   (SELECT count(*)::int FROM vragen vq WHERE vq.titel_id = t.id AND vq.ai_review_status <> 'afgekeurd') AS vragen_aantal
               FROM titels t
               LEFT JOIN LATERAL (
                   SELECT tr.id, tr.preview_url, tr.youtube_titel, tr.bron_url, tr.verificatie_reden, tr.wacht_op_swipe

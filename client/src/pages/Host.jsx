@@ -1,686 +1,211 @@
-import KingOfTheHill from '../components/KingOfTheHill.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useSpel } from '../lib/useSpel.js';
-import { wisSessie } from '../lib/sessie.js';
 import HostPlayer from '../components/HostPlayer.jsx';
-import Timer from '../components/Timer.jsx';
-import IssueReport from '../components/IssueReport.jsx';
-import Brand from '../components/Brand.jsx';
+import Speelbord from '../components/Speelbord.jsx';
 
-// Host-scherm (het grote scherm). Speelt de muziek af en toont de QR,
-// de visualizer, de timer en het scorebord.
-export default function Host() {
-    const navigate = useNavigate();
-    const spel = useSpel();
-    const {
-        sessie,
-        fase,
-        ronde,
-        resultaat,
-        hints,
-        antwoordOpties,
-        verwijderdeOpties,
-        antwoord,
-        bonus,
-        bonusResultaat,
-        scorebord,
-        koth,
-        spelers,
-        teams,
-        lobbyInstellingen,
-        trackBeoordeling,
-        audio,
-        verbonden,
-        herstelNodig,
-        herstelBezig,
-        voorbereiding,
-    } = spel;
-    const spelerRef = useRef(null);
-    const [gok, setGok] = useState('');
-    const [gokIngediend, setGokIngediend] = useState(false);
-    const [bonusKeuze, setBonusKeuze] = useState(null);
-    const [bonusWachtTot, setBonusWachtTot] = useState(0);
-    const [meldingOpen, setMeldingOpen] = useState(false);
-    const [meldingSoort, setMeldingSoort] = useState('geen_geluid');
-    const [meldingToelichting, setMeldingToelichting] = useState('');
-    const [, setBonusTik] = useState(0);
-    const [nieuwTeam, setNieuwTeam] = useState('');
-    const [qrGroot, setQrGroot] = useState(false);
-    const [lobbyWijziging, setLobbyWijziging] = useState(null);
-    const [startBezig, setStartBezig] = useState(false);
-    const [audioStatus, setAudioStatus] = useState(null);
-    const [geluidViaTv, setGeluidViaTv] = useState(false);
+// Host-scherm. De host speelt de muziek af (of stuurt die door naar het
+// tv-scherm), bedient het spel en speelt zelf mee in hetzelfde
+// Kahoot-scherm als de spelers.
 
-    // Ontgrendel de speler tijdens de tik op 'Start spel', zodat ook latere
-    // rondes vanzelf geluid geven (iOS staat afspelen alleen toe na een tik).
-    async function startMetGeluid() {
-        if (startBezig || voorbereiding) return;
-        setStartBezig(true);
-        // Het ontgrendelen mag het starten nooit tegenhouden. Lukt het niet,
-        // dan verschijnt straks hooguit de "Tik om te starten"-knop; blijft
-        // het hangen, dan zou het spel anders nooit beginnen.
-        try {
-            if (spelerRef.current) await spelerRef.current.ontgrendel();
-        } catch {
-            /* geluid komt dan via een tik; doorgaan met starten */
-        }
-        try {
-            spel.startSpel();
-        } catch {
-            setStartBezig(false);
-        }
-    }
+const GELUID_SLEUTEL = 'vt_geluid_via_tv';
 
-    useEffect(() => {
-        if (fase !== 'wachten' || spel.fout) setStartBezig(false);
-    }, [fase, spel.fout]);
-
-    useEffect(() => { setGok(''); setGokIngediend(false); setAudioStatus(null); }, [ronde?.rondeId]);
-    useEffect(() => {
-        if (resultaat?.opnieuw) setGokIngediend(false);
-    }, [resultaat]);
-    useEffect(() => { setBonusKeuze(null); setBonusWachtTot(0); }, [bonus?.vraag]);
-    useEffect(() => {
-        if (!bonusWachtTot) return undefined;
-        const timer = setInterval(() => {
-            setBonusTik(Date.now());
-            if (Date.now() >= bonusWachtTot) setBonusWachtTot(0);
-        }, 250);
-        return () => clearInterval(timer);
-    }, [bonusWachtTot]);
-    useEffect(() => {
-        const ms = Number(bonusResultaat?.cooldownMs || bonusResultaat?.resterendMs || 0);
-        if (ms > 0) setBonusWachtTot(Date.now() + ms);
-    }, [bonusResultaat]);
-
-    useEffect(() => {
-        if (!sessie) navigate('/');
-    }, [sessie, navigate]);
-    if (!sessie) return null;
-
-    const joinUrl = `${window.location.origin}/join/${sessie.code}`;
-    const tvUrl = `${window.location.origin}/tv/${sessie.code}`;
-    const goedGeraden = resultaat?.status === 'goed';
-    const titelVergrendeld = gokIngediend || goedGeraden;
-    const bonusVergrendeld = bonusResultaat?.status === 'goed' || bonusResultaat?.status === 'opgegeven';
-    const bonusWacht = bonusWachtTot > Date.now();
-    const bonusUitgesloten = bonusResultaat?.uitgeslotenIndexen || bonus?.uitgeslotenIndexen || [];
-
-    useEffect(() => {
-        if (fase === 'wachten') setLobbyWijziging({ ...lobbyInstellingen });
-    }, [fase, lobbyInstellingen]);
-
-    function verstuurGok(e) {
-        e.preventDefault();
-        if (!gok.trim() || titelVergrendeld) return;
-        setGokIngediend(true);
-        spel.gok(gok.trim());
-    }
-
-    function kiesAntwoord(optie) {
-        if (!optie || titelVergrendeld) return;
-        setGok(optie);
-        setGokIngediend(true);
-        spel.gok(optie);
-    }
-
-    function kiesBonus(i) {
-        if (bonusVergrendeld || bonusWacht || bonusUitgesloten.includes(i)) return;
-        setBonusKeuze(i);
-        spel.bonusAntwoord(i);
-    }
-
-    function verlaten() {
-        // Bewaar het token om een onderbroken lobby later weer te openen.
-        navigate('/setup');
-    }
-
+function HostBalk({ spel, geluidViaTv, onGeluid, tvUrl }) {
+    const { fase, lobbyInstellingen } = spel;
+    const hintsAan = lobbyInstellingen?.hints_aan !== false;
+    const vragenAan = lobbyInstellingen?.bonusvragen_aan !== false;
     return (
-        <main className="scherm host-scherm">
-            <Brand compact />
-            {/* Al vóór de start gemonteerd: de klik op "Start spel" kan de
-                browser zo echt ontgrendelen voor latere lokale audio. */}
-            <HostPlayer
-                ref={spelerRef}
-                audio={audio}
-                gedempt={geluidViaTv}
-                verborgen={fase !== 'raden'}
-                onStatus={setAudioStatus}
-                gepauzeerd={spel.gepauzeerd}
-                onPauze={spel.pauzeer}
-                onHervat={spel.hervat}
-                onHerhaal={spel.herhaal}
-            />
-            <div className="vt-tv-host-bediening">
-                <a href={tvUrl} target="_blank" rel="noreferrer" className="knop knop-stil">Open tv-scherm · {sessie.code}</a>
-                <label><input type="checkbox" checked={geluidViaTv} onChange={e => setGeluidViaTv(e.target.checked)} />
-                    Geluid via tv: hostapparaat dempen
-                </label>
-            </div>
-            {fase === 'raden' && ronde && !audio && (
-                <p className="dim host-audio-status" role="status">Audio wordt klaargezet…</p>
+        <nav className="kz-hostbalk" aria-label="Spel bedienen">
+            {fase === 'raden' && (
+                <button type="button" className={'kz-hb' + (spel.gepauzeerd ? ' aan' : '')}
+                    onClick={spel.gepauzeerd ? spel.hervat : spel.pauzeer}>
+                    <b>{spel.gepauzeerd ? '▶' : '❚❚'}</b><span>{spel.gepauzeerd ? 'Verder' : 'Pauze'}</span>
+                </button>
             )}
-            {fase === 'raden' && audio && audioStatus?.status === 'laden' && (
-                <p className="dim host-audio-status" role="status">Audio ontvangen · lokaal bestand starten…</p>
+            {fase === 'raden' && (
+                <button type="button" className="kz-hb" onClick={spel.herhaal}><b>↺</b><span>Opnieuw</span></button>
             )}
-            {fase === 'raden' && audioStatus?.status === 'fout' && (
-                <p className="waarschuwing host-audio-status" role="alert">{audioStatus.fout}</p>
+            <button type="button" className={'kz-hb' + (hintsAan ? ' aan' : '')} aria-pressed={hintsAan}
+                onClick={() => spel.schakel({ hints: !hintsAan })}><b>?</b><span>Hints {hintsAan ? 'aan' : 'uit'}</span></button>
+            <button type="button" className={'kz-hb' + (vragenAan ? ' aan' : '')} aria-pressed={vragenAan}
+                onClick={() => spel.schakel({ vragen: !vragenAan })}><b>+</b><span>Bonus {vragenAan ? 'aan' : 'uit'}</span></button>
+            <button type="button" className={'kz-hb' + (geluidViaTv ? ' aan' : '')} aria-pressed={geluidViaTv}
+                onClick={() => onGeluid(!geluidViaTv)} title={tvUrl}><b>{geluidViaTv ? '▭' : '♪'}</b><span>{geluidViaTv ? 'Geluid tv' : 'Geluid hier'}</span></button>
+            {fase !== 'einde' && (
+                <button type="button" className="kz-hb kz-hb-volgende" onClick={spel.volgende}>
+                    <b>→</b><span>{fase === 'raden' ? 'Stop ronde' : 'Volgende'}</span>
+                </button>
             )}
-            {spel.fout && (
-                <div className="foutkaart" role="alert">
-                    <p className="waarschuwing" style={{ margin: 0 }}>{spel.fout}</p>
-                    {/* Zonder deze knoppen zit je vast op de foutmelding: het
-                        spel start niet en er is geen weg terug. */}
-                    <div className="knoprij">
-                        <button
-                            className="knop"
-                            type="button"
-                            onClick={() => { spel.wisFout?.(); startMetGeluid(); }}
-                        >
-                            Opnieuw proberen
-                        </button>
-                        <button
-                            className="knop knop-stil"
-                            type="button"
-                            onClick={() => navigate('/setup')}
-                        >
-                            Andere quiz kiezen
-                        </button>
-                        <button
-                            className="knop knop-stil"
-                            type="button"
-                            onClick={() => navigate('/')}
-                        >
-                            Naar start
-                        </button>
-                    </div>
-                </div>
-            )}
-            {((!verbonden && fase !== 'wachten') || herstelNodig) && (
-                <div className="herstelkaart" role="status">
-                    <strong>
-                        {verbonden ? 'Deze ronde reageert niet.' : 'Verbinding verbroken.'}
-                    </strong>
-                    <p>Blijf in het spel; vernieuw de pagina niet.</p>
-                    <button
-                        className="knop"
-                        onClick={spel.herstelSpel}
-                        disabled={herstelBezig}
-                    >
-                        {herstelBezig ? 'Herstellen…' : 'Opnieuw verbinden / ronde herstellen'}
-                    </button>
-                </div>
-            )}
-
-            {/* Wachtruimte — in landscape: spelers links, QR rechts */}
-            {fase === 'wachten' && (
-                <>
-                    <h1>Lobby</h1>
-
-                    <div className="host-wacht vt-lobby-layout">
-                        <div className="host-wacht-links">
-                            <p className="kaart-label" style={{ textAlign: 'left' }}>
-                                Spelers ({spelers.length})
-                            </p>
-                            <ul className="spelerlijst">
-                                {spelers.map((s) => (
-                                    <li
-                                        key={s.id}
-                                        className={
-                                            'speler-kaart' + (s.verbonden ? '' : ' weg')
-                                        }
-                                    >
-                                        <span className="speler-naam">
-                                            {s.naam}
-                                            {s.is_host && (
-                                                <span className="host-tag">host</span>
-                                            )}
-                                            {s.team_naam && <span className="dim"> · {s.team_naam}</span>}
-                                            {s.specialiteit && <span className="dim"> · Specialiteit: {s.specialiteit}</span>}
-                                            {s.leeftijd && <span className="dim"> · {s.leeftijd} jaar</span>}
-                                        </span>
-                                    </li>
-                                ))}
-                                {spelers.length === 0 && (
-                                    <li className="dim">Nog niemand — scan de QR →</li>
-                                )}
-                            </ul>
-                            <section className="kaart vt-team-panel"><h2>Teams</h2><p className="dim">Maak een team en kies welk team je wilt joinen.</p>                                <div className="zoekbalk" style={{ marginTop: '0.5rem' }}>
-                                    <input className="invoer" value={nieuwTeam} placeholder="Nieuw team" maxLength={24} onChange={(e) => setNieuwTeam(e.target.value)} />
-                                    <button className="knop knop-stil" type="button" onClick={() => {
-                                        const naam = nieuwTeam.trim();
-                                        if (!naam) return;
-                                        const volgende = [...new Set([...(lobbyWijziging?.teams || teams || []), naam])];
-                                        setLobbyWijziging({ ...lobbyWijziging, teams: volgende });
-                                        setNieuwTeam('');
-                                    }}>Team toevoegen</button>
-                                </div>
-                                {(lobbyWijziging?.teams || teams || []).length > 0 && <div className="chips">
-                                    {(lobbyWijziging?.teams || teams || []).map((team) => <span className="chip gekozen" key={team}>{team} · {spelers.filter(p=>p.team_naam===team).map(p=>p.naam).join(", ") || "leeg"}</span>)}
-                                </div>}
-                                {(teams || []).length > 0 && (
-                                    <div className="kaart team-keuze-kaart">
-                                        <p className="kaart-label">Jouw team</p>
-                                        <div className="chips team-chips">
-                                            <button className="chip" type="button" onClick={() => spel.wijzigTeam(null)}>Geen team</button>
-                                            {teams.map((team) => {
-                                                const actief = spelers.find((s) => s.id === sessie.spelerId)?.team_naam === team;
-                                                return (
-                                                    <button className={'chip' + (actief ? ' gekozen' : '')} type="button" key={team} onClick={() => spel.wijzigTeam(team)}>
-                                                        {team}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-</section>
-                            <details className="kaart lobby-instellingen"><summary>Lobbyinstellingen aanpassen</summary>
-                                <p className="kaart-label">Lobby aanpassen</p>
-                                <div className="vt-lobby-choices">
-                                    <p className="kaart-label">Antwoordwijze</p>
-                                    <div className="vt-lobby-choice-row">
-                                        {[['typen','⌨️','Typen'],['meerkeuze','🔠','6 antwoorden']].map(([id,icoon,label])=>
-                                            <button type="button" key={id} className={'chip'+((lobbyWijziging?.antwoord_modus||'meerkeuze')===id?' gekozen':'')}
-                                                onClick={()=>setLobbyWijziging(oud=>({...oud,antwoord_modus:id}))}>{icoon} {label}</button>)}
-                                    </div>
-                                    <p className="kaart-label">Speeltijd</p>
-                                    <div className="vt-lobby-choice-row">
-                                        {[[0,'Heel nummer'],[10,'10 sec'],[15,'15 sec'],[20,'20 sec'],[30,'30 sec'],[60,'1 min'],[120,'2 min'],[180,'3 min']].map(([waarde,label])=>
-                                            <button type="button" key={waarde} className={'chip'+((lobbyWijziging?.speeltijd??0)===waarde?' gekozen':'')}
-                                                onClick={()=>setLobbyWijziging(oud=>({...oud,speeltijd:waarde}))}>{label}</button>)}
-                                    </div>
-                                </div>
-                                <div style={{ marginTop: '0.75rem' }}>
-                                    <label className="kaart-label">Genres films en series (leeg = alle genres)</label>
-                                    <div className="chips">
-                                        {['Actie','Komedie','Drama','Horror','Thriller','Sciencefiction','Fantasy','Animatie','Avontuur','Romantiek','Musical'].map((genre) => {
-                                            const gekozen = (lobbyWijziging?.met_genres || []).includes(genre);
-                                            return <button key={genre} type="button" className={'chip' + (gekozen ? ' gekozen' : '')}
-                                                onClick={() => setLobbyWijziging((oud) => ({ ...oud, met_genres: gekozen
-                                                    ? (oud?.met_genres || []).filter((g) => g !== genre)
-                                                    : [...(oud?.met_genres || []), genre] }))}><span aria-hidden="true">{({Actie:'💥',Komedie:'🎭',Drama:'🎬',Horror:'👻',Thriller:'🔍',Sciencefiction:'🚀',Fantasy:'🪄',Animatie:'🏰',Avontuur:'🧭',Romantiek:'❤️',Musical:'🎤'})[genre]||'🎞️'}</span> {genre}</button>;
-                                        })}
-                                    </div>
-                                </div>
-                                <button className="knop knop-stil" type="button" onClick={() => spel.bewaarLobbyInstellingen(lobbyWijziging || {})}>Instellingen opslaan</button>
-                            </details>
-                            {(voorbereiding || startBezig) && (
-                                <div className="kaart" style={{ marginTop: '1.5rem' }} role="status">
-                                    <strong>{voorbereiding?.melding || 'Spel voorbereiden… even geduld.'}</strong>
-                                    {voorbereiding?.totaal > 0 && (
-                                        <>
-                                            <div className="admin-progress" style={{ marginTop: '0.75rem' }}>
-                                                <span style={{ width: `${Math.min(100, Math.round(((voorbereiding.verwerkt || 0) / voorbereiding.totaal) * 100))}%` }} />
-                                            </div>
-                                            <p className="dim">{voorbereiding.verwerkt || 0} van {voorbereiding.totaal} volledig opgeslagen</p>
-                                        </>
-                                    )}
-                                    <p className="dim">Het spel start pas wanneer elk nummer 100% lokaal beschikbaar is.</p>
-                                </div>
-                            )}
-                            <div className="stapel" style={{ marginTop: '1.5rem' }}>
-                                <button
-                                    className="knop"
-                                    onClick={startMetGeluid}
-                                    disabled={spelers.length < 1 || !!voorbereiding || startBezig}
-                                >
-                                    {voorbereiding || startBezig ? 'Spel voorbereiden…' : 'Start spel'}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="kaart host-kaart host-wacht-rechts">
-                            <p className="kaart-label">Doe mee · scan of deel</p>
-                            <p className="lobby-code">{sessie.code}</p>
-                            <button type="button" className="qr-doos vt-qr-trigger" aria-label="Vergroot QR-code" onClick={() => setQrGroot(true)}>
-                                <QRCodeSVG
-                                    value={joinUrl}
-                                    size={112}
-                                    bgColor="#000000"
-                                    fgColor="#f5f5f5"
-                                    level="M"
-                                    includeMargin
-                                />
-                            </button>
-                            <p className="dim vt-tv-lobby-uitleg">Op Google TV of een andere browser: open <strong>{tvUrl}</strong>. De bediening blijft op dit apparaat.</p>
-                            <div className="vt-lobby-share">
-                                <button type="button" className="knop knop-stil" onClick={() => {
-                                    if (navigator.share) navigator.share({title:'Doe mee met VenTune',text:'Doe mee met onze quiz! Code: '+sessie.code,url:joinUrl}).catch(()=>{});
-                                    else if (navigator.clipboard) navigator.clipboard.writeText(joinUrl).catch(()=>{});
-                                }}>Delen / uitnodigen</button>
-                                <a href={'https://wa.me/?text='+encodeURIComponent('Speel mee met VenTune! Code: '+sessie.code+' '+joinUrl)} target="_blank" rel="noopener noreferrer" className="knop knop-stil">WhatsApp</a>
-                            </div>
-                        </div>
-                    </div>
-                    {qrGroot && <div className="vt-qr-overlay" role="dialog" aria-modal="true" aria-label="Vergrote QR-code" onClick={() => setQrGroot(false)}><div className="vt-qr-modal" onClick={e=>e.stopPropagation()}><button className="knop knop-stil" type="button" onClick={() => setQrGroot(false)}>Sluiten ×</button><p className="lobby-code">{sessie.code}</p><QRCodeSVG value={joinUrl} size={320} bgColor="#ffffff" fgColor="#111111" includeMargin/><p>Scan om mee te doen</p></div></div>}
-                </>
-            )}
-
-            {['king_of_the_hill', 'bergexpeditie'].includes(lobbyInstellingen?.spelvorm) && fase !== 'wachten' && (
-                <KingOfTheHill koth={koth} instellingen={lobbyInstellingen} scorebord={scorebord} eind={fase === 'einde'} mijnId={sessie?.spelerId} />
-            )}
-
-            {fase === 'raden' && ronde && <IssueReport key={ronde.rondeId} spel={spel} tijdensRonde />}
-
-            {/* Ronde bezig */}
-            {fase === 'raden' && ronde && (
-                <>
-                    <p className="ronde-teller">
-                        Ronde {ronde.rondenummer} / {ronde.totaal}
-                    </p>
-                    {/* In kennersmodus telt er niets af. */}
-                    {ronde.durationMs ? (
-                        <div className="timer-groot">
-                            <Timer
-                                startTs={ronde.startTs}
-                                durationMs={ronde.durationMs}
-                            />
-                        </div>
-                    ) : (
-                        <p className="ronde-teller">Kennersmodus — raad maar raak</p>
-                    )}
-
-                    {spel.gepauzeerd && (
-                        <p className="feedback neutraal">Gepauzeerd</p>
-                    )}
-
-                    <div className="kaart host-raadkaart">
-                        <p className="kaart-label">Jij speelt mee</p>
-                        {goedGeraden ? (
-                            <p className="goed-tekst">Goed! +{resultaat.punten}</p>
-                        ) : antwoordOpties ? (
-                            <div className="keuzes meerkeuze-antwoorden">
-                                {antwoordOpties.map((optie, i) => {
-                                    const weg = verwijderdeOpties.includes(i);
-                                    return (
-                                        <button
-                                            key={`${optie}-${i}`}
-                                            className={'keuze' + (gok === optie ? ' gekozen' : '') +
-                                                (gok === optie && resultaat?.status !== 'goed' ? ' fout' : '')}
-                                            onClick={() => kiesAntwoord(optie)}
-                                            disabled={weg || titelVergrendeld}
-                                        >
-                                            {weg ? '—' : optie}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <form className="zoekbalk" onSubmit={verstuurGok}>
-                                <input
-                                    className="invoer"
-                                    value={gok}
-                                    onChange={(e) => setGok(e.target.value)}
-                                    placeholder="Jouw antwoord…"
-                                    aria-label="Jouw antwoord"
-                                    autoComplete="off"
-                                />
-                                    <button className="knop" type="submit" disabled={titelVergrendeld}>{gokIngediend ? 'Ingestuurd' : 'Antwoord insturen'}</button>
-                            </form>
-                        )}
-                        {resultaat && !goedGeraden && (
-                            <p className={'feedback ' + (resultaat.status === 'bijna' ? 'bijna' : resultaat.status === 'fout' ? 'mis' : 'neutraal')}>
-                                {resultaat.status === 'bijna' && (resultaat.melding || 'Bijna — je antwoord is ingestuurd.')}
-                                {resultaat.status === 'fout' && (resultaat.melding || 'Helaas, mis.')}
-                                {resultaat.status === 'tempo' && resultaat.melding}
-                                {resultaat.status === 'hint-fout' && resultaat.melding}
-                            </p>
-                        )}
-                        {!goedGeraden && (
-                            <>
-                                <button
-                                    className="knop knop-stil host-hintknop"
-                                    type="button"
-                                    onClick={spel.vraagHint}
-                                >
-                                    Hint (−25)
-                                </button>
-                                {antwoordOpties && (
-                                    <button
-                                        className="knop knop-stil host-hintknop"
-                                        type="button"
-                                        onClick={spel.verwijder3}
-                                    >
-                                        Verwijder 3 foute antwoorden
-                                        {spel.hulplijnen.verwijder3 !== null
-                                            ? ` (${spel.hulplijnen.verwijder3} over)`
-                                            : ''}
-                                    </button>
-                                )}
-                            </>
-                        )}
-                        {hints.length > 0 && (
-                            <ul className="hintlijst">
-                                {hints.map((h, i) => (
-                                    <li key={i} className="hint-rij">{h.tekst}</li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                    <div className="host-knoppen">
-                        <button className="knop" onClick={spel.volgende}>
-                            Volgende →
-                        </button>
-                    </div>
-                    {lobbyInstellingen?.vraag_profiel === 'beta' && (
-                        <div className="kaart beta-review" style={{ marginTop: '0.75rem', textAlign: 'left' }}>
-                            <p className="kaart-label">Beta Tester · klopt dit nummer?</p>
-                            {trackBeoordeling ? (
-                                <p className="goed-tekst">
-                                    {trackBeoordeling.beoordeling === 'goed'
-                                        ? '✓ Als goed gemarkeerd.'
-                                        : trackBeoordeling.alternatief?.gedownload
-                                            ? '↻ Fout gemeld; een andere kandidaat wordt klaargezet.'
-                                            : '✗ Als fout gemarkeerd; beheer controleert de kandidaat.'}
-                                </p>
-                            ) : (
-                                <div className="zoekbalk">
-                                    <button className="knop" type="button" onClick={() => spel.beoordeelTrack('goed')}>
-                                        ✓ Nummer klopt
-                                    </button>
-                                    <button
-                                        className="knop knop-stil"
-                                        type="button"
-                                        onClick={() => spel.beoordeelTrack('fout', window.prompt('Wat klopt er niet? (optioneel)', '') || null)}
-                                    >
-                                        ✗ Nummer klopt niet
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="melding-formulier" style={{ marginTop: '0.75rem' }}>
-                        {spel.melded ? (
-                            <p className="goed-tekst">✓ Bedankt, je melding is ontvangen.</p>
-                        ) : (
-                            <>
-                                <div className="zoekbalk melding-keuze">
-                                    <select className="invoer compact-select" value={meldingSoort} onChange={(e) => setMeldingSoort(e.target.value)} aria-label="Wat is er mis?">
-                                        <option value="geen_geluid">Geen geluid</option>
-                                        <option value="verkeerd_nummer">Verkeerd nummer</option>
-                                        <option value="fout">Anders</option>
-                                    </select>
-                                    <button className="knop knop-stil" type="button" onClick={() => setMeldingOpen((waarde) => !waarde)}>
-                                        {meldingOpen ? 'Sluiten' : 'Melding maken'}
-                                    </button>
-                                </div>
-                                {meldingOpen && (
-                                    <div className="stapel melding-details" style={{ marginTop: '0.5rem' }}>
-                                        <input className="invoer" value={meldingToelichting} onChange={(e) => setMeldingToelichting(e.target.value)} placeholder="Wat ging er mis? (optioneel)" maxLength={500} />
-                                        <button className="knop" type="button" onClick={() => {
-                                            spel.meldFout(meldingSoort, meldingToelichting.trim() || null);
-                                            setMeldingOpen(false);
-                                        }}>Melding versturen</button>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
-                    <p className="dim" style={{ marginTop: '1rem' }}>
-                        Spelers raden op hun telefoon; jij speelt hier mee…
-                    </p>
-                    <Scorebord lijst={scorebord} compact mijnId={sessie.spelerId} />
-                </>
-            )}
-
-            {fase === 'onthul' && antwoord && <IssueReport key={'onthul-' + ronde?.rondeId} spel={spel} />}
-            {fase === 'bonus' && antwoord && <IssueReport key={'bonus-' + ronde?.rondeId} spel={spel} />}
-            {fase === 'scorebord' && antwoord && <IssueReport key={'score-' + ronde?.rondeId} spel={spel} />}
-
-            {/* Titel onthuld */}
-            {fase === 'onthul' && antwoord && (
-                <>
-                    <p className="kaart-label">Het antwoord was</p>
-                    <h1>{antwoord.naam}</h1>
-                    {lobbyInstellingen?.info_aan !== false && <AntwoordInfo antwoord={antwoord} />}
-                    <div className="host-knoppen">
-                        <button className="knop" onClick={spel.volgende}>
-                            Volgende →
-                        </button>
-                    </div>
-                </>
-            )}
-
-            {/* Bonusvraag (host toont de vraag mee) */}
-            {fase === 'bonus' && bonus && (
-                <>
-                    {antwoord && <h1>{antwoord.naam}</h1>}
-                    <p className="kaart-label">Bonusvraag</p>
-                    <p className="ondertitel">{bonus.vraag}</p>
-                    <p className="dim" style={{ marginTop: '1rem' }}>
-                        Spelers antwoorden op hun telefoon; jij kunt hier ook meedoen.
-                    </p>
-                    <div className="keuzes host-bonus-keuzes meerkeuze-antwoorden">
-                        {bonus.opties.map((opt, i) => {
-                            let extra = bonusKeuze === i ? ' gekozen' : '';
-                            if (bonusResultaat?.status === 'goed' && bonusResultaat.correctIndex === i) extra += ' juist';
-                            if (bonusUitgesloten.includes(i)) extra += ' fout';
-                            return (
-                                <button
-                                    key={i}
-                                    className={'keuze' + extra}
-                                    onClick={() => kiesBonus(i)}
-                                    disabled={bonusVergrendeld || bonusWacht || bonusUitgesloten.includes(i)}
-                                >
-                                    {opt}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {bonusResultaat && (
-                        <p className={'feedback ' + (bonusResultaat.status === 'goed' ? 'bijna' : bonusResultaat.status === 'optie-weg' ? 'neutraal' : 'mis')}>
-                            {bonusResultaat.status === 'goed' && `Goed! +${bonusResultaat.punten}`}
-                            {bonusResultaat.status === 'nogmaals' && 'Kies over vijf seconden een andere optie.'}
-                            {bonusResultaat.status === 'optie-weg' && 'Deze foute optie is voor iedereen verwijderd.'}
-                            {bonusResultaat.status === 'fout' && `Fout. ${Math.ceil(Math.max(0, bonusWachtTot - Date.now()) / 1000)}s denktijd.`}
-                            {bonusResultaat.status === 'wachten' && `Even wachten: ${Math.ceil(Math.max(0, bonusWachtTot - Date.now()) / 1000)}s.`}
-                            {bonusResultaat.status === 'opgegeven' && 'Opgegeven.'}
-                        </p>
-                    )}
-                    <div className="host-knoppen">
-                        {!bonusVergrendeld && <button className="knop knop-stil" onClick={spel.bonusOpgeven}>Ik geef op</button>}
-                        <button className="knop knop-stil" onClick={spel.volgende}>Volgende bonusvraag →</button>
-                    </div>
-                </>
-            )}
-
-            {/* Tussen rondes */}
-            {fase === 'scorebord' && (
-                <>
-                    {antwoord && (
-                        <>
-                            <p className="kaart-label">Vorige titel</p>
-                            <h1>{antwoord.naam}</h1>
-                            {lobbyInstellingen?.info_aan !== false && <AntwoordInfo antwoord={antwoord} />}
-                        </>
-                    )}
-                    <Scorebord lijst={scorebord} mijnId={sessie.spelerId} />
-                    <div className="host-knoppen"><button className="knop" onClick={spel.volgende}>Doorgaan naar volgende ronde →</button></div>
-                    <p className="dim" style={{ marginTop: '1rem' }}>
-                        De volgende ronde start pas wanneer de host op Doorgaan klikt.
-                    </p>
-                </>
-            )}
-
-            {/* Einde */}
-            {fase === 'einde' && (
-                <>
-                    <h1>Eindstand</h1>
-                    <Scorebord lijst={scorebord} eind mijnId={sessie.spelerId} />
-                    <div className="stapel" style={{ marginTop: '1.5rem' }}>
-                        <button className="knop" onClick={verlaten}>
-                            Nieuw spel
-                        </button>
-                    </div>
-                </>
-            )}
-        </main>
+        </nav>
     );
 }
 
-// Toont alle informatie over de titel: type, jaar, taal, land en genres.
-export function AntwoordInfo({ antwoord }) {
-    if (!antwoord) return null;
-    const type = antwoord.type === 'serie' ? 'Serie' : antwoord.type === 'muziek' ? 'Muziek' : 'Film';
-    const taal = antwoord.taal === 'nl' ? 'Nederlands' : antwoord.taal === 'en' ? 'Engels' : antwoord.taal === 'us' ? 'Engels' : null;
+function Keuze({ label, opties, waarde, onKies }) {
     return (
-        <div className="antwoord-compact vt-answer-summary">
-            {antwoord.poster && (
-                <img className="poster vt-small-poster" src={antwoord.poster} alt="" loading="lazy" />
-            )}
-            <div className="antwoord-tekst">
-            {antwoord.bekendheid && (
-                <p className="vt-bekendheid-punten">
-                    {({ iconisch: 'Iconisch', algemeen_bekend: 'Algemeen bekend', bekend: 'Bekend', onbekend: 'Onbekend', cult: 'Cult' })[antwoord.bekendheid]}
-                    {' · '}<strong>×{antwoord.puntenFactor || 1} punten</strong>
-                </p>
-            )}
-            <details className="vt-info-toggle"><summary aria-label="Meer informatie over deze film of serie">ⓘ Info over {antwoord.type === 'serie' ? 'de serie' : 'de film'}</summary>
-            <div className="info-rij">
-                <span className="info-chip">{type}</span>
-                {antwoord.jaar && <span className="info-chip">{antwoord.lopend ? `${antwoord.jaar}–` : antwoord.eindJaar && antwoord.eindJaar !== antwoord.jaar ? `${antwoord.jaar}–${antwoord.eindJaar}` : antwoord.jaar}</span>}
-                {taal && <span className="info-chip">{taal}</span>}
-                {antwoord.land && <span className="info-chip">{antwoord.land}</span>}
-                {antwoord.studio && <span className="info-chip">{antwoord.studio}</span>}
-                {(antwoord.genres || []).map((g) => (
-                    <span key={g} className="info-chip">{g}</span>
+        <div className="kz-instelling">
+            <span className="kz-label">{label}</span>
+            <div className="kz-segment">
+                {opties.map(([w, tekst]) => (
+                    <button key={String(w)} type="button" className={waarde === w ? 'aan' : ''} onClick={() => onKies(w)}>{tekst}</button>
                 ))}
-            </div>
-            {antwoord.omschrijving && (
-                <p className="omschrijving">{antwoord.omschrijving}</p>
-            )}
-            {antwoord.tmdbUrl && (
-                <p><a className="terug" href={antwoord.tmdbUrl} target="_blank" rel="noreferrer">Bekijk film/serie ↗</a></p>
-            )}
-            <p className="dim">
-                {antwoord.tracknaam}
-                {antwoord.artiest ? ` — ${antwoord.artiest}` : ''}
-            </p>
-            </details>
             </div>
         </div>
     );
 }
 
-function Scorebord({ lijst, compact, eind, mijnId }) {
-    if (!lijst || lijst.length === 0) return null;
+export default function Host() {
+    const navigate = useNavigate();
+    const spel = useSpel();
+    const { sessie, fase, spelers, teams, lobbyInstellingen, audio, voorbereiding } = spel;
+    const spelerRef = useRef(null);
+    const [startBezig, setStartBezig] = useState(false);
+    const [qrGroot, setQrGroot] = useState(false);
+    const [geluidViaTv, setGeluidViaTvState] = useState(() => {
+        try { return localStorage.getItem(GELUID_SLEUTEL) === '1'; } catch { return false; }
+    });
+    const zetGeluidViaTv = (aan) => {
+        setGeluidViaTvState(aan);
+        try { localStorage.setItem(GELUID_SLEUTEL, aan ? '1' : '0'); } catch { /* */ }
+    };
+
+    useEffect(() => { if (!sessie) navigate('/'); }, [sessie, navigate]);
+    useEffect(() => { if (fase !== 'wachten' || spel.fout) setStartBezig(false); }, [fase, spel.fout]);
+    if (!sessie) return null;
+
+    const joinUrl = `${window.location.origin}/join/${sessie.code}`;
+    const tvUrl = `${window.location.origin}/tv/${sessie.code}`;
+
+    // Ontgrendel de audio tijdens de tik op Start (iOS wil eerst een tik).
+    async function start() {
+        if (startBezig || voorbereiding) return;
+        setStartBezig(true);
+        try { if (spelerRef.current) await spelerRef.current.ontgrendel(); } catch { /* geluid komt via tik */ }
+        try { spel.startSpel(); } catch { setStartBezig(false); }
+    }
+    const zet = (patch) => spel.bewaarLobbyInstellingen({ ...lobbyInstellingen, ...patch });
+
+    const speler = (
+        <HostPlayer ref={spelerRef} compact audio={audio} gedempt={geluidViaTv}
+            gepauzeerd={spel.gepauzeerd} onPauze={spel.pauzeer} onHervat={spel.hervat} onHerhaal={spel.herhaal} />
+    );
+
+    if (fase !== 'wachten') {
+        return (
+            <>
+                {speler}
+                <Speelbord spel={spel} onVerlaten={() => navigate('/')}
+                    hostBalk={<HostBalk spel={spel} geluidViaTv={geluidViaTv} onGeluid={zetGeluidViaTv} tvUrl={tvUrl} />} />
+            </>
+        );
+    }
+
+    const zonderTeam = spelers.filter((s) => !s.team_naam);
     return (
-        <ul className="scorebord" style={{ marginTop: compact ? '1.5rem' : '1rem' }}>
-            {lijst.map((s, i) => (
-                <li
-                    key={s.id}
-                    className={'score-rij' + (s.id === mijnId ? ' actief' : '') + (eind && i === 0 ? ' winnaar' : '')}
-                >
-                    <span className="score-plek">{i + 1}</span>
-                    <span className="score-naam">{s.naam}</span>
-                    {s.team_naam && <span className="dim score-team">{s.team_naam} · team {s.team_score ?? 0}</span>}
-                    <span className="score-punten">{s.score}</span>
-                </li>
-            ))}
-        </ul>
+        <main className="kz kz-hostlobby">
+            {speler}
+            <header className="kz-kop">
+                <span className="kz-teller">Lobby</span>
+                <span className="kz-kop-midden"><b className="kz-code">{sessie.code}</b></span>
+                <button type="button" className="kz-icoon" onClick={() => navigate('/')} aria-label="Naar start">×</button>
+            </header>
+            <div className="kz-lobby-raster">
+                <section className="kz-lobby-qr">
+                    <button type="button" className="kz-qr" onClick={() => setQrGroot(true)} aria-label="QR-code vergroten">
+                        <QRCodeSVG value={joinUrl} size={168} bgColor="#ffffff" fgColor="#111111" includeMargin />
+                    </button>
+                    <p className="kz-sub">Scan of ga naar <b>{window.location.host}</b> · code <b>{sessie.code}</b></p>
+                    <div className="kz-rij">
+                        <button type="button" className="kz-pil" onClick={() => {
+                            if (navigator.share) navigator.share({ title: 'VenTune', text: `Doe mee! Code ${sessie.code}`, url: joinUrl }).catch(() => {});
+                            else navigator.clipboard?.writeText(joinUrl).catch(() => {});
+                        }}>Delen</button>
+                        <a className="kz-pil" href={tvUrl} target="_blank" rel="noreferrer">Tv-scherm</a>
+                    </div>
+                </section>
+
+                <section className="kz-lobby-spelers">
+                    <div className="kz-lobby-kop">
+                        <span className="kz-label">Spelers · {spelers.length}</span>
+                        <span className="kz-rij kz-teams-knoppen">
+                            <span className="kz-label">Teams</span>
+                            {[2, 3, 4].map((n) => (
+                                <button key={n} type="button" className={'kz-pil klein' + (teams.length === n ? ' aan' : '')}
+                                    onClick={() => spel.verdeelTeams(n)} disabled={spelers.length < 2}>{n}</button>
+                            ))}
+                            {teams.length > 0 && (
+                                <button type="button" className="kz-pil klein" onClick={() => {
+                                    spel.bewaarLobbyInstellingen({ ...lobbyInstellingen, teams: [], spelvorm: lobbyInstellingen?.spelvorm === 'teams' ? 'tegen_elkaar' : lobbyInstellingen?.spelvorm });
+                                }}>Geen</button>
+                            )}
+                        </span>
+                    </div>
+                    <div className="kz-spelers-lijst">
+                        {teams.length > 0 ? (
+                            <>
+                                {teams.map((team) => (
+                                    <div key={team} className="kz-teamvak">
+                                        <strong>{team}</strong>
+                                        <div>{spelers.filter((s) => s.team_naam === team).map((s) => (
+                                            <span key={s.id} className={'kz-speler' + (s.verbonden ? '' : ' weg')}>{s.naam}{s.leeftijd ? <small>{s.leeftijd}</small> : null}</span>
+                                        ))}</div>
+                                    </div>
+                                ))}
+                                {zonderTeam.length > 0 && (
+                                    <div className="kz-teamvak"><strong>Nog geen team</strong>
+                                        <div>{zonderTeam.map((s) => <span key={s.id} className="kz-speler">{s.naam}</span>)}</div></div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="kz-spelers">
+                                {spelers.map((s) => (
+                                    <span key={s.id} className={'kz-speler' + (s.verbonden ? '' : ' weg')}>
+                                        {s.naam}{s.is_host ? <small>host</small> : s.leeftijd ? <small>{s.leeftijd}</small> : null}
+                                    </span>
+                                ))}
+                                {spelers.length <= 1 && <span className="kz-sub">Wachten op spelers…</span>}
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                <section className="kz-lobby-instellingen">
+                    <Keuze label="Antwoorden" waarde={lobbyInstellingen?.antwoord_modus === 'typen' ? 'typen' : 'meerkeuze'}
+                        opties={[['meerkeuze', 'Kiezen'], ['typen', 'Typen']]} onKies={(w) => zet({ antwoord_modus: w })} />
+                    <Keuze label="Tijd" waarde={Number(lobbyInstellingen?.speeltijd ?? 0)}
+                        opties={[[15, '15s'], [30, '30s'], [60, '1m'], [0, 'Heel']]} onKies={(w) => zet({ speeltijd: w })} />
+                    <Keuze label="Hints" waarde={lobbyInstellingen?.hints_aan !== false}
+                        opties={[[true, 'Aan'], [false, 'Uit']]} onKies={(w) => zet({ hints_aan: w })} />
+                    <Keuze label="Bonus" waarde={lobbyInstellingen?.bonusvragen_aan !== false}
+                        opties={[[true, 'Aan'], [false, 'Uit']]} onKies={(w) => zet({ bonusvragen_aan: w })} />
+                    <Keuze label="Geluid" waarde={geluidViaTv}
+                        opties={[[false, 'Hier'], [true, 'Via tv']]} onKies={zetGeluidViaTv} />
+                    <Keuze label="Leeftijd" waarde={lobbyInstellingen?.leeftijd_weging !== false}
+                        opties={[[true, 'Afstemmen'], [false, 'Gelijk']]} onKies={(w) => zet({ leeftijd_weging: w })} />
+                </section>
+            </div>
+
+            <footer className="kz-voet kz-start">
+                {spel.fout && <span className="kz-feedback fout">{spel.fout}</span>}
+                {(voorbereiding || startBezig) && !spel.fout && (
+                    <span className="kz-feedback">{voorbereiding?.totaal
+                        ? `Nummers klaarzetten ${voorbereiding.verwerkt || 0}/${voorbereiding.totaal}`
+                        : (voorbereiding?.melding || 'Voorbereiden…')}</span>
+                )}
+                <button className="knop kz-startknop" type="button" onClick={() => { spel.wisFout?.(); start(); }}
+                    disabled={spelers.length < 1 || !!voorbereiding || startBezig}>
+                    {voorbereiding || startBezig ? 'Even geduld…' : 'Start'}
+                </button>
+            </footer>
+
+            {qrGroot && (
+                <div className="kz-paneel-achter" role="dialog" aria-modal="true" aria-label="QR-code" onClick={() => setQrGroot(false)}>
+                    <div className="kz-qr-groot">
+                        <QRCodeSVG value={joinUrl} size={320} bgColor="#ffffff" fgColor="#111111" includeMargin />
+                        <p className="kz-code">{sessie.code}</p>
+                    </div>
+                </div>
+            )}
+        </main>
     );
 }
