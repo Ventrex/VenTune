@@ -1,0 +1,81 @@
+# =====================================================================
+# VenTune op een Synology met alleen Container Manager.
+#
+# Dit bestand bouwt VenTune direct vanaf GitHub; je hebt geen kopie van de
+# code op de Synology nodig.
+#   Installeren: Container Manager → Project → Maken → plak dit bestand.
+#   Bijwerken:   Container Manager → Project → ventune → Actie → Bouwen.
+#                (haalt de nieuwste code van GitHub en start opnieuw)
+#
+# Vul alleen de regels met VERANDER_DIT in.
+# MP3's komen in /volume1/Muziek/VenTune; de database in een Docker-volume.
+# Open daarna http://<ip-van-je-synology>:8091
+# =====================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ventune
+      POSTGRES_PASSWORD: VERANDER_DIT_db_wachtwoord
+      POSTGRES_DB: ventune
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ventune -d ventune"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:2.0.2
+    restart: unless-stopped
+
+  server:
+    build:
+      context: https://github.com/Ventrex/VenTune.git#main
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      bgutil-provider:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Zelfde db-wachtwoord als hierboven:
+      DATABASE_URL: postgres://ventune:VERANDER_DIT_db_wachtwoord@db:5432/ventune
+      APP_URL: https://ventune.ventrex.cc
+      SESSION_SECRET: VERANDER_DIT_lange_willekeurige_tekst_van_40_tekens
+      ADMIN_PASSWORD: VERANDER_DIT_beheer_wachtwoord
+      ITUNES_LAND: NL
+      TMDB_API_KEY: ""
+      IGDB_CLIENT_ID: ""
+      IGDB_CLIENT_SECRET: ""
+      DISCOGS_TOKEN: ""
+      MEDIA_DIR: /media
+      DOWNLOAD_DIR: /media/downloads
+      UPLOAD_DIR: /media/uploads
+      MEDIA_PAD: /volume1/Muziek/VenTune
+      CHATGPT_ENABLED: "true"
+      CODEX_HOME: /data/codex
+    volumes:
+      - /volume1/Muziek/VenTune:/media
+      - codexdata:/data/codex
+
+  client:
+    build:
+      context: https://github.com/Ventrex/VenTune.git#main:client
+    restart: unless-stopped
+    depends_on:
+      - server
+    volumes:
+      - /volume1/Muziek/VenTune:/srv/nas/media:ro
+    ports:
+      - "8091:80"
+
+volumes:
+  pgdata:
+  codexdata:
