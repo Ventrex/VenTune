@@ -408,7 +408,8 @@ async function stapMp3(inst) {
                COALESCE(t.categorie, t.type::text) AS categorie, t.nummer_naam, t.nummer_artiest,
                t.yt_zoekterm, t.nl_versie, t.mp3_afgekeurd, t.zoek_pogingen, t.handmatig
           FROM titels t
-         WHERE t.ai_status = 'klaar' AND t.curatie_status <> 'uitgesloten'
+         WHERE (t.ai_status = 'klaar' OR NULLIF(t.nummer_naam, '') IS NOT NULL)
+           AND t.curatie_status <> 'uitgesloten'
            AND NOT ${bank.HEEFT_MP3}
            AND t.zoek_status IN ('nieuw', 'geen_kandidaat', 'gevonden')
            AND (t.volgende_poging IS NULL OR t.volgende_poging < now())
@@ -1019,8 +1020,9 @@ async function lus() {
 
         const login = await codex.loginStatus().catch(() => ({ loggedIn: false }));
         if (!login.loggedIn) {
-            zet('wacht', 'ChatGPT is niet gekoppeld. Koppel ChatGPT in het overzicht.');
-            await slaap(60000);
+            // Zonder ChatGPT gaat het downloaden gewoon door: titels met een
+            // bekend nummer hebben geen AI meer nodig om een MP3 te vinden.
+            await alleenZonderAi('ChatGPT is niet gekoppeld (alleen nodig voor nieuwe titels, hints en vragen).', Date.now() + 60000);
             continue;
         }
 
@@ -1048,7 +1050,7 @@ async function lus() {
                 await bank.log(null, 'systeem', `ChatGPT-limiet bereikt (stap ${stap}), ${minuten} minuten pauze. Melding: ${err.message}`);
                 continue;
             }
-            if (err instanceof AiFout && err.login) { zet('wacht', err.message); await slaap(60000); continue; }
+            if (err instanceof AiFout && err.login) { await alleenZonderAi(err.message, Date.now() + 60000); continue; }
             status.laatsteFout = `${stap}: ${err.message}`;
             logger.waarschuwing('AI-curator stap mislukt', { stap, melding: err.message });
             await bank.log(null, 'fout', `Stap ${stap} mislukt: ${err.message}`);
